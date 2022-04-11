@@ -11,6 +11,7 @@
 #include "defs.h"
 #include "data.h"
 
+#if 0
 /*
  *      open input file
  */
@@ -24,7 +25,6 @@ int openin(char *p)
                 pl ("Open failure\n");
                 return (NO);
         }
-        do_kill();
         return (YES);
 
 }
@@ -39,7 +39,6 @@ int openout(void)
                 pl ("Open failure");
                 return (NO);
         }
-        do_kill();
         return (YES);
 
 }
@@ -80,108 +79,7 @@ int checkname(char *s)
         return (YES);
 
 }
-
-void do_kill(void) {
-        lptr = 0;
-        line[lptr] = 0;
-}
-
-int igetc(int unit)
-{
-        unsigned char c;
-        int err;
-        err = read(unit, &c, 1);
-        if (err == 1)
-                return (int)c;
-        if (err == 0) {
-                if (unit == input)
-                        input_eof = 1;
-                return -1;
-        }
-        writee("I/O error");
-        exit(1);
-}
-
-void readline(void) {
-        int k;
-        int unit;
-
-        FOREVER {
-                if (input_eof)
-                        return;
-                if ((unit = input2) == -1)
-                        unit = input;
-                do_kill();
-                while ((k = igetc(unit)) != EOF) {
-                        if ((k == CR) || (k == LF) | (lptr >= LINEMAX))
-                                break;
-                        line[lptr++] = k;
-                }
-                line[lptr] = 0;
-                if (k <= 0)
-                        if (input2 != -1) {
-                                input2 = inclstk[--inclsp];
-                                close (unit);
-                        }
-                if (lptr) {
-                        if ((ctext) & (cmode)) {
-                                gen_comment ();
-                                output_string (line);
-                                newline ();
-                        }
-                        lptr = 0;
-                        return;
-                }
-        }
-}
-
-int inbyte(void) {
-        while (ch () == 0) {
-                if (input_eof)
-                        return (0);
-                preprocess ();
-        }
-        return (gch ());
-}
-
-int inchar(void) {
-        if (ch () == 0)
-                readline ();
-        if (input_eof)
-                return (0);
-        return (gch ());
-}
-
-/**
- * gets current char from input line and moves to the next one
- * @return current char
- */
-int gch(void) {
-        if (ch () == 0)
-                return (0);
-        else
-                return (line[lptr++] & 127);
-}
-
-/**
- * returns next char
- * @return next char
- */
-int nch (void) {
-        if (ch () == 0)
-                return (0);
-        else
-                return (line[lptr + 1] & 127);
-}
-
-/**
- * returns current char
- * @return current char
- */
-int ch (void) {
-        return (line[lptr] & 127);
-}
-
+#endif
 /*
  *      print a carriage return and a string only to console
  *

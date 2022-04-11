@@ -15,23 +15,22 @@ int argtop;
  * modified version.  p.l. woods
  */
 void newfunc(void) {
-    char n[NAMESIZE];
+    unsigned n;
 
-    if (!symname(n)) {
+    if (!(n = symname())) {
         error("illegal function or declaration");
-        do_kill();
         return;
     }
-    if (!match("("))
+    if (!match(T_LPAREN))
         error("missing open paren");
     newfunc_typed(PUBLIC, n, CINT);
 }
 
-void newfunc_typed(int storage, char *n, int type)
+void newfunc_typed(int storage, unsigned n, int type)
 {
     int idx;
     SYMBOL *symbol;
-    char an[NAMESIZE];
+    unsigned an;
 
     fexitlab = getlabel();
 
@@ -53,12 +52,12 @@ void newfunc_typed(int storage, char *n, int type)
             return;
         }
         /* No body .. just a definition */
-        if (match(";"))
+        if (match(T_SEMICOLON))
             return;
     } else {
         // K&R style argument declaration
-        while (!match(")")) {
-            if (symname(an)) {
+        while (!match(T_RPAREN)) {
+            if ((an = symname()) != 0) {
                 if (find_locale(an) > -1)
                     multidef(an);
                 else {
@@ -70,9 +69,9 @@ void newfunc_typed(int storage, char *n, int type)
                 error("illegal argument name");
                 junk();
             }
-            blanks();
-            if (!streq(line + lptr, ")")) {
-                if (!match(","))
+            /* FIXME: line + lptr stuff */
+            if (token != T_RPAREN) {
+                if (!match(T_COMMA))
                     error("expected comma");
             }
             if (endst())
@@ -83,7 +82,7 @@ void newfunc_typed(int storage, char *n, int type)
             return;
         }
         /* No body .. just a definition */
-        if (match(";"))
+        if (match(T_SEMICOLON))
             return;
         stkp = 0;
         argtop = argstk;
@@ -126,26 +125,26 @@ void newfunc_typed(int storage, char *n, int type)
  */
 void getarg(int t) {
     int j, legalname, address, argptr;
-    char n[NAMESIZE];
 
     FOREVER
     {
         if (argstk == 0)
             return;
-        if (match("*"))
+        if (match(T_STAR))
             j = POINTER;
         else
             j = VARIABLE;
-        if (!(legalname = symname(n)))
+        if (!(legalname = symname()))
             illname();
-        if (match("[")) {
-            while (inbyte() != ']')
+        if (match(T_LSQUARE)) {
+            /* Ick.. FIXME */
+            while (token != T_RSQUARE)
                 if (endst())
                     break;
             j = POINTER;
         }
         if (legalname) {
-            if ((argptr = find_locale(n)) > -1) {
+            if ((argptr = find_locale(legalname)) > -1) {
                 symbol_table[argptr].identity = j;
                 symbol_table[argptr].type = t;
                 address = argtop - symbol_table[argptr].offset;
@@ -156,7 +155,7 @@ void getarg(int t) {
         argstk = argstk - INTSIZE;
         if (endst())
             return;
-        if (!match(","))
+        if (!match(T_COMMA))
             error("expected comma");
     }
 }
@@ -178,11 +177,11 @@ int doAnsiArguments(void) {
             error("wrong number of args");
             break;
         }
-        if (match(",")) {
+        if (match(T_COMMA)) {
             type = get_type();
             continue;
         }
-        if (match(")")) {
+        if (match(T_RPAREN)) {
             break;
         }
     }
@@ -190,10 +189,10 @@ int doAnsiArguments(void) {
 }
 
 void doLocalAnsiArgument(int type) {
-    char symbol_name[NAMESIZE];
+    unsigned symbol_name;
     int identity, address, argptr, ptr;
 
-    if (match("*")) {
+    if (match(T_STAR)) {
         identity = POINTER;
     } else {
         if (type == STRUCT) {
@@ -204,7 +203,7 @@ void doLocalAnsiArgument(int type) {
         if (type == VOID)
             return;
     }
-    if (symname(symbol_name)) {
+    if ((symbol_name = symname()) != 0) {
         if (find_locale(symbol_name) > -1) {
             multidef(symbol_name);
         } else {
@@ -222,8 +221,9 @@ void doLocalAnsiArgument(int type) {
         error("illegal argument name");
         junk();
     }
-    if (match("[")) {
-        while (inbyte() != ']') {
+    if (match(T_LSQUARE)) {
+        /* Ick also */
+        while (token != T_RSQUARE) {
             if (endst()) {
                 break;
             }

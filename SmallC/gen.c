@@ -41,7 +41,7 @@ void print_label(int label) {
  * glabel - generate label
  * @param lab label number
  */
-void glabel(char *lab) {
+void glabel(unsigned lab) {
     output_label_name(lab);
     output_label_terminator ();
     newline ();
@@ -134,6 +134,22 @@ void output_decimal(int number) {
 }
 
 /**
+ * outputs a name (symbol code)
+ * @param ptr the name
+ * @return
+ *
+ * In the real world not experiments this would get back subsituted for the
+ * token name
+ */
+void output_name(unsigned name) {
+    int k;
+    k = 0;
+    output_byte('%');
+    output_byte('%');
+    output_decimal(name - 0x8000);
+}
+
+/**
  * stores values into memory
  * @param lval
  * @return 
@@ -160,9 +176,9 @@ int rvalue(LVALUE *lval, int reg) {
  * @return 
  */
 void test(int label, int ft) {
-    needbrack ("(");
+    needbrack (T_LPAREN);
     expression (YES);
-    needbrack (")");
+    needbrack (T_RPAREN);
     gen_test_jump (label, ft);
 }
 

@@ -12,12 +12,12 @@
  * @param sname
  * @return index
  */
-int find_tag(char *sname) {
+int find_tag(unsigned sname) {
     int index;
     
     index = 0;
     while (index < tag_table_index) {
-        if (astreq (sname, tag_table[index].name, NAMEMAX)) {
+        if (sname == tag_table[index].name) {
             return index;
         }
         ++index;
@@ -31,13 +31,13 @@ int find_tag(char *sname) {
  * @param sname
  * @return pointer to member symbol if it is, else 0
  */
-SYMBOL *find_member(TAG_SYMBOL *tag, char *sname) {
+SYMBOL *find_member(TAG_SYMBOL *tag, unsigned sname) {
     int member_idx;
 
     member_idx = tag->member_idx;
 
     while (member_idx < tag->member_idx + tag->number_of_members) {
-        if (strcmp(member_table[member_idx].name, sname) == 0)
+        if (member_table[member_idx].name == sname)
             return &member_table[member_idx];
         ++member_idx;
     }
@@ -53,16 +53,14 @@ SYMBOL *find_member(TAG_SYMBOL *tag, char *sname) {
  * @param storage
  * @return 
  */
-void add_member(char *sname, char identity, char type, int offset, int storage_class) {
-    char *buffer_ptr;
+void add_member(unsigned sname, char identity, char type, int offset, int storage_class) {
     SYMBOL *symbol;
     if (member_table_index >= NUMMEMB) {
         error("symbol table overflow");
         return;
     }
     symbol = &member_table[member_table_index];
-    buffer_ptr = symbol->name;
-    while (alphanumeric(*buffer_ptr++ = *sname++));
+    symbol->name = sname;
     symbol->identity = identity;
     symbol->type = type;
     symbol->storage = storage_class;
@@ -71,9 +69,8 @@ void add_member(char *sname, char identity, char type, int offset, int storage_c
     member_table_index++;
 }
 
-int define_struct(char *sname, int storage, int is_struct) {
+int define_struct(unsigned sname, int storage, int is_struct) {
     TAG_SYMBOL *symbol;
-    char *buffer_ptr;
 
     //tag_table_index++;
     if (tag_table_index >= NUMTAG) {
@@ -81,15 +78,14 @@ int define_struct(char *sname, int storage, int is_struct) {
         return 0;
     }
     symbol = &tag_table[tag_table_index];
-    buffer_ptr = symbol->name;
-    while (alphanumeric(*buffer_ptr++ = *sname++));
+    symbol->name = sname;
     symbol->size = 0;
     symbol->member_idx = member_table_index;
 
-    needbrack("{");
+    needbrack(T_LCURLY);
     do {
         do_declarations(storage, &tag_table[tag_table_index], is_struct);
-    } while (!match ("}"));
+    } while (!match (T_RCURLY));
     symbol->number_of_members = member_table_index - symbol->member_idx;
     return tag_table_index++;
 }

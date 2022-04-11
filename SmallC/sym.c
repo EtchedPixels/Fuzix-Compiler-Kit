@@ -17,21 +17,21 @@
  */
 int declare_global(int type, int storage, TAG_SYMBOL *mtag, int otag, int is_struct) {
     int     dim, identity;
-    char    sname[NAMESIZE];
+    unsigned    sname;
 
     FOREVER {
         FOREVER {
             if (endst ())
                 return 0;
             dim = 1;
-            if (match ("*")) {
+            if (match (T_STAR)) {
                 identity = POINTER;
             } else {
                 identity = VARIABLE;
             }
-            if (!symname (sname))
+            if (!(sname = symname()))
                 illname ();
-            if (match ("(")) {
+            if (match (T_LPAREN)) {
                 /* FIXME: We need to deal with pointer types properly here */
                 if (identity == POINTER)
                     type = CINT;
@@ -44,7 +44,7 @@ int declare_global(int type, int storage, TAG_SYMBOL *mtag, int otag, int is_str
                 multidef (sname);
             if (identity == VARIABLE)
                 notvoid(type);
-            if (match ("[")) {
+            if (match (T_LSQUARE)) {
                 dim = needsub ();
                 //if (dim || storage == EXTERN) {
                     identity = ARRAY;
@@ -80,7 +80,7 @@ int declare_global(int type, int storage, TAG_SYMBOL *mtag, int otag, int is_str
                     mtag->size = dim;
             }
         }
-        if (!match (","))
+        if (!match (T_COMMA))
             return 0;
     }
 }
@@ -93,7 +93,7 @@ int declare_global(int type, int storage, TAG_SYMBOL *mtag, int otag, int is_str
  * @param dim
  * @return 1 if variable is initialized
  */
-int initials(char *symbol_name, int type, int identity, int dim, int otag) {
+int initials(unsigned symbol_name, int type, int identity, int dim, int otag) {
     int dim_unknown = 0;
     int n;
 
@@ -105,9 +105,9 @@ int initials(char *symbol_name, int type, int identity, int dim, int otag) {
     }
     data_segment_gdata();
     glabel(symbol_name);
-    if(match("=")) {
+    if(match(T_EQ)) {
         // an array or struct
-        if(match("{")) {
+        if(match(T_LCURLY)) {
             // aggregate initialiser
             if ((identity == POINTER || identity == VARIABLE) && type == STRUCT) {
                 // aggregate is structure or pointer to structure
@@ -118,17 +118,17 @@ int initials(char *symbol_name, int type, int identity, int dim, int otag) {
                 while((dim > 0) || (dim_unknown)) {
                     if (identity == ARRAY && type == STRUCT) {
                         // array of struct
-                        needbrack("{");
+                        needbrack(T_LCURLY);
                         struct_init(&tag_table[otag], symbol_name);
                         --dim;
-                        needbrack("}");
+                        needbrack(T_RCURLY);
                     }
                     else {
                         if (init(symbol_name, type, identity, &dim, 0)) {
                             dim_unknown++;
                         }
                     }
-                    if(match(",") == 0) {
+                    if(match(T_COMMA) == 0) {
                         break;
                     }
                 }
@@ -148,7 +148,7 @@ int initials(char *symbol_name, int type, int identity, int dim, int otag) {
                     newline();
                 }
             }
-            needbrack("}");
+            needbrack(T_RCURLY);
         // single constant
         } else {
             init(symbol_name, type, identity, &dim, 0);
@@ -162,7 +162,7 @@ int initials(char *symbol_name, int type, int identity, int dim, int otag) {
  * initialise structure
  * @param tag
  */
-void struct_init(TAG_SYMBOL *tag, char *symbol_name) {
+void struct_init(TAG_SYMBOL *tag, unsigned symbol_name) {
 	int dim ;
 	int member_idx;
 	int size = tag->size;
@@ -173,7 +173,7 @@ void struct_init(TAG_SYMBOL *tag, char *symbol_name) {
                         member_table[tag->member_idx + member_idx].identity, &dim, tag);
 		++member_idx;
 		/* FIXME:  not an error - zero rest */
-		if ((match(",") == 0) && (member_idx != (tag->member_idx + tag->number_of_members))) {
+		if ((match(T_COMMA) == 0) && (member_idx != (tag->member_idx + tag->number_of_members))) {
 		    gen_def_storage();
 		    output_number(size);
 		    newline();
@@ -193,7 +193,7 @@ void struct_init(TAG_SYMBOL *tag, char *symbol_name) {
  *	returns size of initializer, or 0 for none (a null string is size 1)
  *
  */
-int init(char *symbol_name, int type, int identity, int *dim, TAG_SYMBOL *tag) {
+int init(unsigned symbol_name, int type, int identity, int *dim, TAG_SYMBOL *tag) {
     int value, n;
 
     /* A pointer is initialized as a word holding the address of the struct
@@ -219,7 +219,7 @@ int init(char *symbol_name, int type, int identity, int *dim, TAG_SYMBOL *tag) {
         gen_def_byte();
     else
         gen_def_word();
-    if (!number(&value) && !quoted_char(&value))
+    if (!number(&value))
         return 0;
     *dim = *dim - 1;
     output_number(value);
@@ -237,21 +237,21 @@ int init(char *symbol_name, int type, int identity, int *dim, TAG_SYMBOL *tag) {
  */
 void declare_local(int typ, int stclass, int otag) {
     int     k, j;
-    char    sname[NAMESIZE];
+    unsigned sname;
 
     FOREVER {
         FOREVER {
             if (endst())
                 return;
-            if (match("*"))
+            if (match(T_STAR))
                 j = POINTER;
             else
                 j = VARIABLE;
-            if (!symname(sname))
+            if (!(sname = symname()))
                 illname();
             if (-1 != find_locale(sname))
                 multidef (sname);
-            if (match("[")) {
+            if (match(T_LSQUARE)) {
                 k = needsub();
                 if (k) {
                     j = ARRAY;
@@ -292,7 +292,7 @@ void declare_local(int typ, int stclass, int otag) {
                     break;
                 }
             }
-            if (match("=")) {
+            if (match(T_EQ)) {
                 gen_modify_stack(stkp);
                 expression(0);
                 gen_push(0);
@@ -301,7 +301,7 @@ void declare_local(int typ, int stclass, int otag) {
             add_local(sname, j, typ, stkp, AUTO);
             break;
         }
-        if (!match(","))
+        if (!match(T_COMMA))
             return;
     }
 }
@@ -313,7 +313,7 @@ void declare_local(int typ, int stclass, int otag) {
 int needsub(void) {
     int num[1];
 
-    if (match ("]"))
+    if (match (T_RSQUARE))
         return (0);
     if (!number (num)) {
         error ("must be constant");
@@ -323,7 +323,7 @@ int needsub(void) {
         error ("negative size illegal");
         num[0] = (-num[0]);
     }
-    needbrack ("]");
+    needbrack (T_RSQUARE);
     return (num[0]);
 }
 
@@ -332,12 +332,12 @@ int needsub(void) {
  * @param sname
  * @return table index
  */
-int find_global (char *sname) {
+int find_global (unsigned sname) {
     int idx;
 
     idx = 0;
     while (idx < global_table_index) {
-        if (astreq (sname, symbol_table[idx].name, NAMEMAX))
+        if (sname == symbol_table[idx].name)
             return (idx);
         idx++;
     }
@@ -349,13 +349,13 @@ int find_global (char *sname) {
  * @param sname
  * @return table index
  */
-int find_locale (char *sname) {
+int find_locale (unsigned sname) {
     int idx;
 
     idx = local_table_index;
     while (idx >= NUMBER_OF_GLOBALS) {
         idx--;
-        if (astreq (sname, symbol_table[idx].name, NAMEMAX))
+        if (sname == symbol_table[idx].name)
             return (idx);
     }
     return (-1);
@@ -370,7 +370,7 @@ int find_locale (char *sname) {
  * @param storage
  * @return new index
  */
-int add_global (char *sname, int identity, int type, int offset, int storage) {
+int add_global (unsigned sname, int identity, int type, int offset, int storage) {
     SYMBOL *symbol;
     char *buffer_ptr;
     if ((current_symbol_table_idx = find_global(sname)) > -1) {
@@ -382,9 +382,7 @@ int add_global (char *sname, int identity, int type, int offset, int storage) {
     }
     current_symbol_table_idx = global_table_index;
     symbol = &symbol_table[current_symbol_table_idx];
-    buffer_ptr = symbol->name;
-    /* FIXME: only copy so many bytes */
-    while (alphanumeric(*buffer_ptr++ = *sname++));
+    symbol->name = sname;
     symbol->identity = identity;
     symbol->type = type;
     symbol->storage = storage;
@@ -402,7 +400,7 @@ int add_global (char *sname, int identity, int type, int offset, int storage) {
  * @param storage_class
  * @return 
  */
-int add_local (char *sname, int identity, int type, int offset, int storage_class) {
+int add_local (unsigned sname, int identity, int type, int offset, int storage_class) {
     int k;
     SYMBOL *symbol;
     char *buffer_ptr;
@@ -416,9 +414,7 @@ int add_local (char *sname, int identity, int type, int offset, int storage_clas
     }
     current_symbol_table_idx = local_table_index;
     symbol = &symbol_table[current_symbol_table_idx];
-    buffer_ptr = symbol->name;
-    /* FIXME: only copy so many bytes */
-    while (alphanumeric(*buffer_ptr++ = *sname++));
+    symbol->name = sname;
     symbol->identity = identity;
     symbol->type = type;
     symbol->storage = storage_class;
@@ -440,21 +436,16 @@ int add_local (char *sname, int identity, int type, int offset, int storage_clas
 /**
  * test if next input string is legal symbol name
  */
-int symname(char *sname) {
-    int k;
 
-    blanks();
-    if (!alpha (ch ()))
-        return (0);
-    k = 0;
-    while (alphanumeric(ch ()))
-        if (k < NAMEMAX)
-            sname[k++] = gch ();
-        else
-            gch();
+#define IS_SYMBOL(x)	((x) & 0x8000)
 
-    sname[k] = 0;
-    return (1);
+unsigned symname(void) {
+    if (IS_SYMBOL(token)) {
+        unsigned n = token;
+        next_token();
+        return n;
+    }
+    return 0;
 }
 
 /**
@@ -469,10 +460,10 @@ void illname(void) {
  * @param symbol_name
  * @return 
  */
-void multidef(char *symbol_name) {
+void multidef(unsigned symbol_name) {
     error ("already defined");
     gen_comment ();
-    output_string (symbol_name);
+    output_name (symbol_name);
     newline ();
 }
 

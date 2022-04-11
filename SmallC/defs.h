@@ -29,7 +29,7 @@
 #endif
 
 struct symbol {
-	char name[NAMESIZE];	// symbol name
+	unsigned name;		// Name is now a token value
 	unsigned char identity;       // variable, array, pointer, function
 	unsigned char storage;        // public, auto, extern, static, lstatic, defauto
 	int type;               // char, int, uchar, unit
@@ -45,7 +45,7 @@ struct symbol {
 #define NUMTAG		10
 
 struct tag_symbol {
-	char name[NAMESIZE];    // structure tag name
+	unsigned name;		// structure tag name (token code)
 	int size;               // size of struct in bytes
 	int member_idx;         // index of first member
 	int number_of_members;  // number of tag members
@@ -226,7 +226,7 @@ void gen_put_memory(SYMBOL *sym);
 /* For arrays we need to use the type and point the type at the object
    info so we can do multi-dimensional arrays properly */
 struct initials_table {
-	char name[NAMESIZE];	// symbol name
+	unsigned name;		// symbol name
 	int type;               // type
 	int dim;                // length of data (possibly an array)
     int data_len;               // index of tag or zero
@@ -239,6 +239,11 @@ struct initials_table {
  * @param sname
  * @return pointer to member symbol if it is, else 0
  */
-SYMBOL *find_member(TAG_SYMBOL *tag, char *sname);
+SYMBOL *find_member(TAG_SYMBOL *tag, unsigned name);
 
 #include "prototype.h"
+
+#include "tokens.h"
+
+extern unsigned token;
+extern unsigned token_value;

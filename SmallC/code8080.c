@@ -22,13 +22,7 @@
  * print all assembler info before any code is generated
  */
 void header (void) {
-    output_string ("; Small C 8080\n;\tCoder (2.4,84/11/27)\n;");
-    frontend_version();
     newline ();
-    output_line ("\t;program area SMALLC_GENERATED is RELOCATABLE");
-    output_line ("\t.module SMALLC_GENERATED");
-    output_line ("\t.list   (err, loc, bin, eqt, cyc, lin, src, lst, md)");
-    output_line ("\t.nlist  (pag)");
 }
 
 /**
@@ -36,24 +30,17 @@ void header (void) {
  * @return 
  */
 void newline (void) {
-#if __CYGWIN__ == 1
-    output_byte (CR);
-#endif
     output_byte (LF);
 }
 
 void initmac(void) {
-    defmac("cpm\t1");
-    defmac("I8080\t1");
-    defmac("RMAC\t1");
-    defmac("smallc\t1");
 }
 
 /**
  * Output internal generated label prefix
  */
 void output_label_prefix(void) {
-    output_byte('$');
+    output_byte('L');
 }
 
 /**
@@ -66,10 +53,10 @@ void output_label_terminator (void) {
 /**
  * Output a C label with leading _
  */
-void output_label_name(char *p)
+void output_label_name(unsigned sym)
 {
     output_byte('_');
-    output_string(p);
+    output_name(sym);
 }
 
 /**
@@ -90,14 +77,14 @@ void trailer(void) {
  * text (code) segment
  */
 void code_segment_gtext(void) {
-    output_line ("\t.area  SMALLC_GENERATED  (REL,CON,CSEG)");
+    output_line ("\t.code");
 }
 
 /**
  * data segment
  */
 void data_segment_gdata(void) {
-    output_line ("\t.area  SMALLC_GENERATED_DATA  (REL,CON,DSEG)");
+    output_line ("\t.data");
 }
 
 /**
@@ -106,9 +93,11 @@ void data_segment_gdata(void) {
  */
 void ppubext(SYMBOL *scptr)  {
     if (symbol_table[current_symbol_table_idx].storage == STATIC) return;
-    output_with_tab (scptr->storage == EXTERN ? ";extrn\t" : ".globl\t");
-    output_string (scptr->name);
-    newline();
+    if (scptr->storage != EXTERN) {
+        output_with_tab(".globl\t");
+        output_name (scptr->name);
+        newline();
+    }
 }
 
 /**
@@ -117,9 +106,11 @@ void ppubext(SYMBOL *scptr)  {
  */
 void fpubext(SYMBOL *scptr) {
     if (scptr->storage == STATIC) return;
-    output_with_tab (scptr->offset == FUNCTION ? ".globl\t" : ";extrn\t");
-    output_string (scptr->name);
-    newline ();
+    if (scptr->offset == FUNCTION) {
+        output_with_tab (".globl\t");
+        output_name (scptr->name);
+        newline ();
+    }
 }
 
 /**
@@ -127,7 +118,6 @@ void fpubext(SYMBOL *scptr) {
  * @param num
  */
 void output_number(int num) {
-    output_byte('#');
     output_decimal(num);
 }
 
@@ -148,12 +138,12 @@ void gen_get_memory(SYMBOL *sym) {
     if ((sym->identity != POINTER) && (sym->type == CCHAR)) {
         output_with_tab ("lda\t");
         describe_access(sym);
-        gen_call ("ccsxt");
+        gen_icall ("ccsxt");
     } else if ((sym->identity != POINTER) && (sym->type == UCHAR)) {
         output_with_tab("lda\t");
         describe_access(sym);
         output_line("mov \tl,a");
-        output_line("mvi \th,#0");
+        output_line("mvi \th,0");
     } else {
         output_with_tab ("lhld\t");
         describe_access(sym);
@@ -173,6 +163,7 @@ int gen_get_locale(SYMBOL *sym) {
         newline();
         return HL_REG;
     } else {
+        /* FIXME: range check the 8085 modes */
         if (uflag && !(sym->identity == ARRAY)) {// ||
                 //(sym->identity == VARIABLE && sym->type == STRUCT))) {
             /* 8085 */
@@ -219,7 +210,7 @@ void gen_put_indirect(char typeobj) {
         if (uflag) {
             output_line("shlx");
         } else {
-            gen_call("ccpint");
+            gen_icall("ccpint");
         }
     }
 }
@@ -234,7 +225,7 @@ void gen_get_indirect(char typeobj, int reg) {
         if (reg & DE_REG) {
             gen_swap();
         }
-        gen_call("ccgchar");
+        gen_icall("ccgchar");
     } else if (typeobj == UCHAR) {
         if (reg & DE_REG) {
             gen_swap();
@@ -249,7 +240,7 @@ void gen_get_indirect(char typeobj, int reg) {
             }
             output_line("lhlx");
         } else {
-            gen_call("ccgint");
+            gen_icall("ccgint");
         }
     }
 }
@@ -313,17 +304,28 @@ void gen_swap_stack(void) {
  * call the specified subroutine name
  * @param sname subroutine name
  */
-void gen_call(char *sname) {
+void gen_call(unsigned sname) {
+    output_with_tab ("call\t");
+    output_name (sname);
+    newline ();
+}
+
+/**
+ * call the specified subroutine string
+ * @param sname subroutine name
+ */
+void gen_icall(char *sname) {
     output_with_tab ("call\t");
     output_string (sname);
     newline ();
 }
 
+
 /**
  * declare entry point
  */
-void declare_entry_point(char *symbol_name) {
-    output_string(symbol_name);
+void declare_entry_point(unsigned symbol_name) {
+    output_name(symbol_name);
     output_label_terminator();
     //newline();
 }
@@ -508,7 +510,7 @@ void gen_add(LVALUE *lval, LVALUE *lval2) {
  */
 void gen_sub(void) {
     gen_pop ();
-    gen_call ("ccsub");
+    gen_icall ("ccsub");
 }
 
 /**
@@ -516,7 +518,7 @@ void gen_sub(void) {
  */
 void gen_mult(void) {
     gen_pop();
-    gen_call ("ccmul");
+    gen_icall ("ccmul");
 }
 
 /**
@@ -525,7 +527,7 @@ void gen_mult(void) {
  */
 void gen_div(void) {
     gen_pop();
-    gen_call ("ccdiv");
+    gen_icall ("ccdiv");
 }
 
 /**
@@ -534,7 +536,7 @@ void gen_div(void) {
  */
 void gen_udiv(void) {
     gen_pop();
-    gen_call ("ccudiv");
+    gen_icall ("ccudiv");
 }
 
 /**
@@ -562,7 +564,7 @@ void gen_umod(void) {
  */
 void gen_or(void) {
     gen_pop();
-    gen_call ("ccor");
+    gen_icall ("ccor");
 }
 
 /**
@@ -570,7 +572,7 @@ void gen_or(void) {
  */
 void gen_xor(void) {
     gen_pop();
-    gen_call ("ccxor");
+    gen_icall ("ccxor");
 }
 
 /**
@@ -578,7 +580,7 @@ void gen_xor(void) {
  */
 void gen_and(void) {
     gen_pop();
-    gen_call ("ccand");
+    gen_icall ("ccand");
 }
 
 /**
@@ -587,7 +589,7 @@ void gen_and(void) {
  */
 void gen_arithm_shift_right(void) {
     gen_pop();
-    gen_call ("ccasr");
+    gen_icall ("ccasr");
 }
 
 /**
@@ -596,7 +598,7 @@ void gen_arithm_shift_right(void) {
  */
 void gen_logical_shift_right(void) {
     gen_pop();
-    gen_call ("cclsr");
+    gen_icall ("cclsr");
 }
 
 /**
@@ -605,35 +607,35 @@ void gen_logical_shift_right(void) {
  */
 void gen_arithm_shift_left(void) {
     gen_pop ();
-    gen_call ("ccasl");
+    gen_icall ("ccasl");
 }
 
 /**
  * two's complement of primary register
  */
 void gen_twos_complement(void) {
-    gen_call ("ccneg");
+    gen_icall ("ccneg");
 }
 
 /**
  * logical complement of primary register
  */
 void gen_logical_negation(void) {
-    gen_call ("cclneg");
+    gen_icall ("cclneg");
 }
 
 /**
  * one's complement of primary register
  */
 void gen_complement(void) {
-    gen_call ("cccom");
+    gen_icall ("cccom");
 }
 
 /**
  * Convert primary value into logical value (0 if 0, 1 otherwise)
  */
 void gen_convert_primary_reg_value_to_bool(void) {
-    gen_call ("ccbool");
+    gen_icall ("ccbool");
 }
 
 /**
@@ -698,7 +700,7 @@ void gen_decrement_primary_reg(LVALUE *lval) {
  */
 void gen_equal(void) {
     gen_pop();
-    gen_call ("cceq");
+    gen_icall ("cceq");
 }
 
 /**
@@ -706,7 +708,7 @@ void gen_equal(void) {
  */
 void gen_not_equal(void) {
     gen_pop();
-    gen_call ("ccne");
+    gen_icall ("ccne");
 }
 
 /**
@@ -714,7 +716,7 @@ void gen_not_equal(void) {
  */
 void gen_less_than(void) {
     gen_pop();
-    gen_call ("cclt");
+    gen_icall ("cclt");
 }
 
 /**
@@ -722,7 +724,7 @@ void gen_less_than(void) {
  */
 void gen_less_or_equal(void) {
     gen_pop();
-    gen_call ("ccle");
+    gen_icall ("ccle");
 }
 
 /**
@@ -730,7 +732,7 @@ void gen_less_or_equal(void) {
  */
 void gen_greater_than(void) {
     gen_pop();
-    gen_call ("ccgt");
+    gen_icall ("ccgt");
 }
 
 /**
@@ -738,7 +740,7 @@ void gen_greater_than(void) {
  */
 void gen_greater_or_equal(void) {
     gen_pop();
-    gen_call ("ccge");
+    gen_icall ("ccge");
 }
 
 /**
@@ -746,7 +748,7 @@ void gen_greater_or_equal(void) {
  */
 void gen_unsigned_less_than(void) {
     gen_pop();
-    gen_call ("ccult");
+    gen_icall ("ccult");
 }
 
 /**
@@ -754,7 +756,7 @@ void gen_unsigned_less_than(void) {
  */
 void gen_unsigned_less_or_equal(void) {
     gen_pop();
-    gen_call ("ccule");
+    gen_icall ("ccule");
 }
 
 /**
@@ -762,7 +764,7 @@ void gen_unsigned_less_or_equal(void) {
  */
 void gen_usigned_greater_than(void) {
     gen_pop();
-    gen_call ("ccugt");
+    gen_icall ("ccugt");
 }
 
 /**
@@ -770,7 +772,7 @@ void gen_usigned_greater_than(void) {
  */
 void gen_unsigned_greater_or_equal(void) {
     gen_pop();
-    gen_call ("ccuge");
+    gen_icall ("ccuge");
 }
 
 char *inclib(void) {
@@ -831,7 +833,7 @@ void gen_multiply(int type, int size) {
             gen_immediate2();
             output_number(size);
             newline();
-            gen_call("ccmul");
+            gen_icall("ccmul");
             break ;
         default:
             break;

@@ -16,17 +16,17 @@
  * @return statement type
  */
 int statement(int func) {
-    if ((ch () == 0) && input_eof)
-        return (0);
+    if (token == T_EOF)
+        return 0;
     lastst = 0;
     if (func) {
-        if (match ("{")) {
+        if (match (T_LCURLY)) {
             do_compound (YES);
             return (lastst);
         } else
             error ("function requires compound statement");
     }
-    if (match ("{"))
+    if (match (T_LCURLY))
         do_compound (NO);
     else {
         do_statement ();
@@ -39,11 +39,11 @@ int statement(int func) {
  * declaration
  */
 int statement_declare(void) {
-    if (amatch("register", 8))
+    if (match(T_REGISTER))
         do_local_declares(REGISTER);
-    else if (amatch("auto", 4))
+    else if (match(T_AUTO))
         do_local_declares(DEFAUTO);
-    else if (amatch("static", 6))
+    else if (match(T_STATIC))
         do_local_declares(LSTATIC);
     else if (do_local_declares(AUTO)) ;
     else
@@ -60,10 +60,10 @@ int do_local_declares(int stclass) {
     int type = 0;
     int otag;   // tag of struct object being declared
     int sflag;  // TRUE for struct definition, zero for union
-    char sname[NAMESIZE];
-    blanks();
-    if ((sflag=amatch("struct", 6)) || amatch("union", 5)) {
-        if (symname(sname) == 0) { // legal name ?
+    unsigned sname;
+
+    if ((sflag=match(T_STRUCT)) || match(T_UNION)) {
+        if ((sname = symname()) == 0) { // legal name ?
             illname();
         }
         if ((otag=find_tag(sname)) == -1) { // structure not previously defined
@@ -85,46 +85,48 @@ int do_local_declares(int stclass) {
  * non-declaration statement
  */
 void do_statement(void) {
-    if (amatch ("if", 2)) {
+    if (match (T_IF)) {
         doif ();
         lastst = STIF;
-    } else if (amatch ("while", 5)) {
+    } else if (match (T_WHILE)) {
         dowhile ();
         lastst = STWHILE;
-    } else if (amatch ("switch", 6)) {
+    } else if (match (T_SWITCH)) {
         doswitch ();
         lastst = STSWITCH;
-    } else if (amatch ("do", 2)) {
+    } else if (match (T_DO)) {
         dodo ();
         need_semicolon ();
         lastst = STDO;
-    } else if (amatch ("for", 3)) {
+    } else if (match (T_FOR)) {
         dofor ();
         lastst = STFOR;
-    } else if (amatch ("return", 6)) {
+    } else if (match (T_RETURN)) {
         doreturn ();
         need_semicolon ();
         lastst = STRETURN;
-    } else if (amatch ("break", 5)) {
+    } else if (match (T_BREAK)) {
         dobreak ();
         need_semicolon ();
         lastst = STBREAK;
-    } else if (amatch ("continue", 8)) {
+    } else if (match (T_CONTINUE)) {
         docont();
         need_semicolon ();
         lastst = STCONT;
-    } else if (match (";"))
+    } else if (match (T_SEMICOLON))
         ;
-    else if (amatch ("case", 4)) {
+    else if (match (T_CASE)) {
         docase ();
         lastst = statement (NO);
-    } else if (amatch ("default", 7)) {
+    } else if (match (T_DEFAULT)) {
         dodefault ();
         lastst = statement (NO);
+#if 0
     } else if (match ("#asm")) {
         doasm ();
         lastst = STASM;
-    } else if (match ("{"))
+#endif
+    } else if (match (T_LCURLY))
         do_compound (NO);
     else {
         expression (YES);
@@ -149,7 +151,7 @@ void do_compound(int func) {
 
         decls = YES;
         ncmp++;
-        while (!match ("}")) {
+        while (!match (T_RCURLY)) {
                 if (input_eof)
                         return;
                 if (decls) {
@@ -180,7 +182,7 @@ void doif(void) {
         statement (NO);
         stkp = gen_modify_stack (fstkp);
         local_table_index = flev;
-        if (!amatch ("else", 4)) {
+        if (!match (T_ELSE)) {
                 generate_label (flab1);
                 return;
         }
@@ -229,7 +231,7 @@ void dodo(void) {
         addwhile (&ws);
         generate_label (ws.body_tab);
         statement (NO);
-        if (!match ("while")) {
+        if (!match (T_WHILE)) {
                 error ("missing while");
                 return;
         }
@@ -257,14 +259,14 @@ void dofor(void) {
         ws.while_exit = getlabel ();
         addwhile (&ws);
         pws = readwhile ();
-        needbrack ("(");
-        if (!match (";")) {
+        needbrack (T_LPAREN);
+        if (!match (T_SEMICOLON)) {
                 expression (YES);
                 need_semicolon ();
                 gen_statement_end();
         }
         generate_label (pws->case_test);
-        if (!match (";")) {
+        if (!match (T_SEMICOLON)) {
                 expression (YES);
                 gen_test_jump (pws->body_tab, TRUE);
                 gen_jump (pws->while_exit);
@@ -273,10 +275,10 @@ void dofor(void) {
         } else
                 pws->case_test = pws->body_tab;
         generate_label (pws->incr_def);
-        if (!match (")")) {
+        if (!match (T_RPAREN)) {
                 expression (YES);
                 gen_statement_end();
-                needbrack (")");
+                needbrack (T_RPAREN);
                 gen_jump (pws->case_test);
         } else
                 pws->incr_def = pws->case_test;
@@ -307,9 +309,9 @@ void doswitch(void) {
         print_label (ws.body_tab);
         newline ();
         gen_push (HL_REG);
-        needbrack ("(");
+        needbrack (T_LPAREN);
         expression (YES);
-        needbrack (")");
+        needbrack (T_RPAREN);
         stkp = stkp + INTSIZE;  // '?case' will adjust the stack
         gen_jump_case ();
         statement (NO);
@@ -332,10 +334,9 @@ void docase(void) {
         val = 0;
         if (readswitch ()) {
                 if (!number (&val))
-                        if (!quoted_char (&val))
-                                error ("bad case label");
+                        error ("bad case label");
                 addcase (val);
-                if (!match (":"))
+                if (!match (T_COLON))
                         error ("missing colon");
         } else
                 error ("no active switch");
@@ -351,7 +352,7 @@ void dodefault(void) {
         if ((ptr = readswitch ()) != 0) {
                 ptr->incr_def = lab = getlabel ();
                 generate_label (lab);
-                if (!match (":"))
+                if (!match (T_COLON))
                         error ("missing colon");
         } else
                 error ("no active switch");

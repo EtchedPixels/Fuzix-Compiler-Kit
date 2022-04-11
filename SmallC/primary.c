@@ -7,23 +7,23 @@
 #include "data.h"
 
 int primary(LVALUE *lval) {
-    char    sname[NAMESIZE];
+    unsigned sname;
     int     num[1], k, symbol_table_idx, offset, reg;
     SYMBOL *symbol;
 
     lval->ptr_type = 0;  // clear pointer/array type
     lval->tagsym = 0;
-    if (match ("(")) {
+    if (match (T_LPAREN)) {
         k = hier1 (lval);
-        needbrack (")");
+        needbrack (T_RPAREN);
         return (k);
     }
-    if (amatch("sizeof", 6)) {
-        needbrack("(");
+    if (match(T_SIZEOF)) {
+        needbrack(T_LPAREN);
         gen_immediate();
-        if (amatch("int", 3)) output_number(INTSIZE);
-        else if (amatch("char", 4)) output_number(1);
-        else if (symname(sname)) {
+        if (match(T_INT)) output_number(INTSIZE);
+        else if (match(T_CHAR)) output_number(1);
+        else if ((sname = symname()) != 0) {
             if (((symbol_table_idx = find_locale(sname)) > -1) ||
                 ((symbol_table_idx = find_global(sname)) > -1)) {
                 symbol = &symbol_table[symbol_table_idx];
@@ -43,13 +43,13 @@ int primary(LVALUE *lval) {
         } else {
             error("sizeof only on type or variable");
         }
-        needbrack(")");
+        needbrack(T_RPAREN);
         newline();
         lval->symbol = 0;
         lval->indirect = 0;
         return(0);
     }
-    if (symname (sname)) {
+    if ((sname = symname ()) != 0) {
         int local = 1;
         symbol_table_idx = find_locale(sname);
         if (symbol_table_idx == -1) {
@@ -57,8 +57,7 @@ int primary(LVALUE *lval) {
             symbol_table_idx = find_global(sname);
             /* Only valid undeclared name is a function reference */
             if (symbol_table_idx == -1) {
-                blanks();
-                if (ch() != '(')
+                if (token != T_LPAREN)
                     error("undeclared variable");
                 symbol_table_idx = add_global(sname, FUNCTION, CINT, 0, PUBLIC);
                 symbol = &symbol_table[symbol_table_idx];
@@ -173,8 +172,6 @@ void result(LVALUE *lval, LVALUE *lval2) {
 int constant(int val[]) {
     if (number (val))
         gen_immediate ();
-    else if (quoted_char (val))
-        gen_immediate ();
     /* Quoted strings are constants so we don't need to do any mucking about
        with segments - however we move them to data as we'd otherwise put
        them mid code stream ! */
@@ -191,178 +188,63 @@ int constant(int val[]) {
 }
 
 int number(int val[]) {
-    int     k, minus, base;
-    char    c;
-
-    k = minus = 1;
-    while (k) {
-        k = 0;
-        if (match("+"))
-            k = 1;
-        if (match("-")) {
-            minus = (-minus);
-            k = 1;
-        }
+    switch(token) {
+    case T_INTVAL:
+    case T_LONGVAL:
+        val[0] = token_value;
+        next_token();
+        return CINT;
+    case T_UINTVAL:
+    case T_ULONGVAL:
+        val[0] = token_value;
+        next_token();
+        return UINT;
     }
-    if (!numeric(c = ch ()))
-        return (0);
-    if (match("0x") || match ("0X"))
-        while (numeric(c = ch ()) ||
-               (c >= 'a' && c <= 'f') ||
-               (c >= 'A' && c <= 'F')) {
-            inbyte ();
-            k = k * 16 + (numeric (c) ? (c - '0') : ((c & 07) + 9));
-        }
-    else {
-        base = (c == '0') ? 8 : 10;
-        while (numeric(ch())) {
-            c = inbyte ();
-            k = k * base + (c - '0');
-        }
-    }
-    if (minus < 0)
-            k = (-k);
-    val[0] = k;
-    if(k < 0) {
-        return (UINT);
-    } else {
-        return (CINT);
-    }
+    return 0;
 }
 
-/**
- * Test if we have one char enclosed in single quotes
- * @param value returns the char found
- * @return 1 if we have, 0 otherwise
- */
-int quoted_char(int *value) {
-    int     k;
-    char    c;
-
-    k = 0;
-    if (!match ("'"))
-        return (0);
-    while ((c = gch ()) != '\'') {
-        c = (c == '\\') ? spechar(): c;
-        k = (k & 255) * 256 + (c & 255);
-    }
-    *value = k;
-    return (1);
-}
-
-/**
- * Test if we have string enclosed in double quotes. e.g. "abc".
- * Load the string into literal pool.
- * @param position returns label for this string
- * @return 1 if such string found, 0 otherwise
- */
-int quoted_string(int *len, int *position) {
-    char    c;
-    int     x;
-    int     l;
-
-    if (!match ("\""))
-        return (0);
+int quoted_string(int *len, unsigned *position)
+{
+    unsigned c;
+    unsigned l = 0;
+    unsigned int count = 0;
+    if (token != T_STRING)
+        return 0;
     if (position) {
         data_segment_gdata();
         *position = getlabel();
         generate_label(*position);
     }
-    x = 0;
-    while (ch () != '"') {
-        if (ch () == 0) {
-            /* Should error ?? FIXME */
-            break;
-        }
-        c = gch();
-        c = (c == '\\') ? spechar(): c;
-        if (x == 0)
+    while((c = tokbyte()) != 0) {
+        if (c == 255)
+            c = tokbyte();
+        if (count == 0)
             gen_def_byte();
         else
             output_byte(',');
-         output_number(c);
-         if (x++ == 7) {
-             x = 0;
-             newline();
+        output_number(c);
+        if (count++ == 7) {
+            count = 0;
+            newline();
         }
         l++;
     }
-    gch ();
-    if (x != 0)
+    if (count != 0)
         newline();
+    l++;
     gen_def_byte();
     output_number(0);
     newline();
-    if (len)
-        *len = l + 1;
+
     if (position)
         code_segment_gtext();
-    return (1);
-}
-
-#define BADHEX 127
-
-int hexdigit(char c)
-{
-    if (c >= 'a')
-        c -= 32;
-    if (c >= 'A' && c <= 'F')
-        return c - 'A';
-    if (c >= '0' && c <= '9')
-        return c - '0';
-    return BADHEX;
-}
-
-/**
- * decode special characters (preceeded by back slashes)
- */
-int spechar(void) {
-    char c;
-    int r;
-
-    c = ch();
-
-    if      (c == 'n') c = LF;
-    else if (c == 't') c = TAB;
-    else if (c == 'r') c = CR;
-    else if (c == 'f') c = FFEED;
-    else if (c == 'b') c = BKSP;
-    else if (c == EOS) return 0;
-
-    gch();
-    if (c == 'x') {
-        c = hexdigit(ch());
-        if (c == BADHEX) {
-            error("bad escape");
-            return '?';
-        }
-        r = c;
-        gch();
-        c = hexdigit(ch());
-        if (c == BADHEX)
-            return r;
-        r <<= 4;
-        r |= c;
-        gch();
-        return r;
-    }
-    if (c == '0') {
-        int n;
-        n = 0;
-        r = 0;
-
-        while(n < 3) {
-            c = ch();
-            if (c < '0' || c > '7')
-                return r;
-            r <<= 3;
-            r |= c - '0';
-            n++;
-            gch();
-        }
-        return r;
-    }
-    return (c);
+    next_token();
+    if (token != T_STRING_END)
+        error("bad token stream");
+    next_token();
+    if (len)
+        *len = l;
+    return 1;
 }
 
 /**
@@ -372,16 +254,16 @@ int spechar(void) {
  * of HL
  * @param ptr name of the function
  */
-void callfunction(char *ptr) {
+void callfunction(unsigned ptr) {
     int     nargs;
     int     i;
 
     nargs = 0;
 
-    blanks ();
     if (ptr == 0)
         gen_push (HL_REG);
-    while (!streq (line + lptr, ")")) {
+    /* WTF ?FIXME */
+    while (token != T_RPAREN) {
         if (endst ())
             break;
         expression (NO);
@@ -391,10 +273,10 @@ void callfunction(char *ptr) {
         gen_push (HL_REG);
         nargs++;
         /* Will need to track sizes later */
-        if (!match (","))
+        if (!match (T_COMMA))
             break;
     }
-    needbrack (")");
+    needbrack (T_RPAREN);
     if (aflag)
         gnargs(nargs);
     if (ptr)

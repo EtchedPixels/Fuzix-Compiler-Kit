@@ -17,6 +17,7 @@ void error(char *ptr)
 {
         int k = 0;;
 
+#if 0
         write(2, line, strlen(line));
         errchar('\n');
         while (k < lptr) {
@@ -28,6 +29,8 @@ void error(char *ptr)
         }
         errchar('^');
         errchar('\n');
+#endif
+        /* FIXME: line numbers */
         write(2, ptr, strlen(ptr));
         errchar('\n');
         errcnt++;

@@ -36,7 +36,7 @@ void expression(int comma) {
             rvalue(&lval, k);
         if (!comma)
             return;
-    } while (match (","));
+    } while (match (T_COMMA));
 }
 
 /**
@@ -47,10 +47,10 @@ void expression(int comma) {
 int hier1 (LVALUE *lval) {
     int     k;
     LVALUE lval2[1];
-    char    fc;
+    unsigned fc;
 
     k = hier1a (lval);
-    if (match ("=")) {
+    if (match (T_EQ)) {
         if ((k & FETCH) == 0) {
             needlval ();
             return (0);
@@ -63,17 +63,17 @@ int hier1 (LVALUE *lval) {
         store (lval);
         return (0);
     } else {      
-        fc = ch();
-        if  (match ("-=") ||
-            match ("+=") ||
-            match ("*=") ||
-            match ("/=") ||
-            match ("%=") ||
-            match (">>=") ||
-            match ("<<=") ||
-            match ("&=") ||
-            match ("^=") ||
-            match ("|=")) {
+        fc = token;
+        if  (match (T_MINUSEQ) ||
+            match (T_PLUSEQ) ||
+            match (T_STAREQ) ||
+            match (T_SLASHEQ) ||
+            match (T_PERCENTEQ) ||
+            match (T_SHREQ) ||
+            match (T_SHLEQ) ||
+            match (T_ANDEQ) ||
+            match (T_HATEQ) ||
+            match (T_OREQ)) {
             if ((k & FETCH) == 0) {
                 needlval ();
                 return (0);
@@ -86,7 +86,7 @@ int hier1 (LVALUE *lval) {
             if (k & FETCH)
                 k = rvalue(lval2, k);
             switch (fc) {
-                case '-':       {
+                case T_MINUSEQ: {
                     if (dbltest(lval,lval2)) {
                         gen_multiply(lval->ptr_type, lval->tagsym ? lval->tagsym->size : INTSIZE);
                     }
@@ -94,7 +94,7 @@ int hier1 (LVALUE *lval) {
                     result (lval, lval2);
                     break;
                 }
-                case '+':       {
+                case T_PLUSEQ: {
                     if (dbltest(lval,lval2)) {
                         gen_multiply(lval->ptr_type, lval->tagsym ? lval->tagsym->size : INTSIZE);
                     }
@@ -102,32 +102,34 @@ int hier1 (LVALUE *lval) {
                     result(lval,lval2);
                     break;
                 }
-                case '*':       gen_mult (); break;
-                case '/':
+                case T_STAREQ:
+                    gen_mult ();
+                    break;
+                case T_SLASHEQ:
                     if(nosign(lval) || nosign(lval2)) {
                         gen_udiv();
                     } else {
                         gen_div();
                     }
                     break;
-                case '%':
+                case T_PERCENTEQ:
                     if(nosign(lval) || nosign(lval2)) {
                         gen_umod();
                     } else {
                         gen_mod();
                     }
                     break;
-                case '>':
+                case T_SHREQ:
                     if (nosign(lval)) {
                         gen_logical_shift_right();
                     } else {
                         gen_arithm_shift_right();
                     }
                     break;
-                case '<': gen_arithm_shift_left(); break;
-                case '&': gen_and (); break;
-                case '^': gen_xor (); break;
-                case '|': gen_or (); break;
+                case T_SHLEQ: gen_arithm_shift_left(); break;
+                case T_ANDEQ: gen_and (); break;
+                case T_HATEQ: gen_xor (); break;
+                case T_OREQ: gen_or (); break;
             }
             store (lval);
             return (0);
@@ -146,13 +148,12 @@ int hier1a (LVALUE *lval) {
     LVALUE lval2[1];
 
     k = hier1b (lval);
-    blanks ();
-    if (ch () != '?')
+    if (token != T_QUESTION)
         return (k);
     if (k & FETCH)
         k = rvalue(lval, k);
     FOREVER
-        if (match ("?")) {
+        if (match (T_QUESTION)) {
             gen_test_jump (lab1 = getlabel (), FALSE);
             k = hier1b (lval2);
             if (k & FETCH)
@@ -161,8 +162,7 @@ int hier1a (LVALUE *lval) {
             print_label (lab1);
             output_label_terminator ();
             newline ();
-            blanks ();
-            if (!match (":")) {
+            if (!match (T_COLON)) {
                 error ("missing colon");
                 return (0);
             }
@@ -186,13 +186,13 @@ int hier1b (LVALUE *lval) {
     LVALUE lval2[1];
 
     k = hier1c (lval);
-    blanks ();
-    if (!sstreq ("||"))
+
+    if (token != T_OROR)
         return (k);
     if (k & FETCH)
         k = rvalue(lval, k);
     FOREVER
-        if (match ("||")) {
+        if (match (T_OROR)) {
             gen_test_jump (lab = getlabel (), TRUE);
             k = hier1c (lval2);
             if (k & FETCH)
@@ -215,13 +215,13 @@ int hier1c (LVALUE *lval) {
     LVALUE lval2[1];
 
     k = hier2 (lval);
-    blanks ();
-    if (!sstreq ("&&"))
+
+    if (token != T_ANDAND)
         return (k);
     if (k & FETCH)
         k = rvalue(lval, k);
     FOREVER
-        if (match ("&&")) {
+        if (match (T_ANDAND)) {
             gen_test_jump (lab = getlabel (), FALSE);
             k = hier2 (lval2);
             if (k & FETCH)
@@ -244,20 +244,17 @@ int hier2 (LVALUE *lval) {
     LVALUE lval2[1];
 
     k = hier3 (lval);
-    blanks ();
-    if ((ch() != '|') | (nch() == '|') | (nch() == '='))
+    if (token != T_OR)
         return (k);
     if (k & FETCH)
         k = rvalue(lval, k);
     FOREVER {
-        if ((ch() == '|') & (nch() != '|') & (nch() != '=')) {
-            inbyte ();
+        if (match(T_OR)) {
             gen_push(k);
             k = hier3 (lval2);
             if (k & FETCH)
                 k = rvalue(lval2, k);
             gen_or ();
-            blanks();
     } else
             return (0);
     }
@@ -273,20 +270,17 @@ int hier3 (LVALUE *lval) {
     LVALUE lval2[1];
 
     k = hier4 (lval);
-    blanks ();
-    if ((ch () != '^') | (nch() == '='))
+    if (token != T_HAT)
         return (k);
     if (k & FETCH)
         k = rvalue(lval, k);
     FOREVER {
-            if ((ch() == '^') & (nch() != '=')){
-                inbyte ();
+            if (match(T_HAT)) {
                 gen_push(k);
                 k = hier4 (lval2);
                 if (k & FETCH)
                     k = rvalue(lval2, k);
                 gen_xor ();
-                blanks();
             } else
                 return (0);
     }
@@ -302,20 +296,17 @@ int hier4 (LVALUE *lval) {
     LVALUE lval2[1];
 
     k = hier5 (lval);
-    blanks ();
-    if ((ch() != '&') | (nch() == '|') | (nch() == '='))
+    if (token != T_AND)
         return (k);
     if (k & FETCH)
         k = rvalue(lval, k);
     FOREVER {
-        if ((ch() == '&') & (nch() != '&') & (nch() != '=')) {
-            inbyte ();
+        if (match(T_AND)) {
             gen_push(k);
             k = hier5 (lval2);
             if (k & FETCH)
                 k = rvalue(lval2, k);
             gen_and ();
-            blanks();
         } else
             return (0);
     }
@@ -332,20 +323,19 @@ int hier5 (LVALUE *lval) {
     LVALUE lval2[1];
 
     k = hier6 (lval);
-    blanks ();
-    if (!sstreq ("==") &
-        !sstreq ("!="))
+
+    if (token != T_EQEQ && token != T_BANGEQ)
         return (k);
     if (k & FETCH)
         k = rvalue(lval, k);
     FOREVER {
-        if (match ("==")) {
+        if (match (T_EQEQ)) {
             gen_push(k);
             k = hier6 (lval2);
             if (k & FETCH)
                 k = rvalue(lval2, k);
             gen_equal ();
-        } else if (match ("!=")) {
+        } else if (match (T_BANGEQ)) {
             gen_push(k);
             k = hier6 (lval2);
             if (k & FETCH)
@@ -367,18 +357,13 @@ int hier6 (LVALUE *lval) {
     LVALUE lval2[1];
 
     k = hier7 (lval);
-    blanks ();
-    if (!sstreq ("<") &&
-        !sstreq ("<=") &&
-        !sstreq (">=") &&
-        !sstreq (">"))
-        return (k);
-    if (sstreq ("<<") || sstreq (">>"))
+
+    if (token != T_LT && token != T_GT && token != T_LTEQ && token != T_GTEQ)
         return (k);
     if (k & FETCH)
         k = rvalue(lval, k);
     FOREVER {
-        if (match ("<=")) {
+        if (match (T_LTEQ)) {
             gen_push(k);
             k = hier7 (lval2);
             if (k & FETCH)
@@ -388,7 +373,7 @@ int hier6 (LVALUE *lval) {
                 continue;
             }
             gen_less_or_equal ();
-        } else if (match (">=")) {
+        } else if (match (T_GTEQ)) {
             gen_push(k);
             k = hier7 (lval2);
             if (k & FETCH)
@@ -398,9 +383,7 @@ int hier6 (LVALUE *lval) {
                 continue;
             }
             gen_greater_or_equal();
-        } else if ((sstreq ("<")) &&
-                   !sstreq ("<<")) {
-            inbyte ();
+        } else if (match(T_LT)) {
             gen_push(k);
             k = hier7 (lval2);
             if (k & FETCH)
@@ -410,9 +393,7 @@ int hier6 (LVALUE *lval) {
                 continue;
             }
             gen_less_than ();
-        } else if ((sstreq (">")) &&
-                   !sstreq (">>")) {
-            inbyte ();
+        } else if (match(T_GT)) {
             gen_push(k);
             k = hier7 (lval2);
             if (k & FETCH)
@@ -424,7 +405,6 @@ int hier6 (LVALUE *lval) {
             gen_greater_than();
         } else
             return (0);
-        blanks ();
     }
 
 }
@@ -439,15 +419,13 @@ int hier7 (LVALUE *lval) {
     LVALUE lval2[1];
 
     k = hier8(lval);
-    blanks();
-    if ((!sstreq (">>") &&
-        !sstreq ("<<")) || sstreq(">>=") || sstreq("<<="))
+
+    if (token != T_GTGT && token != T_LTLT)
         return (k);
     if (k & FETCH)
         k = rvalue(lval, k);
     FOREVER {
-        if (sstreq(">>") && ! sstreq(">>=")) {
-            inbyte(); inbyte();
+        if (match(T_GTGT)) {
             gen_push(k);
             k = hier8 (lval2);
             if (k & FETCH)
@@ -457,8 +435,7 @@ int hier7 (LVALUE *lval) {
             } else {
                 gen_arithm_shift_right();
             }
-        } else if (sstreq("<<") && ! sstreq("<<=")) {
-            inbyte(); inbyte();
+        } else if (match(T_LTLT)) {
             gen_push(k);
             k = hier8 (lval2);
             if (k & FETCH)
@@ -466,7 +443,6 @@ int hier7 (LVALUE *lval) {
             gen_arithm_shift_left();
         } else
             return (0);
-        blanks();
     }
 
 }
@@ -481,13 +457,12 @@ int hier8 (LVALUE *lval) {
     LVALUE lval2[1];
 
     k = hier9 (lval);
-    blanks ();
-    if ((ch () != '+') & (ch () != '-') | nch() == '=')
+    if (token != T_PLUS && token != T_MINUS)
         return (k);
     if (k & FETCH)
         k = rvalue(lval, k);
     FOREVER {
-        if (match ("+")) {
+        if (match (T_PLUS)) {
             gen_push(k);
             k = hier9 (lval2);
             if (k & FETCH)
@@ -499,7 +474,7 @@ int hier8 (LVALUE *lval) {
             // will scale left if right int pointer and left int
             gen_add (lval,lval2);
             result (lval, lval2);
-        } else if (match ("-")) {
+        } else if (match (T_MINUS)) {
             gen_push(k);
             k = hier9 (lval2);
             if (k & FETCH)
@@ -532,20 +507,18 @@ int hier9 (LVALUE *lval) {
     LVALUE lval2[1];
 
     k = hier10 (lval);
-    blanks ();
-    if (((ch () != '*') && (ch () != '/') &&
-            (ch () != '%')) || (nch() == '='))
+    if (token != T_STAR && token != T_PERCENT && token != T_SLASH)
         return (k);
     if (k & FETCH)
         k = rvalue(lval, k);
     FOREVER {
-        if (match ("*")) {
+        if (match (T_STAR)) {
             gen_push(k);
             k = hier10 (lval2);
             if (k & FETCH)
                 k = rvalue(lval2, k);
             gen_mult ();
-        } else if (match ("/")) {
+        } else if (match (T_SLASH)) {
             gen_push(k);
             k = hier10 (lval2);
             if (k & FETCH)
@@ -555,7 +528,7 @@ int hier9 (LVALUE *lval) {
             } else {
                 gen_div ();
             }
-        } else if (match ("%")) {
+        } else if (match (T_PERCENT)) {
             gen_push(k);
             k = hier10 (lval2);
             if (k & FETCH)
@@ -580,7 +553,7 @@ int hier10 (LVALUE *lval) {
     int     k;
     SYMBOL *ptr;
 
-    if (match ("++")) {
+    if (match (T_PLUSPLUS)) {
         if (((k = hier10 (lval)) & FETCH) == 0) {
             needlval ();
             return (0);
@@ -591,7 +564,7 @@ int hier10 (LVALUE *lval) {
         gen_increment_primary_reg (lval);
         store (lval);
         return (HL_REG);
-    } else if (match ("--")) {
+    } else if (match (T_MINUSMINUS)) {
         if (((k = hier10 (lval)) & FETCH) == 0) {
             needlval ();
             return (0);
@@ -602,26 +575,25 @@ int hier10 (LVALUE *lval) {
         gen_decrement_primary_reg (lval);
         store (lval);
         return (HL_REG);
-    } else if (match ("-")) {
+    } else if (match (T_MINUS)) {
         k = hier10 (lval);
         if (k & FETCH)
             k = rvalue(lval, k);
         gen_twos_complement();
         return (HL_REG);
-    } else if (match ("~")) {
+    } else if (match (T_TILDE)) {
         k = hier10 (lval);
         if (k & FETCH)
             k = rvalue(lval, k);
         gen_complement ();
         return (HL_REG);
-    } else if (match ("!")) {
+    } else if (match (T_BANG)) {
         k = hier10 (lval);
         if (k & FETCH)
             k = rvalue(lval, k);
         gen_logical_negation();
         return (HL_REG);
-    } else if (ch()=='*' && nch() != '=') {
-        inbyte();
+    } else if (match(T_STAR)) {
         k = hier10 (lval);
         if (k & FETCH)
             k = rvalue(lval, k);
@@ -631,8 +603,7 @@ int hier10 (LVALUE *lval) {
             lval->indirect = CINT;
         lval->ptr_type = 0;  // flag as not pointer or array
         return FETCH | k;
-    } else if (ch()=='&' && nch()!='&' && nch()!='=') {
-        inbyte();
+    } else if (match(T_AND)) {
         k = hier10 (lval);
         if ((k & FETCH) == 0) {
             error ("illegal address");
@@ -648,13 +619,13 @@ int hier10 (LVALUE *lval) {
         }
         // global and non-array
         gen_immediate ();
-        output_string ((ptr = lval->symbol)->name);
+        output_name ((ptr = lval->symbol)->name);
         newline ();
         lval->indirect = ptr->type;
         return (HL_REG);
     } else {
         k = hier11 (lval);
-        if (match ("++")) {
+        if (match (T_PLUSPLUS)) {
             if ((k & FETCH) == 0) {
                 needlval ();
                 return (0);
@@ -666,7 +637,7 @@ int hier10 (LVALUE *lval) {
             store (lval);
             gen_decrement_primary_reg (lval);
             return (HL_REG);
-        } else if (match ("--")) {
+        } else if (match (T_MINUSMINUS)) {
             if ((k & FETCH) == 0) {
                 needlval ();
                 return (0);
@@ -692,18 +663,17 @@ int hier10 (LVALUE *lval) {
 int hier11(LVALUE *lval) {
     int     direct, k;
     SYMBOL *ptr;
-    char    sname[NAMESIZE];
+    unsigned sname;
 
     k = primary(lval);
     ptr = lval->symbol;
-    blanks();
-    if ((ch () == '[') || (ch () == '(') || (ch () == '.') || ((ch () == '-') && (nch() == '>')))
+    if (token == T_LSQUARE || token == T_LPAREN || token == T_DOT || token == T_POINTSTO)
         FOREVER {
-            if (match("[")) {
+            if (match(T_LSQUARE)) {
                 if (ptr == 0) {
                     error("can't subscript");
                     junk();
-                    needbrack("]");
+                    needbrack(T_RSQUARE);
                     return (0);
                 } else if (ptr->identity == POINTER) {
                     k = rvalue(lval, k);
@@ -713,14 +683,14 @@ int hier11(LVALUE *lval) {
                 }
                 gen_push(k);
                 expression (YES);
-                needbrack ("]");
+                needbrack (T_LSQUARE);
                 gen_multiply(ptr->type, tag_table[ptr->tagidx].size);
                 gen_add (NULL,NULL);
                 //lval->symbol = 0;
                 lval->indirect = ptr->type;
                 lval->ptr_type = 0;
                 k = FETCH | HL_REG;
-            } else if (match ("(")) {
+            } else if (match (T_LPAREN)) {
                 if (ptr == 0) {
                     callfunction(0);
                 } else if (ptr->identity != FUNCTION) {
@@ -731,13 +701,13 @@ int hier11(LVALUE *lval) {
                 }
                 lval->symbol = 0;
                 k = 0;
-            } else if ((direct=match(".")) || match("->")) {
+            } else if ((direct=match(T_DOT)) || match(T_POINTSTO)) {
                 if (lval->tagsym == 0) {
                     error("can't take member");
                     junk();
                     return 0;
                 }
-                if (symname(sname) == 0 ||
+                if ((sname = symname()) == 0 ||
                    ((ptr=find_member(lval->tagsym, sname)) == 0)) {
                     error("unknown member");
                     junk();
@@ -778,7 +748,7 @@ int hier11(LVALUE *lval) {
         return k;
     if (ptr->identity == FUNCTION) {
         gen_immediate();
-        output_string(ptr->name);
+        output_name(ptr->name);
         newline();
         return 0;
     }

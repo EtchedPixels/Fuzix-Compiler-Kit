@@ -32,15 +32,6 @@ int main(int argc, char *argv[]) {
                     case 'u': case 'U': // use undocumented 8085 instructions
                         uflag = 1;
                         break;
-                    case 'd': case 'D': // define macro
-                        bp = ++param;
-                        if (!*param) usage();
-                        while (*param && *param != '=') param++;
-                        if (*param == '=') *param = '\t';
-                        while (*param) param++;
-                        param--;
-                        defmac(bp);
-                        break;
                     default:
                         usage();
                 }
@@ -64,7 +55,6 @@ int main(int argc, char *argv[]) {
  * @return 
  */
 void compile(char *file) {
-    if (file == NULL || filename_typeof(file) == 'c') {
         global_table_index = 0;
         local_table_index = NUMBER_OF_GLOBALS;
         while_table_index = 0;
@@ -84,47 +74,25 @@ void compile(char *file) {
         cmode = 1;
         glbflag = 1;
         nxtlab = 0;
-        defmac("end\tmemory");
         //add_global("memory", ARRAY, CCHAR, 0, EXTERN);
         //add_global("stack", ARRAY, CCHAR, 0, EXTERN);
         rglobal_table_index = global_table_index; //rglbptr = glbptr;
         //add_global("etext", ARRAY, CCHAR, 0, EXTERN);
         //add_global("edata", ARRAY, CCHAR, 0, EXTERN);
-        /* Eww FIXME when we do types!! */
-        defmac("short\tint");
-        initmac();
         // compiler body
-        if (file == NULL) {
-            input = 0;
-        } else if (!openin(file))
-            return;
-        if (file == NULL) {
-            output = 1;
-        } else if (!openout())
-            return;
+        input = 0;
+        output = 1;
         target = output;
         header();
         code_segment_gtext();
         parse();
-        close(input);
         data_segment_gdata();
         dumpglbs();
         errorsummary();
         trailer();
         oflush();
-        close(output);
         pl("");
         errs = errs || errfile;
-    } else {
-        writee("Don't understand file ");
-        writee(file);
-        errs = 1;
-    }
-}
-
-void frontend_version(void) {
-    output_string("\tFront End (2.7,84/11/28)");
-    output_string("\n;\tFront End for ASXXXX (2.8,13/01/20)");
 }
 
 /**
@@ -142,7 +110,9 @@ void usage(void) {
  * and function definitions are legal.
  */
 void parse(void) {
-    while (!input_eof) {
+    next_token();
+    while (token != T_EOF) {
+#if 0
         if (match("#")) {
             if (match("asm"))
                 doasm();
@@ -153,16 +123,17 @@ void parse(void) {
             else if (match("undef"))
                 doundef();
         }
-        else if (amatch("extern", 6))
+        else
+#endif
+        if (match(T_EXTERN))
             do_declarations(EXTERN, NULL_TAG, 0);
-        else if (amatch("static", 6))
+        else if (match(T_STATIC))
             do_declarations(STATIC, NULL_TAG, 0);
         else if (do_declarations(PUBLIC, NULL_TAG, 0))
             ;
         else {
             newfunc();
         }
-        blanks();
     }
 }
 
@@ -177,12 +148,11 @@ int do_declarations(int stclass, TAG_SYMBOL *mtag, int is_struct) {
     int type;
     int otag;   // tag of struct object being declared
     int sflag;		// TRUE for struct definition, zero for union
-    char sname[NAMESIZE];
+    unsigned sname;
     int ns = 0;
     
-    blanks();
-    if ((sflag=amatch("struct", 6)) || amatch("union", 5)) {
-        if (symname(sname) == 0) { // legal name ?
+    if ((sflag=match(T_STRUCT)) || match(T_UNION)) {
+        if ((sname = symname()) == 0) { // legal name ?
             illname();
         }
         if ((otag=find_tag(sname)) == -1) { // structure not previously defined

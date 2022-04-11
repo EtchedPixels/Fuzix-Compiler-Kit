@@ -24,8 +24,8 @@ void create_initials(void) {
  * @param symbol_name
  * @param type
  */
-void add_symbol_initials(char *symbol_name, char type) {
-    strcpy(initials_table[initials_idx].name, symbol_name);
+void add_symbol_initials(unsigned symbol_name, char type) {
+    initials_table[initials_idx].name = symbol_name;
     initials_table[initials_idx].type = type;
 }
 
@@ -34,13 +34,13 @@ void add_symbol_initials(char *symbol_name, char type) {
  * @param symbol_name
  * @return
  */
-int find_symbol_initials(char *symbol_name) {
+int find_symbol_initials(unsigned symbol_name) {
     int result = 0;
     for (initials_idx=0; initials_table[initials_idx].type != 0; initials_idx++) {
         if (initials_idx >= NUMBER_OF_GLOBALS) {
             error("initials table overrun");
         }
-        if (astreq (symbol_name, initials_table[initials_idx].name, NAMEMAX) != 0) {
+        if (symbol_name = initials_table[initials_idx].name) {
             result = 1;
             break;
         }
@@ -53,7 +53,7 @@ int find_symbol_initials(char *symbol_name) {
  * @param symbol_name
  * @return
  */
-int get_size(char *symbol_name) {
+int get_size(unsigned symbol_name) {
     int result = 0;
     if (find_symbol_initials(symbol_name) != 0) {
         result = initials_table[initials_idx].dim;
