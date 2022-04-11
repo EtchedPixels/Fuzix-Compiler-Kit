@@ -384,7 +384,6 @@ void callfunction(char *ptr) {
     while (!streq (line + lptr, ")")) {
         if (endst ())
             break;
-        defer_output();
         expression (NO);
         if (ptr == 0)
             gen_swap_stack ();
@@ -395,10 +394,6 @@ void callfunction(char *ptr) {
         if (!match (","))
             break;
     }
-    /* Now paste the argument generation blocks into the output
-       in reverse order so the stack is right */
-    for (i = 0; i < nargs; i++)
-        end_defer();
     needbrack (")");
     if (aflag)
         gnargs(nargs);

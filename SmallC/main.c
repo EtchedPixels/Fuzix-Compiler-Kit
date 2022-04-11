@@ -103,7 +103,6 @@ void compile(char *file) {
         } else if (!openout())
             return;
         target = output;
-        defer_init();
         header();
         code_segment_gtext();
         parse();
