@@ -372,7 +372,6 @@ int find_locale (unsigned sname) {
  */
 int add_global (unsigned sname, int identity, int type, int offset, int storage) {
     SYMBOL *symbol;
-    char *buffer_ptr;
     if ((current_symbol_table_idx = find_global(sname)) > -1) {
         return (current_symbol_table_idx);
     }
@@ -403,7 +402,6 @@ int add_global (unsigned sname, int identity, int type, int offset, int storage)
 int add_local (unsigned sname, int identity, int type, int offset, int storage_class) {
     int k;
     SYMBOL *symbol;
-    char *buffer_ptr;
 
     if ((current_symbol_table_idx = find_locale (sname)) > -1) {
         return (current_symbol_table_idx);

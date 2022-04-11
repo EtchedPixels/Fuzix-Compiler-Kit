@@ -9,6 +9,8 @@ OBJS = initials.o data.o error.o expr.o function.o gen.o io.o \
 
 OBJ_8080 = code8080.o
 
+CFLAGS = -Wall -pedantic
+
 INC = data.h defs.h prototype.h
 
 OBJS_ALL = $(OBJS) $(OBJ_8080)
@@ -22,3 +24,7 @@ $(OBJS_ALL) : $(INC)
 clean:
 	rm -f scc8080
 	rm -f *~ *.o
+	rm -f *.asm
+	rm -f *.rel
+	rm -f *.map
+	rm -f *.lk

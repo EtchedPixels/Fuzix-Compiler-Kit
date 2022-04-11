@@ -256,7 +256,6 @@ int quoted_string(int *len, unsigned *position)
  */
 void callfunction(unsigned ptr) {
     int     nargs;
-    int     i;
 
     nargs = 0;
 

@@ -10,7 +10,7 @@
 #include "data.h"
 
 int main(int argc, char *argv[]) {
-    char *param = NULL, *bp;
+    char *param = NULL;
     int i;
     macptr = 0;
     ctext = 0;
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (i == argc) {
-        compile(NULL); // training mode - read code from stdin
+        compile();
         exit(errs != 0);
     }
     usage();
@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
  * @param file filename
  * @return 
  */
-void compile(char *file) {
+void compile(void) {
         global_table_index = 0;
         local_table_index = NUMBER_OF_GLOBALS;
         while_table_index = 0;
@@ -175,7 +175,6 @@ int do_declarations(int stclass, TAG_SYMBOL *mtag, int is_struct) {
  * dump all static variables
  */
 void dumpglbs(void) {
-    int dim, i, list_size, line_count, value;
     if (!glbflag)
         return;
     current_symbol_table_idx = rglobal_table_index;

@@ -15,8 +15,6 @@ void errchar(char c)
 
 void error(char *ptr)
 {
-        int k = 0;;
-
 #if 0
         write(2, line, strlen(line));
         errchar('\n');

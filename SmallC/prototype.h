@@ -140,7 +140,7 @@ extern int match(unsigned tok);
 extern void next_token(void);
 extern unsigned tokbyte(void);
 extern int get_type(void);
-extern void compile(char *file);
+extern void compile(void);
 extern void usage(void);
 extern void parse(void);
 extern int do_declarations(int stclass, TAG_SYMBOL *mtag, int is_struct);

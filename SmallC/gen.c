@@ -142,8 +142,6 @@ void output_decimal(int number) {
  * token name
  */
 void output_name(unsigned name) {
-    int k;
-    k = 0;
     output_byte('%');
     output_byte('%');
     output_decimal(name - 0x8000);

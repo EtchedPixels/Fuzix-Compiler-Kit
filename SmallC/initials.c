@@ -40,7 +40,7 @@ int find_symbol_initials(unsigned symbol_name) {
         if (initials_idx >= NUMBER_OF_GLOBALS) {
             error("initials table overrun");
         }
-        if (symbol_name = initials_table[initials_idx].name) {
+        if ((symbol_name = initials_table[initials_idx].name) != 0) {
             result = 1;
             break;
         }
