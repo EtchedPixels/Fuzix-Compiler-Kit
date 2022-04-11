@@ -192,7 +192,12 @@ unsigned decode_token(void)
     case T_SEMICOLON:
         printf(";\n");
         break;
-
+    case T_DOT:
+        printf(".\n");
+        break;
+    case T_COMMA:
+        printf(",\n");
+        break;
     case T_AUTO:
         printf("auto\n");
         break;
@@ -208,6 +213,9 @@ unsigned decode_token(void)
     case T_ENUM:
         printf("enum\n");
         break;
+    case T_EXTERN:
+        printf("extern\n");
+        break;
     case T_FLOAT:
         printf("float\n");
         break;
@@ -222,6 +230,9 @@ unsigned decode_token(void)
         break;
     case T_SHORT:
         printf("short\n");
+        break;
+    case T_SIGNED:
+        printf("signed\n");
         break;
     case T_STATIC:
         printf("static\n");
@@ -259,9 +270,6 @@ unsigned decode_token(void)
         break;
     case T_ELSE:
         printf("else\n");
-        break;
-    case T_EXTERN:
-        printf("extern\n");
         break;
     case T_FOR:
         printf("for\n");

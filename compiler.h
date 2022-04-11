@@ -1,15 +1,19 @@
-
-
+/* Pass 1 values */
 #define MAXSYM		512
 #define	NAMELEN		16		/* Matches linker */
+
+/* Pass 2 values */
+#define NUMGLOBAL	384
+#define NUMLOCAL	128
+#define FUNCSIZE	512
 
 /* Tokens */
 #define T_SYMBOL	0x8000	/* Upwards */
 
 /* Special control symbols */
-#define T_EOF		0xFF00
-#define T_INVALID	0xFF01
-#define T_POT		0xFF02
+#define T_EOF		0x7F00
+#define T_INVALID	0x7F01
+#define T_POT		0x7F02
 
 /* Special case symbols */
 #define T_SHLEQ		0x0010
@@ -37,6 +41,8 @@
 #define T_OREQ		0x0106
 #define T_ANDEQ		0x0107
 #define T_PERCENTEQ	0x0108
+#define T_LTEQ		0x0109
+#define T_GTEQ		0x010A
 
 /* Symbols with a semantic meaning */
 #define T_UNI		0x0200
@@ -47,7 +53,7 @@
 #define T_LCURLY	0x0204
 #define T_RCURLY	0x0205
 #define T_AND		0x0206
-#define T_STAR		0x0207
+#define T_STAR		0x0207	/* We change this to T_DEREF for uni form */
 #define T_SLASH		0x0208
 #define T_PERCENT	0x0209
 #define T_PLUS		0x020A
@@ -62,7 +68,8 @@
 #define T_BANG		0x0213
 #define T_EQ		0x0214
 #define T_SEMICOLON	0x0215
-
+#define T_DOT		0x0216
+#define T_COMMA		0x0217
 /* We process strings and quoting of strings so " ' and \ are not seen */
 
 /* The C language keywords */		
@@ -72,32 +79,33 @@
 #define T_CONST		0x1002
 #define T_DOUBLE	0x1003
 #define T_ENUM		0x1004
-#define T_FLOAT		0x1005
-#define T_INT		0x1006
-#define T_LONG		0x1007
-#define T_REGISTER	0x1008
-#define T_SHORT		0x1009
-#define	T_STATIC	0x100A
-#define T_STRUCT	0x100B
-#define T_UNION		0x100C
-#define T_UNSIGNED	0x100D
-#define T_VOID		0x100E
-#define T_VOLATILE	0x100F
-#define T_BREAK		0x1010
-#define T_CASE		0x1011
-#define T_CONTINUE	0x1012
-#define T_DEFAULT	0x1013
-#define T_DO		0x1014
-#define T_ELSE		0x1015
-#define T_EXTERN	0x1016	/* Move ?? */
-#define T_FOR		0x1017
-#define T_GOTO		0x1018
-#define T_IF		0x1019
-#define T_RETURN	0x101A
-#define T_SIZEOF	0x101B
-#define T_SWITCH	0x101C
-#define T_TYPEDEF	0x101D
-#define T_WHILE		0x101E
+#define T_EXTERN	0x1005
+#define T_FLOAT		0x1006
+#define T_INT		0x1007
+#define T_LONG		0x1008
+#define T_REGISTER	0x1009
+#define T_SHORT		0x100A
+#define T_SIGNED	0x100B
+#define	T_STATIC	0x100C
+#define T_STRUCT	0x100D
+#define T_UNION		0x100E
+#define T_UNSIGNED	0x100F
+#define T_VOID		0x1010
+#define T_VOLATILE	0x1011
+#define T_BREAK		0x1012
+#define T_CASE		0x1013
+#define T_CONTINUE	0x1014
+#define T_DEFAULT	0x1015
+#define T_DO		0x1016
+#define T_ELSE		0x1017
+#define T_FOR		0x1018
+#define T_GOTO		0x1019
+#define T_IF		0x101A
+#define T_RETURN	0x101B
+#define T_SIZEOF	0x101C
+#define T_SWITCH	0x101D
+#define T_TYPEDEF	0x101E
+#define T_WHILE		0x101F
 
 /* Encodings for tokenized constants */
 /* These are followed by a 4 byte little endian value */
@@ -110,3 +118,34 @@
 #define T_STRING	0x1104
 /* End marker for strings (mostly a dummy for convenience) */
 #define T_STRING_END	0x1105
+
+/* Encodings that are used internally for nodes but have no actual equivalent
+   token */
+#define T_CAST		0x1200
+#define T_NAME		0x1201
+#define T_CONSTANT	0x1202
+#define T_DEREF		0x1203
+#define T_ADDROF	0x1204
+
+/*
+ *	Compiler nodes
+ */
+
+struct node {
+   unsigned	op;
+   unsigned	type;
+   struct node *left;
+   struct node *right;
+   unsigned	props;
+#define N_LVALUE	1
+   void	       *data;
+   unsigned	value;		/* NAME offset, value etc */
+};
+
+extern void warning(const char *p);
+extern void error(const char *p);
+extern void fatal(const char *p);
+extern void internal(const char *p);
+
+struct node *tree(unsigned op, struct node *l, struct node *r);
+void free_node(struct node *node);

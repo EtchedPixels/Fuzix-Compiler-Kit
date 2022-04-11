@@ -87,6 +87,14 @@ unsigned get(void)
 		line++;
 		isnl = 1;
 	}
+	/* backslash newline continuation */
+	if (lastbslash && c == '\n')
+		c = getchar();
+
+	if (c == '\\')
+		lastbslash = 1;
+	else
+		lastbslash = 0;
 		
 	if (c == EOF)
 		return 0;
@@ -248,11 +256,13 @@ static const char *keytab[] = {
 	"const",
 	"double",
 	"enum",
+	"extern",
 	"float",
 	"int",
 	"long",
 	"register",
 	"short",
+	"signed",
 	"static",
 	"struct",
 	"union",
@@ -266,7 +276,6 @@ static const char *keytab[] = {
 	"default",
 	"do",
 	"else",
-	"extern",
 	"for",
 	"goto",
 	"if",
@@ -618,8 +627,8 @@ static unsigned tokenize_string(void)
 }
 
 static char *doublesym = "+-=<>|&";
-static char *symeq = "+-/*^!|&%";
-static char *unibyte = "()[]{}&*/%+-?:^<>|~!=;";
+static char *symeq = "+-/*^!|&%<>";
+static char *unibyte = "()[]{}&*/%+-?:^<>|~!=;.,";
 
 static unsigned tokenize(void)
 {
