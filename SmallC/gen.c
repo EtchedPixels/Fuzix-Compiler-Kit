@@ -175,7 +175,7 @@ int rvalue(LVALUE *lval, int reg) {
  */
 void test(int label, int ft) {
     needbrack (T_LPAREN);
-    expression (YES);
+    write_tree(expression (YES));
     needbrack (T_RPAREN);
     gen_test_jump (label, ft);
 }

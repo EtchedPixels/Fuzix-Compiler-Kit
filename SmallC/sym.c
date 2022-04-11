@@ -294,7 +294,7 @@ void declare_local(int typ, int stclass, int otag) {
             }
             if (match(T_EQ)) {
                 gen_modify_stack(stkp);
-                expression(0);
+                write_tree(expression(NO));
                 gen_push(0);
             } else
                 stkp = gen_defer_modify_stack(stkp - k);

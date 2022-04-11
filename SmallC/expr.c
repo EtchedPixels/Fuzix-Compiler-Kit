@@ -24,19 +24,18 @@ int nosign(LVALUE *is) {
  * lval.indirect - type indirect object to fetch, else 0 for static object
  * lval.ptr_type - type pointer or array, else 0
  * @param comma
- * @return 
+ * @return 	 - root node of tree
  */
-void expression(int comma) {
+struct node *expression(int comma) {
     LVALUE lval;
-    int k;
+    struct node *n;
 
-    do {
-        k = hier1 (&lval);
-        if (k & FETCH)
-            rvalue(&lval, k);
-        if (!comma)
-            return;
-    } while (match (T_COMMA));
+    /* Build a tree of comma operations */
+    n = make_rval(hier1(&lval));
+    if (!comma || !match(T_COMMA))
+        return n;
+    n = tree(T_COMMA, n, expression(comma));
+    return n;
 }
 
 /**
@@ -44,22 +43,20 @@ void expression(int comma) {
  * @param lval
  * @return 
  */
-int hier1 (LVALUE *lval) {
-    int     k;
+struct node *hier1 (LVALUE *lval) {
     LVALUE lval2[1];
+    struct node *l, *r;
     unsigned fc;
+    unsigned scale = 1;
 
-    k = hier1a (lval);
+    l = hier1a (lval);
     if (match (T_EQ)) {
-        if ((k & FETCH) == 0) {
+        if ((l->flags & LVAL) == 0) {
             needlval ();
             return (0);
         }
-        if (lval->indirect)
-            gen_push(k);
-        k = hier1 (lval2);
-        if (k & FETCH)
-            k = rvalue(lval2, k);
+        r = make_rval(hier1 (lval2));
+        return tree(T_EQ, l, r);	/* Assignment */
         store (lval);
         return (0);
     } else {      
@@ -74,68 +71,31 @@ int hier1 (LVALUE *lval) {
             match (T_ANDEQ) ||
             match (T_HATEQ) ||
             match (T_OREQ)) {
-            if ((k & FETCH) == 0) {
+            if ((l->flags & LVAL) == 0) {
                 needlval ();
                 return (0);
             }
-            if (lval->indirect)
-                gen_push(k);
-            k = rvalue(lval, k);
-            gen_push(k);
-            k = hier1 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
+            r = make_rval(hier1 (lval2));
             switch (fc) {
                 case T_MINUSEQ: {
-                    if (dbltest(lval,lval2)) {
-                        gen_multiply(lval->ptr_type, lval->tagsym ? lval->tagsym->size : INTSIZE);
-                    }
-                    gen_sub();
-                    result (lval, lval2);
+                    if (dbltest(lval,lval2))
+                        scale = lval->tagsym ? lval->tagsym->size : INTSIZE;
                     break;
                 }
                 case T_PLUSEQ: {
-                    if (dbltest(lval,lval2)) {
-                        gen_multiply(lval->ptr_type, lval->tagsym ? lval->tagsym->size : INTSIZE);
-                    }
-                    gen_add (lval,lval2);
-                    result(lval,lval2);
+                    if (dbltest(lval,lval2))
+                        scale = lval->tagsym ? lval->tagsym->size : INTSIZE;
                     break;
                 }
-                case T_STAREQ:
-                    gen_mult ();
-                    break;
-                case T_SLASHEQ:
-                    if(nosign(lval) || nosign(lval2)) {
-                        gen_udiv();
-                    } else {
-                        gen_div();
-                    }
-                    break;
-                case T_PERCENTEQ:
-                    if(nosign(lval) || nosign(lval2)) {
-                        gen_umod();
-                    } else {
-                        gen_mod();
-                    }
-                    break;
-                case T_SHREQ:
-                    if (nosign(lval)) {
-                        gen_logical_shift_right();
-                    } else {
-                        gen_arithm_shift_right();
-                    }
-                    break;
-                case T_SHLEQ: gen_arithm_shift_left(); break;
-                case T_ANDEQ: gen_and (); break;
-                case T_HATEQ: gen_xor (); break;
-                case T_OREQ: gen_or (); break;
             }
-            store (lval);
-            return (0);
+            if (scale)
+                return tree(fc, l, tree(T_STAR, r, make_constant(scale)));
+            return tree(fc, l, r);
         } else
-            return (k);
+            return l;
     }
+    /* gcc */
+    return NULL;
 }
 
 /**
@@ -143,37 +103,24 @@ int hier1 (LVALUE *lval) {
  * @param lval
  * @return 0 or 1, fetch or no fetch
  */
-int hier1a (LVALUE *lval) {
-    int     k, lab1, lab2;
-    LVALUE lval2[1];
+struct node *hier1a (LVALUE *lval) {
+    struct node *l;
+    struct node *a1, *a2;
+    LVALUE lval2[1], lval3[1];
 
-    k = hier1b (lval);
-    if (token != T_QUESTION)
-        return (k);
-    if (k & FETCH)
-        k = rvalue(lval, k);
-    FOREVER
-        if (match (T_QUESTION)) {
-            gen_test_jump (lab1 = getlabel (), FALSE);
-            k = hier1b (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            gen_jump (lab2 = getlabel ());
-            print_label (lab1);
-            output_label_terminator ();
-            newline ();
-            if (!match (T_COLON)) {
-                error ("missing colon");
-                return (0);
-            }
-            k = hier1b (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            print_label (lab2);
-            output_label_terminator ();
-            newline ();
-        } else
-            return (0);
+    l = hier1b (lval);
+    if (!match(T_QUESTION))
+        return (l);
+
+    l = make_rval(l);
+    /* Now do the left of the colon */
+    a1 = make_rval(hier1a(lval2));
+    if (!match(T_COLON)) {
+        error("missing colon");
+        return l;
+    }
+    a2 = make_rval(hier1b(lval3));
+    return tree(T_QUESTION, l, tree(T_COLON, a1, a2));
 }
 
 /**
@@ -181,28 +128,16 @@ int hier1a (LVALUE *lval) {
  * @param lval
  * @return 0 or 1, fetch or no fetch
  */
-int hier1b (LVALUE *lval) {
-    int     k, lab;
+struct node *hier1b (LVALUE *lval) {
+    struct node *l;
     LVALUE lval2[1];
 
-    k = hier1c (lval);
+    l = hier1c (lval);
 
-    if (token != T_OROR)
-        return (k);
-    if (k & FETCH)
-        k = rvalue(lval, k);
-    FOREVER
-        if (match (T_OROR)) {
-            gen_test_jump (lab = getlabel (), TRUE);
-            k = hier1c (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            print_label (lab);
-            output_label_terminator ();
-            newline ();
-            gen_convert_primary_reg_value_to_bool();
-        } else
-            return (0);
+    if (!match(T_OROR))
+        return (l);
+
+    return tree(T_OROR, make_rval(l), make_rval(hier1b(lval2)));
 }
 
 /**
@@ -210,28 +145,16 @@ int hier1b (LVALUE *lval) {
  * @param lval
  * @return 0 or 1, fetch or no fetch
  */
-int hier1c (LVALUE *lval) {
-    int     k, lab;
+struct node *hier1c (LVALUE *lval) {
+    struct node *l;
     LVALUE lval2[1];
 
-    k = hier2 (lval);
+    l = hier2 (lval);
 
-    if (token != T_ANDAND)
-        return (k);
-    if (k & FETCH)
-        k = rvalue(lval, k);
-    FOREVER
-        if (match (T_ANDAND)) {
-            gen_test_jump (lab = getlabel (), FALSE);
-            k = hier2 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            print_label (lab);
-            output_label_terminator ();
-            newline ();
-            gen_convert_primary_reg_value_to_bool();
-        } else
-            return (0);
+    if (!match(T_ANDAND))
+        return (l);
+
+    return tree(T_ANDAND, make_rval(l), make_rval(hier1c(lval2)));
 }
 
 /**
@@ -239,25 +162,15 @@ int hier1c (LVALUE *lval) {
  * @param lval
  * @return 0 or 1, fetch or no fetch
  */
-int hier2 (LVALUE *lval) {
-    int     k;
+struct node *hier2 (LVALUE *lval) {
+    struct node *l;
     LVALUE lval2[1];
 
-    k = hier3 (lval);
-    if (token != T_OR)
-        return (k);
-    if (k & FETCH)
-        k = rvalue(lval, k);
-    FOREVER {
-        if (match(T_OR)) {
-            gen_push(k);
-            k = hier3 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            gen_or ();
-    } else
-            return (0);
-    }
+   l = hier3 (lval);
+   if (!match(T_OR))
+        return (l);
+
+    return tree(T_OR, make_rval(l), make_rval(hier2(lval2)));
 }
 
 /**
@@ -265,25 +178,15 @@ int hier2 (LVALUE *lval) {
  * @param lval
  * @return 0 or 1, fetch or no fetch
  */
-int hier3 (LVALUE *lval) {
-    int     k;
+struct node *hier3 (LVALUE *lval) {
+    struct node *l;
     LVALUE lval2[1];
 
-    k = hier4 (lval);
-    if (token != T_HAT)
-        return (k);
-    if (k & FETCH)
-        k = rvalue(lval, k);
-    FOREVER {
-            if (match(T_HAT)) {
-                gen_push(k);
-                k = hier4 (lval2);
-                if (k & FETCH)
-                    k = rvalue(lval2, k);
-                gen_xor ();
-            } else
-                return (0);
-    }
+    l = hier4 (lval);
+    if (!match(T_HAT))
+        return (l);
+
+    return tree(T_HAT, make_rval(l), make_rval(hier3(lval2)));
 }
 
 /**
@@ -291,26 +194,15 @@ int hier3 (LVALUE *lval) {
  * @param lval
  * @return 0 or 1, fetch or no fetch
  */
-int hier4 (LVALUE *lval) {
-    int     k;
+struct node *hier4 (LVALUE *lval) {
+    struct node *l;
     LVALUE lval2[1];
 
-    k = hier5 (lval);
-    if (token != T_AND)
-        return (k);
-    if (k & FETCH)
-        k = rvalue(lval, k);
-    FOREVER {
-        if (match(T_AND)) {
-            gen_push(k);
-            k = hier5 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            gen_and ();
-        } else
-            return (0);
-    }
+    l = hier5 (lval);
+    if (!match(T_AND))
+        return (l);
 
+    return tree(T_AND, make_rval(l), make_rval(hier4(lval2)));
 }
 
 /**
@@ -318,33 +210,17 @@ int hier4 (LVALUE *lval) {
  * @param lval
  * @return 0 or 1, fetch or no fetch
  */
-int hier5 (LVALUE *lval) {
-    int     k;
+struct node *hier5 (LVALUE *lval) {
+    struct node *l;
+    unsigned op;
     LVALUE lval2[1];
 
-    k = hier6 (lval);
-
-    if (token != T_EQEQ && token != T_BANGEQ)
-        return (k);
-    if (k & FETCH)
-        k = rvalue(lval, k);
-    FOREVER {
-        if (match (T_EQEQ)) {
-            gen_push(k);
-            k = hier6 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            gen_equal ();
-        } else if (match (T_BANGEQ)) {
-            gen_push(k);
-            k = hier6 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            gen_not_equal ();
-        } else
-            return (0);
-    }
-
+    l = hier6 (lval);
+    if (token != T_EQEQ && token  != T_BANGEQ)
+        return (l);
+    op = token;
+    next_token();
+    return tree(op, make_rval(l), make_rval(hier5(lval2)));
 }
 
 /**
@@ -352,61 +228,19 @@ int hier5 (LVALUE *lval) {
  * @param lval
  * @return 0 or 1, fetch or no fetch
  */
-int hier6 (LVALUE *lval) {
-    int     k;
+struct node *hier6 (LVALUE *lval) {
+    struct node *l;
+    unsigned op;
     LVALUE lval2[1];
 
-    k = hier7 (lval);
+    l = hier7 (lval);
 
     if (token != T_LT && token != T_GT && token != T_LTEQ && token != T_GTEQ)
-        return (k);
-    if (k & FETCH)
-        k = rvalue(lval, k);
-    FOREVER {
-        if (match (T_LTEQ)) {
-            gen_push(k);
-            k = hier7 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            if (nosign(lval) || nosign(lval2)) {
-                gen_unsigned_less_or_equal ();
-                continue;
-            }
-            gen_less_or_equal ();
-        } else if (match (T_GTEQ)) {
-            gen_push(k);
-            k = hier7 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            if (nosign(lval) || nosign(lval2)) {
-                gen_unsigned_greater_or_equal ();
-                continue;
-            }
-            gen_greater_or_equal();
-        } else if (match(T_LT)) {
-            gen_push(k);
-            k = hier7 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            if (nosign(lval) || nosign(lval2)) {
-                gen_unsigned_less_than ();
-                continue;
-            }
-            gen_less_than ();
-        } else if (match(T_GT)) {
-            gen_push(k);
-            k = hier7 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            if (nosign(lval) || nosign(lval2)) {
-                gen_usigned_greater_than ();
-                continue;
-            }
-            gen_greater_than();
-        } else
-            return (0);
-    }
-
+        return (l);
+    op = token;
+    next_token();
+    /* This assumes we deal with types somewhere */
+    return tree(op, make_rval(l), make_rval(hier6(lval2)));
 }
 
 /**
@@ -414,37 +248,18 @@ int hier6 (LVALUE *lval) {
  * @param lval
  * @return 0 or 1, fetch or no fetch
  */
-int hier7 (LVALUE *lval) {
-    int     k;
+struct node *hier7 (LVALUE *lval) {
+    struct node *l;
+    unsigned op;
     LVALUE lval2[1];
 
-    k = hier8(lval);
-
+    l = hier8(lval);
     if (token != T_GTGT && token != T_LTLT)
-        return (k);
-    if (k & FETCH)
-        k = rvalue(lval, k);
-    FOREVER {
-        if (match(T_GTGT)) {
-            gen_push(k);
-            k = hier8 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            if (nosign(lval)) {
-                gen_logical_shift_right();
-            } else {
-                gen_arithm_shift_right();
-            }
-        } else if (match(T_LTLT)) {
-            gen_push(k);
-            k = hier8 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            gen_arithm_shift_left();
-        } else
-            return (0);
-    }
+        return l;
 
+    op = token;
+    next_token();
+    return tree(op, make_rval(l), make_rval(hier7(lval2)));
 }
 
 /**
@@ -452,49 +267,51 @@ int hier7 (LVALUE *lval) {
  * @param lval
  * @return 0 or 1, fetch or no fetch
  */
-int hier8 (LVALUE *lval) {
-    int     k;
+struct node *hier8 (LVALUE *lval) {
+    struct node *l, *r;
+    unsigned op;
     LVALUE lval2[1];
+    unsigned scale = 1;
+    unsigned scaledir = 1;
 
-    k = hier9 (lval);
+    l = hier9 (lval);
     if (token != T_PLUS && token != T_MINUS)
-        return (k);
-    if (k & FETCH)
-        k = rvalue(lval, k);
-    FOREVER {
-        if (match (T_PLUS)) {
-            gen_push(k);
-            k = hier9 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            // if left is pointer and right is int, scale right
-            if (dbltest(lval,lval2)) {
-                gen_multiply(lval->ptr_type, lval->tagsym ? lval->tagsym->size : INTSIZE);
-            }
-            // will scale left if right int pointer and left int
-            gen_add (lval,lval2);
-            result (lval, lval2);
-        } else if (match (T_MINUS)) {
-            gen_push(k);
-            k = hier9 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            /* if dbl, can only be: pointer - int, or
+        return l;
+
+    op = token;
+    next_token();
+
+    l = make_rval(l);
+    r = make_rval(hier8(lval2));
+
+    if (op == T_PLUS) {
+        // if left is pointer and right is int, scale right)
+        if (dbltest(lval,lval2))
+            scale = lval->tagsym ? lval->tagsym->size : INTSIZE;
+        // will scale left if right int pointer and left int
+        /* FIXME: swap sides according to scaling need. For now just
+           hack right */
+    } else if (op == T_MINUS) {
+        /* if dbl, can only be: pointer - int, or
                                 pointer - pointer, thus,
-                in first case, int is scaled up,
-                in second, result is scaled down. */
-            if (dbltest(lval,lval2)) {
-                gen_multiply(lval->ptr_type, lval->tagsym ? lval->tagsym->size : INTSIZE);
-            }
-            gen_sub ();
-            /* if both pointers, scale result */
-            if ((lval->ptr_type & CINT) && (lval2->ptr_type & CINT)) {
-                gen_divide_by_two(); /* divide by intsize */
-            }
-            result (lval, lval2);
-        } else
-            return (0);
+            in first case, int is scaled up,
+            in second, result is scaled down. */
+        if (dbltest(lval,lval2))
+            scale = lval->tagsym ? lval->tagsym->size : INTSIZE;
+
+        /* if both pointers, scale result */
+        if ((lval->ptr_type & CINT) && (lval2->ptr_type & CINT))
+            scaledir = 2;
     }
+    if (scale == 1)
+        return tree(op, l, r);
+    if (scaledir == 2)
+        return tree(T_SLASH, tree(op, l, r), make_constant(scale));
+    /* Work out which side to scale */
+    if (lval->ptr_type & CINT)
+        return tree(op, l, tree(T_STAR, r, make_constant(scale)));
+    else
+        return tree(op, tree(T_STAR, l, make_constant(scale)), r);
 }
 
 /**
@@ -502,46 +319,18 @@ int hier8 (LVALUE *lval) {
  * @param lval
  * @return 0 or 1, fetch or no fetch
  */
-int hier9 (LVALUE *lval) {
-    int     k;
+struct node *hier9 (LVALUE *lval) {
+    struct node *l;
+    unsigned op;
     LVALUE lval2[1];
 
-    k = hier10 (lval);
+    l = hier10 (lval);
     if (token != T_STAR && token != T_PERCENT && token != T_SLASH)
-        return (k);
-    if (k & FETCH)
-        k = rvalue(lval, k);
-    FOREVER {
-        if (match (T_STAR)) {
-            gen_push(k);
-            k = hier10 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            gen_mult ();
-        } else if (match (T_SLASH)) {
-            gen_push(k);
-            k = hier10 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            if(nosign(lval) || nosign(lval2)) {
-                gen_udiv();
-            } else {
-                gen_div ();
-            }
-        } else if (match (T_PERCENT)) {
-            gen_push(k);
-            k = hier10 (lval2);
-            if (k & FETCH)
-                k = rvalue(lval2, k);
-            if(nosign(lval) || nosign(lval2)) {
-                gen_umod();
-            } else {
-                gen_mod ();
-            }
-        } else
-            return (0);
-    }
+        return l;
+    op = token;
+    next_token();
 
+    return tree(op, l, hier9(lval2));
 }
 
 /**
@@ -549,125 +338,91 @@ int hier9 (LVALUE *lval) {
  * @param lval
  * @return 0 or 1, fetch or no fetch
  */
-int hier10 (LVALUE *lval) {
-    int     k;
+
+struct node *hier10 (LVALUE *lval) {
+    struct node *l, *r;
+    unsigned op;
     SYMBOL *ptr;
 
-    if (match (T_PLUSPLUS)) {
-        if (((k = hier10 (lval)) & FETCH) == 0) {
+    op = token;
+    if (token != T_PLUSPLUS && token != T_MINUSMINUS && token != T_MINUS &&
+        token != T_TILDE && token != T_BANG && token != T_STAR && token != T_AND) {
+        /* Check for trailing forms */
+        l = hier11(lval);
+        if (token == T_PLUSPLUS || token == T_MINUSMINUS) {
+            next_token();
+            if (!(l->flags & LVAL)) {
+                needlval();
+                return l;
+            }
+            if (token == T_PLUSPLUS)
+                return tree(T_POSTINC, NULL, l);
+            else
+                return tree(T_POSTDEC, NULL, l);
+        }
+        return l;
+    }
+
+    next_token();
+
+    switch(op) {
+    case T_PLUSPLUS:
+    case T_MINUSMINUS:
+        r = hier10(lval);
+        if (!r->flags & LVAL) {
             needlval ();
             return (0);
         }
-        if (lval->indirect)
-            gen_push(k);
-        k = rvalue(lval, k);
-        gen_increment_primary_reg (lval);
-        store (lval);
-        return (HL_REG);
-    } else if (match (T_MINUSMINUS)) {
-        if (((k = hier10 (lval)) & FETCH) == 0) {
-            needlval ();
-            return (0);
-        }
-        if (lval->indirect)
-            gen_push(k);
-        k = rvalue(lval, k);
-        gen_decrement_primary_reg (lval);
-        store (lval);
-        return (HL_REG);
-    } else if (match (T_MINUS)) {
-        k = hier10 (lval);
-        if (k & FETCH)
-            k = rvalue(lval, k);
-        gen_twos_complement();
-        return (HL_REG);
-    } else if (match (T_TILDE)) {
-        k = hier10 (lval);
-        if (k & FETCH)
-            k = rvalue(lval, k);
-        gen_complement ();
-        return (HL_REG);
-    } else if (match (T_BANG)) {
-        k = hier10 (lval);
-        if (k & FETCH)
-            k = rvalue(lval, k);
-        gen_logical_negation();
-        return (HL_REG);
-    } else if (match(T_STAR)) {
-        k = hier10 (lval);
-        if (k & FETCH)
-            k = rvalue(lval, k);
+        /* TODO:  Scaling... */
+        return tree(op, NULL, r);
+    case T_TILDE:
+    case T_BANG:
+        return tree(op, NULL, make_rval(hier10(lval)));
+    /* Disambiguate forms */
+    case T_MINUS:
+        return tree(T_NEGATE, NULL, make_rval(hier10(lval)));
+    case T_STAR: 
         if ((ptr = lval->symbol) != 0)
             lval->indirect = ptr->type;
         else
             lval->indirect = CINT;
         lval->ptr_type = 0;  // flag as not pointer or array
-        return FETCH | k;
-    } else if (match(T_AND)) {
-        k = hier10 (lval);
-        if ((k & FETCH) == 0) {
-            error ("illegal address");
-            return (0);
+        return tree(T_DEREF, NULL, make_rval(hier10(lval)));
+    case T_AND:
+        r = hier10(lval);
+        if (r->flags & LVAL) {
+            error("illegal address of");
+            return r;
         }
         ptr = lval->symbol;
         lval->ptr_type = ptr->type;
-        if (lval->indirect) {
-            if (k & DE_REG) {
-                gen_swap();
-            }
-            return (HL_REG);
-        }
-        // global and non-array
-        gen_immediate ();
-        output_name ((ptr = lval->symbol)->name);
-        newline ();
         lval->indirect = ptr->type;
-        return (HL_REG);
-    } else {
-        k = hier11 (lval);
-        if (match (T_PLUSPLUS)) {
-            if ((k & FETCH) == 0) {
-                needlval ();
-                return (0);
-            }
-            if (lval->indirect)
-                gen_push(k);
-            k = rvalue(lval, k);
-            gen_increment_primary_reg (lval);
-            store (lval);
-            gen_decrement_primary_reg (lval);
-            return (HL_REG);
-        } else if (match (T_MINUSMINUS)) {
-            if ((k & FETCH) == 0) {
-                needlval ();
-                return (0);
-            }
-            if (lval->indirect)
-                gen_push(k);
-            k = rvalue(lval, k);
-            gen_decrement_primary_reg (lval);
-            store (lval);
-            gen_increment_primary_reg (lval);
-            return (HL_REG);
-        } else
-            return (k);
+        return tree(T_ADDROF, NULL, r);
     }
-
+    /* gcc */
+    return NULL;
 }
 
 /**
  * array subscripting
  * @param lval
- * @return 0 or 1, fetch or no fetch
+ *
+ * Build a tree for anything nailed after the primary. So for example
+ * foo[4][5] ends up as             add
+ *                              foo       add
+ *                                    4*n       5
  */
-int hier11(LVALUE *lval) {
-    int     direct, k;
+struct node *hier11(LVALUE *lval) {
+    int     direct;
+    struct node *l, *r;
     SYMBOL *ptr;
     unsigned sname;
+    unsigned scale;
 
-    k = primary(lval);
+    l = primary(lval);
+
     ptr = lval->symbol;
-    if (token == T_LSQUARE || token == T_LPAREN || token == T_DOT || token == T_POINTSTO)
+    if (token == T_LSQUARE || token == T_LPAREN || token == T_DOT || token == T_POINTSTO) {
         FOREVER {
             if (match(T_LSQUARE)) {
                 if (ptr == 0) {
@@ -676,31 +431,32 @@ int hier11(LVALUE *lval) {
                     needbrack(T_RSQUARE);
                     return (0);
                 } else if (ptr->identity == POINTER) {
-                    k = rvalue(lval, k);
+                    l = make_rval(l);
                 } else if (ptr->identity != ARRAY) {
                     error("can't subscript");
-                    k = 0;
                 }
-                gen_push(k);
-                expression (YES);
-                needbrack (T_LSQUARE);
-                gen_multiply(ptr->type, tag_table[ptr->tagidx].size);
-                gen_add (NULL,NULL);
-                //lval->symbol = 0;
+                r = expression (YES);
+                needbrack (T_RSQUARE);
+                /* Need a proper method for this stuff */
+                if (ptr->type == STRUCT)
+                    scale = tag_table[ptr->tagidx].size;
+                else if(ptr->type == CINT || ptr->type == UINT)
+                    scale = 2;
+                else
+                    scale = 1;
+                l = tree(T_PLUS, l, tree(T_STAR, r, make_constant(scale)));
+                l->flags |= LVAL;
                 lval->indirect = ptr->type;
                 lval->ptr_type = 0;
-                k = FETCH | HL_REG;
             } else if (match (T_LPAREN)) {
-                if (ptr == 0) {
-                    callfunction(0);
+                if (ptr == NULL) {
+                    l = callfunction(NULL, l);
                 } else if (ptr->identity != FUNCTION) {
-                    k = rvalue(lval, k);
-                    callfunction(0);
+                    l = callfunction(ptr, NULL);
                 } else {
-                    callfunction(ptr->name);
+                    l = callfunction(ptr, NULL);
                 }
                 lval->symbol = 0;
-                k = 0;
             } else if ((direct=match(T_DOT)) || match(T_POINTSTO)) {
                 if (lval->tagsym == 0) {
                     error("can't take member");
@@ -713,13 +469,11 @@ int hier11(LVALUE *lval) {
                     junk();
                     return 0;
                 }
-                if ((k & FETCH) && direct == 0) {
-                    k = rvalue(lval, k);
-                }
-                if (k == DE_REG) {
-                    gen_swap();
-                }
-                add_offset(ptr->offset); // move pointer from struct begin to struct member
+                if (direct == 0)
+                    l = tree(T_DEREF, NULL, l);
+
+                l = tree(T_PLUS, l, make_constant(ptr->offset));
+                l->flags |= LVAL;
                 lval->symbol = ptr;
                 lval->indirect = ptr->type; // lval->indirect = lval->val_type = ptr->type
                 lval->ptr_type = 0;
@@ -737,21 +491,11 @@ int hier11(LVALUE *lval) {
                     // array or struct
                     lval->ptr_type = ptr->type;
                     //lval->val_type = CINT;
-                    k = 0;
-                } else {
-                    k = FETCH | HL_REG;
                 }
             }
-            else return k;
+            else return l;
         }
-    if (ptr == 0)
-        return k;
-    if (ptr->identity == FUNCTION) {
-        gen_immediate();
-        output_name(ptr->name);
-        newline();
-        return 0;
     }
-    return k;
+    return l;
 }
 

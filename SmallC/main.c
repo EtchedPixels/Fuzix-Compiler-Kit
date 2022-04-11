@@ -12,7 +12,6 @@
 int main(int argc, char *argv[]) {
     char *param = NULL;
     int i;
-    macptr = 0;
     ctext = 0;
     errs = 0;
     aflag = 0;
@@ -85,6 +84,7 @@ void compile(void) {
         target = output;
         header();
         code_segment_gtext();
+        init_nodes();
         parse();
         data_segment_gdata();
         dumpglbs();

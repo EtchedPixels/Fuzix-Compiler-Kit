@@ -6,23 +6,27 @@
 #include "defs.h"
 #include "data.h"
 
-int primary(LVALUE *lval) {
+struct node *primary(LVALUE *lval) {
     unsigned sname;
-    int     num[1], k, symbol_table_idx, offset, reg;
+    struct node *l;
+    int     num[1], symbol_table_idx, offset;
     SYMBOL *symbol;
+    unsigned size;
 
     lval->ptr_type = 0;  // clear pointer/array type
     lval->tagsym = 0;
     if (match (T_LPAREN)) {
-        k = hier1 (lval);
+        l = hier1 (lval);
         needbrack (T_RPAREN);
-        return (k);
+        return (l);
     }
     if (match(T_SIZEOF)) {
         needbrack(T_LPAREN);
-        gen_immediate();
-        if (match(T_INT)) output_number(INTSIZE);
-        else if (match(T_CHAR)) output_number(1);
+        if (match(T_INT))
+            size = INTSIZE;
+        else if (match(T_CHAR))
+            size = 1;
+        /* TODO: sizeof struct foo, local static etc */
         else if ((sname = symname()) != 0) {
             if (((symbol_table_idx = find_locale(sname)) > -1) ||
                 ((symbol_table_idx = find_global(sname)) > -1)) {
@@ -35,10 +39,10 @@ int primary(LVALUE *lval) {
                     offset *= INTSIZE;
                 else if (symbol->type == STRUCT)
                     offset *= tag_table[symbol->tagidx].size;
-                output_number(offset);
+                size = offset;
             } else {
                 error("sizeof undeclared variable");
-                output_number(0);
+                size = 1;
             }
         } else {
             error("sizeof only on type or variable");
@@ -47,7 +51,7 @@ int primary(LVALUE *lval) {
         newline();
         lval->symbol = 0;
         lval->indirect = 0;
-        return(0);
+        return make_constant(size);
     }
     if ((sname = symname ()) != 0) {
         int local = 1;
@@ -63,13 +67,12 @@ int primary(LVALUE *lval) {
                 symbol = &symbol_table[symbol_table_idx];
                 lval->symbol = symbol;
                 lval->indirect = 0;
-                return 0;
+                return make_symbol(symbol);
             }
         }
         symbol = &symbol_table[symbol_table_idx];
 
         if (local && gen_indirected(symbol)) {
-            reg = gen_get_locale(symbol);
             lval->symbol = symbol;
             lval->indirect = symbol->type;
             if (symbol->type == STRUCT) {
@@ -78,13 +81,11 @@ int primary(LVALUE *lval) {
             if (symbol->identity == ARRAY ||
                 (symbol->identity == VARIABLE && symbol->type == STRUCT)) {
                 lval->ptr_type = symbol->type;
-                return reg;
-            }
-            if (symbol->identity == POINTER) {
+            } else if (symbol->identity == POINTER) {
                 lval->indirect = CINT;
                 lval->ptr_type = symbol->type;
             }
-            return FETCH | reg;
+            return make_symbol(symbol);
         }
 
 	/* Globals, function names */
@@ -101,7 +102,7 @@ int primary(LVALUE *lval) {
                 if (symbol->identity == POINTER) {
                     lval->ptr_type = symbol->type;
                 }
-                return FETCH | HL_REG;
+                return make_symbol(symbol);
             }
 
             if (symbol->storage == LSTATIC) {
@@ -118,17 +119,15 @@ int primary(LVALUE *lval) {
 	    /* Function call */
             lval->ptr_type = symbol->type;
 	}
-	return 0;
+	return make_symbol(symbol);
     }
     lval->symbol = 0;
     lval->indirect = 0;
     if (constant(num))
-        return 0;
+        return make_constant(num[0]);
     else {
         error("invalid expression");
-        gen_immediate();
-        output_number(0);
-        newline();
+        return make_constant(0);
         junk();
         return 0;
     }
@@ -248,41 +247,29 @@ int quoted_string(int *len, unsigned *position)
 }
 
 /**
- * perform a function call
- * called from "hier11", this routine will either call the named
- * function, or if the supplied ptr is zero, will call the contents
- * of HL
- * @param ptr name of the function
+ * parse function argument values
  */
-void callfunction(unsigned ptr) {
-    int     nargs;
 
-    nargs = 0;
+struct node *funcargs(void)
+{
+    struct node *n = expression(NO);
+    if (match(T_COMMA))
+        /* Switch around for calling order */
+        return tree(T_COMMA, funcargs(), n);
+    needbrack(T_RPAREN);
+    return n;
+}
 
-    if (ptr == 0)
-        gen_push (HL_REG);
-    /* WTF ?FIXME */
-    while (token != T_RPAREN) {
-        if (endst ())
-            break;
-        expression (NO);
-        if (ptr == 0)
-            gen_swap_stack ();
-        /* Worth making the first argument pass in HL ?? */
-        gen_push (HL_REG);
-        nargs++;
-        /* Will need to track sizes later */
-        if (!match (T_COMMA))
-            break;
-    }
-    needbrack (T_RPAREN);
-    if (aflag)
-        gnargs(nargs);
-    if (ptr)
-        gen_call (ptr);
+/**
+ * perform a function call
+ * @sym: symbol to call
+ * @node: node to call if not a symbol call
+ */
+struct node *callfunction(struct symbol *sym, struct node *n) {
+    if (sym)
+        return tree(T_FUNCCALL, make_symbol(sym), funcargs());
     else
-        callstk ();
-    stkp = gen_modify_stack (stkp + nargs * INTSIZE);
+        return tree(T_FUNCCALL, n, funcargs());
 }
 
 void needlval(void) {

@@ -17,11 +17,6 @@ int     while_table_index;
 int     swstcase[SWSTSZ];
 int     swstlab[SWSTSZ];
 int     swstp;
-char    macq[MACQSIZE];
-int     macptr;
-char    line[LINESIZE];
-char    mline[LINESIZE];
-int     lptr, mptr;
 
 TAG_SYMBOL  tag_table[NUMTAG]; // start of structure tag table
 int         tag_table_index; // ptr to next entry
@@ -43,7 +38,6 @@ int     nxtlab,
 int     input, input2, output, target;
 int     inclstk[INCLSIZ] = {-1, -1, -1 };
 int     inclsp;
-char    fname[20];
 char	input_eof;
 
 //char    quote[2];

@@ -129,7 +129,7 @@ void do_statement(void) {
     } else if (match (T_LCURLY))
         do_compound (NO);
     else {
-        expression (YES);
+        write_tree(expression (YES));
 /*      if (match (":")) {
             dolabel ();
             lastst = statement (NO);
@@ -261,13 +261,13 @@ void dofor(void) {
         pws = readwhile ();
         needbrack (T_LPAREN);
         if (!match (T_SEMICOLON)) {
-                expression (YES);
+                write_tree(expression (YES));
                 need_semicolon ();
                 gen_statement_end();
         }
         generate_label (pws->case_test);
         if (!match (T_SEMICOLON)) {
-                expression (YES);
+                write_tree(expression (YES));
                 gen_test_jump (pws->body_tab, TRUE);
                 gen_jump (pws->while_exit);
                 gen_statement_end();
@@ -276,7 +276,7 @@ void dofor(void) {
                 pws->case_test = pws->body_tab;
         generate_label (pws->incr_def);
         if (!match (T_RPAREN)) {
-                expression (YES);
+                write_tree(expression (YES));
                 gen_statement_end();
                 needbrack (T_RPAREN);
                 gen_jump (pws->case_test);
@@ -310,7 +310,7 @@ void doswitch(void) {
         newline ();
         gen_push (HL_REG);
         needbrack (T_LPAREN);
-        expression (YES);
+        write_tree(expression (YES));
         needbrack (T_RPAREN);
         stkp = stkp + INTSIZE;  // '?case' will adjust the stack
         gen_jump_case ();
@@ -363,7 +363,7 @@ void dodefault(void) {
  */
 void doreturn(void) {
         if (endst () == 0)
-                expression (YES);
+                write_tree(expression (YES));
         gen_jump(fexitlab);
 }
 

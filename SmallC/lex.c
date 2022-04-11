@@ -1,8 +1,6 @@
-/*      File lex.c: 2.1 (83/03/20,16:02:09) */
-/*% cc -O -c %
- *
+/*
+ *	Read and match against the token stream
  */
-
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -114,7 +112,7 @@ int get_type(void) {
     unsigned symbol_name;
 
     int sflag = 0;
-    if (sflag = match(T_STRUCT) || match(T_UNION)) {
+    if ((sflag = match(T_STRUCT)) || match(T_UNION)) {
         if ((symbol_name = symname()) == 0)
             illname();
         if ((otag = find_tag(symbol_name)) == -1)
