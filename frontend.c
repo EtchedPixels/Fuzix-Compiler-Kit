@@ -65,6 +65,7 @@ void fatal(const char *p)
 static unsigned last;
 static unsigned pushback;
 static unsigned isnl;
+static unsigned lastbslash;
 
 static void directive(void);
 
