@@ -127,3 +127,5 @@
 #define T_POSTDEC	0x1204
 #define T_FUNCCALL	0x1205
 #define T_NAME		0x1206
+#define T_LABEL		0x1207
+#define T_NULL		0x1208	/* expression not present */

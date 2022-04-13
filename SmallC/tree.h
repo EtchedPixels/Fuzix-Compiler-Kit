@@ -19,5 +19,7 @@ extern struct node *new_node(void);
 extern struct node *make_rval(struct node *);
 extern struct node *make_constant(unsigned n);
 extern struct node *make_symbol(struct symbol *s);
+extern struct node *make_label(unsigned n);
 
 extern void write_tree(struct node *n);
+extern void write_null_tree(void);

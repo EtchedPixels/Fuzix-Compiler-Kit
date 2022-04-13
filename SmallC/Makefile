@@ -4,7 +4,7 @@ LDFLAGS	=
 
 DEFS	=
 
-OBJS = initials.o data.o error.o expr.o function.o gen.o io.o \
+OBJS = initials.o data.o error.o expr.o function.o gen.o header.o io.o \
        lex.o main.o primary.o stmt.o struct.o sym.o tree.o while.o
 
 OBJ_8080 = code8080.o

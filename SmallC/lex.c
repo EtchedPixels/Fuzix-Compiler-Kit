@@ -25,7 +25,7 @@ void next_token(void)
     int c = getchar();
     if (c == EOF) {
         token = T_EOF;
-        printf("*** EOF\n");
+//        printf("*** EOF\n");
         return;
     }
     token = c;
@@ -44,7 +44,6 @@ void next_token(void)
         tokbyte();
         tokbyte();
     }
-    printf("token %04X [ %04x]\n", token, token_value);
 }
 
 /**
@@ -80,7 +79,6 @@ int endst(void) {
 void needbrack(unsigned brack) {
     if (!match (brack)) {
         error ("missing bracket");
-        gen_comment ();
 //        output_string (str);
         newline ();
     }

@@ -292,12 +292,14 @@ void declare_local(int typ, int stclass, int otag) {
                     break;
                 }
             }
+            /* FIXME: frame size tracking */
             if (match(T_EQ)) {
-                gen_modify_stack(stkp);
+                header(H_LOCALASSIGN, sname, k);
+//                gen_modify_stack(stkp);
                 write_tree(expression(NO));
-                gen_push(0);
             } else
-                stkp = gen_defer_modify_stack(stkp - k);
+                header(H_LOCAL, sname, k);
+//              stkp = gen_defer_modify_stack(stkp - k);
             add_local(sname, j, typ, stkp, AUTO);
             break;
         }
@@ -460,7 +462,6 @@ void illname(void) {
  */
 void multidef(unsigned symbol_name) {
     error ("already defined");
-    gen_comment ();
     output_name (symbol_name);
     newline ();
 }

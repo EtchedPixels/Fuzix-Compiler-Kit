@@ -57,8 +57,6 @@ struct node *hier1 (LVALUE *lval) {
         }
         r = make_rval(hier1 (lval2));
         return tree(T_EQ, l, r);	/* Assignment */
-        store (lval);
-        return (0);
     } else {      
         fc = token;
         if  (match (T_MINUSEQ) ||

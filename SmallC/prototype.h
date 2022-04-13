@@ -1,9 +1,6 @@
-extern void header(void);
 extern void newline(void);
-extern void initmac(void);
 extern void output_label_prefix(void);
 extern void output_label_terminator (void);
-extern void gen_comment(void);
 extern void trailer(void);
 extern void code_segment_gtext(void);
 extern void data_segment_gdata(void);
@@ -171,6 +168,7 @@ extern struct node *primary(LVALUE *lval);
 extern int dbltest(LVALUE *val1, LVALUE *val2);
 extern void result(LVALUE *lval, LVALUE *lval2);
 extern int constant(int val[]);
+extern struct node *constant_node(int val[]);
 extern int number(int val[]);
 extern int quoted_char(int *value);
 extern int quoted_string(int *len, unsigned *position);

@@ -16,7 +16,8 @@ int main(int argc, char *argv[]) {
     errs = 0;
     aflag = 0;
     uflag = 0;
-    
+
+    fprintf(stderr, "NODE SIZE %u\n", (unsigned)sizeof(struct node));
     for (i=1; i<argc; i++) {
         param = argv[i];
         if (*param == '-') {
@@ -82,7 +83,6 @@ void compile(void) {
         input = 0;
         output = 1;
         target = output;
-        header();
         code_segment_gtext();
         init_nodes();
         parse();
@@ -195,7 +195,6 @@ void errorsummary(void) {
     if (ncmp)
         error("missing closing bracket");
     newline();
-    gen_comment();
     output_decimal(errcnt);
     if (errcnt) errfile = YES;
     output_string(" error(s) in compilation");

@@ -31,6 +31,7 @@ void newfunc_typed(int storage, unsigned n, int type)
     int idx;
     SYMBOL *symbol;
     unsigned an;
+    unsigned i;
 
     fexitlab = getlabel();
 
@@ -100,17 +101,13 @@ void newfunc_typed(int storage, unsigned n, int type)
     if (symbol->offset == FUNCTION)
             multidef(n);
     symbol->offset = FUNCTION;
-    output_label_name(n);
-    output_label_terminator();
-    newline();
-    gen_prologue();
+    header(H_FUNCTION, n, 0);
+    /* FIXME when we have proper symbol handling */
+    for (i = NUMBER_OF_GLOBALS; i < local_table_index; i++)
+        header(H_ARGUMENT, symbol_table[i].name, symbol_table[i].offset);
     statement(YES);
-    print_label(fexitlab);
-    output_label_terminator();
-    newline();
-    gen_epilogue();
-    gen_modify_stack(0);
-    gen_ret();
+    footer(H_FUNCTION, n, 0);
+    /* TODO go back and rewrite header with frame size .. ? */
     stkp = 0;
     local_table_index = NUMBER_OF_GLOBALS; //locptr = STARTLOC;
 }

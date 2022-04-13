@@ -30,7 +30,6 @@ int statement(int func) {
         do_compound (NO);
     else {
         do_statement ();
-        gen_statement_end();
     }
     return (lastst);
 }
@@ -157,13 +156,11 @@ void do_compound(int func) {
                 if (decls) {
                         if (!statement_declare ()) {
                                 /* Any deferred movement now happens */
-                                gen_modify_stack(stkp);
+//                                gen_modify_stack(stkp);
                                 decls = NO;
                         }
-                } else {
+                } else
                         do_statement ();
-                        gen_statement_end();
-                }
         }
         ncmp--;
 }
@@ -178,20 +175,19 @@ void doif(void) {
         flev = local_table_index;
         fstkp = stkp;
         flab1 = getlabel ();
+        /* FIXME: sort label id stuff out later */
+        header(H_IF, flab1, 0);
         test (flab1, FALSE);
         statement (NO);
-        stkp = gen_modify_stack (fstkp);
         local_table_index = flev;
         if (!match (T_ELSE)) {
-                generate_label (flab1);
+                footer(H_IF, flab1, 0);
                 return;
         }
-        gen_jump (flab2 = getlabel ());
-        generate_label (flab1);
+        header(H_ELSE, flab1, 0);
         statement (NO);
-        stkp = gen_modify_stack (fstkp);
+        footer(H_IF, flab1, 0);
         local_table_index = flev;
-        generate_label (flab2);
 }
 
 /**
@@ -206,13 +202,11 @@ void dowhile(void) {
         ws.case_test = getlabel ();
         ws.while_exit = getlabel ();
         addwhile (&ws);
-        generate_label (ws.case_test);
+        header(H_WHILE, ws.case_test, 0);
         test (ws.while_exit, FALSE);
         statement (NO);
-        gen_jump (ws.case_test);
-        generate_label (ws.while_exit);
         local_table_index = ws.symbol_idx;
-        stkp = gen_modify_stack (ws.stack_pointer);
+        footer(H_WHILE, ws.case_test, 0);
         delwhile ();
 }
 
@@ -229,17 +223,16 @@ void dodo(void) {
         ws.case_test = getlabel ();
         ws.while_exit = getlabel ();
         addwhile (&ws);
-        generate_label (ws.body_tab);
+        header(H_DO, ws.body_tab, 0);
         statement (NO);
         if (!match (T_WHILE)) {
                 error ("missing while");
                 return;
         }
-        generate_label (ws.case_test);
+        header(H_DOWHILE, ws.body_tab, 0);
         test (ws.body_tab, TRUE);
-        generate_label (ws.while_exit);
+        footer(H_DO, ws.body_tab, 0);
         local_table_index = ws.symbol_idx;
-        stkp = gen_modify_stack (ws.stack_pointer);
         delwhile ();
 }
 
@@ -259,35 +252,30 @@ void dofor(void) {
         ws.while_exit = getlabel ();
         addwhile (&ws);
         pws = readwhile ();
+        header(H_FOR, ws.case_test, 0);
         needbrack (T_LPAREN);
         if (!match (T_SEMICOLON)) {
                 write_tree(expression (YES));
                 need_semicolon ();
-                gen_statement_end();
-        }
-        generate_label (pws->case_test);
+        } else
+                write_null_tree();
         if (!match (T_SEMICOLON)) {
                 write_tree(expression (YES));
-                gen_test_jump (pws->body_tab, TRUE);
-                gen_jump (pws->while_exit);
-                gen_statement_end();
                 need_semicolon ();
-        } else
+        } else {
+                write_null_tree();
                 pws->case_test = pws->body_tab;
-        generate_label (pws->incr_def);
+        }
         if (!match (T_RPAREN)) {
                 write_tree(expression (YES));
-                gen_statement_end();
                 needbrack (T_RPAREN);
-                gen_jump (pws->case_test);
-        } else
+        } else {
+                write_null_tree();
                 pws->incr_def = pws->case_test;
-        generate_label (pws->body_tab);
+        }
         statement (NO);
-        gen_jump (pws->incr_def);
-        generate_label (pws->while_exit);
+        footer(H_FOR, ws.case_test, 0);
         local_table_index = pws->symbol_idx;
-        stkp = gen_modify_stack (pws->stack_pointer);
         delwhile ();
 }
 
@@ -305,23 +293,16 @@ void doswitch(void) {
         ws.body_tab = getlabel ();
         ws.incr_def = ws.while_exit = getlabel ();
         addwhile (&ws);
-        gen_immediate ();
-        print_label (ws.body_tab);
-        newline ();
-        gen_push (HL_REG);
+        header(H_SWITCH, ws.case_test, 0);
         needbrack (T_LPAREN);
         write_tree(expression (YES));
         needbrack (T_RPAREN);
-        stkp = stkp + INTSIZE;  // '?case' will adjust the stack
-        gen_jump_case ();
         statement (NO);
         ptr = readswitch ();
-        gen_jump (ptr->while_exit);
         dumpsw (ptr);
-        generate_label (ptr->while_exit);
         local_table_index = ptr->symbol_idx;
-        stkp = gen_modify_stack (ptr->stack_pointer);
         swstp = ptr->case_test;
+        footer(H_SWITCH, ws.case_test, 0);
         delwhile ();
 }
 
@@ -333,11 +314,14 @@ void docase(void) {
 
         val = 0;
         if (readswitch ()) {
+                /* TODO: expression as const */
                 if (!number (&val))
                         error ("bad case label");
                 addcase (val);
                 if (!match (T_COLON))
                         error ("missing colon");
+                /* Types etc .. probably an expr ?? */
+                header(H_CASE, val, 0);
         } else
                 error ("no active switch");
 }
@@ -350,10 +334,9 @@ void dodefault(void) {
         int        lab;
 
         if ((ptr = readswitch ()) != 0) {
-                ptr->incr_def = lab = getlabel ();
-                generate_label (lab);
                 if (!match (T_COLON))
                         error ("missing colon");
+                header(H_DEFAULT, 0, 0);
         } else
                 error ("no active switch");
 }
@@ -362,9 +345,11 @@ void dodefault(void) {
  * "return" statement
  */
 void doreturn(void) {
+        header(H_RETURN, 0, 0);
         if (endst () == 0)
                 write_tree(expression (YES));
-        gen_jump(fexitlab);
+        else
+                write_null_tree();
 }
 
 /**
@@ -375,8 +360,8 @@ void dobreak(void) {
 
         if ((ptr = readwhile ()) == 0)
                 return;
-        gen_modify_stack (ptr->stack_pointer);
-        gen_jump (ptr->while_exit);
+        /* FIXME: how to pass relevant info to match to ptr/WHILE */
+        header(H_BREAK, 0, 0);
 }
 
 /**
@@ -387,11 +372,14 @@ void docont(void) {
 
         if ((ptr = findwhile ()) == 0)
                 return;
-        gen_modify_stack (ptr->stack_pointer);
+        /* Sort out label idents ?? */
+        header(H_CONTINUE, 0, 0);
+#if 0
         if (ptr->type == WSFOR)
                 gen_jump (ptr->incr_def);
         else
                 gen_jump (ptr->case_test);
+#endif
 }
 
 /**

@@ -19,13 +19,6 @@
  */
 
 /**
- * print all assembler info before any code is generated
- */
-void header (void) {
-    newline ();
-}
-
-/**
  * prints new line
  * @return 
  */
@@ -840,10 +833,3 @@ void gen_multiply(int type, int size) {
     }
 }
 
-/**
- * To help the optimizer know when r1/r2 are discardable
- */
-void gen_statement_end(void)
-{
-    output_line(";end");
-}

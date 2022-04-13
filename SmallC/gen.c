@@ -175,9 +175,8 @@ int rvalue(LVALUE *lval, int reg) {
  */
 void test(int label, int ft) {
     needbrack (T_LPAREN);
-    write_tree(expression (YES));
+    write_tree(make_rval(expression (YES)));
     needbrack (T_RPAREN);
-    gen_test_jump (label, ft);
 }
 
 /**
@@ -186,6 +185,8 @@ void test(int label, int ft) {
  * @param otag
  * @param size
  * @return 
+ *
+ * TODO: Arrays
  */
 void scale_const(int type, int otag, int *size) {
     switch (type) {

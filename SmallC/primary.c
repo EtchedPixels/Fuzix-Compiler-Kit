@@ -105,13 +105,6 @@ struct node *primary(LVALUE *lval) {
                 return make_symbol(symbol);
             }
 
-            if (symbol->storage == LSTATIC) {
-                gen_get_locale(symbol);
-            } else {
-                gen_immediate();
-                output_label_name(symbol->name);
-                newline();
-            }
             lval->indirect = symbol->type;
             lval->ptr_type = symbol->type;
         } else {
@@ -123,14 +116,12 @@ struct node *primary(LVALUE *lval) {
     }
     lval->symbol = 0;
     lval->indirect = 0;
-    if (constant(num))
-        return make_constant(num[0]);
-    else {
+    l = constant_node(num);
+    if (l == NULL) {
         error("invalid expression");
         return make_constant(0);
-        junk();
-        return 0;
     }
+    return l;
 }
 
 /**
@@ -168,14 +159,33 @@ void result(LVALUE *lval, LVALUE *lval2) {
     }
 }
 
+/* FIXME: typing */
+struct node *constant_node(int val[]) {
+    /* String... */
+    if (quoted_string(NULL, val)) {
+        /* We have a temporary name in val */
+        return make_label(val[0]);
+    }
+    /* Numeric */
+    switch(token) {
+        /* Hack for now */
+    case T_INTVAL:
+    case T_LONGVAL:
+    case T_UINTVAL:
+    case T_ULONGVAL:
+        val[0] = token_value;
+        next_token();
+        return make_constant(val[0]);
+    default: return NULL;
+    }
+}
+
 int constant(int val[]) {
-    if (number (val))
-        gen_immediate ();
+    if (number (val));
     /* Quoted strings are constants so we don't need to do any mucking about
        with segments - however we move them to data as we'd otherwise put
        them mid code stream ! */
     else if (quoted_string (NULL, val)) {
-        gen_immediate ();
         print_label (val[0]);
         newline();
         return 1;

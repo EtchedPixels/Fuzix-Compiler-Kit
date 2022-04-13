@@ -249,3 +249,4 @@ extern unsigned token;
 extern unsigned token_value;
 
 #include "tree.h"
+#include "header.h"

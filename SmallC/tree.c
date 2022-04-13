@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "defs.h"
 
@@ -79,6 +80,16 @@ struct node *make_symbol(struct symbol *s)
     return n;
 }
 
+struct node *make_label(unsigned label)
+{
+    struct node *n = new_node();
+    n->op = T_LABEL;
+    n->value = label;
+    n->flags = 0;
+    fprintf(stderr, "label %04x\n", label);
+    return n;
+}
+
 unsigned is_constant(struct node *n)
 {
     return (n->op >= T_INTVAL && n->op <= T_ULONGVAL) ? 1 : 0;
@@ -131,16 +142,23 @@ struct node *make_rval(struct node *n)
     return n;
 }
 
-void write_tree(struct node *n)
+static void write_subtree(struct node *n)
 {
-    if (n->left) {
-        write_tree(n->left);
-        free_node(n->left);
-    }
-    if (n->right) {
-        write_tree(n->right);
-        free_node(n->right);
-    }
-    /* Write this node TODO */
+    write(1, n, sizeof(struct node));
+    if (n->left)
+        write_subtree(n->left);
+    if (n->right)
+        write_subtree(n->right);
+    free_node(n);
 }
 
+void write_tree(struct node *n)
+{
+    write(1,"%^", 2);
+    write_subtree(n);
+}
+
+void write_null_tree(void)
+{
+    write_tree(tree(T_NULL, NULL, NULL));
+}
