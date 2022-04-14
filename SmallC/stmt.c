@@ -68,8 +68,8 @@ int do_local_declares(int stclass) {
         if ((otag=find_tag(sname)) == -1) { // structure not previously defined
             otag = define_struct(sname, stclass, sflag);
         }
-        declare_local(STRUCT, stclass, otag);
-    } else if ((type = get_type()) != -1) {
+        declare_local(C_STRUCT, stclass, otag);
+    } else if ((type = get_type()) != UNKNOWN) {
         declare_local(type, stclass, -1);
     } else if (stclass == LSTATIC || stclass == DEFAUTO) {
         declare_local(CINT, stclass, -1);
@@ -155,8 +155,6 @@ void do_compound(int func) {
                         return;
                 if (decls) {
                         if (!statement_declare ()) {
-                                /* Any deferred movement now happens */
-//                                gen_modify_stack(stkp);
                                 decls = NO;
                         }
                 } else
@@ -169,11 +167,10 @@ void do_compound(int func) {
  * "if" statement
  */
 void doif(void) {
-        int     fstkp, flab1, flab2;
+        int     flab1;
         int     flev;
 
         flev = local_table_index;
-        fstkp = stkp;
         flab1 = getlabel ();
         /* FIXME: sort label id stuff out later */
         header(H_IF, flab1, 0);
@@ -331,7 +328,6 @@ void docase(void) {
  */
 void dodefault(void) {
         WHILE *ptr;
-        int        lab;
 
         if ((ptr = readswitch ()) != 0) {
                 if (!match (T_COLON))
@@ -374,12 +370,10 @@ void docont(void) {
                 return;
         /* Sort out label idents ?? */
         header(H_CONTINUE, 0, 0);
-#if 0
         if (ptr->type == WSFOR)
-                gen_jump (ptr->incr_def);
+                header(H_CONTINUE, ptr->incr_def, 0);
         else
-                gen_jump (ptr->case_test);
-#endif
+                header(H_CONTINUE, ptr->case_test, 0);
 }
 
 /**

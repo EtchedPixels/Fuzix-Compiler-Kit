@@ -25,7 +25,7 @@ struct node *new_node(void)
     n->left = n->right = NULL;
     n->value = 0;
     n->flags = 0;
-    n->ptr = NULL;
+    n->sym = NULL;
     return n;
 }
 
@@ -56,6 +56,9 @@ struct node *tree(unsigned op, struct node *l, struct node *r)
     n->left = l;
     n->right = r;
     n->op = op;
+    /* FIXME: we will add the type rule checker here */
+    if (r)
+     n->type = r->type;
     return n;
 }
 
@@ -74,7 +77,7 @@ struct node *make_symbol(struct symbol *s)
     struct node *n = new_node();
     n->op = T_NAME;
     n->value = 0;
-    n->ptr = s;
+    n->sym = s;
     n->flags = LVAL;
     fprintf(stderr, "name %04x\n", s->name - 0x8000);
     return n;
@@ -139,6 +142,12 @@ struct node *make_rval(struct node *n)
 {
     if (n->flags & LVAL)
         return tree(T_DEREF, NULL, n);
+    return n;
+}
+
+struct node *make_noreturn(struct node *n)
+{
+    n->flags |= NORETURN;
     return n;
 }
 

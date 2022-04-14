@@ -31,16 +31,18 @@ int find_tag(unsigned sname) {
  * @param sname
  * @return pointer to member symbol if it is, else 0
  */
-SYMBOL *find_member(TAG_SYMBOL *tag, unsigned sname) {
-    int member_idx;
-
-    member_idx = tag->member_idx;
+SYMBOL *find_member(unsigned info, unsigned sname) {
+#if 0
+    /* TODO : work out final plumbing */
+    SYMBOL *symbol = &tag_table[info];
+    member_idx = s->member_idx;
 
     while (member_idx < tag->member_idx + tag->number_of_members) {
         if (member_table[member_idx].name == sname)
             return &member_table[member_idx];
         ++member_idx;
     }
+#endif
     return 0;
 }
 
@@ -53,7 +55,7 @@ SYMBOL *find_member(TAG_SYMBOL *tag, unsigned sname) {
  * @param storage
  * @return 
  */
-void add_member(unsigned sname, char identity, char type, int offset, int storage_class) {
+void add_member(unsigned sname, unsigned type, int offset, int storage_class) {
     SYMBOL *symbol;
     if (member_table_index >= NUMMEMB) {
         error("symbol table overflow");
@@ -61,7 +63,6 @@ void add_member(unsigned sname, char identity, char type, int offset, int storag
     }
     symbol = &member_table[member_table_index];
     symbol->name = sname;
-    symbol->identity = identity;
     symbol->type = type;
     symbol->storage = storage_class;
     symbol->offset = offset;

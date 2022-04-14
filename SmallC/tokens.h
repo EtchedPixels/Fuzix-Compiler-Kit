@@ -74,24 +74,29 @@
 
 /* The C language keywords */		
 #define T_KEYWORD	0x1000
-#define T_AUTO		0x1000
-#define T_CHAR		0x1001
-#define T_CONST		0x1002
-#define T_DOUBLE	0x1003
-#define T_ENUM		0x1004
-#define T_EXTERN	0x1005
-#define T_FLOAT		0x1006
-#define T_INT		0x1007
-#define T_LONG		0x1008
-#define T_REGISTER	0x1009
-#define T_SHORT		0x100A
-#define T_SIGNED	0x100B
-#define	T_STATIC	0x100C
-#define T_STRUCT	0x100D
-#define T_UNION		0x100E
-#define T_UNSIGNED	0x100F
-#define T_VOID		0x1010
+
+/* Type keywords */
+#define T_CHAR		0x1000
+#define T_DOUBLE	0x1001
+#define T_ENUM		0x1002
+#define T_FLOAT		0x1003
+#define T_INT		0x1004
+#define T_LONG		0x1005
+#define T_SHORT		0x1006
+#define T_SIGNED	0x1007
+#define T_STRUCT	0x1008
+#define T_UNION		0x1009
+#define T_UNSIGNED	0x100A
+#define T_VOID		0x100B
+/* Storage classes */
+#define T_AUTO		0x100C
+#define T_EXTERN	0x100D
+#define T_REGISTER	0x100E
+#define	T_STATIC	0x100F
+/* Modifiers */
+#define T_CONST		0x1010
 #define T_VOLATILE	0x1011
+/* Other keywords */
 #define T_BREAK		0x1012
 #define T_CASE		0x1013
 #define T_CONTINUE	0x1014
@@ -129,3 +134,5 @@
 #define T_NAME		0x1206
 #define T_LABEL		0x1207
 #define T_NULL		0x1208	/* expression not present */
+
+#define T_LINE		0x3FFF	/* Line number encoding scheme */

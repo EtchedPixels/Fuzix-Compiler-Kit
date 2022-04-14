@@ -158,8 +158,8 @@ int do_declarations(int stclass, TAG_SYMBOL *mtag, int is_struct) {
         if ((otag=find_tag(sname)) == -1) { // structure not previously defined
             otag = define_struct(sname, stclass, sflag);
         }
-        declare_global(STRUCT, stclass, mtag, otag, is_struct);
-    } else if ((type = get_type()) != 1) {
+        declare_global(C_STRUCT, stclass, mtag, otag, is_struct);
+    } else if ((type = get_type()) != UNKNOWN) {
         ns = declare_global(type, stclass, mtag, 0, is_struct);
     } else if (stclass == PUBLIC) {
         return (0);
@@ -180,7 +180,7 @@ void dumpglbs(void) {
     current_symbol_table_idx = rglobal_table_index;
     while (current_symbol_table_idx < global_table_index) {
         SYMBOL *symbol = &symbol_table[current_symbol_table_idx];
-        if (symbol->identity != FUNCTION)
+        if (!IS_FUNCTION(symbol->type))
             ppubext(symbol);
         else
             fpubext(symbol);

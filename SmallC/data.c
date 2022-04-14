@@ -36,7 +36,6 @@ int     nxtlab,
         lastst;
 
 int     input, input2, output, target;
-int     inclstk[INCLSIZ] = {-1, -1, -1 };
 int     inclsp;
 char	input_eof;
 

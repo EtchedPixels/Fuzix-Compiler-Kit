@@ -37,11 +37,11 @@ void newfunc_typed(int storage, unsigned n, int type)
 
     if ((idx = find_global(n)) > -1) {
         symbol = &symbol_table[idx];
-        if (symbol->identity != FUNCTION)
+        if (!IS_FUNCTION(symbol->type))
             multidef(n);
     } else {
         /* extern implies global scope */
-        idx = add_global(n, FUNCTION, CINT, 0, storage == EXTERN ? PUBLIC : storage);
+        idx = add_global(n, FUNCTION, /*FIXME UNKNOWN */0, storage == EXTERN ? PUBLIC : storage);
         symbol = &symbol_table[idx];
     }
     local_table_index = NUMBER_OF_GLOBALS; //locptr = STARTLOC;
@@ -63,14 +63,13 @@ void newfunc_typed(int storage, unsigned n, int type)
                     multidef(an);
                 else {
                     /* FIXME: struct */
-                    add_local(an, 0, 0, argstk, AUTO);
+                    add_local(an, 0, argstk, AUTO);
                     argstk = argstk + INTSIZE;
                 }
             } else {
                 error("illegal argument name");
                 junk();
             }
-            /* FIXME: line + lptr stuff */
             if (token != T_RPAREN) {
                 if (!match(T_COMMA))
                     error("expected comma");
@@ -88,7 +87,7 @@ void newfunc_typed(int storage, unsigned n, int type)
         stkp = 0;
         argtop = argstk;
         while (argstk) {
-            if ((type = get_type()) != -1) {
+            if ((type = get_type()) != UNKNOWN) {
                 notvoid(type);
                 getarg(type);
                 need_semicolon();
@@ -121,16 +120,15 @@ void newfunc_typed(int storage, unsigned n, int type)
  * @return 
  */
 void getarg(int t) {
-    int j, legalname, address, argptr;
+    int legalname, address, argptr;
 
     FOREVER
     {
         if (argstk == 0)
             return;
+        /* FIXME: proper type parsing needed here */
         if (match(T_STAR))
-            j = POINTER;
-        else
-            j = VARIABLE;
+            t++;		/* Ptr type */
         if (!(legalname = symname()))
             illname();
         if (match(T_LSQUARE)) {
@@ -138,11 +136,10 @@ void getarg(int t) {
             while (token != T_RSQUARE)
                 if (endst())
                     break;
-            j = POINTER;
+            t++;
         }
         if (legalname) {
             if ((argptr = find_locale(legalname)) > -1) {
-                symbol_table[argptr].identity = j;
                 symbol_table[argptr].type = t;
                 address = argtop - symbol_table[argptr].offset;
                 symbol_table[argptr].offset = address;
@@ -160,7 +157,7 @@ void getarg(int t) {
 int doAnsiArguments(void) {
     int type;
     type = get_type();
-    if (type == -1) {
+    if (type == UNKNOWN) {
         return 0; // no type detected, revert back to K&R style
     }
     argtop = argstk;
@@ -187,24 +184,23 @@ int doAnsiArguments(void) {
 
 void doLocalAnsiArgument(int type) {
     unsigned symbol_name;
-    int identity, address, argptr, ptr;
+    int address, argptr, ptr;
 
-    if (match(T_STAR)) {
-        identity = POINTER;
-    } else {
-        if (type == STRUCT) {
-            error("cannot pass struct");
-            return;
-        }
-        identity = VARIABLE;
-        if (type == VOID)
-            return;
+    /*FIXME: proper type handling */
+    if (match(T_STAR))
+        type++;
+    if (!PTR(type) && !IS_SIMPLE(type)) {
+        error("cannot pass object");
+        return;
     }
+    if (type == VOID)	/* VOID PTR is ok */
+        return;
+
     if ((symbol_name = symname()) != 0) {
         if (find_locale(symbol_name) > -1) {
             multidef(symbol_name);
         } else {
-            argptr = add_local (symbol_name, identity, type, 0, AUTO);
+            argptr = add_local (symbol_name, type, 0, AUTO);
             argstk = argstk + INTSIZE;
             ptr = local_table_index;
             while (ptr != NUMBER_OF_GLOBALS) { // modify stack offset as we push more params
@@ -225,8 +221,8 @@ void doLocalAnsiArgument(int type) {
                 break;
             }
         }
-        identity = POINTER;
-        symbol_table[argptr].identity = identity;
+        /* Eww type handling ! FIXME overflows etc */
+        symbol_table[argptr].type++;
     }
 }
 

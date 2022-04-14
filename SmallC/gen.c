@@ -148,26 +148,6 @@ void output_name(unsigned name) {
 }
 
 /**
- * stores values into memory
- * @param lval
- * @return 
- */
-void store(LVALUE *lval) {
-    if (lval->indirect == 0)
-        gen_put_memory (lval->symbol);
-    else
-        gen_put_indirect (lval->indirect);
-}
-
-int rvalue(LVALUE *lval, int reg) {
-    if ((lval->symbol != 0) && (lval->indirect == 0))
-        gen_get_memory (lval->symbol);
-    else
-        gen_get_indirect (lval->indirect, reg);
-    return HL_REG;
-}
-
-/**
  * parses test part "(expression)" input and generates assembly for jump
  * @param label
  * @param ft : false - test jz, true test jnz
@@ -194,9 +174,11 @@ void scale_const(int type, int otag, int *size) {
         case UINT:
             *size += *size;
             break;
+#if 0 // FIXME
         case STRUCT:
             *size *= tag_table[otag].size;
             break;
+#endif
         default:
             break;
     }

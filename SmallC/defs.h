@@ -19,20 +19,10 @@
 #define FFEED   12
 #define TAB     9
 
-#ifdef TINY
-#define NAMESIZE	17
-#define NAMEMAX		16
-#else
-// system-wide name size (for symbols)
-#define NAMESIZE        33
-#define NAMEMAX         32
-#endif
-
 struct symbol {
 	unsigned name;		// Name is now a token value
-	unsigned char identity;       // variable, array, pointer, function
 	unsigned char storage;        // public, auto, extern, static, lstatic, defauto
-	int type;               // char, int, uchar, unit
+	unsigned type;               // char, int, uchar, unit
 	int offset;             // offset
 	int tagidx;             // index of struct in tag table
 };
@@ -67,40 +57,45 @@ struct tag_symbol {
 #define POINTER         3
 #define FUNCTION        4
 
-/**
- * possible entries for "type"
- * high order 14 bits give length of object
- * low order 2 bits make type unique within length
+/*
+ *	Types. Reorganized so we can do some vaguely proper type management
  *
- *
- * Proposed new encoding
- *	15:	const
- *	14:	volatile
- *	13:	complex object
- *	12-10:	ptr depth
- *
- * complex object
- *	9-0:	pointer into object table (including function pointers so
- *		we can one day do type checking)
- *
- * simple object
- *
- *	9-8:	unused
- *	7:	unsigned
- *	6-5:
- *		00 char/short/int/long
- *		01 float/double
- *		10 void
- *		11 spare
- *	0-4:	size (1-8) not valid for complex objects
  */
-#define UNSIGNED        1
-#define STRUCT          2
-#define CCHAR           (1 << 2)
-#define UCHAR           ((1 << 2) + 1)
-#define CINT            (2 << 2)
-#define UINT            ((2 << 2) + 1)
-#define VOID		(0 << 2)
+#define PTR(x)		((x) & 7)		/* 7 deep should be loads */
+#define CCHAR		0x00			/* 00-7F - integer */
+#define CINT		0x10
+#define	CLONG		0x20
+#define CLONGLONG	0x30
+#define UNSIGNED	0x40
+#define UCHAR		0x40
+#define UINT		0x50
+#define ULONG		0x60
+#define ULONGLONG	0x70
+#define	FLOAT		0x80
+#define DOUBLE		0x90
+#define VOID		0xA0
+#define ELLIPSIS	0xB0
+
+#define UNKNOWN		0xFE
+#define ANY		0xFF
+
+/* For non simple types the information index */
+#define INFO(x)		(((x) >> 3) & 0x3FF)
+
+#define CLASS(x)	((x) & 0xC000)
+#define IS_SIMPLE(x)	(CLASS(x) == C_SIMPLE)
+#define IS_STRUCT(x)	(CLASS(x) == C_STRUCT)
+#define IS_FUNCTION(x)	(CLASS(x) == C_FUNCTION)
+#define IS_ARRAY(x)	(CLASS(x) == C_ARRAY)
+
+#define BASE_TYPE(x)	((x) & 0xF8)
+#define IS_ARITH(x)	(!PTR(x) && BASE_TYPE(x) < VOID)
+#define IS_INTARITH(x)	(!PTR(x) && BASE_TYPE(x) < FLOAT)
+
+#define C_SIMPLE	0x0000
+#define C_STRUCT	0x4000
+#define C_FUNCTION	0x8000
+#define C_ARRAY		0xC000		/* and other special later ? */
 
 /* possible entries for storage: to change */
 
@@ -137,23 +132,6 @@ struct while_rec {
 /* "switch" label stack */
 #define SWSTSZ  100
 
-/* input line */
-#define LINESIZE        150
-#define LINEMAX (LINESIZE-1)
-#define MPMAX   LINEMAX
-
-#ifdef TINY
-#define MACQSIZE	500
-#define MACMAX  (MACQSIZE-1)
-#else
-/* macro (define) pool */
-#define MACQSIZE        1500
-#define MACMAX  (MACQSIZE-1)
-#endif
-
-/* "include" stack */
-#define INCLSIZ     3
-
 /* statement types (tokens) */
 #define STIF        1
 #define STWHILE     2
@@ -165,27 +143,6 @@ struct while_rec {
 #define STDO        8
 #define STFOR       9
 #define STSWITCH    10
-
-#define DEFLIB  inclib()
-
-#define FETCH  1
-#define HL_REG 1<<1
-#define DE_REG 1<<2
-
-/* This we can switch to the new encoding when ready */
-struct lvalue {
-	SYMBOL *symbol;		// symbol table address, or 0 for constant
-	int indirect;		// type of indirect object, 0 for static object
-	int ptr_type;		// type of pointer or array, 0 for other idents
-    TAG_SYMBOL *tagsym; // tag symbol address, 0 if not struct
-};
-#define LVALUE struct lvalue
-
-/**
- * path to include directories. set at compile time on host machine
- * @return 
- */
-char *inclib(void);
 
 /**
  * Output the variable symbol at scptr as an extrn or a public
@@ -233,14 +190,6 @@ struct initials_table {
 };
 #define INITIALS struct initials_table
 
-/**
- * determine if 'sname' is a member of the struct with tag 'tag'
- * @param tag
- * @param sname
- * @return pointer to member symbol if it is, else 0
- */
-SYMBOL *find_member(TAG_SYMBOL *tag, unsigned name);
-
 #include "prototype.h"
 
 #include "tokens.h"
@@ -248,5 +197,8 @@ SYMBOL *find_member(TAG_SYMBOL *tag, unsigned name);
 extern unsigned token;
 extern unsigned token_value;
 
+extern unsigned line_num;
+
 #include "tree.h"
 #include "header.h"
+#include "type.h"

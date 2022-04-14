@@ -5,6 +5,7 @@
 
 #include <unistd.h>
 #include <string.h>
+#include <stdio.h>
 #include "defs.h"
 #include "data.h"
 
@@ -13,23 +14,15 @@ void errchar(char c)
         write(2, &c, 1);
 }
 
-void error(char *ptr)
+void warning(char *ptr)
 {
-#if 0
-        write(2, line, strlen(line));
-        errchar('\n');
-        while (k < lptr) {
-                if (line[k] == 9)
-                        errchar('\t');
-                else
-                        errchar(' ');
-                k++;
-        }
-        errchar('^');
-        errchar('\n');
-#endif
-        /* FIXME: line numbers */
+        fprintf(stderr, "line %d: ", line_num);
         write(2, ptr, strlen(ptr));
         errchar('\n');
+}
+
+void error(char *ptr)
+{
+        warning(ptr);
         errcnt++;
 }
