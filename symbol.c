@@ -80,7 +80,9 @@ struct symbol *update_symbol(unsigned name, unsigned storage,
 		local = 1;
 	sym = find_symbol(name);
 	if (sym != NULL) {
-		if (sym->storage <= S_LSTATIC || !local) {
+		if (sym->storage > S_EXTDEF)
+			error("invalid name");
+		else if (sym->storage <= S_LSTATIC || !local) {
 			fprintf(stderr, "Found sym %d\n", name);
 			/* Type matching is going to be a good deal more complex FIXME */
 			if (sym->type != type)
