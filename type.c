@@ -82,7 +82,10 @@ unsigned type_sizeof(unsigned t)
 	if (IS_STRUCT(t)) {
 		struct symbol *s = symbol_ref(t);
 		unsigned *p = s->idx;
-		return p[1];
+		if (s->flags & INITIALIZED)
+			return p[1];
+		error("struct/union not declared");
+		return 1;
 	}
 	/* Umm.. help ?? */
 	error("can't size type");
@@ -189,19 +192,17 @@ static unsigned structured_type(unsigned sflag)
 	struct symbol *sym;
 	unsigned name = symname();
 
-	if (name == 0) {
-		/* We don't support anonymous structs */
-		error("name required");
-		junk();
-		return CINT;
-	}
-	/* Our func/sym names clash for now like an old school compiler. We
+	/* Our func/sym names partly clash for now like an old school compiler. We
 	   can address that later FIXME */
-	sym = find_struct(name, sflag);
+	sym = update_struct(name, sflag);
 	if (sym == NULL) {
 		error("not a struct");
 		junk();
 		return CINT;
+	}
+	/* Now see if we have a struct declaration here */
+	if (token == T_LCURLY) {
+		struct_declaration(sym);
 	}
 	/* Encode the struct. The caller deals with any pointer, array etc
 	   notation */
@@ -431,7 +432,7 @@ unsigned type_and_name(unsigned *np, unsigned need_name,
 		type = deftype;
 	if (type == UNKNOWN)
 		return type;
-	 sym = symname();
+	sym = symname();
 	if (sym == 0 && (need_name))
 		error("name expected");
 	*np = sym;

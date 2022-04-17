@@ -20,9 +20,17 @@ static unsigned *idxptr = idxmem;
  */
 unsigned *idx_get(unsigned len)
 {
+    /* len is in words */
     unsigned *p = idxptr;
     idxptr += len;
     if (idxptr >= idxmem + IDX_SIZE)
         fatal("out of index memory");
     return p;
+}
+
+unsigned *idx_copy(unsigned *p, unsigned n)
+{
+    unsigned *r = idx_get(n);
+    memcpy(r, p, n * sizeof(unsigned));
+    return r;
 }

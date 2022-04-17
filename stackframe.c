@@ -1,5 +1,5 @@
 /*
- *	Assign offsets in the stack frame
+ *	Assign offsets in the stack frame (or elsewhere)
  */
 
 #include <stdio.h>
@@ -12,19 +12,23 @@ static unsigned local_frame;
  *	We will need to deal with alignment rules later
  */
 
-unsigned assign_storage(unsigned type, unsigned storage)
+unsigned alloc_room(unsigned *p, unsigned type)
 {
     unsigned s = type_sizeof(type);
     unsigned a = 0; /* type_alignof(type) */
-    unsigned *p = &arg_frame;
-
-    if (storage == S_AUTO)
-        p = &local_frame;
 
     *p = (*p + a) & ~a;
     a = *p;
     *p += s;
     return a;
+}
+
+unsigned assign_storage(unsigned type, unsigned storage)
+{
+    unsigned *p = &arg_frame;
+    if (storage == S_AUTO)
+        p = &local_frame;
+    return alloc_room(p, type);
 }
 
 void mark_storage(unsigned *a, unsigned *b)

@@ -2,6 +2,8 @@
 /* Pass 2 values */
 #define MAXSYM		512
 
+#include "symbol.h"
+
 #include "body.h"
 #include "declaration.h"
 #include "error.h"
@@ -13,7 +15,7 @@
 #include "primary.h"
 #include "storage.h"
 #include "stackframe.h"
-#include "symbol.h"
+#include "struct.h"
 #include "target.h"
 #include "token.h"
 #include "tree.h"

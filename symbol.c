@@ -140,8 +140,7 @@ static struct symbol *do_func_match(unsigned *template)
 	}
 	sym = alloc_symbol(0, 0);
 	sym->storage = S_FUNCDEF;
-	sym->idx = idx_get(len);
-	memcpy(sym->idx, template, len);
+	sym->idx = idx_copy(template, len);
 	return sym;
 }
 
@@ -170,13 +169,9 @@ unsigned array_dimension(unsigned type, unsigned depth)
  *	Struct helpers
  */
 
-struct symbol *find_struct(unsigned name, unsigned t)
+static struct symbol *find_struct(unsigned name, unsigned t)
 {
 	struct symbol *sym = symtab;
-	if (t)
-		t = S_STRUCT;
-	else
-		t = S_UNION;
 	while(sym <= last_sym) {
 		if (sym->name == name && sym->storage == t)
 			return sym;
@@ -184,6 +179,24 @@ struct symbol *find_struct(unsigned name, unsigned t)
 	}
 	return NULL;
 }
+
+struct symbol *update_struct(unsigned name, unsigned t)
+{
+	struct symbol *sym;
+	if (t)
+		t = S_STRUCT;
+	else
+		t = S_UNION;
+	sym = find_struct(name, t);
+	if (sym == NULL) {
+		sym = alloc_symbol(name, 0);	/* TODO scoping */
+		sym->storage = t;
+		sym->flags = 0;
+		sym->idx = NULL;	/* TODO */
+	}
+	return sym;
+}
+
 
 unsigned type_of_struct(struct symbol *sym)
 {

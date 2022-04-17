@@ -36,5 +36,5 @@ extern unsigned func_symbol_type(unsigned *template);
 extern struct symbol *symbol_ref(unsigned t);
 extern unsigned array_num_dimensions(unsigned type);
 extern unsigned array_dimension(unsigned type, unsigned depth);
-extern struct symbol *find_struct(unsigned name, unsigned isstruct);
+extern struct symbol *update_struct(unsigned name, unsigned isstruct);
 extern unsigned type_of_struct(struct symbol *sym);
