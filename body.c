@@ -218,9 +218,8 @@ static void statement(void)
 	default:
 		/* TODO labels */
 		/* Expressions */
-		fprintf(stderr, "stmt %x\n", token);
-		/* for now */
-		junk();
+		write_tree(expression_tree(1));
+		break;
 	}
 }
 

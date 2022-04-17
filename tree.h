@@ -8,6 +8,8 @@ struct node
 #define LVAL			1
 #define NOEFF			2
 #define NORETURN		4	/* Top level return is not used */
+#define NAMEARG			0x8000
+#define NAMEAUTO		0x4000
     unsigned value;		/* Offset for a NAME fp offset for a LOCAL */
     struct symbol *sym;		/* or NULL */
 };

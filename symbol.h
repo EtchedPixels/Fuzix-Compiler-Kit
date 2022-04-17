@@ -33,6 +33,7 @@ extern struct symbol *alloc_symbol(unsigned name, unsigned local);
 extern void pop_local_symbols(struct symbol *top);
 extern struct symbol *mark_local_symbols(void);
 extern unsigned func_symbol_type(unsigned *template);
+extern unsigned func_return(unsigned type);
 extern struct symbol *symbol_ref(unsigned t);
 extern unsigned array_num_dimensions(unsigned type);
 extern unsigned array_dimension(unsigned type, unsigned depth);

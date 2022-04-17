@@ -25,6 +25,7 @@ struct node *new_node(void)
 	n->left = n->right = NULL;
 	n->value = 0;
 	n->flags = 0;
+	n->type = 0;
 	n->sym = NULL;
 	return n;
 }
@@ -56,7 +57,7 @@ struct node *tree(unsigned op, struct node *l, struct node *r)
 	n->left = l;
 	n->right = r;
 	n->op = op;
-	/* FIXME: we will add the type rule checker here */
+	/* Default inherit from right */
 	if (r)
 		n->type = r->type;
 	return n;
@@ -68,6 +69,7 @@ struct node *make_constant(unsigned value)
 	struct node *n = new_node();
 	n->op = T_UINTVAL;
 	n->value = value;
+	n->type = 0; /* FIXME */
 	fprintf(stderr, "const %04x\n", value);
 	return n;
 }
@@ -75,10 +77,20 @@ struct node *make_constant(unsigned value)
 struct node *make_symbol(struct symbol *s)
 {
 	struct node *n = new_node();
-	n->op = T_NAME;
-	n->value = 0;
+	n->op = s->name;
+	n->value = s->offset;
 	n->sym = s;
 	n->flags = LVAL;
+	n->type = s->type;
+	/* Rewrite implicit pointer forms */
+	if (!PTR(s->type)) {
+		if (IS_FUNCTION(s->type) || IS_ARRAY(s->type))
+			n->type++;
+	}
+	if (s->storage == S_AUTO)
+		n->flags |= NAMEAUTO;
+	if (s->storage == S_ARGUMENT)
+		n->flags |= NAMEARG;
 	fprintf(stderr, "name %04x\n", s->name - 0x8000);
 	return n;
 }
@@ -106,9 +118,11 @@ unsigned is_constant_zero(struct node *n)
 }
 
 
+#define IS_NAME(x)		((x) >= 0x8000)
+
 static void nameref(struct node *n)
 {
-	if (is_constant(n->right) && n->left->op == T_NAME) {
+	if (is_constant(n->right) && IS_NAME(n->left->op)) {
 		unsigned value = n->left->value + n->right->value;
 		struct node *l = n->left;
 		free_node(n->right);
@@ -253,7 +267,7 @@ struct node *intarith_tree(unsigned op, struct node *l, struct node *r)
 		return arith_promotion_tree(op, l, r);
 }
 
-/* Two argument ordered compare - allows pointers
+/* Two argument ordered compare - allows pointers, also assignment
 		< > <= >= == != */
 struct node *ordercomp_tree(unsigned op, struct node *l, struct node *r)
 {

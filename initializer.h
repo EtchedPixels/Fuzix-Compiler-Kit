@@ -1,2 +1,2 @@
-extern void initializers(unsigned type, unsigned storage);
+extern void initializers(struct symbol *sym, unsigned type, unsigned storage);
 

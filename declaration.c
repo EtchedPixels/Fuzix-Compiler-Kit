@@ -5,7 +5,6 @@
  *	We don't deal with the comma cases yet (ie int a, *b)
  */
 
-#include <stdio.h>
 #include "compiler.h"
 
 void dotypedef(void)
@@ -58,7 +57,6 @@ void declaration(unsigned defstorage)
 		error("no automatic globals");
 
 	if (IS_FUNCTION(type) && !PTR(type)) {
-		fprintf(stderr, "body? %x\n", token);
 		if (token == T_LCURLY) {
 			function_body(s, name, type);
 			pop_local_symbols(ltop);
@@ -78,7 +76,7 @@ void declaration(unsigned defstorage)
 	sym->flags |= INITIALIZED;
 
 	if ((PTR(type) || !IS_FUNCTION(type)) && match(T_EQ))
-		initializers(type, s);
+		initializers(sym, type, s);
 	if (s == AUTO)
 		sym->offset = assign_storage(type, S_AUTO);
 	need_semicolon();

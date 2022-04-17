@@ -149,6 +149,13 @@ unsigned func_symbol_type(unsigned *template)
 	return C_FUNCTION | ((do_func_match(template) - symtab) << 3);
 }
 
+unsigned func_return(unsigned n)
+{
+	if (!IS_FUNCTION(n))
+		return CINT;
+	return symtab[INFO(n)].type;	/* Type of function is its return type */
+}
+
 /*
  *	Array type helpers
  */

@@ -21,7 +21,13 @@ struct node *call_args(void)
  */
 struct node *function_call(struct node *n)
 {
-	return tree(T_FUNCCALL, n, call_args());
+	unsigned type;
+	if (!IS_FUNCTION(n->type))
+		error("not a function");
+	type = func_return(n->type);
+	n = tree(T_FUNCCALL, n, call_args());
+	n->type = type;
+	return n;
 }
 
 /*
@@ -370,7 +376,7 @@ struct node *hier1(void)
 		if ((l->flags & LVAL) == 0)
 			needlval();
 		r = make_rval(hier1());
-		return tree(T_EQ, l, r);	/* Assignment */
+		return ordercomp_tree(T_EQ, l, r);	/* Assignment */
 	} else {
 		fc = token;
 		if (match(T_MINUSEQ) ||
