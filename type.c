@@ -335,6 +335,12 @@ static unsigned type_parse_function(unsigned name, unsigned type) {
 			*tn++ = VOID;
 			break;
 		}
+		/* Arrays pass the pointer */
+		t = type_canonical(t);
+		if (IS_STRUCT(t)) {
+			error("cannot pass structures");
+			t = CINT;
+		}
 		if (name) {
 			fprintf(stderr, "argument symbol %x\n", name);
 			sym = update_symbol(an, S_ARGUMENT, t);
