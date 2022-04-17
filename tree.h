@@ -27,3 +27,12 @@ extern struct node *make_label(unsigned n);
 extern void write_tree(struct node *n);
 extern void free_tree(struct node *n);
 extern void write_null_tree(void);
+
+extern unsigned is_constant(struct node *n);
+extern unsigned is_constant_zero(struct node *n);
+
+extern struct node *arith_promotion_tree(unsigned op, struct node *l, struct node *r);
+extern struct node *arith_tree(unsigned op, struct node *l, struct node *r);
+extern struct node *intarith_tree(unsigned op, struct node *l, struct node *r);
+extern struct node *ordercomp_tree(unsigned op, struct node *l, struct node *r);
+extern struct node *logic_tree(unsigned op, struct node *l, struct node *r);

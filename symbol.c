@@ -34,7 +34,7 @@ struct symbol *find_symbol(unsigned name)
 
 void pop_local_symbols(struct symbol *top)
 {
-	struct symbol *s = top;
+	struct symbol *s = top + 1;
 	while (s <= last_sym) {
 		if (s->storage <= S_LSTATIC)
 			s->storage = S_FREE;

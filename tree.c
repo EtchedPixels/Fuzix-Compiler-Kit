@@ -98,6 +98,14 @@ unsigned is_constant(struct node *n)
 	return (n->op >= T_INTVAL && n->op <= T_ULONGVAL) ? 1 : 0;
 }
 
+unsigned is_constant_zero(struct node *n)
+{
+	if (is_constant(n))
+		return !n->value;
+	return 0;
+}
+
+
 static void nameref(struct node *n)
 {
 	if (is_constant(n->right) && n->left->op == T_NAME) {
@@ -151,6 +159,13 @@ struct node *make_noreturn(struct node *n)
 	return n;
 }
 
+struct node *make_cast(struct node *n, unsigned t)
+{
+	n = tree(T_CAST, NULL, n);
+	n->type = t;
+	return n;
+}
+
 void free_tree(struct node *n)
 {
 	if (n->left)
@@ -179,4 +194,91 @@ void write_tree(struct node *n)
 void write_null_tree(void)
 {
 	write_tree(tree(T_NULL, NULL, NULL));
+}
+
+/*
+ *	Trees with type rules
+ */
+
+struct node *arith_promotion_tree(unsigned op, struct node *l,
+				  struct node *r)
+{
+	/* We know both sides are arithmetic */
+	unsigned lt = l->type;
+	unsigned rt = r->type;
+	struct node *n;
+
+	if (PTR(lt))
+		lt = UINT;
+	if (PTR(rt))
+		rt = UINT;
+
+	/* Our types are ordered for a reason */
+	/* Does want review versus standard TODO */
+	if (r->type > l->type)
+		lt = r->type;
+
+	if (l->type != lt)
+		l = make_cast(l, lt);
+	if (r->type != lt)
+		r = make_cast(r, lt);
+	n = tree(op, l, r);
+	n->type = lt;
+	return n;
+}
+
+/* Two argument arithmetic including float - multiply and divide, plus
+   some subsets of more general operations below */
+struct node *arith_tree(unsigned op, struct node *l, struct node *r)
+{
+	if (!IS_ARITH(l->type) || IS_ARITH(r->type))
+		badtype();
+	return arith_promotion_tree(op, l, r);
+}
+
+/* Two argument integer or bit pattern
+   << >> & | ^ */
+struct node *intarith_tree(unsigned op, struct node *l, struct node *r)
+{
+	unsigned lt = l->type;
+	unsigned rt = r->type;
+	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
+		badtype();
+	/* FIXME: cast r for shifts ? */
+	if (op == T_LTLT || op == T_GTGT) {
+		struct node *n = tree(op, l, make_cast(r, CINT));
+		n->type = l->type;
+		return n;
+	} else
+		return arith_promotion_tree(op, l, r);
+}
+
+/* Two argument ordered compare - allows pointers
+		< > <= >= == != */
+struct node *ordercomp_tree(unsigned op, struct node *l, struct node *r)
+{
+	struct node *n;
+	if (type_pointermatch(l, r))
+		n = tree(op, l, r);
+	else
+		n = arith_tree(op, l, r);
+	/* But the final logic 0 or 1 is integer */
+	n->type = CINT;
+	return n;
+}
+
+/* && || */
+struct node *logic_tree(unsigned op, struct node *l, struct node *r)
+{
+	unsigned lt = l->type;
+	unsigned rt = r->type;
+	struct node *n;
+
+	if (!PTR(lt) && !IS_ARITH(lt))
+		badtype();
+	if (!PTR(rt) && !IS_ARITH(rt))
+		badtype();
+	n = arith_promotion_tree(op, l, r);
+	n->type = CINT;
+	return n;
 }

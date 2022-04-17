@@ -185,7 +185,10 @@ static struct node *hier9(void)
 		return l;
 	op = token;
 	next_token();
-	return tree(op, l, hier9());
+	if (op == T_PERCENT)
+		return intarith_tree(op, l, hier9());
+	else
+		return arith_tree(op, l, hier9());
 }
 
 /*
@@ -242,7 +245,8 @@ static struct node *hier7(void)
 		return l;
 	op = token;
 	next_token();
-	return tree(op, make_rval(l), make_rval(hier7()));
+	/* The tree code knows about the shift rule being different for types */
+	return intarith_tree(op, make_rval(l), make_rval(hier7()));
 }
 
 /*
@@ -258,8 +262,7 @@ static struct node *hier6(void)
 		return (l);
 	op = token;
 	next_token();
-	/* This assumes we deal with types somewhere */
-	return tree(op, make_rval(l), make_rval(hier6()));
+	return ordercomp_tree(op, make_rval(l), make_rval(hier6()));
 }
 
 /*
@@ -274,7 +277,7 @@ static struct node *hier5(void)
 		return (l);
 	op = token;
 	next_token();
-	return tree(op, make_rval(l), make_rval(hier5()));
+	return ordercomp_tree(op, make_rval(l), make_rval(hier5()));
 }
 
 /*
@@ -298,7 +301,7 @@ static struct node *hier3(void)
 	l = hier4();
 	if (!match(T_HAT))
 		return (l);
-	return tree(T_HAT, make_rval(l), make_rval(hier3()));
+	return intarith_tree(T_HAT, make_rval(l), make_rval(hier3()));
 }
 
 /*
@@ -310,7 +313,7 @@ static struct node *hier2(void)
 	l = hier3();
 	if (!match(T_OR))
 		return (l);
-	return tree(T_OR, make_rval(l), make_rval(hier2()));
+	return intarith_tree(T_OR, make_rval(l), make_rval(hier2()));
 }
 
 /**
@@ -324,7 +327,7 @@ static struct node *hier1c(void)
 	l = hier2();
 	if (!match(T_ANDAND))
 		return (l);
-	return tree(T_ANDAND, make_rval(l), make_rval(hier1c()));
+	return logic_tree(T_ANDAND, make_rval(l), make_rval(hier1c()));
 }
 
 /**
@@ -338,7 +341,7 @@ static struct node *hier1b(void)
 	l = hier1c();
 	if (!match(T_OROR))
 		return (l);
-	return tree(T_OROR, make_rval(l), make_rval(hier1b()));
+	return logic_tree(T_OROR, make_rval(l), make_rval(hier1b()));
 }
 
 /*

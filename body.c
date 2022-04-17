@@ -156,6 +156,7 @@ static void default_statement(void)
 
 static void typedef_statement(void)
 {
+	/* TODO */
 }
 
 static void goto_statement(void)

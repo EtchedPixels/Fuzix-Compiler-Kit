@@ -3,6 +3,7 @@
  */
 
 #include <stddef.h>
+#include <stdio.h>
 #include "compiler.h"
 
 struct node *get_sizeof(void)
@@ -90,6 +91,7 @@ struct node *primary(void)
 		/* You can't size fields and structs by field/struct name without 
 		   the type specifier */
 		if (sym == NULL || sym->storage > S_EXTDEF) {
+			fprintf(stderr, "Couldn't find %u %p\n", name, (void *)sym);
 			error("unknown symbol");
 			return make_constant(0);
 		}

@@ -36,14 +36,17 @@ void declaration(unsigned defstorage)
 	unsigned s = get_storage(defstorage);
 	struct symbol *sym;
 	struct symbol *ltop;
+	unsigned argsave, locsave;
 
-	/* Create a local symbol context for the arguments - they are
-	   local names for the function body */
+	/* Create a local symbol context for the arguments - there are
+	   local names for the function case */
 	ltop = mark_local_symbols();
+	mark_storage(&argsave, &locsave);
 	type = type_and_name(&name, 1, CINT);
 
 	if (name == 0) {
 		junk();
+		pop_storage(&argsave, &locsave);
 		pop_local_symbols(ltop);
 		return;
 	}
@@ -55,14 +58,20 @@ void declaration(unsigned defstorage)
 		fprintf(stderr, "body? %x\n", token);
 		if (token == T_LCURLY) {
 			function_body(s, name, type);
+			pop_local_symbols(ltop);
+			pop_storage(&argsave, &locsave);
 			return;
 		} else if (s == S_EXTDEF)
 			s = S_EXTERN;
 	}
+	pop_local_symbols(ltop);
+	pop_storage(&argsave, &locsave);
 
 	/* Do we already have this symbol */
 	sym = update_symbol(name, s, type);
 	if ((PTR(type) || !IS_FUNCTION(type)) && match(T_EQ))
 		initializers(type, s);
+	if (s == AUTO)
+		sym->offset = assign_storage(type, S_AUTO);
 	need_semicolon();
 }

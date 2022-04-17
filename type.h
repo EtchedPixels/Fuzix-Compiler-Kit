@@ -3,11 +3,12 @@
  *
  */
 #define PTR(x)		((x) & 7)		/* 7 deep should be loads */
+/* These are orderd for promotion rules */
+#define UNSIGNED	0x08
 #define CCHAR		0x00			/* 00-7F - integer */
 #define CINT		0x10
 #define	CLONG		0x20
 #define CLONGLONG	0x30
-#define UNSIGNED	0x40
 #define UCHAR		0x40
 #define UINT		0x50
 #define ULONG		0x60
@@ -44,6 +45,7 @@ extern unsigned type_sizeof(unsigned t);
 extern unsigned type_ptrscale(unsigned t);
 extern unsigned type_addrof(unsigned t);
 extern unsigned type_ptrscale_binop(unsigned op, unsigned l, unsigned r, unsigned *div);
+extern int type_pointermatch(struct node *l, struct node *r);
 
 extern void skip_modifiers(void);
 extern unsigned type_and_name(unsigned *np, unsigned needname, unsigned deftype);

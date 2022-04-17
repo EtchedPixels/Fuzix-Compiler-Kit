@@ -11,6 +11,7 @@
 #include "lex.h"
 #include "primary.h"
 #include "storage.h"
+#include "stackframe.h"
 #include "symbol.h"
 #include "target.h"
 #include "token.h"

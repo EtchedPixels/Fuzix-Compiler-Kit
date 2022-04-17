@@ -112,6 +112,7 @@ unsigned type_addrof(unsigned t) {
 	error("cannot take address");
 	return VOID + 1;
 }
+
 unsigned type_ptrscale_binop(unsigned op, unsigned l, unsigned r,
 			     unsigned *div) {
 	*div = 1;
@@ -136,6 +137,34 @@ unsigned type_ptrscale_binop(unsigned op, unsigned l, unsigned r,
 		return 1;
 	error("invalid types");
 	return 1;
+}
+
+int type_pointermatch(struct node *l, struct node *r)
+{
+    unsigned lt = l->type;
+    unsigned rt = r->type;
+    /* The C zero case */
+    if (is_constant_zero(l) && PTR(rt))
+        return 1;
+    if (is_constant_zero(r) && PTR(lt))
+        return 1;
+    /* Not pointers */
+    if (!PTR(lt) || !PTR(rt))
+        return 0;
+    /* Same depth and type */
+    if (lt == rt)
+        return 1;
+    /* void * is fine */
+    if (BASE_TYPE(lt) == VOID)
+        return 1;
+    if (BASE_TYPE(rt) == VOID)
+        return 1;
+    /* sign errors */
+    if (BASE_TYPE(lt) < FLOAT && (lt ^ rt) == UNSIGNED) {
+        warning("sign mismatch");
+        return 1;
+    }
+    return 0;
 }
 
 
@@ -314,8 +343,14 @@ static unsigned type_parse_function(unsigned name, unsigned type) {
 //            function_add_argument(sym, 0, VOID);
 			break;
 		}
-		if (name)
-			update_symbol(an, S_ARGUMENT, t);
+		if (name) {
+			fprintf(stderr, "argument symbol %x\n", name);
+			sym = update_symbol(an, S_ARGUMENT, t);
+			sym->offset = assign_storage(t, S_ARGUMENT);
+		} else {
+			warning("name missing");
+			assign_storage(t, S_ARGUMENT);
+		}
 		if (!match(T_COMMA))
 			break;
 	}
