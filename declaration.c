@@ -42,10 +42,13 @@ void declaration(unsigned defstorage)
 	   local names for the function case */
 	ltop = mark_local_symbols();
 	mark_storage(&argsave, &locsave);
-	type = type_and_name(&name, 1, CINT);
+	type = type_and_name(&name, 0, CINT);
 
+	/* It's quite valid C to just write "int;" but usually dumb except
+	   that it's used for struct and union */
 	if (name == 0) {
-		junk();
+		if (!IS_STRUCT(name))
+			warning("useless declaration");
 		pop_storage(&argsave, &locsave);
 		pop_local_symbols(ltop);
 		return;
