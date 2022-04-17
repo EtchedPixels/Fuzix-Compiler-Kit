@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "compiler.h"
 
@@ -15,6 +16,12 @@ void error(const char *p)
 {
 	warning(p);
 	errors++;
+}
+
+void fatal(const char *p)
+{
+	error(p);
+	exit(255);
 }
 
 void errorc(const unsigned c, const char *p)

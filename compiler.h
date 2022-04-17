@@ -7,6 +7,7 @@
 #include "error.h"
 #include "expression.h"
 #include "header.h"
+#include "idxdata.h"
 #include "initializer.h"
 #include "lex.h"
 #include "primary.h"

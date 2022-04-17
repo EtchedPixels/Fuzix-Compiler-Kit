@@ -7,6 +7,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "compiler.h"
 
 struct symbol symtab[MAXSYM];
@@ -60,6 +61,7 @@ struct symbol *alloc_symbol(unsigned name, unsigned local)
 				local_top = s;
 			if (last_sym < s)
 				last_sym = s;
+			s->name = name;
 			s->offset = 0;
 			s->idx = 0;
 			s->flags = 0;
@@ -67,8 +69,7 @@ struct symbol *alloc_symbol(unsigned name, unsigned local)
 		}
 		s++;
 	}
-	error("too many symbols");
-	exit(1);
+	fatal("too many symbols");
 }
 
 struct symbol *update_symbol(unsigned name, unsigned storage,
@@ -108,11 +109,38 @@ struct symbol *update_symbol(unsigned name, unsigned storage,
 	fprintf(stderr, "Create sym %d\n", name);
 	/* Insert new symbol */
 	sym = alloc_symbol(name, local);
-	sym->name = name;
 	sym->type = type;
 	sym->storage = storage;
 	sym->flags = 0;
 	sym->idx = 0;
 	sym->offset = 0;
 	return sym;
+}
+
+/*
+ *	Find or insert a function prototype. We keep these in the sym table
+ *	as a handy way to get an index for types.
+ *
+ *	Although it has a cost we really need to fold all the equivalently
+ *	typed argument sets into a single instance to save memory.
+ */
+static struct symbol *do_func_match(unsigned *template)
+{
+	struct symbol *sym = symtab;
+	unsigned len = *template + 1;
+	while(sym <= last_sym) {
+		if (sym->storage == S_FUNCDEF && memcmp(sym->idx, template, len) == 0)
+			return sym;
+		sym++;
+	}
+	sym = alloc_symbol(0, 0);
+	sym->storage = S_FUNCDEF;
+	sym->idx = idx_get(len);
+	memcpy(sym->idx, template, len);
+	return sym;
+}
+
+unsigned func_symbol_type(unsigned *template)
+{
+	return C_FUNCTION | ((do_func_match(template) - symtab) << 3);
 }

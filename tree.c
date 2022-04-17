@@ -231,7 +231,7 @@ struct node *arith_promotion_tree(unsigned op, struct node *l,
    some subsets of more general operations below */
 struct node *arith_tree(unsigned op, struct node *l, struct node *r)
 {
-	if (!IS_ARITH(l->type) || IS_ARITH(r->type))
+	if (!IS_ARITH(l->type) || !IS_ARITH(r->type))
 		badtype();
 	return arith_promotion_tree(op, l, r);
 }

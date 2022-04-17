@@ -5,7 +5,7 @@ struct symbol
     unsigned char storage;	/* Storage class */
     unsigned char flags;
 #define INITIALIZED	1
-    unsigned idx;		/* Index into object specific data */
+    unsigned *idx;		/* Index into object specific data */
     int offset;			/* Offset for locals */
 };
 
@@ -32,4 +32,4 @@ extern struct symbol *find_symbol(unsigned name);
 extern struct symbol *alloc_symbol(unsigned name, unsigned local);
 extern void pop_local_symbols(struct symbol *top);
 extern struct symbol *mark_local_symbols(void);
-
+extern unsigned func_symbol_type(unsigned *template);

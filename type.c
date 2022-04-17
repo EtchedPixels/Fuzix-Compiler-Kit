@@ -306,18 +306,12 @@ unsigned get_type(void) {
 }
 
 /*
- *	Above this lot sits a parser for typedef and declarations
- *	that handles the name (sometimes optional) and trailing array etc
+ *	Parse an ANSI C style function header (we don't do K&R at all)
  *
- *	We want to split that out from the current primary handling so we
- *	can use it for typedef.
- *
- *	We don't deal with storage classes at this level
- */
-
-/*
- *	TODO - defer allocation of sym type and build param array then
- *	try and match it to an existing prototype index
+ *	We build a vector of type descriptors for the arguments and then
+ *	build a type from that. All functions with the same argument pattern
+ *	have the same type code. That saves us a ton of space and also means
+ *	we can compare function pointer equivalence trivially
  */
 static unsigned type_parse_function(unsigned name, unsigned type) {
 	/* Function returning the type accumulated so far */
@@ -325,36 +319,47 @@ static unsigned type_parse_function(unsigned name, unsigned type) {
 	struct symbol *sym;
 	unsigned an;
 	unsigned t;
-	/* Our type is function */
-	 type = C_FUNCTION /*|symbol_number(sym) */ ;
+	unsigned tplt[33];	/* max 32 typed arguments */
+	unsigned *tn = tplt + 1;
+
 	/* Parse the bracketed arguments if any and nail them to the
 	   symbol. For now just eat them. We need to add them as local symbols
 	   and check collisions etc */
 	while (token != T_RPAREN) {
 		/* FIXME special rule for void and ellipsis and they depend whether
 		   it's a function def or header. Also maybe K&R format support ? */
+
+		if (tn == tplt + 33)
+			fatal("too many arguments");
 		if (token == T_ELLIPSIS) {
 			next_token();
-//            function_add_argument(sym, 0, ELLIPSIS);
+			*tn++ = ELLIPSIS;
 			break;
 		}
 		t = type_and_name(&an, 0, CINT);
 		if (t == VOID) {
-//            function_add_argument(sym, 0, VOID);
+			*tn++ = VOID;
 			break;
 		}
 		if (name) {
 			fprintf(stderr, "argument symbol %x\n", name);
 			sym = update_symbol(an, S_ARGUMENT, t);
 			sym->offset = assign_storage(t, S_ARGUMENT);
+			*tn++ = t;
 		} else {
-			warning("name missing");
 			assign_storage(t, S_ARGUMENT);
+			*tn++ = t;
 		}
 		if (!match(T_COMMA))
 			break;
 	}
 	require(T_RPAREN);
+	/* A zero length comes from () and means 'whatever' so semantically
+	   for us at least 8) it's an ellipsis only */
+	if (tn == tplt)
+		*tn++ = ELLIPSIS;
+	*tplt = tn - tplt;
+	type = func_symbol_type(tplt);
 	fprintf(stderr, "func type %x\n", type);
 	return type;
 }
@@ -370,6 +375,7 @@ static unsigned type_parse_array(unsigned name, unsigned type) {
 #endif
 	 return CINT;		/* until we write this */
 }
+
 /*
  *	Turn a declaration into a type and name, parse anything function
  *	declarations, parse any array dimensions and turn the whole lot into
