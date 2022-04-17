@@ -14,8 +14,11 @@
 #include <fcntl.h>
 #include <ctype.h>
 
-#include "compiler.h"
+#include "token.h"
 #include "target.h"
+
+#define MAXSYM		512
+#define	NAMELEN		16	/* Matches linker */
 
 static int isoctal(unsigned char c)
 {
@@ -44,6 +47,7 @@ static int iscsymstart(unsigned char c)
 
 static unsigned err;
 static unsigned line = 1;
+static unsigned oldline = 0;
 
 void error(const char *p)
 {
@@ -62,8 +66,8 @@ void fatal(const char *p)
 	exit(1);
 }
 
-static unsigned last;
 static unsigned pushback;
+static unsigned pbstack[2];
 static unsigned isnl;
 static unsigned lastbslash;
 
@@ -73,10 +77,11 @@ unsigned get(void)
 {
 	int c;
 	if (pushback) {
+		c = pbstack[--pushback];
 		pushback = 0;
-		if (last == '\n')
+		if (c == '\n')
 			line++;
-		return last;
+		return c;
 	}
 	c = getchar();
 	if (c == '#' && isnl) {
@@ -96,7 +101,7 @@ unsigned get(void)
 		lastbslash = 1;
 	else
 		lastbslash = 0;
-		
+
 	if (c == EOF)
 		return 0;
 	return c;
@@ -107,16 +112,15 @@ unsigned get_nb(void)
 	unsigned c;
 	do {
 		c = get();
-	} while(c && isspace(c));
+	} while (c && isspace(c));
 	return c;
 }
 
 void unget(unsigned c)
 {
-	if (pushback)
+	if (pushback > 2)
 		fatal("double pushback");
-	pushback = 1;
-	last = c;
+	pbstack[pushback++] = c;
 	if (c == '\n')
 		line--;
 }
@@ -195,9 +199,9 @@ static unsigned hash_symbol(const char *name)
 
 static void write_symbol_table(void)
 {
-	unsigned len = (uint8_t *)nextsym - (uint8_t *)symbase;
+	unsigned len = (uint8_t *) nextsym - (uint8_t *) symbase;
 	/* FIXME: proper temporary file! */
-	int fd = open(".symtmp", O_WRONLY|O_CREAT|O_TRUNC, 0600);
+	int fd = open(".symtmp", O_WRONLY | O_CREAT | O_TRUNC, 0600);
 	if (fd == -1) {
 		perror(".symtmp");
 		exit(1);
@@ -238,6 +242,12 @@ static void encode_byte(unsigned c)
 static void write_token(unsigned c)
 {
 	unsigned char *tp;
+	if (oldline != line) {
+		oldline = line;
+		write_token(T_LINE);
+		outbyte(line);
+		outbyte(line << 8);
+	}
 	/* Write the token, then any data for it */
 	outbyte(c);
 	outbyte(c >> 8);
@@ -251,24 +261,26 @@ static void write_token(unsigned c)
 /* C keywords, ignoring all the modern crap */
 
 static const char *keytab[] = {
-	/* Type words first for convenience later on */
-	"auto",
+	/* Types */
 	"char",
-	"const",
 	"double",
 	"enum",
-	"extern",
 	"float",
 	"int",
 	"long",
-	"register",
 	"short",
 	"signed",
-	"static",
 	"struct",
 	"union",
 	"unsigned",
 	"void",
+	/* Storage classes */
+	"auto",
+	"extern",
+	"register",
+	"static",
+	/* Modifiers */
+	"const",
 	"volatile",
 	/* Then the rest */
 	"break",
@@ -297,7 +309,7 @@ static void keywords(void)
 		new_symbol(*p, hash_symbol(*p), i++);
 		p++;
 	}
-	symbase =  nextsym;
+	symbase = nextsym;
 }
 
 /* Read up to 14 more bytes into the symbol name, plus a terminator */
@@ -305,7 +317,7 @@ static void get_symbol_tail(char *p)
 {
 	unsigned n = 14;
 	unsigned c;
-	while((c = get()) != 0) {
+	while ((c = get()) != 0) {
 		if (!iscsymbol(c))
 			break;
 		if (n) {
@@ -425,7 +437,7 @@ static void directive(void)
 		fatal("bad cpp");
 	line = decimal(c);
 	/* don't yet look for file name */
-	while((c = get()) != 0) {
+	while ((c = get()) != 0) {
 		if (c == '\n')
 			return;
 	}
@@ -670,6 +682,12 @@ static unsigned tokenize(void)
 	/* Now deal with the other double symbol cases */
 	if (c == '-' && c2 == '>')
 		return T_POINTSTO;
+	if (c == '.' && c2 == '.') {
+		c3 = get();
+		if (c3 == '.')
+			return T_ELLIPSIS;
+		unget(c3);
+	}
 	/* The '=' cases */
 	if (c2 == '=') {
 		p = strchr(symeq, c);
@@ -680,7 +698,7 @@ static unsigned tokenize(void)
 	/* Symbols that only have a 1 byte form */
 	p = strchr(unibyte, c);
 	if (p)
-		return T_UNI + p - unibyte;
+		return c;	/* Map to self */
 	/* Not valid C */
 	error("nonsense in C");
 	/* I'm a teapot */
