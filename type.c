@@ -177,10 +177,37 @@ unsigned is_type_word(void)
 	return (token >= T_CHAR && token <= T_VOID);
 }
 
-void skip_modifiers(void) {
+void skip_modifiers(void)
+{
 	while (is_modifier())
 		next_token();
 }
+
+/* Structures */
+static unsigned structured_type(unsigned sflag)
+{
+	struct symbol *sym;
+	unsigned name = symname();
+
+	if (name == 0) {
+		/* We don't support anonymous structs */
+		error("name required");
+		junk();
+		return CINT;
+	}
+	/* Our func/sym names clash for now like an old school compiler. We
+	   can address that later FIXME */
+	sym = find_struct(name, sflag);
+	if (sym == NULL) {
+		error("not a struct");
+		junk();
+		return CINT;
+	}
+	/* Encode the struct. The caller deals with any pointer, array etc
+	   notation */
+	return type_of_struct(sym);
+}
+
 static unsigned once_flags;
 
 static void set_once(unsigned bits)
@@ -189,46 +216,12 @@ static void set_once(unsigned bits)
 		typeconflict();
 	once_flags |= bits;
 }
-/*
- *	Parse all the type blurb up to the symbol name. We don't deal with
- *	typedefs yet and that complicates things as you can have typedefs
- *	that have pointer/arrayness. Also TODO is enum...
- *
- *	For our simpler case it's a lot easier. We are going to hand back
- *	either a struct or union type with some degree of pointer indirection
- *	possible
- *
- *	Stuff following the name is not our problem. So int x[4] is an int
- *	to us. The fact it's any array is the callers fun for now but wants
- *	centralizing somewhere else (especially once we hit typedef)
- */
 
-unsigned get_type(void) {
-	unsigned sflag = 0;
-	unsigned type = CINT;	/* default */
-	unsigned ptr = 0;
-
-
-	/* Not a type */
-	if (!is_modifier() && token != T_STAR && !is_type_word())
-		 return UNKNOWN;
-
-	 skip_modifiers();	/* volatile const etc */
-
-	while (match(T_STAR)) {
-		skip_modifiers();	/* volatile const etc */
-		ptr++;
-	}
-	if (ptr > 7)
-		 error("too many indirections");
-
+static unsigned base_type(void)
+{
 	once_flags = 0;
+	unsigned type = CINT;
 
-	skip_modifiers();	/* volatile const etc */
-#if 0
-	if ((sflag = match(T_STRUCT)) || match(T_UNION))
-		return structured_type(sflag);
-#endif
 	while (is_type_word()) {
 		switch (token) {
 		case T_SHORT:
@@ -288,6 +281,49 @@ unsigned get_type(void) {
 	/* We don't deal with default unsigned char yet .. */
 	if (once_flags & 8)
 		type &= ~UNSIGNED;
+	return type;
+}
+
+/*
+ *	Parse all the type blurb up to the symbol name. We don't deal with
+ *	typedefs yet and that complicates things as you can have typedefs
+ *	that have pointer/arrayness. Also TODO is enum...
+ *
+ *	For our simpler case it's a lot easier. We are going to hand back
+ *	either a struct or union type with some degree of pointer indirection
+ *	possible
+ *
+ *	Stuff following the name is not our problem. So int x[4] is an int
+ *	to us. The fact it's any array is the callers fun for now but wants
+ *	centralizing somewhere else (especially once we hit typedef)
+ */
+
+unsigned get_type(void) {
+	unsigned sflag = 0;
+	unsigned type;
+	unsigned ptr = 0;
+
+
+	/* Not a type */
+	if (!is_modifier() && token != T_STAR && !is_type_word())
+		 return UNKNOWN;
+
+	skip_modifiers();	/* volatile const etc */
+
+	/* Check - is this after only (ie is **int** legal) TODO */
+	while (match(T_STAR)) {
+		skip_modifiers();	/* volatile const etc */
+		ptr++;
+	}
+	if (ptr > 7)
+		 error("too many indirections");
+
+	skip_modifiers();	/* volatile const etc */
+
+	if ((sflag = match(T_STRUCT)) || match(T_UNION))
+		type = structured_type(sflag);
+	else
+		type = base_type();
 
 	while (match(T_STAR)) {
 		skip_modifiers();	/* volatile const etc */

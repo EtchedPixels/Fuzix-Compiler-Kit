@@ -165,3 +165,27 @@ unsigned array_dimension(unsigned type, unsigned depth)
 	struct symbol *sym = symbol_ref(type);
 	return sym->idx[depth];
 }
+
+/*
+ *	Struct helpers
+ */
+
+struct symbol *find_struct(unsigned name, unsigned t)
+{
+	struct symbol *sym = symtab;
+	if (t)
+		t = S_STRUCT;
+	else
+		t = S_UNION;
+	while(sym <= last_sym) {
+		if (sym->name == name && sym->storage == t)
+			return sym;
+		sym++;
+	}
+	return NULL;
+}
+
+unsigned type_of_struct(struct symbol *sym)
+{
+	return C_STRUCT|((sym - symtab) << 3);
+}
