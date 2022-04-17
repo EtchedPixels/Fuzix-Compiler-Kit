@@ -55,18 +55,6 @@ static struct node *hier11(void)
 				/* Need a proper method for this stuff */
 				/* TODO arrays */
 				scale = type_ptrscale(l->type);
-#if 0
-/*
-				if (IS_STRUCT(l->type)
-				    scale = tag_table[INFO(l->type)].size;
-				    else
-				    if (ptr->type == CINT
-					|| ptr->type == UINT)
-				    scale = 2;
-				    else
-				    scale = 1;
-				    */
-#endif
 				l = tree(T_PLUS, l,
 					 tree(T_STAR, r,
 					      make_constant(scale)));
