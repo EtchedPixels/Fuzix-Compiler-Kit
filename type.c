@@ -47,32 +47,28 @@ unsigned type_ptr(unsigned t)
  */
 unsigned type_canonical(unsigned t)
 {
-#if 0
 	if (IS_ARRAY(t)) {
-		struct sym *s = symtab + INFO(t);
-		unsigned *p = idx_data(s->idx);
+		struct symbol *s = symbol_ref(t);
+		unsigned *p = s->idx;
 		/* FIXME: array depths or 1 ?? */
 		if (*p + PTR(t) > 7)
 			indirections();
 		else
 			t = s->type | (*p + PTR(t));
 	}
-#endif
 	return t;
 }
 
-#if 0
 unsigned type_arraysize(unsigned t)
 {
-	struct sym *s = symtab + INFO(t);
-	unsigned *p = idx_data(s->idx);
+	struct symbol *sym = symbol_ref(t);
+	unsigned *p = sym->idx;
 	unsigned n = *p++;
-	unsigned s = type_sizeof(s->type);
+	unsigned s = type_sizeof(sym->type);
 	while (n--)
 		s *= *p++;
 	return s;
 }
-#endif
 
 unsigned type_sizeof(unsigned t)
 {
@@ -80,16 +76,14 @@ unsigned type_sizeof(unsigned t)
 		return PTRSIZE;
 	if (IS_SIMPLE(t))
 		return primitive_sizeof(t);
-#if 0
 	if (IS_ARRAY(t)) {
-		return type_arraysize(t));
+		return type_arraysize(t);
 	}
 	if (IS_STRUCT(t)) {
-		struct sym *s = symtab + INFO(t);
-		unsigned *p = idx_data(s->idx);
+		struct symbol *s = symbol_ref(t);
+		unsigned *p = s->idx;
 		return p[1];
 	}
-#endif
 	/* Umm.. help ?? */
 	error("can't size type");
 	return 1;

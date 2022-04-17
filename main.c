@@ -8,13 +8,6 @@
 
 #include "compiler.h"
 
-static void initializer(struct symbol *sym)
-{
-	if (sym->flags & INITIALIZED)
-		error("duplicate initializer");
-	sym->flags |= INITIALIZED;
-}
-
 static void toplevel(void)
 {
 	declaration(S_EXTDEF);

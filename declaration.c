@@ -69,6 +69,11 @@ void declaration(unsigned defstorage)
 
 	/* Do we already have this symbol */
 	sym = update_symbol(name, s, type);
+
+	if (sym->flags & INITIALIZED)
+		error("duplicate initializer");
+	sym->flags |= INITIALIZED;
+
 	if ((PTR(type) || !IS_FUNCTION(type)) && match(T_EQ))
 		initializers(type, s);
 	if (s == AUTO)

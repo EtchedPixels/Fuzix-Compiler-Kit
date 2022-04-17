@@ -14,6 +14,11 @@ struct symbol symtab[MAXSYM];
 struct symbol *last_sym = symtab;
 struct symbol *local_top = symtab;
 
+struct symbol *symbol_ref(unsigned type)
+{
+	return symtab + INFO(type);
+}
+
 /* Local symbols have priority in all cases */
 struct symbol *find_symbol(unsigned name)
 {
@@ -143,4 +148,20 @@ static struct symbol *do_func_match(unsigned *template)
 unsigned func_symbol_type(unsigned *template)
 {
 	return C_FUNCTION | ((do_func_match(template) - symtab) << 3);
+}
+
+/*
+ *	Array type helpers
+ */
+
+unsigned array_num_dimensions(unsigned type)
+{
+	struct symbol *sym = symbol_ref(type);
+	return *sym->idx;
+}
+
+unsigned array_dimension(unsigned type, unsigned depth)
+{
+	struct symbol *sym = symbol_ref(type);
+	return sym->idx[depth];
 }
