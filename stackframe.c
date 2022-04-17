@@ -1,5 +1,7 @@
 /*
  *	Assign offsets in the stack frame (or elsewhere)
+ *
+ *	FIXME: make these structs and track max too
  */
 
 #include <stdio.h>

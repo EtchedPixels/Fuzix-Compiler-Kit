@@ -225,6 +225,8 @@ static void statement(void)
 
 void statement_block(unsigned need_brack)
 {
+	/* TODO: we need to change the frame allocation to track a max
+	   but pop on block exits so we can overlay frames */
 	struct symbol *ltop;
 	if (token == T_EOF) {
 		error("unexpected EOF");
@@ -252,12 +254,22 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	/* We need to add ourselves to the symbols first as we can self
 	   reference */
 	struct symbol *sym;
+	unsigned n, m;
+	/* This makes me sad, but there isn't a nice way to work out
+	   the frame size ahead of time */
+	off_t hrw;
 	if (st == AUTO || st == EXTERN)
 		error("invalid storage class");
 	sym = update_symbol(name, st, type);
 	func_tag = next_tag++;
 	header(H_FUNCTION, st, name);
+	hrw = mark_header();
+	header(H_FRAME, 0, name);
 	statement_block(1);
 	footer(H_FUNCTION, st, name);
+	/* FIXME: need to clean this up and nicely access the max frame
+	   offset */
+	mark_storage(&n, &m);
+	rewrite_header(hrw, H_FRAME, n, name);
 	func_tag = 0;
 }

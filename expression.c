@@ -25,7 +25,7 @@ struct node *function_call(struct node *n)
 	if (!IS_FUNCTION(n->type))
 		error("not a function");
 	type = func_return(n->type);
-	n = tree(T_FUNCCALL, n, call_args());
+	n = tree(T_FUNCCALL, call_args(), n);
 	n->type = type;
 	return n;
 }

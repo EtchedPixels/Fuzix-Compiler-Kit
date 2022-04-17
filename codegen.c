@@ -63,17 +63,46 @@ void init_nodes(void)
         free_node(n++);
 }
 
+static void helper(struct node *n, const char *h)
+{
+    unsigned t = n->type;
+    printf("\tcall %s", h);
+    if (PTR(n->type))
+        n->type = CINT;
+    switch(n->type){
+        case UCHAR:
+            putchar('u');
+        case CCHAR:
+            putchar('c');
+            break;
+        case UINT:
+            putchar('u');
+        case CINT:
+            break;
+        case ULONG:
+            putchar('u');
+        case CLONG:
+            putchar('l');
+            break;
+        case FLOAT:
+            putchar('f');
+            break;
+        case DOUBLE:
+            putchar('d');
+            break;
+        default:
+            fprintf(stderr, "*** bad type %x\n", t);
+    }
+}
+
 static void print_node(struct node *n)
 {
     switch(n->op) {
     case T_SHLEQ:
-        printf(">>= ");
+        helper(n, "shleq");
         break;
     case T_SHREQ:
-        printf("<<= ");
-        break;
-    case T_POINTSTO:
-        printf("-> ");
+        helper(n, "shreq");
         break;
     case T_PLUSPLUS:
         printf("++ ");
@@ -82,144 +111,154 @@ static void print_node(struct node *n)
         printf("-- ");
         break;
     case T_EQEQ:
-        printf("== ");
+        helper(n, "cceq");
         break;
     case T_LTLT:
-        printf("<< ");
+        helper(n, "shl");
         break;
     case T_GTGT:
-        printf(">> ");
+        helper(n, "shr");
         break;
     case T_OROR:
-        printf("|| ");
+        helper(n, "lor");
         break;
     case T_ANDAND:
-        printf("&& ");
+        helper(n, "land");
         break;
     case T_PLUSEQ:
-        printf("+= ");
+        helper(n, "pluseq");
         break;
     case T_MINUSEQ:
-        printf("-= ");
+        helper(n, "minuseq");
         break;
     case T_SLASHEQ:
-        printf("/= ");
+        helper(n, "diveq");
         break;
     case T_STAREQ:
-        printf("*= ");
+        helper(n, "muleq");
         break;
     case T_HATEQ:
-        printf("^= ");
+        helper(n, "xoreq");
         break;
     case T_BANGEQ:
-        printf("!= ");
+        helper(n, "noteq");
         break;
     case T_OREQ:
-        printf("|= ");
+        helper(n, "oreq");
         break;
     case T_ANDEQ:
-        printf("&= ");
+        helper(n, "andeq");
         break;
     case T_PERCENTEQ:
-        printf("%%= ");
-        break;
-
-    case T_LPAREN:
-        printf("( ");
-        break;
-    case T_RPAREN:
-        printf(") ");
-        break;
-    case T_LSQUARE:
-        printf("[ ");
-        break;
-    case T_LCURLY:
-        printf("{ ");
-        break;
-    case T_RCURLY:
-        printf("} ");
+        helper(n, "modeq");
         break;
     case T_AND:
-        printf("& ");
+        helper(n, "band");
         break;
     case T_STAR:
-        printf("* ");
+        helper(n, "mul");
         break;
     case T_SLASH:
-        printf("/ ");
+        helper(n, "div");
         break;
     case T_PERCENT:
-        printf("%% ");
+        helper(n, "mod");
         break;
     case T_PLUS:
-        printf("+ ");
+        helper(n, "plus");
         break;
     case T_MINUS:
-        printf("- ");
+        helper(n, "minus");
         break;
+    /* This one will need special work */
     case T_QUESTION:
-        printf("? ");
+        helper(n, "question");
         break;
     case T_COLON:
-        printf(": ");
+        helper(n, "colon");
         break;
     case T_HAT:
-        printf("^ ");
+        helper(n, "xor");
         break;
     case T_LT:
-        printf("< ");
+        helper(n, "cclt");
         break;
     case T_GT:
-        printf("> ");
+        helper(n, "ccgt");
         break;
     case T_OR:
-        printf("| ");
+        helper(n, "or");
         break;
     case T_TILDE:
-        printf("~ ");
+        helper(n, "neg");
         break;
     case T_BANG:
-        printf("! ");
+        helper(n, "not");
         break;
     case T_EQ:
-        printf("= ");
-        break;
-    case T_DOT:
-        printf(". ");
-        break;
-    case T_COMMA:
-        printf(", ");
-        break;
-    case T_ADDROF:
-        printf("addrof ");
+        if (n->type == CINT || n->type == UINT || PTR(n->type))
+            printf("\txchg\n\tpop h\n\tmov m,e\n\tinx h\n\tmov m,d");
+        else
+            helper(n, "assign");
         break;
     case T_DEREF:
-        printf("deref ");
+        if (n->type == CINT || n->type == UINT || PTR(n->type))
+            printf("\tmov e,m\n\tinx h\n\tmov d,m\n\txchg");
+        else
+            helper(n, "deref");
         break;
     case T_NEGATE:
-        printf("neg ");
+        helper(n, "negate");
         break;
     case T_POSTINC:
-        printf("postinc ");
+        helper(n, "postinc");
         break;
     case T_POSTDEC:
-        printf("postdec ");
+        helper(n, "postdec");
         break;
     case T_FUNCCALL:
-        printf("call ");
+        printf("\tcall callhl");
         break;
     case T_LABEL:
-        /* Not yet properly encoded */
-        printf("L%d ", n->value);
+        /* Used for cosnt strings */
+        printf("\tlxi h,T%d", n->value);
         break;
     case T_CAST:
         printf("cast ");
         break;
     case T_INTVAL:
-        printf("%d ", n->value);
+        printf("\tlxi h,%d", n->value);
         break;
     case T_UINTVAL:
-        printf("%uU ", n->value);
+        printf("\tlxi h,%u", n->value);
+        break;
+    case T_COMMA:
+        /* Used for function arg chaining - just ignore */
+        return;
+    /* Should never be seen */
+    case T_DOT:
+        printf("**. ");
+        break;
+    case T_ADDROF:
+        printf("**addrof ");
+        break;
+    case T_LPAREN:
+        printf("**( ");
+        break;
+    case T_RPAREN:
+        printf("**) ");
+        break;
+    case T_LSQUARE:
+        printf("**[ ");
+        break;
+    case T_LCURLY:
+        printf("**{ ");
+        break;
+    case T_RCURLY:
+        printf("**} ");
+        break;
+    case T_POINTSTO:
+        printf("**-> ");
         break;
     /* We are using 32bit longs for target so this isnt portable but ok for
        debugging on Linux */
@@ -236,13 +275,14 @@ static void print_node(struct node *n)
             else if (n->flags & NAMEARG)
                 printf("Arg ");
             else
-                printf("Name ");
-            printf("%s (%d) ", namestr(n->op), n->value);
+                printf("\tlxi ");
+            printf("%s+%d", namestr(n->op), n->value);
         } else {
             printf("Invalid %04x ", n);
             exit(1);
         }
     }
+#if 0
     switch(n->type & ~7) {
     case CCHAR:
         printf("char");
@@ -284,16 +324,15 @@ static void print_node(struct node *n)
         while(x--)
             printf("*");
     }
+#endif
     printf("\n");
-        
-        
 }    
 
 static void dumptree(struct node *n)
 {
     if (n->left) {
         dumptree(n->left);
-        printf("push\n");
+        printf("\tpush h\n");
     }
     if (n->right) {
         dumptree(n->right);
@@ -318,12 +357,21 @@ static struct node *load_tree(void)
     return n;
 }
 
+static void compile_expression(void)
+{
+    if (getchar() != '%' || getchar() != '^') {
+        fprintf(stderr, "expression expected.\n");
+        exit(1);
+    }
+    dumptree(load_tree());
+}
+
 static char *hnames[] = {
-    "Unused",
-    "Function",
-    "Local",
-    "LocalAssigned",
-    "Argument",
+    "unused",
+    "function",
+    "local",
+    "localassigned",	/* Obsolete ? */
+    "argument",
     "if",
     "else",
     "while",
@@ -338,13 +386,14 @@ static char *hnames[] = {
     "return",
     "label",
     "goto",
-    "string"
+    "string",
+    "frame"
 };
 
 static char *headertype(unsigned t)
 {
     static char buf[16];
-    if (t <= H_STRING)
+    if (t <= H_FRAME)
         return hnames[t];
     snprintf(buf, 16, "??%d??", t);
     return buf;
@@ -352,6 +401,7 @@ static char *headertype(unsigned t)
 
 static void dumpheader(void)
 {
+    static unsigned frame_size;
     struct header h;
     char buf[16];
     char *bp = buf;
@@ -362,10 +412,43 @@ static void dumpheader(void)
     snprintf(buf, 16, "%u", (unsigned)h.h_data);
     if ((h.h_type & 0x7FFF) == H_FUNCTION)
         bp = namestr(h.h_data);
+    if ((h.h_type & 0x7FFF) == H_FRAME)
+        bp = namestr(h.h_data);
     if (h.h_type & H_FOOTER)
-        printf("Footer %s %d %s\n", headertype(h.h_type & 0x7FFF), h.h_name, bp);
+        printf(";Footer %s %d %s\n", headertype(h.h_type & 0x7FFF), h.h_name, bp);
     else
-        printf("Header %s %d %s\n", headertype(h.h_type), h.h_name, bp);
+        printf(";Header %s %d %s\n", headertype(h.h_type), h.h_name, bp);
+
+    switch(h.h_type) {
+    case H_FUNCTION:
+        printf("%s:\n", namestr(h.h_data));
+        break;
+    case H_FRAME:
+        printf("\tlxi h,0x%x\n", h.h_name);
+        printf("\tdad sp\n");
+        printf("\tsphl\n");
+        frame_size = h.h_name;
+        break;
+    case H_FUNCTION|H_FOOTER:
+        printf("L%d_r:\n", h.h_name);
+        printf("\tlxi h,0x%x\n",(uint16_t)-frame_size);
+        printf("\tdad sp\n");
+        printf("\tsphl\n");
+        printf("\tret\n");
+        break;
+    case H_FOR:
+        compile_expression();
+        printf("L%d_c:\n", h.h_data);
+        compile_expression();
+        printf("\tcall bool\n");
+        printf("\tjz L%d_b\n", h.h_data);
+        printf("\tjmp L%d_n\n", h.h_data);
+        compile_expression();
+        break;
+    case H_FOR|H_FOOTER:
+        printf("\tL%d_b:\n", h.h_data);
+        break;
+    }
 }
 
 static void percentify(void)
@@ -373,9 +456,7 @@ static void percentify(void)
     int c;
     c = getchar();
     if (c == '^') {
-        printf("Expression\n");
         dumptree(load_tree());
-        printf("--\n\n");
         return;
     }
     if (c == 'H') {

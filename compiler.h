@@ -2,6 +2,8 @@
 /* Pass 2 values */
 #define MAXSYM		512
 
+#include <stdio.h>
+
 #include "symbol.h"
 
 #include "body.h"

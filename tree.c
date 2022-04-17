@@ -83,10 +83,12 @@ struct node *make_symbol(struct symbol *s)
 	n->flags = LVAL;
 	n->type = s->type;
 	/* Rewrite implicit pointer forms */
+#if 0
 	if (!PTR(s->type)) {
 		if (IS_FUNCTION(s->type) || IS_ARRAY(s->type))
 			n->type++;
 	}
+#endif
 	if (s->storage == S_AUTO)
 		n->flags |= NAMEAUTO;
 	if (s->storage == S_ARGUMENT)

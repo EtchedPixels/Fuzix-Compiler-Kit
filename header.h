@@ -32,6 +32,9 @@ struct header {
 #define H_LABEL		0x0011	/* goto label */
 #define H_GOTO		0x0012	/* goto */
 #define H_STRING	0x0013	/* string */
+#define H_FRAME		0x0014	/* declare the stack frame */
 
 extern void header(unsigned htype, unsigned name, unsigned data);
 extern void footer(unsigned htype, unsigned name, unsigned data);
+extern void rewrite_header(off_t off, unsigned htype, unsigned name, unsigned data);
+extern off_t mark_header(void);
