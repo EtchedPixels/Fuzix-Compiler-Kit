@@ -4,9 +4,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-struct symbol;		/* Dummy */
-
 #include "compiler.h"
+
+unsigned frame_size;
 
 #define NUM_NODES 100
 
@@ -63,6 +63,44 @@ void init_nodes(void)
         free_node(n++);
 }
 
+#define T_LOAD		(T_USER)
+#define T_CALLNAME	(T_USER+1)
+
+/* Just a test example for now */
+/* TODO: rewrite consts to the right, rewrite all >= T_SYMBOL
+   to T_SYMBOL and set n->symbol (get rid of symnum ?) */
+static struct node *rewrite_node(struct node *n)
+{
+    if (n->type == CINT || n->type == UINT || PTR(n->type)) {
+    /* Rewrite * name into a load */
+    if (n->op == T_DEREF && n->right->op >= T_SYMBOL && (n->flags & NAMEAUTO|NAMEARG) == 0) {
+        n->op = T_LOAD;
+        n->snum = n->right->op;
+        n->value = n->right->value;
+        free_node(n->right);
+        n->right = NULL;
+    }
+    }
+    if (n->op == T_FUNCCALL && n->right->op >= T_SYMBOL) {
+        n->op = T_CALLNAME;
+        n->snum = n->right->op;
+        n->value = n->right->value;
+        free_node(n->right);
+        n->right = NULL;
+    }
+    return n;
+}
+
+static struct node *rewrite_tree(struct node *n)
+{
+    struct node *l, *r;
+    if (n->left)
+        n->left = rewrite_tree(n->left);
+    if (n->right)
+        n->right = rewrite_tree(n->right);
+    return rewrite_node(n);
+}
+
 static void helper(struct node *n, const char *h)
 {
     unsigned t = n->type;
@@ -98,6 +136,17 @@ static void helper(struct node *n, const char *h)
 static void print_node(struct node *n)
 {
     switch(n->op) {
+    /* Custom nodes */
+    case T_LOAD:
+        printf("\tlhld _%s+%d", namestr(n->snum), n->value);
+        break;
+    case T_CALLNAME:
+        printf("\tcall _%s+%d", namestr(n->snum), n->value);
+        break;
+    /* System nodes */
+    case T_NULL:
+        /* Dummy 'no expression' node */
+        break;
     case T_SHLEQ:
         helper(n, "shleq");
         break;
@@ -105,10 +154,10 @@ static void print_node(struct node *n)
         helper(n, "shreq");
         break;
     case T_PLUSPLUS:
-        printf("++ ");
+        helper(n, "preinc");
         break;
     case T_MINUSMINUS:
-        printf("-- ");
+        helper(n, "postinc");
         break;
     case T_EQEQ:
         helper(n, "cceq");
@@ -235,6 +284,9 @@ static void print_node(struct node *n)
     case T_COMMA:
         /* Used for function arg chaining - just ignore */
         return;
+    case T_BOOL:
+        helper(n, "bool");
+        break;
     /* Should never be seen */
     case T_DOT:
         printf("**. ");
@@ -270,13 +322,16 @@ static void print_node(struct node *n)
         break;
     default:
         if (n->op >= T_SYMBOL) {
-            if (n->flags & NAMEAUTO)
-                printf("Auto ");
-            else if (n->flags & NAMEARG)
-                printf("Arg ");
-            else
-                printf("\tlxi ");
-            printf("%s+%d", namestr(n->op), n->value);
+            if (n->flags & NAMEAUTO) {
+                printf("\tlxi h,%x\n", n->value);
+                printf("\tdad b");
+            } else if (n->flags & NAMEARG) {
+                printf("\tlxi h,%x\n", n->value + 2 + frame_size);
+                printf("\tdad b");
+            } else {
+                printf("\tlxi h,");
+                printf("_%s+%d", namestr(n->op), n->value);
+            }
         } else {
             printf("Invalid %04x ", n);
             exit(1);
@@ -332,7 +387,11 @@ static void dumptree(struct node *n)
 {
     if (n->left) {
         dumptree(n->left);
-        printf("\tpush h\n");
+        /* This is wrong for other types */
+        if (n->left->type >= CLONG)
+            printf("\txchg\n\tlhld acchi\n\tpush h\n\tpush d\n");
+        else
+            printf("\tpush h\n");
     }
     if (n->right) {
         dumptree(n->right);
@@ -363,7 +422,9 @@ static void compile_expression(void)
         fprintf(stderr, "expression expected.\n");
         exit(1);
     }
-    dumptree(load_tree());
+    printf(";exp\n");
+    dumptree(rewrite_tree(load_tree()));
+    printf(";endexp\n");
 }
 
 static char *hnames[] = {
@@ -387,21 +448,23 @@ static char *hnames[] = {
     "label",
     "goto",
     "string",
-    "frame"
+    "frame",
+    "export"
 };
 
 static char *headertype(unsigned t)
 {
     static char buf[16];
-    if (t <= H_FRAME)
+    if (t <= H_EXPORT)
         return hnames[t];
     snprintf(buf, 16, "??%d??", t);
     return buf;
 }
 
+static unsigned func_ret;
+
 static void dumpheader(void)
 {
-    static unsigned frame_size;
     struct header h;
     char buf[16];
     char *bp = buf;
@@ -420,33 +483,110 @@ static void dumpheader(void)
         printf(";Header %s %d %s\n", headertype(h.h_type), h.h_name, bp);
 
     switch(h.h_type) {
+    case H_EXPORT:
+        printf("\t.export _%s\n", namestr(h.h_name));
+        break;
     case H_FUNCTION:
-        printf("%s:\n", namestr(h.h_data));
+        printf("_%s:\n", namestr(h.h_data));
+        func_ret = h.h_name;
         break;
     case H_FRAME:
+        printf("\tpush b\n");
         printf("\tlxi h,0x%x\n", h.h_name);
         printf("\tdad sp\n");
         printf("\tsphl\n");
+        printf("\tmov b,h\n");
+        printf("\tmov c,l\n");
         frame_size = h.h_name;
         break;
     case H_FUNCTION|H_FOOTER:
         printf("L%d_r:\n", h.h_name);
+        printf("\txchg\n");
         printf("\tlxi h,0x%x\n",(uint16_t)-frame_size);
         printf("\tdad sp\n");
         printf("\tsphl\n");
+        printf("\txchg\n");
+        printf("\tpop b\n");
         printf("\tret\n");
         break;
     case H_FOR:
         compile_expression();
         printf("L%d_c:\n", h.h_data);
         compile_expression();
-        printf("\tcall bool\n");
         printf("\tjz L%d_b\n", h.h_data);
         printf("\tjmp L%d_n\n", h.h_data);
         compile_expression();
         break;
     case H_FOR|H_FOOTER:
+        printf("L%d_b:\n", h.h_data);
+        break;
+    case H_WHILE:
+        printf("L%d_c:\n", h.h_data);
+        compile_expression();
+        printf("\tjz L%d_b\n", h.h_data);
+        break;
+    case H_WHILE|H_FOOTER:
+        printf("\tjmp L%d_c\n", h.h_data);
+        printf("L%d_b:\n", h.h_data);
+        break;
+    /* double check continue behaviour and write place for L_c */
+    case H_DO:
+        printf("\tL%d_c:\n", h.h_data);
+        break;
+    case H_DOWHILE:
+        compile_expression();
+        printf("\tjnz L%d_c\n", h.h_name);
+        break;
+    case H_DO|H_FOOTER:
         printf("\tL%d_b:\n", h.h_data);
+        break;
+    case H_BREAK:
+        printf("\tjmp L%d_b\n", h.h_name);
+        break;
+    case H_CONTINUE:
+        printf("\tjmp L%d_c\n", h.h_name);
+        break;
+    case H_IF:
+        compile_expression();
+        /* FIXME: these need to deal with bigger types */
+        printf("\tjz L%d_e\n", h.h_name);
+        break;
+    case H_ELSE:
+        printf("\tjmp L%d_f\n", h.h_name);
+        printf("\tL%dd_e\n", h.h_name);
+        break;
+    case H_IF|H_FOOTER:
+        /* If we have an else then _f is needed, if not _e is */
+        if (h.h_data)
+            printf("L%d_f\n", h.h_name);
+        else
+            printf("L%d_e:\n", h.h_name);
+        break;
+    case H_RETURN:
+        printf("\tjmp L%d_r\n", func_ret);
+        break;
+    case H_LABEL:
+        printf("\tL%d:\n", h.h_name);
+        break;
+    case H_GOTO:
+        printf("\tjmp L%d\n", h.h_name);
+        break;
+    case H_SWITCH:
+        /* Will need to stack switch case tables somehow */
+        compile_expression();	/* need the type of it back */
+        printf("\tlxi d, sw_%d\n", h.h_name);
+        printf("\tjmp doswitch\n");	/* needs to be by type */
+        break;
+    case H_CASE:
+        if (h.h_data)
+            printf("\tjmp L%d_s\n", h.h_name);
+        /* save_case to table - case [h.h_data] */
+        /* Need a constant expression resolver */
+        compile_expression();	/* FIXME */
+        break;
+    case H_SWITCH|H_FOOTER:
+        printf("L%d_s:\n", h.h_name);
+        /* dump_switch_table(h.h_name)) */
         break;
     }
 }
@@ -456,7 +596,9 @@ static void percentify(void)
     int c;
     c = getchar();
     if (c == '^') {
-        dumptree(load_tree());
+        printf(";exp\n");
+        dumptree(rewrite_tree(load_tree()));
+        printf(";endexp\n");
         return;
     }
     if (c == 'H') {
@@ -490,10 +632,12 @@ int main(int argc, char *argv[])
     int c;
     load_symbols();
     init_nodes();
+    printf("\t\t.code\n\n");
     while((c = getchar()) != EOF) {
         if (c == '%')
             percentify();
-        else
-            putchar(c);
+        else {
+            printf("[%c]", c);
+        }
     }
 }

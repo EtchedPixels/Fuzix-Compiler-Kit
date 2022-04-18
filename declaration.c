@@ -58,6 +58,8 @@ void declaration(unsigned defstorage)
 
 	if (IS_FUNCTION(type) && !PTR(type)) {
 		if (token == T_LCURLY) {
+			if (s == S_EXTDEF)
+				header(H_EXPORT, name, 0);
 			function_body(s, name, type);
 			pop_local_symbols(ltop);
 			pop_storage(&argsave, &locsave);

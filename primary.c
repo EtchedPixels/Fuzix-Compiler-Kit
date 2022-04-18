@@ -21,19 +21,20 @@ struct node *get_sizeof(void)
 		require(T_RPAREN);
 		if (sym == NULL || sym->storage > S_EXTDEF) {
 			error("unknown symbol");
-			return make_constant(1);
+			return make_constant(1, UINT);
 		}
-		return make_constant(type_sizeof(sym->type));
+		return make_constant(type_sizeof(sym->type), UINT);
 	}
 	/* Not a name.. should be a type */
 	/* TODO */
-	return make_constant(2);
+	return make_constant(2, UINT);
 }
 
 struct node *constant_node(void)
 {
 	struct node *n;
 	unsigned label;
+	unsigned t;
 
 	/* Strings are special */
 	label = quoted_string(NULL);
@@ -44,22 +45,21 @@ struct node *constant_node(void)
 		return n;
 	}
 	/* Numeric */
-	n = make_constant(token_value);
-
 	switch (token) {
 	case T_INTVAL:
-		n->type = CINT;
+		t = CINT;
 		break;
 	case T_LONGVAL:
-		n->type = CLONG;
+		t = CLONG;
 		break;
 	case T_UINTVAL:
-		n->type = UINT;
+		t = UINT;
 		break;
 	case T_ULONGVAL:
-		n->type = ULONG;
+		t = ULONG;
 		break;
 	}
+	n = make_constant(token_value, t);
 	next_token();
 	return n;
 }
@@ -93,7 +93,7 @@ struct node *primary(void)
 		if (sym == NULL || sym->storage > S_EXTDEF) {
 			fprintf(stderr, "Couldn't find %u %p\n", name, (void *)sym);
 			error("unknown symbol");
-			return make_constant(0);
+			return make_constant(0, UINT);
 		}
 		/* Primary can be followed by operators and the caller handles those */
 		return make_symbol(sym);

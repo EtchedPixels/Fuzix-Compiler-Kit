@@ -39,3 +39,4 @@ extern unsigned array_num_dimensions(unsigned type);
 extern unsigned array_dimension(unsigned type, unsigned depth);
 extern struct symbol *update_struct(unsigned name, unsigned isstruct);
 extern unsigned type_of_struct(struct symbol *sym);
+extern unsigned *struct_find_member(unsigned name, unsigned fname);

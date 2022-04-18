@@ -14,6 +14,7 @@ struct header {
 
 #define H_FUNCTION	0x0001
 /* For these we need to figure out who owns stack offsetting and name types */
+/* local/assign should be obsolete as is argument now */
 #define H_LOCAL		0x0002	/* local var name size */
 #define H_LOCALASSIGN	0x0003	/* local var name size <expr> */
 #define	H_ARGUMENT	0x0004	/* argument name - */
@@ -33,6 +34,7 @@ struct header {
 #define H_GOTO		0x0012	/* goto */
 #define H_STRING	0x0013	/* string */
 #define H_FRAME		0x0014	/* declare the stack frame */
+#define H_EXPORT	0x0015	/* make name public */
 
 extern void header(unsigned htype, unsigned name, unsigned data);
 extern void footer(unsigned htype, unsigned name, unsigned data);

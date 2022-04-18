@@ -131,6 +131,9 @@
 #define T_POSTDEC	0x1208
 #define T_NEGATE	0x1209
 #define T_FUNCCALL	0x120A
+#define T_BOOL		0x120B
+
+#define T_USER		0x2000		/* Tokens for code generators */
 
 /* Used to pass line number information */
 #define T_LINE		0x3FFF

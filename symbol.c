@@ -176,11 +176,11 @@ unsigned array_dimension(unsigned type, unsigned depth)
  *	Struct helpers
  */
 
-static struct symbol *find_struct(unsigned name, unsigned t)
+static struct symbol *find_struct(unsigned name)
 {
 	struct symbol *sym = symtab;
 	while(sym <= last_sym) {
-		if (sym->name == name && sym->storage == t)
+		if (sym->name == name && (sym->storage == S_STRUCT || sym->storage == S_UNION))
 			return sym;
 		sym++;
 	}
@@ -194,16 +194,36 @@ struct symbol *update_struct(unsigned name, unsigned t)
 		t = S_STRUCT;
 	else
 		t = S_UNION;
-	sym = find_struct(name, t);
+	sym = find_struct(name);
 	if (sym == NULL) {
 		sym = alloc_symbol(name, 0);	/* TODO scoping */
 		sym->storage = t;
 		sym->flags = 0;
-		sym->idx = NULL;	/* TODO */
+		sym->idx = NULL;	/* Not yet known */
+	} else {
+		if (sym->storage != t)
+			error("declared both union and struct");
 	}
 	return sym;
 }
 
+unsigned *struct_find_member(unsigned name, unsigned fname)
+{
+	struct symbol *s = find_struct(name);
+	unsigned *ptr, idx;
+	/* May be a known type but not one with fields yet declared */
+	if (s == NULL || s->idx == NULL)
+		return NULL;
+	idx = *s->idx;	/* Number of fields */
+	ptr = s->idx + 2;	/* num fields, sizeof */
+	while(idx--) {
+		/* name, type, offset tuples */
+		if (*ptr == fname)
+			return ptr;
+		ptr += 3;
+	}
+	return NULL;
+}
 
 unsigned type_of_struct(struct symbol *sym)
 {

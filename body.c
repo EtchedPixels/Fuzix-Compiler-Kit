@@ -9,6 +9,7 @@ static unsigned func_tag;
 static unsigned break_tag;
 static unsigned cont_tag;
 static unsigned switch_tag;
+static unsigned switch_count;
 
 /* C keyword statements */
 static void if_statement(void)
@@ -16,14 +17,15 @@ static void if_statement(void)
 	unsigned tag = next_tag++;
 	header(H_IF, tag, 0);
 	next_token();
-	bracketed_expression();
+	bracketed_expression(1);
 	statement_block(0);
 	if (token == T_ELSE) {
 		next_token();
 		header(H_ELSE, tag, 0);
 		statement_block(0);
-	}
-	footer(H_IF, tag, 0);
+		footer(H_IF, tag, 1);
+	} else
+		footer(H_IF, tag, 0);
 }
 
 static void while_statement(void)
@@ -36,7 +38,7 @@ static void while_statement(void)
 
 	next_token();
 	header(H_WHILE, cont_tag, break_tag);
-	bracketed_expression();
+	bracketed_expression(1);
 	statement_block(0);
 	footer(H_WHILE, cont_tag, break_tag);
 
@@ -57,7 +59,7 @@ static void do_statement(void)
 	statement_block(0);
 	require(T_WHILE);
 	header(H_WHILE, cont_tag, break_tag);
-	bracketed_expression();
+	bracketed_expression(1);
 	require(T_SEMICOLON);
 	footer(H_DO, cont_tag, break_tag);
 
@@ -76,11 +78,11 @@ static void for_statement(void)
 	next_token();
 	header(H_FOR, cont_tag, break_tag);
 	require(T_LPAREN);
-	expression_or_null();
+	expression_or_null(0, 1);
 	require(T_SEMICOLON);
-	expression_or_null();
+	expression_or_null(1, 0);
 	require(T_SEMICOLON);
-	expression_or_null();
+	expression_or_null(0, 1);
 	require(T_RPAREN);
 	statement();
 	footer(H_FOR, cont_tag, break_tag);
@@ -93,7 +95,7 @@ static void return_statement(void)
 {
 	next_token();
 	header(H_RETURN, func_tag, 0);
-	expression_or_null();
+	expression_or_null(0, 0);
 	need_semicolon();
 }
 
@@ -119,25 +121,28 @@ static void switch_statement(void)
 {
 	unsigned oldbrk = break_tag;
 	unsigned oldswt = switch_tag;
+	unsigned oldswc = switch_count;
 
 	switch_tag = next_tag++;
 	break_tag = next_tag++;
+	switch_count = 0;
 
 	next_token();
 	header(H_SWITCH, switch_tag, break_tag);
-	bracketed_expression();
+	bracketed_expression(0);
 	statement_block(0);
 	footer(H_SWITCH, switch_tag, break_tag);
 
 	break_tag = oldbrk;
 	switch_tag = oldswt;
+	switch_count = oldswc;
 }
 
 static void case_statement(void)
 {
 	if (switch_tag == 0)
 		error("case outside of switch");
-	header(H_CASE, switch_tag, 0);
+	header(H_CASE, switch_tag, switch_count++);
 	next_token();
 	const_expression();
 	require(T_COLON);
@@ -175,6 +180,7 @@ static void statement(void)
 	   the C99 approach is ugly allow it */
 	if (is_modifier() || is_storage_word() || is_type_word()) {
 		declaration(AUTO);
+		/* need_semicolon();	CHECK TODO */
 		return;
 	}
 	/* Check for keywords */
@@ -214,6 +220,9 @@ static void statement(void)
 		break;
 	case T_TYPEDEF:
 		typedef_statement();
+		break;
+	case T_SEMICOLON:
+		next_token();
 		break;
 	default:
 		/* TODO labels */

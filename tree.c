@@ -63,14 +63,35 @@ struct node *tree(unsigned op, struct node *l, struct node *r)
 	return n;
 }
 
-/* Will need type info.. */
-struct node *make_constant(unsigned value)
+/*  TODO: get rid of T_xxxval forms and rely on ->type field plus
+	T_CONSTANT */
+struct node *make_constant(unsigned long value, unsigned type)
 {
 	struct node *n = new_node();
-	n->op = T_UINTVAL;
+	switch(type) {
+		case CCHAR:
+		case CINT:
+			n->op = T_INTVAL;
+			break;
+		case UCHAR:
+		case UINT:
+			n->op = T_UINTVAL;
+			break;
+		case CLONG:
+			n->op = T_LONGVAL;
+			break;
+		case ULONG:
+			n->op = T_ULONGVAL;
+			break;
+		default:
+			if (PTR(type))
+				n->op = T_UINTVAL;
+			else
+				fatal("mkcns");
+	}
 	n->value = value;
-	n->type = 0; /* FIXME */
-	fprintf(stderr, "const %04x\n", value);
+	n->type = type;
+	fprintf(stderr, "const %lx\n", value);
 	return n;
 }
 
@@ -177,6 +198,14 @@ struct node *make_noreturn(struct node *n)
 
 struct node *make_cast(struct node *n, unsigned t)
 {
+	/* Sign casting is just symbolic */
+	if ((t & 0xF0) == (n->type & 0xF0))
+		return n;
+	/* Pointer casting likewise */
+	if (PTR(n->type)) {
+		n->type = t;
+		return n;
+	}
 	n = tree(T_CAST, NULL, n);
 	n->type = t;
 	return n;
@@ -233,6 +262,15 @@ struct node *arith_promotion_tree(unsigned op, struct node *l,
 	/* Does want review versus standard TODO */
 	if (r->type > l->type)
 		lt = r->type;
+
+	/* C rules, we might want to defer this and be smart though */
+	if (lt < CINT)
+		lt = CINT;
+
+	if (lt < FLOAT) {
+		if((rt | lt) & UNSIGNED)
+			lt |= UNSIGNED;
+	}
 
 	if (l->type != lt)
 		l = make_cast(l, lt);
@@ -297,4 +335,132 @@ struct node *logic_tree(unsigned op, struct node *l, struct node *r)
 	n = arith_promotion_tree(op, l, r);
 	n->type = CINT;
 	return n;
+}
+
+/* Constant conversion */
+
+/* FIXME: will need to use the right types for n->value etc eventually
+   and maybe union a float/double */
+
+/* For now this only supports integer types */
+static struct node *replace_constant(struct node *n, unsigned t, unsigned long value)
+{
+	if (n->left)
+		free_node(n->left);
+	if (n->right)
+		free_node(n->right);
+	free_node(n);
+	/* Mask the bits by type */
+	switch(t & 0xF0) {
+	case CCHAR:
+		value &= 0xFF;
+		break;
+	case CINT:
+		value &= 0xFFFF;
+		break;
+	case CLONG:
+		value &= 0xFFFFFFFFUL;
+		break;
+	}
+	return make_constant(value, t);
+}
+
+struct node *constify(struct node *n)
+{
+	struct node *l = n->left;
+	struct node *r = n->right;
+
+	if (l) {
+		l = constify(l);
+		if (l == NULL)
+			return n;
+		n->left = l;
+	}
+	if (r) {
+		r = constify(r);
+		if (r == NULL)
+			return n;
+		n->right = r;
+	}
+	/* Do some minimal math constification for now */
+	if (l) {
+		unsigned lt = l->type;
+		/* Only do constant work with simple types */
+		if (!IS_INTARITH(lt) && !PTR(lt))
+			return n;
+
+		switch(n->op) {
+		case T_PLUS:
+			n = replace_constant(n, lt, l->value + r->value);
+			break;
+		case T_MINUS:
+			n = replace_constant(n, lt, l->value - r->value);
+			break;
+		case T_STAR:
+			n = replace_constant(n, lt, l->value * r->value);
+			break;
+		case T_SLASH:
+			if (r->value == 0)
+				error("divide by zero");
+			else
+				n = replace_constant(n, lt, l->value / r->value);
+			break;
+		case T_PERCENT:
+			if (r->value == 0)
+				error("divide by zero");
+			else
+				n = replace_constant(n, lt, l->value % r->value);
+			break;
+		case T_ANDAND:
+			n = replace_constant(n, lt, l->value && r->value);
+			break;
+		case T_OROR:
+			n = replace_constant(n, lt, l->value || r->value);
+			break;
+		case T_AND:
+			n = replace_constant(n, lt, l->value & r->value);
+			break;
+		case T_OR:
+			n = replace_constant(n, lt, l->value | r->value);
+			break;
+		case T_HAT:
+			n = replace_constant(n, lt, l->value ^ r->value);
+			break;
+		}
+		return n;
+	}
+	if (r) {
+		/* Uni-ops */
+		unsigned rt = r->type;
+		if (!IS_INTARITH(rt) && !PTR(rt))
+			return NULL;
+		switch(n->op) {
+		case T_NEGATE:
+			n = replace_constant(n, rt, -r->value);
+			break;
+		case T_TILDE:
+			n = replace_constant(n, rt, ~r->value);
+			break;
+		case T_BANG:
+			n = replace_constant(n, rt, !r->value);
+			break;
+		case T_BOOL:
+			n = replace_constant(n, rt, !!r->value);
+			break;
+		case T_CAST:
+			/* We are working with integer constant types so this is ok */
+			n = replace_constant(n, n->type, r->value);
+			break;
+		}
+		return n;
+	}
+	/* Terminal node.. are we const ?? */
+	if (is_constant(n))
+		return n;
+	/* The address of a symbol is a link time constant so can go in initializers */
+	/* A dereferenced form however is not */
+	if (n->op >= T_SYMBOL && (n->flags & LVAL) && n->sym->storage >= LSTATIC)
+		return n;
+	/* Locals are not a fixed address */
+	return NULL;
 }

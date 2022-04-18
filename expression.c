@@ -42,6 +42,7 @@ static struct node *hier11(void)
 	struct symbol *sym;
 	unsigned sname;
 	unsigned scale;
+	unsigned *tag;
 
 	l = primary();
 
@@ -63,7 +64,7 @@ static struct node *hier11(void)
 				scale = type_ptrscale(l->type);
 				l = tree(T_PLUS, l,
 					 tree(T_STAR, r,
-					      make_constant(scale)));
+					      make_constant(scale, UINT)));
 				l->flags |= LVAL;
 				l->type = type_deref(l->type);
 			} else if (match(T_LPAREN)) {
@@ -72,29 +73,22 @@ static struct node *hier11(void)
 				   || match(T_POINTSTO)) {
 				if (direct == 0)
 					l = tree(T_DEREF, NULL, l);
-#if 0
 				if (PTR(l->type)
 				    || !IS_STRUCT(l->type)) {
 					error("can't take member");
 					junk();
 					return 0;
 				}
-				/* FIXME: we should pull this out of the tag table and
-				   struct ? */
-				if ((sname = symname()) == 0 ||
-				    ((sym =
-				      find_member(INFO(l->type),
-						  sname)) == 0)) {
+				tag = struct_find_member(l->type, symname());
+				if (tag == NULL) {
 					error("unknown member");
 					junk();
 					return 0;
 				}
 				l = tree(T_PLUS, l,
-					 make_constant(sym->offset));
+					 make_constant(tag[2], UINT));
 				l->flags |= LVAL;
-				l->sym = sym;
-				l->type = sym->type;
-#endif
+				l->type = tag[1];
 			} else
 				return l;
 		}
@@ -219,11 +213,11 @@ static struct node *hier8(void)
 	if (scale == 1)
 		return tree(op, l, r);
 	if (scalediv)
-		return tree(T_SLASH, tree(op, l, r), make_constant(scale));
+		return tree(T_SLASH, tree(op, l, r), make_constant(scale, UINT));
 	if (PTR(l->type))
-		return tree(op, l, tree(T_STAR, r, make_constant(scale)));
+		return tree(op, l, tree(T_STAR, r, make_constant(scale, UINT)));
 	else
-		return tree(op, tree(T_STAR, l, make_constant(scale)), r);
+		return tree(op, tree(T_STAR, l, make_constant(scale, UINT)), r);
 }
 
 
@@ -401,7 +395,7 @@ struct node *hier1(void)
 			if (scale)
 				return tree(fc, l,
 					    tree(T_STAR, r,
-						 make_constant(scale)));
+						 make_constant(scale, UINT)));
 			return tree(fc, l, r);
 		} else
 			return l;
@@ -429,9 +423,21 @@ struct node *expression_tree(unsigned comma)
 
 
 /* Generate an expression and write it the output */
-void expression(unsigned comma)
+void expression(unsigned comma, unsigned mkbool, unsigned noret)
 {
-	write_tree(expression_tree(comma));
+	struct node *n, *c;
+	if (token == T_SEMICOLON)
+		return;
+	n = expression_tree(comma);
+	if (mkbool)
+		n = tree(T_BOOL, NULL, n);
+	if (noret)
+		n->flags |= NORETURN;
+	/* Constify it if we can to reduce the amount of generated code */
+	c = constify(n);
+	if (c)
+		n = c;
+	write_tree(n);
 }
 
 /* We need a another version of this for initializers that allows global or
@@ -440,27 +446,32 @@ void expression(unsigned comma)
 unsigned const_expression(void)
 {
 	unsigned v = 1;
-	struct node *n = expression_tree(0);
-	if (n->op >= T_INTVAL && n->op <= T_ULONGVAL)
+	struct node *e = expression_tree(0);
+	struct node *n = constify(e);
+
+	if (n && n->op >= T_INTVAL && n->op <= T_ULONGVAL)
 		v = n->value;
 	else
 		error("not constant");
-	free_tree(n);
+	if (n)
+		free_tree(n);
+	else
+		free_tree(e);
 	return v;
 }
 
-void bracketed_expression(void)
+void bracketed_expression(unsigned mkbool)
 {
 	require(T_LPAREN);
-	expression(1);
+	expression(1, mkbool, 0);
 	require(T_RPAREN);
 }
 
-void expression_or_null(void)
+void expression_or_null(unsigned mkbool, unsigned noret)
 {
 	if (token == T_SEMICOLON || token == T_RPAREN) {
 		write_tree(tree(T_NULL, NULL, NULL));
 		/* null */
 	} else
-		expression(1);
+		expression(1, mkbool, noret);
 }

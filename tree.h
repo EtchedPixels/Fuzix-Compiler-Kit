@@ -11,7 +11,10 @@ struct node
 #define NAMEARG			0x8000
 #define NAMEAUTO		0x4000
     unsigned value;		/* Offset for a NAME fp offset for a LOCAL */
-    struct symbol *sym;		/* or NULL */
+    union {
+        struct symbol *sym;		/* or NULL */
+        unsigned snum;			/* cc2 rewrite of symbols to nums */
+    };
 };
 
 extern void init_nodes(void);
@@ -22,7 +25,7 @@ extern struct node *new_node(void);
 
 extern struct node *make_rval(struct node *);
 extern struct node *make_noreturn(struct node *);
-extern struct node *make_constant(unsigned n);
+extern struct node *make_constant(unsigned long val, unsigned t);
 extern struct node *make_symbol(struct symbol *s);
 extern struct node *make_label(unsigned n);
 
@@ -38,3 +41,5 @@ extern struct node *arith_tree(unsigned op, struct node *l, struct node *r);
 extern struct node *intarith_tree(unsigned op, struct node *l, struct node *r);
 extern struct node *ordercomp_tree(unsigned op, struct node *l, struct node *r);
 extern struct node *logic_tree(unsigned op, struct node *l, struct node *r);
+
+extern struct node *constify(struct node *n);
