@@ -7,16 +7,24 @@
 static void struct_add_field(struct symbol *sym, unsigned name, unsigned type)
 {
     unsigned *p = sym->idx;
-    unsigned *t = p + 2 + 3 * *p;
-    
+    unsigned n = 0;
+    unsigned *t = p + 2;
+
+    while(n < *p) {
+        if (*t == name)
+            error("duplicate field");
+        t += 3;
+        n++;
+    }
     *t++ = name;
     *t++ = type;
+    (*p)++;
     if (sym->storage == S_UNION) {
         /* For a union track the largest element size */
         unsigned s = type_sizeof(type);
         *t = 0;
-        if (t[1] < s)
-            t[1] = s;
+        if (p[1] < s)
+            p[1] = s;
     } else {
         /* For a struct allocate fields and track offset */
         *t = alloc_room(p + 1, type);

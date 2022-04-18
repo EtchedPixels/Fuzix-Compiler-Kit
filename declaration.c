@@ -46,10 +46,11 @@ void declaration(unsigned defstorage)
 	/* It's quite valid C to just write "int;" but usually dumb except
 	   that it's used for struct and union */
 	if (name == 0) {
-		if (!IS_STRUCT(name))
+		if (!IS_STRUCT(type))
 			warning("useless declaration");
 		pop_storage(&argsave, &locsave);
 		pop_local_symbols(ltop);
+		need_semicolon();
 		return;
 	}
 
