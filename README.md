@@ -1,10 +1,124 @@
-## Working Development Tree For the Fuzix Compiler Kit
+# Working Development Tree For the Fuzix Compiler Kit
 
 Nothing useful to see
 
-The frontend is a tool that tokenizes a C file and handles all the messy
+## Design
+
+cc0 is a tool that tokenizes a C file and handles all the messy
 number conversions and string quoting to produce a token stream for a
-compiler proper to consume.
+compiler proper to consume. It also extracts all the identifiers and numbers
+them, before writing them out in a table.
 
-SmallC is modified as an experiment in using this stream.
+cc1 takes the tokenized stream and generates an output stream that consists
+of descriptors of program structure (function/do while/statement etc) with
+expression trees embedded within
 
+cc2 will then turn this into code.
+
+In theory it ought to also be possible to add a cc1b that optimizes the
+trees from cc1.
+
+## Status
+
+Early development. Not usable for anything
+
+## Intended C Subset
+
+The goal is to support the following
+
+### Types
+
+* char, short, int, long, signed and unsigned
+* float, double
+* struct, union
+
+Maybe typedef and long long, probably not enum. The long long handling is
+actually quite easy in the compiler, but the code generator end is not
+funny.
+
+### Storage classes
+
+auto, static, extern, probably not register for now.
+
+### C Syntax
+
+* standard keywords and flow control
+* labels, and goto
+* statements and expressions
+* declarations
+* ANSI C function declarations
+* C99 style mixed declarations/statements. It's bad style but actually easier to support than the old way.
+
+## Intentionally Omitted
+
+Things that add size and complexity or are just pointless.
+
+* K&R initializers
+* Most C95 stuff - wide char, digraph etc
+* Most C99 bloat by committee
+* C11 bloat by committee
+* struct/union passing, struct/union returns and other related badness
+* bitfields
+* const and volatile. To do these makes type handling really really tricky
+
+## Internals
+
+### cc0
+
+Takes input from stdin and outputs tokens to stdout. The core of the logic
+is pretty basic, the only oddity is using strchr() in a few places because
+it's often hand optimized assembler. Tokens are 16bits. C has some specific
+rules on tokenizing which make it simple at the cost of producing unexpected
+results from stuff like x+++++y; (x++ ++ +y).
+
+All names are translated into a 16bit token number. So for example every
+occurence of "fred" might be 0x8004. The cc0 stage has no understanding of
+C scoping so 0x8004 isn't tied to any kind of scope, merely a grouup of
+letters.
+
+After tokenizing it writes the symbol table out to disk as well. It turns
+out that the compiler phase has no use at all for symbol names and they both
+take a lot of space to store and slow down comparisons.
+
+### cc1
+
+This is essentially a hand coded recursive descent parser. Higher level
+constructs are described by headers and footers. Within these blocks the
+compiler stores expression trees per statement. Trees do not span statements
+nor does the compiler do anything at a higher level. There is enough
+information to turn functions or even entire programs into a single tree if
+the code generator or an optimizer pass wished.
+
+The biggest challenge on a small machine is the memory management. To keep
+things tight types are packed into 16bits. Where the type is complex it
+contains an index to an object in the symbol take which describes the type
+in question (and if the type is named also has the type naming attached).
+
+Various per object fields are packed into runs of 16bit values, such as
+struct field information and array sizes.
+
+To maximise memory efficiency without losing the checking the compiler packs
+all functions with the same signature into the same type. As most functions
+actually have one of a very small number of prototypes this saves a lot of
+room.
+
+### cc2
+
+For now just testing a very simple left hand walking code generator with
+minimal awareness of consts and names that can be directly accessed. This
+should suit simpler processors like the 6502, 680x, 8080, 8085 etc but isn't
+a good model for register oriented ones.
+
+On the other hand it's ludicrously easy to change it to produce fairly bad
+code for any processor you want.
+
+## Credits
+
+The expression parser was created by turning the SmallC 3.0 one into a more
+traditional tree building recursive parser and testing it in SmallC. The
+rest of the code is original although the design is influenced by several
+small C subset compilers and also ANSI pcc.
+
+## Licence
+
+Compiler (not any runtime)	:	GPLv3
