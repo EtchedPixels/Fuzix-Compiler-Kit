@@ -47,7 +47,10 @@ void struct_declaration(struct symbol *sym)
 
     /* Temporarily, as this can recurse */
     sym->idx = tags;
-    
+
+    *tags = 0;		/* No elements */
+    tags[1] = 0;	/* Zero space */
+
     require(T_LCURLY);
     while(token != T_RCURLY) {
         t = type_and_name(&name, 1, CINT);
