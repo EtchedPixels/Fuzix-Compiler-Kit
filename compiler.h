@@ -13,6 +13,7 @@
 #include "header.h"
 #include "idxdata.h"
 #include "initializer.h"
+#include "label.h"
 #include "lex.h"
 #include "primary.h"
 #include "storage.h"
