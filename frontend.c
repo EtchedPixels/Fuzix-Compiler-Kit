@@ -445,7 +445,10 @@ static void directive(void)
 }
 
 
-/* We don't yet do floats and the like */
+/*
+ *	TODO
+ *	float, double, longlong
+ */
 static unsigned tokenize_numeric(int sign, unsigned c)
 {
 	unsigned long val;
