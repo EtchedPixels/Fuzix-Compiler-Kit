@@ -26,7 +26,6 @@ struct node *new_node(void)
 	n->value = 0;
 	n->flags = 0;
 	n->type = 0;
-	n->sym = NULL;
 	return n;
 }
 
@@ -48,6 +47,7 @@ void init_nodes(void)
 struct node *tree(unsigned op, struct node *l, struct node *r)
 {
 	struct node *n = new_node();
+	struct node *c;
 	fprintf(stderr, "tree %04x [", op);
 	if (l)
 		fprintf(stderr, "%04x ", l->op);
@@ -60,6 +60,9 @@ struct node *tree(unsigned op, struct node *l, struct node *r)
 	/* Default inherit from right */
 	if (r)
 		n->type = r->type;
+	c = constify(n);
+	if (c)
+		return c;
 	return n;
 }
 
@@ -98,9 +101,18 @@ struct node *make_constant(unsigned long value, unsigned type)
 struct node *make_symbol(struct symbol *s)
 {
 	struct node *n = new_node();
-	n->op = s->name;
+	switch(s->storage) {
+	case S_AUTO:
+		n->op = T_LOCAL;
+		break;
+	case S_ARGUMENT:
+		n->op = T_ARGUMENT;
+		break;
+	default:
+		n->op = T_NAME;
+	}
 	n->value = s->offset;
-	n->sym = s;
+	n->snum = s->name;
 	n->flags = LVAL;
 	n->type = s->type;
 	/* Rewrite implicit pointer forms */
@@ -110,10 +122,6 @@ struct node *make_symbol(struct symbol *s)
 			n->type++;
 	}
 #endif
-	if (s->storage == S_AUTO)
-		n->flags |= NAMEAUTO;
-	if (s->storage == S_ARGUMENT)
-		n->flags |= NAMEARG;
 	fprintf(stderr, "name %04x\n", s->name - 0x8000);
 	return n;
 }
@@ -133,6 +141,17 @@ unsigned is_constant(struct node *n)
 	return (n->op >= T_INTVAL && n->op <= T_ULONGVAL) ? 1 : 0;
 }
 
+/* Constant or name in linker constant form */
+unsigned is_constname(struct node *n)
+{
+	/* The address of a symbol is a link time constant so can go in initializers */
+	/* A dereferenced form however is not */
+	/* Locals are not a fixed address */
+	if (n->op == T_NAME && (n->flags & LVAL))
+		return 1;
+	return is_constant(n);
+}
+
 unsigned is_constant_zero(struct node *n)
 {
 	if (is_constant(n))
@@ -141,7 +160,7 @@ unsigned is_constant_zero(struct node *n)
 }
 
 
-#define IS_NAME(x)		((x) >= 0x8000)
+#define IS_NAME(x)		((x) >= T_NAME && (x) <= T_ARGUMENT)
 
 static void nameref(struct node *n)
 {
@@ -382,9 +401,28 @@ struct node *constify(struct node *n)
 			return n;
 		n->right = r;
 	}
-	/* Do some minimal math constification for now */
 	if (l) {
 		unsigned lt = l->type;
+
+		/* Lval names are constant but a maths operation on two name lval is not */
+		if (l->op >= T_SYMBOL || r->op >= T_SYMBOL) {
+			if (n->op != T_PLUS)
+				return NULL;
+			/* Special case for NAME + const */
+			if (l->op >= T_SYMBOL) {
+				if (r->op >= T_SYMBOL)
+					return NULL;
+				l->value +=r->value;
+				free_node(r);
+				free_node(n);
+				return l;
+			}
+			r->value += l->value;
+			free_node(l);
+			free_node(n);
+			return r;
+		}
+
 		/* Only do constant work with simple types */
 		if (!IS_INTARITH(lt) && !PTR(lt))
 			return n;
@@ -455,12 +493,7 @@ struct node *constify(struct node *n)
 		return n;
 	}
 	/* Terminal node.. are we const ?? */
-	if (is_constant(n))
+	if (is_constname(n))
 		return n;
-	/* The address of a symbol is a link time constant so can go in initializers */
-	/* A dereferenced form however is not */
-	if (n->op >= T_SYMBOL && (n->flags & LVAL) && n->sym->storage >= LSTATIC)
-		return n;
-	/* Locals are not a fixed address */
 	return NULL;
 }
