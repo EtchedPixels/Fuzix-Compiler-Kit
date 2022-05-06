@@ -34,9 +34,7 @@ unsigned get_storage(unsigned dflt)
 void put_typed_data(struct node *n, unsigned storage)
 {
 	write(1, "%[", 2);
-	/* FIXME: the label one is a bit weird and we need to look at
-	   doing it better once we clean up the misuse of the symbol range */
-	if (n->op != T_PAD && n->op != T_LABEL && !is_constname(n))
+	if (n->op != T_PAD && !is_constname(n))
 		error("not constant");
 	n->snum = storage;
 	write(1, n, sizeof(struct node));
