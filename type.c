@@ -55,9 +55,7 @@ unsigned type_arraysize(unsigned t)
 
 unsigned type_sizeof(unsigned t)
 {
-	if (PTR(t))
-		return PTRSIZE;
-	if (IS_SIMPLE(t))
+	if (PTR(t) || IS_SIMPLE(t))
 		return target_sizeof(t);
 	if (IS_ARRAY(t)) {
 		return type_arraysize(t);

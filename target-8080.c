@@ -21,7 +21,12 @@ static unsigned sizetab[16] = {
 
 unsigned target_sizeof(unsigned t)
 {
-	unsigned s = sizetab[(t >> 4) & 0x0F];
+	unsigned s;
+
+	if (PTR(t))
+		return 2;
+
+	s = sizetab[(t >> 4) & 0x0F];
 	if (s == 0) {
 		error("cannot size type");
 		s = 1;
