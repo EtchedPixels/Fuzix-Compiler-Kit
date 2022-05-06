@@ -18,8 +18,9 @@ extern struct node *tree(unsigned op, struct node *l, struct node *r);
 extern void free_node(struct node *n);
 extern struct node *new_node(void);
 
-extern struct node *make_rval(struct node *);
-extern struct node *make_noreturn(struct node *);
+extern struct node *make_rval(struct node *n);
+extern struct node *make_noreturn(struct node *n);
+extern struct node *make_cast(struct node *n, unsigned t);
 extern struct node *make_constant(unsigned long val, unsigned t);
 extern struct node *make_symbol(struct symbol *s);
 extern struct node *make_label(unsigned n);

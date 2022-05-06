@@ -124,11 +124,11 @@
 #define T_NAME		0x1201
 #define T_CONSTANT	0x1202
 #define T_LOCAL		0x1203
-#define T_ARGUMENT	0x1204
-#define T_DEREF		0x1205
-#define T_ADDROF	0x1206
-#define T_NULL		0x1207
-#define T_LABEL		0x1208
+#define T_LABEL		0x1204
+#define T_ARGUMENT	0x1205
+#define T_DEREF		0x1206
+#define T_ADDROF	0x1207
+#define T_NULL		0x1208
 #define T_POSTINC	0x1209
 #define T_POSTDEC	0x120A
 #define T_NEGATE	0x120B
