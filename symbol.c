@@ -111,7 +111,7 @@ struct symbol *update_symbol(unsigned name, unsigned storage,
 		else
 			warning("local name obscures global");
 	}
-	fprintf(stderr, "Create sym %d\n", name);
+	fprintf(stderr, "Create sym %x\n", name);
 	/* Insert new symbol */
 	sym = alloc_symbol(name, local);
 	sym->type = type;
@@ -209,10 +209,10 @@ struct symbol *update_struct(unsigned name, unsigned t)
 
 unsigned *struct_find_member(unsigned name, unsigned fname)
 {
-	struct symbol *s = find_struct(name);
+	struct symbol *s = symtab + INFO(name);
 	unsigned *ptr, idx;
 	/* May be a known type but not one with fields yet declared */
-	if (s == NULL || s->idx == NULL)
+	if (s->idx == NULL)
 		return NULL;
 	idx = *s->idx;	/* Number of fields */
 	ptr = s->idx + 2;	/* num fields, sizeof */
@@ -228,4 +228,29 @@ unsigned *struct_find_member(unsigned name, unsigned fname)
 unsigned type_of_struct(struct symbol *sym)
 {
 	return C_STRUCT|((sym - symtab) << 3);
+}
+
+/*
+ *	Generate the BSS at the end
+ */
+
+void write_bss(void)
+{
+	struct symbol *s = symtab;
+	while(s <= last_sym) {
+		fprintf(stderr, "sym %x %x %x %d\n", s->name, s->type, s->flags, s->storage);
+		if (!IS_FUNCTION(s->type) && s->storage >= S_LSTATIC && s->storage <= S_EXTDEF) {
+			if (s->storage == EXTDEF)
+				header(H_EXPORT, s->name, 0);
+			if (!(s->flags & INITIALIZED)) {
+				unsigned n = type_sizeof(s->type);
+				fprintf(stderr, "Writing %x for %d\n", s->name, n);
+				/* Alignment TODO */
+				header(H_BSS, s->name, 0);
+				put_padding_data(n, BSS);
+				footer(H_BSS, s->name, 0);
+			}
+		}
+		s++;
+	}
 }
