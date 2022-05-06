@@ -214,8 +214,11 @@ static struct node *hier10(void)
 		return r;
 	case T_AND:
 		r = hier10();
+		/* If it's an lvalue then just stop being an lvalue */
 		if (r->flags & LVAL) {
-			error("illegal address of");
+			r->flags &= ~LVAL;
+			/* We are now a pointer to */
+			r->type = type_ptr(r->type);
 			return r;
 		}
 		r = tree(T_ADDROF, NULL, r);
