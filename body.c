@@ -174,6 +174,13 @@ static void goto_statement(void)
 	need_semicolon();
 }
 
+/*
+ *	C statements.
+ *
+ *	This can be a declaration, in which case it starts with a token that
+ *	describes storage properties, a keyword, a name followed by a colon
+ *	(which is a label), or an expression. A null expression is also allowed.
+ */
 static void statement(void)
 {
 	/* Classic C requires variables at the block start, C99 doesn't. Whilst
@@ -225,20 +232,41 @@ static void statement(void)
 		next_token();
 		break;
 	default:
-		/* TODO labels */
-		/* Expressions */
-		write_tree(expression_tree(1));
+		/* We could write this not to push back a token but it's
+		   actually much cleaner to push back */
+		while (token >= T_SYMBOL) {
+			unsigned name = token;
+			next_token();
+			if (token == T_COLON) {
+				next_token();
+				/* We found a label */
+				header(H_LABEL, name, 0);
+			} else {
+				push_token(name);
+				break;
+			}
+		}
+		/* It is valid to follow a label with just ; */
+		if (token == T_SEMICOLON)
+			next_token();
+		else
+			write_tree(expression_tree(1));
 		break;
 	}
 }
 
+/*
+ *	Either a statement or a sequence of statements enclosed in { }. In
+ *	some cases the sequence is mandatory (eg a function) so we pass in
+ *	need_brack to tell us what to do.
+ */
 void statement_block(unsigned need_brack)
 {
 	/* TODO: we need to change the frame allocation to track a max
 	   but pop on block exits so we can overlay frames */
 	struct symbol *ltop;
 	if (token == T_EOF) {
-		error("unexpected EOF");
+		fatal("unexpected EOF");
 		return;
 	}
 	if (token != T_LCURLY) {
@@ -258,15 +286,21 @@ void statement_block(unsigned need_brack)
 	next_token();
 }
 
+/*
+ *	We have parsed the declaration part of a function and found it
+ *	is followed by a body. Set up the headersfor the backend and turn
+ *	the contents into expressions and headers.
+ */
 void function_body(unsigned st, unsigned name, unsigned type)
 {
 	/* We need to add ourselves to the symbols first as we can self
 	   reference */
 	struct symbol *sym;
-	unsigned n, m;
+
 	/* This makes me sad, but there isn't a nice way to work out
 	   the frame size ahead of time */
 	off_t hrw;
+
 	if (st == AUTO || st == EXTERN)
 		error("invalid storage class");
 	sym = update_symbol(name, st, type);
@@ -274,11 +308,12 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	header(H_FUNCTION, st, name);
 	hrw = mark_header();
 	header(H_FRAME, 0, name);
+
+	init_storage();
+
 	statement_block(1);
 	footer(H_FUNCTION, st, name);
-	/* FIXME: need to clean this up and nicely access the max frame
-	   offset */
-	mark_storage(&n, &m);
-	rewrite_header(hrw, H_FRAME, n, name);
+
+	rewrite_header(hrw, H_FRAME, frame_size(), name);
 	func_tag = 0;
 }
