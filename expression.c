@@ -1,31 +1,97 @@
 #include <stddef.h>
 #include "compiler.h"
 
+static void unexarg(void)
+{
+	error("unexpected argument");
+}
+
+/*
+ *	At the moment this is used for functions, but it will be used for
+ *	casting, hence all the sanity checks.
+ */
+struct node *typeconv(struct node *n, unsigned type, unsigned warn)
+{
+	if (!PTR(n->type)) {
+		/* You can cast pointers to things but not actual block
+		   classes */
+		if (!IS_SIMPLE(n->type) || !IS_ARITH(n->type) ||
+			!IS_SIMPLE(type) || !IS_ARITH(n->type)) {
+			error("invalid type conversion");
+			return n;
+		}
+	} else {
+		/* Pointers - void * rule */
+		if (BASE_TYPE(n->type) == VOID || BASE_TYPE(type) == VOID)
+			return make_cast(n, type);
+	}
+	/* TODO: need a general helper that deals with sign warnings */
+	if (n->type != type)
+		warning("type mismatch");
+	return make_cast(n, type);
+}
+
+/*
+ *	Perform the implicit legacy type conversions C specifies for
+ *	unprototyped arguments
+ */
+struct node *typeconv_implicit(struct node *n)
+{
+	if (n->type == CCHAR || n->type == UCHAR)
+		return typeconv(n, CINT, 0);
+	if (n->type == FLOAT)
+		return typeconv(n, DOUBLE, 0);
+	return n;
+}
 
 /*
  *	Build an argument tree for right to left stacking
  */
-struct node *call_args(void)
+struct node *call_args(unsigned narg, unsigned *argt)
 {
 	struct node *n = expression_tree(0);
+
+	/* See what argument type handling is needed */
+	if (*argt == VOID)
+		unexarg();
+	/* Implicit */
+	else if (*argt == ELLIPSIS)
+		n = typeconv_implicit(n);
+	else {
+		/* Explicit prototyped argument */
+		if (narg) {
+			n = typeconv(n, *argt++, 1);
+			narg--;
+		} else
+			unexarg();
+	}
 	if (match(T_COMMA))
 		/* Switch around for calling order */
-		return tree(T_COMMA, call_args(), n);
+		return tree(T_COMMA, call_args(narg, argt), n);
 	require(T_RPAREN);
 	return n;
 }
 
 /*
  *	Generate a function call tree - no type checking arg counts etc
- *	yet.
+ *	yet. Take any arguments for a function we've not seen a prototype for.
  */
+
+static unsigned dummy_argp = T_ELLIPSIS;
+
 struct node *function_call(struct node *n)
 {
 	unsigned type;
+	unsigned *argt, *argp;
 	if (!IS_FUNCTION(n->type))
 		error("not a function");
 	type = func_return(n->type);
-	n = tree(T_FUNCCALL, call_args(), n);
+	argt = func_args(n->type);
+	if (*argt == 0)
+		argp = &dummy_argp;
+	else
+		argp = argt + 1;
+	n = tree(T_FUNCCALL, call_args(*argt, argp), n);
 	n->type = type;
 	return n;
 }

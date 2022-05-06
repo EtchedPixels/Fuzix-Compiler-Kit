@@ -129,24 +129,30 @@ struct symbol *update_symbol(unsigned name, unsigned storage,
  *	Although it has a cost we really need to fold all the equivalently
  *	typed argument sets into a single instance to save memory.
  */
-static struct symbol *do_func_match(unsigned *template)
+static struct symbol *do_func_match(unsigned rtype, unsigned *template)
 {
 	struct symbol *sym = symtab;
 	unsigned len = *template + 1;
+	fprintf(stderr, "dfm: %d\n", rtype);
 	while(sym <= last_sym) {
-		if (sym->storage == S_FUNCDEF && memcmp(sym->idx, template, len) == 0)
+		if (sym->storage == S_FUNCDEF && sym->type == rtype && memcmp(sym->idx, template, len) == 0) {
+			fprintf(stderr, "dfm: sym match\n");
 			return sym;
+		}
 		sym++;
 	}
 	sym = alloc_symbol(0, 0);
 	sym->storage = S_FUNCDEF;
 	sym->idx = idx_copy(template, len);
+	sym->type = rtype;
+	fprintf(stderr, "dfm: New sym %ld\n", sym - symtab);
 	return sym;
 }
 
-unsigned func_symbol_type(unsigned *template)
+unsigned func_symbol_type(unsigned rtype, unsigned *template)
 {
-	return C_FUNCTION | ((do_func_match(template) - symtab) << 3);
+	struct symbol *s = do_func_match(rtype, template);
+	return C_FUNCTION | ((s - symtab) << 3);
 }
 
 unsigned func_return(unsigned n)
@@ -154,6 +160,13 @@ unsigned func_return(unsigned n)
 	if (!IS_FUNCTION(n))
 		return CINT;
 	return symtab[INFO(n)].type;	/* Type of function is its return type */
+}
+
+unsigned *func_args(unsigned n)
+{
+	if (!IS_FUNCTION(n))
+		return NULL;
+	return symtab[INFO(n)].idx;	/* Type of function is its return type */
 }
 
 /*
@@ -170,6 +183,29 @@ unsigned array_dimension(unsigned type, unsigned depth)
 {
 	struct symbol *sym = symbol_ref(type);
 	return sym->idx[depth];
+}
+
+unsigned make_array(unsigned type)
+{
+	struct symbol *sym = alloc_symbol(0, 0);
+	sym->storage = S_ARRAY;
+	sym->type = type;
+	sym->flags = 0;
+	sym->idx = idx_get(9);
+	*sym->idx = 0;
+	return C_ARRAY | ((sym - symtab) << 3);
+}
+
+void array_add_dimension(unsigned type, unsigned num)
+{
+	struct symbol *sym = symbol_ref(type);
+	unsigned *idx = sym->idx;
+	if (*idx == 8)
+		error("too many dimensions");
+	else {
+		(*idx)++;
+		idx[*idx] = num;
+	}
 }
 
 /*
@@ -245,8 +281,7 @@ void write_bss(void)
 			if (!(s->flags & INITIALIZED)) {
 				unsigned n = type_sizeof(s->type);
 				fprintf(stderr, "Writing %x for %d\n", s->name, n);
-				/* Alignment TODO */
-				header(H_BSS, s->name, 0);
+				header(H_BSS, s->name, target_alignof(s->type));
 				put_padding_data(n, BSS);
 				footer(H_BSS, s->name, 0);
 			}

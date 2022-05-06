@@ -4,16 +4,15 @@
 
 unsigned type_deref(unsigned t)
 {
-	switch (CLASS(t)) {
-	case C_SIMPLE:
-		if (PTR(t))
-			return --t;
-		break;
-	default:;
-	}
+	if (PTR(t))
+		return --t;
+	/* Arrays complicate matters because you can do
+		*x on an array object */
+	t = type_canonical(t);
+	if (PTR(t))
+		return --t;
 	error("cannot dereference");
 	return CINT;
-	/* FIXME: arrays, struct etc */
 }
 
 unsigned type_ptr(unsigned t)
@@ -95,9 +94,10 @@ unsigned type_ptrscale_binop(unsigned op, unsigned l, unsigned r,
 			     unsigned *div) {
 	*div = 1;
 
-	/* FIXME: need an array to pointer helper of some form */
 	if (PTR(l) && PTR(r)) {
-		if (l != r)
+		/* FIXME: allow for sign differences as warning. Want
+		   a generic ptrcompare() */
+		if (type_canonical(l) != type_canonical(r))
 			error("pointer type mismatch");
 		if (op == T_MINUS)
 			return type_ptrscale(r);
@@ -231,6 +231,9 @@ static unsigned base_type(void)
 		case T_DOUBLE:
 			type = DOUBLE;
 			break;
+		case T_VOID:
+			type = VOID;
+			break;
 		}
 		next_token();
 	}
@@ -314,6 +317,7 @@ unsigned get_type(void) {
 
 	if (ptr > 7)
 		error("too many indirections");
+	fprintf(stderr, "gt %x\n", type + ptr);
 	return type + ptr;
 }
 
@@ -335,12 +339,9 @@ static unsigned type_parse_function(unsigned name, unsigned type) {
 	unsigned *tn = tplt + 1;
 
 	/* Parse the bracketed arguments if any and nail them to the
-	   symbol. For now just eat them. We need to add them as local symbols
-	   and check collisions etc */
+	   symbol. */
 	while (token != T_RPAREN) {
-		/* FIXME special rule for void and ellipsis and they depend whether
-		   it's a function def or header. Also maybe K&R format support ? */
-
+		/* TODO: consider K&R support */
 		if (tn == tplt + 33)
 			fatal("too many arguments");
 		if (token == T_ELLIPSIS) {
@@ -349,7 +350,9 @@ static unsigned type_parse_function(unsigned name, unsigned type) {
 			break;
 		}
 		t = type_and_name(&an, 0, CINT);
+		fprintf(stderr, "tan %x\n", t);
 		if (t == VOID) {
+			fprintf(stderr, "void argument\n");
 			*tn++ = VOID;
 			break;
 		}
@@ -377,21 +380,16 @@ static unsigned type_parse_function(unsigned name, unsigned type) {
 	if (tn == tplt)
 		*tn++ = ELLIPSIS;
 	*tplt = tn - tplt;
-	type = func_symbol_type(tplt);
+	type = func_symbol_type(type, tplt);
 	fprintf(stderr, "func type %x\n", type);
 	return type;
 }
 
 static unsigned type_parse_array(unsigned name, unsigned type) {
-#if 0
-	int v;
 	if (!IS_ARRAY(type))
-		 make_array(type);
-	/* Using number is a hack until we have proper const trees */
-	 number(&v);
-	 array_add_dimension(type, v);
-#endif
-	 return CINT;		/* until we write this */
+		 type = make_array(type);
+	array_add_dimension(type, const_expression());
+	return type;
 }
 
 /*
@@ -408,13 +406,13 @@ unsigned type_and_name(unsigned *np, unsigned need_name,
 {
 	unsigned type = get_type();
 	unsigned sym;
-	 skip_modifiers();
+	skip_modifiers();
 	if (type == UNKNOWN)
 		type = deftype;
 	if (type == UNKNOWN)
 		return type;
 	sym = symname();
-	if (sym == 0 && (need_name))
+	if (sym == 0 && need_name)
 		error("name expected");
 	*np = sym;
 	/* We may be a function specification or an array or both. The other
@@ -422,7 +420,9 @@ unsigned type_and_name(unsigned *np, unsigned need_name,
 	while (token == T_LSQUARE || token == T_LPAREN) {
 		if (token == T_LSQUARE) {
 			next_token();
+			fprintf(stderr, "Array\n");
 			type = type_parse_array(*np, type);
+			fprintf(stderr, "Array Done\n");
 			require(T_RSQUARE);
 		} else if (token == T_LPAREN) {
 			fprintf(stderr, "func check\n");

@@ -98,10 +98,13 @@ struct node *primary(void)
 		func = 1;
 	if (name) {
 		struct symbol *sym = find_symbol(name);
-		if (func && sym == NULL)
-			/* Weird case you can call a function you've not declared */
-			sym = update_symbol(name, S_EXTERN, C_FUNCTION	/*TODO | int() func */
-			    );
+		/* Weird case you can call a function you've not declared. This
+		   makes it int f() */
+		if (func && sym == NULL) {
+			unsigned p = 0;
+			unsigned tf = func_symbol_type(CINT, &p);
+			sym = update_symbol(name, S_EXTERN, tf);
+		}
 		/* You can't size fields and structs by field/struct name without 
 		   the type specifier */
 		if (sym == NULL || sym->storage > S_EXTDEF) {
