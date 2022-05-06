@@ -8,13 +8,8 @@ struct node
 #define LVAL			1
 #define NOEFF			2
 #define NORETURN		4	/* Top level return is not used */
-#define NAMEARG			0x8000
-#define NAMEAUTO		0x4000
     unsigned value;		/* Offset for a NAME fp offset for a LOCAL */
-    union {
-        struct symbol *sym;		/* or NULL */
-        unsigned snum;			/* cc2 rewrite of symbols to nums */
-    };
+    unsigned snum;		/* Name of symbol (for code generator) */
 };
 
 extern void init_nodes(void);
@@ -34,6 +29,7 @@ extern void free_tree(struct node *n);
 extern void write_null_tree(void);
 
 extern unsigned is_constant(struct node *n);
+extern unsigned is_constname(struct node *n);
 extern unsigned is_constant_zero(struct node *n);
 
 extern struct node *arith_promotion_tree(unsigned op, struct node *l, struct node *r);
