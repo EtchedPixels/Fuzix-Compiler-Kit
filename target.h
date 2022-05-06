@@ -3,3 +3,7 @@
 #define TARGET_MAX_UINT		65535UL
 
 #define PTRSIZE			2
+
+
+extern unsigned target_sizeof(unsigned t);
+extern unsigned target_alignof(unsigned t);

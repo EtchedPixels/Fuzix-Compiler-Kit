@@ -1,23 +1,6 @@
 #include <stdio.h>
 #include "compiler.h"
 
-static unsigned sizetab[16] = {
-	/* FIXME - target should supply */
-	1, 2, 4, 8,
-	1, 2, 4, 8,
-	4, 8, 1, 0,		/* A void has no size but a void * is deemed to be 1 */
-	0, 0, 0, 0
-};
-
-static unsigned primitive_sizeof(unsigned t)
-{
-	unsigned s = sizetab[(t >> 4) & 0x0F];
-	if (s == 0) {
-		error("cannot size type");
-		s = 1;
-	}
-	return s;
-}
 
 unsigned type_deref(unsigned t)
 {
@@ -75,7 +58,7 @@ unsigned type_sizeof(unsigned t)
 	if (PTR(t))
 		return PTRSIZE;
 	if (IS_SIMPLE(t))
-		return primitive_sizeof(t);
+		return target_sizeof(t);
 	if (IS_ARRAY(t)) {
 		return type_arraysize(t);
 	}
