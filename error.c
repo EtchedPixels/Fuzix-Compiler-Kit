@@ -7,14 +7,25 @@
 
 unsigned errors;
 
+void warningline(unsigned line, const char *p)
+{
+	fprintf(stderr, "line %d:%s\n", line, p);
+}
+
 void warning(const char *p)
 {
-	fprintf(stderr, "line %d:%s\n", line_num, p);
+	warningline(line_num, p);
+}
+
+void errorline(unsigned line, const char *p)
+{
+	warningline(line, p);
+	errors++;
 }
 
 void error(const char *p)
 {
-	warning(p);
+	warningline(line_num, p);
 	errors++;
 }
 
