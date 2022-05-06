@@ -26,3 +26,26 @@ unsigned get_storage(unsigned dflt)
 	/* gcc */
 	return 0;
 }
+
+/*
+ *	Storage I/O - hacks for now
+ */
+
+void put_typed_data(struct node *n, unsigned storage)
+{
+	write(1, "%[", 2);
+	/* FIXME: the label one is a bit weird and we need to look at
+	   doing it better once we clean up the misuse of the symbol range */
+	if (n->op != T_PAD && n->op != T_LABEL && !is_constname(n))
+		error("not constant");
+	n->snum = storage;
+	write(1, n, sizeof(struct node));
+}
+
+void put_padding_data(unsigned space, unsigned storage)
+{
+	struct node *n = make_constant(space, UINT);
+	n->op = T_PAD;
+	put_typed_data(n, storage);
+	free_node(n);
+}
