@@ -4,6 +4,7 @@ extern unsigned line_num;
 extern unsigned token_value;
 
 extern void next_token(void);
+extern void push_token(unsigned);
 extern unsigned match(unsigned);
 extern void require(unsigned);
 extern void need_semicolon(void);

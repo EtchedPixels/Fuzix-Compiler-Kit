@@ -8,10 +8,13 @@
  *	eventually
  */
 
+#define NO_TOKEN	0xFFFF		/* An unused value */
+
 unsigned line_num;
 
 unsigned token_value;
 unsigned token;
+unsigned last_token = NO_TOKEN;
 
 unsigned tokbyte(void)
 {
@@ -25,7 +28,16 @@ unsigned tokbyte(void)
 
 void next_token(void)
 {
-	int c = getchar();
+	int c;
+
+	/* Handle pushed back tokens */
+	if (last_token != NO_TOKEN) {
+		token = last_token;
+		last_token = NO_TOKEN;
+		return;
+	}
+
+	c = getchar();
 	if (c == EOF) {
 		token = T_EOF;
 //        printf("*** EOF\n");
@@ -56,7 +68,21 @@ void next_token(void)
 	}
 }
 
+/*
+ * You can only push back one token and it must not have attached data. This
+ * works out fine because we only ever need to push back a name when processing
+ *  labels
+ */
+void push_token(unsigned t)
+{
+	last_token = token;
+	token = t;
+}
 
+/*
+ *	Try and move on a bit so that we don't generate a wall of errors for
+ *	a single mistake
+ */
 void junk(void)
 {
 	while (token != T_EOF && token != T_SEMICOLON)
@@ -64,6 +90,12 @@ void junk(void)
 	next_token();
 }
 
+/*
+ *	If the token is the one expected then consume it and return 1, if not
+ *	do not consume it and leave 0. This lets us write things like
+ *
+ *	if (match(T_STAR)) { ... }
+ */
 unsigned match(unsigned t)
 {
 	if (t == token) {
@@ -81,6 +113,8 @@ void need_semicolon(void)
 	}
 }
 
+/* This can only be used if the token is a single character token. That turns
+   out to be sufficient for C so there is no need for anything fancy here */
 void require(unsigned t)
 {
 	if (!match(t))
