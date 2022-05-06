@@ -200,13 +200,17 @@ static unsigned hash_symbol(const char *name)
 static void write_symbol_table(void)
 {
 	unsigned len = (uint8_t *) nextsym - (uint8_t *) symbase;
+	uint8_t n[2];
+
 	/* FIXME: proper temporary file! */
 	int fd = open(".symtmp", O_WRONLY | O_CREAT | O_TRUNC, 0600);
 	if (fd == -1) {
 		perror(".symtmp");
 		exit(1);
 	}
-	if (write(fd, symbase, len) != len)
+	n[0] = len;
+	n[1] = len  >> 8;
+	if (write (fd, n, 2) != 2 || write(fd, symbase, len) != len)
 		error("symbol I/O");
 	close(fd);
 }
