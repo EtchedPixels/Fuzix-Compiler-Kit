@@ -21,6 +21,7 @@ struct node *typeconv(struct node *n, unsigned type, unsigned warn)
 			return n;
 		}
 	} else {
+		/* FIXME: use pointer comp helper */
 		/* Pointers - void * rule */
 		if (BASE_TYPE(n->type) == VOID || BASE_TYPE(type) == VOID)
 			return make_cast(n, type);
@@ -46,6 +47,11 @@ struct node *typeconv_implicit(struct node *n)
 
 /*
  *	Build an argument tree for right to left stacking
+ *
+ *	TODO: both here and in the space allocation we need to
+ *	do type / size fixes for argument spacing. For example on an 8080
+ *	we always push 2 bytes so char as arg takes 2 and we need to do
+ *	the right thing.
  */
 struct node *call_args(unsigned narg, unsigned *argt)
 {
@@ -92,6 +98,9 @@ struct node *function_call(struct node *n)
 	else
 		argp = argt + 1;
 	n = tree(T_FUNCCALL, call_args(*argt, argp), n);
+	/* FIXME: we want to make the size of the arguments pushed
+	   available somehow
+		n = tree(T_CLEANUP, n, make_constant(??)) */
 	n->type = type;
 	return n;
 }
