@@ -168,9 +168,11 @@ static void goto_statement(void)
 {
 	unsigned n;
 	next_token();
-	/* TODO */
 	if ((n = symname()) == 0)
 		error("label required");
+	/* We will work out if the label existed later */
+	use_label(n);
+	header(H_GOTO, n, 0);
 	need_semicolon();
 }
 
@@ -187,7 +189,6 @@ static void statement(void)
 	   the C99 approach is ugly allow it */
 	if (is_modifier() || is_storage_word() || is_type_word()) {
 		declaration(AUTO);
-		/* need_semicolon();	CHECK TODO */
 		return;
 	}
 	/* Check for keywords */
@@ -240,6 +241,7 @@ static void statement(void)
 			if (token == T_COLON) {
 				next_token();
 				/* We found a label */
+				add_label(name);
 				header(H_LABEL, name, 0);
 			} else {
 				push_token(name);
@@ -262,8 +264,6 @@ static void statement(void)
  */
 void statement_block(unsigned need_brack)
 {
-	/* TODO: we need to change the frame allocation to track a max
-	   but pop on block exits so we can overlay frames */
 	struct symbol *ltop;
 	if (token == T_EOF) {
 		fatal("unexpected EOF");
@@ -310,10 +310,13 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	header(H_FRAME, 0, name);
 
 	init_storage();
+	init_labels();
 
 	statement_block(1);
 	footer(H_FUNCTION, st, name);
 
 	rewrite_header(hrw, H_FRAME, frame_size(), name);
+	check_labels();
+
 	func_tag = 0;
 }

@@ -3,7 +3,7 @@ all: cc0 cc1
 OBJS0 = frontend.o
 
 OBJS1 = body.o declaration.o error.o expression.o header.o idxdata.o \
-	initializer.o lex.o main.o primary.o stackframe.o storage.o \
+	initializer.o label.o lex.o main.o primary.o stackframe.o storage.o \
 	struct.o symbol.o target-8080.o tree.o type.o
 
 CFLAGS = -Wall -pedantic -g3
