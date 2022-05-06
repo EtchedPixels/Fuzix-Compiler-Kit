@@ -6,7 +6,7 @@
 
 #include "compiler.h"
 
-unsigned frame_size;
+unsigned frame_len;
 
 #define NUM_NODES 100
 
@@ -45,7 +45,6 @@ struct node *new_node(void)
     n->left = n->right = NULL;
     n->value = 0;
     n->flags = 0;
-    n->sym = NULL;
     return n;
 }
 
@@ -73,7 +72,7 @@ static struct node *rewrite_node(struct node *n)
 {
     if (n->type == CINT || n->type == UINT || PTR(n->type)) {
     /* Rewrite * name into a load */
-    if (n->op == T_DEREF && n->right->op >= T_SYMBOL && (n->flags & NAMEAUTO|NAMEARG) == 0) {
+    if (n->op == T_DEREF && (n->right->op == T_LOCAL || n->right->op == T_ARGUMENT)) {
         n->op = T_LOAD;
         n->snum = n->right->op;
         n->value = n->right->value;
@@ -81,9 +80,9 @@ static struct node *rewrite_node(struct node *n)
         n->right = NULL;
     }
     }
-    if (n->op == T_FUNCCALL && n->right->op >= T_SYMBOL) {
+    if (n->op == T_FUNCCALL && n->right->op == T_NAME) {
         n->op = T_CALLNAME;
-        n->snum = n->right->op;
+        n->snum = n->right->snum;
         n->value = n->right->value;
         free_node(n->right);
         n->right = NULL;
@@ -320,22 +319,21 @@ static void print_node(struct node *n)
     case T_ULONGVAL:
         printf("%uUL ", n->value);
         break;
+    case T_NAME:
+        printf("\tlxi h,");
+        printf("_%s+%d", namestr(n->snum), n->value);
+        break;
+    case T_LOCAL:
+        printf("\tlxi h,%d\n", n->value);
+        printf("\tdad b");
+        break;
+    case T_ARGUMENT:
+        printf("\tlxi h,%d\n", n->value + 2 + frame_len);
+        printf("\tdad b");
+        break;
     default:
-        if (n->op >= T_SYMBOL) {
-            if (n->flags & NAMEAUTO) {
-                printf("\tlxi h,%x\n", n->value);
-                printf("\tdad b");
-            } else if (n->flags & NAMEARG) {
-                printf("\tlxi h,%x\n", n->value + 2 + frame_size);
-                printf("\tdad b");
-            } else {
-                printf("\tlxi h,");
-                printf("_%s+%d", namestr(n->op), n->value);
-            }
-        } else {
-            printf("Invalid %04x ", n);
-            exit(1);
-        }
+        printf("Invalid %04x ", n->op);
+        exit(1);
     }
 #if 0
     switch(n->type & ~7) {
@@ -388,7 +386,7 @@ static void dumptree(struct node *n)
     if (n->left) {
         dumptree(n->left);
         /* This is wrong for other types */
-        if (n->left->type >= CLONG)
+        if (n->left->type >= CLONG && !PTR(n->left->type) && !(n->flags & LVAL))
             printf("\txchg\n\tlhld acchi\n\tpush h\n\tpush d\n");
         else
             printf("\tpush h\n");
@@ -449,13 +447,15 @@ static char *hnames[] = {
     "goto",
     "string",
     "frame",
-    "export"
+    "export",
+    "data",
+    "bss"
 };
 
 static char *headertype(unsigned t)
 {
     static char buf[16];
-    if (t <= H_EXPORT)
+    if (t <= H_BSS)
         return hnames[t];
     snprintf(buf, 16, "??%d??", t);
     return buf;
@@ -491,21 +491,28 @@ static void dumpheader(void)
         func_ret = h.h_name;
         break;
     case H_FRAME:
+        frame_len = h.h_name;
         printf("\tpush b\n");
-        printf("\tlxi h,0x%x\n", h.h_name);
-        printf("\tdad sp\n");
-        printf("\tsphl\n");
-        printf("\tmov b,h\n");
-        printf("\tmov c,l\n");
-        frame_size = h.h_name;
+        if (frame_len) {
+            printf("\tlxi h,0x%x\n", h.h_name);
+            printf("\tdad sp\n");
+            printf("\tsphl\n");
+            printf("\tmov b,h\n");
+            printf("\tmov c,l\n");
+        } else {
+            printf("\tlxi b,0\n");
+            printf("\tdad sp\n");
+        }
         break;
     case H_FUNCTION|H_FOOTER:
         printf("L%d_r:\n", h.h_name);
-        printf("\txchg\n");
-        printf("\tlxi h,0x%x\n",(uint16_t)-frame_size);
-        printf("\tdad sp\n");
-        printf("\tsphl\n");
-        printf("\txchg\n");
+        if (frame_len) {
+            printf("\txchg\n");
+            printf("\tlxi h,0x%x\n",(uint16_t)-frame_len);
+            printf("\tdad sp\n");
+            printf("\tsphl\n");
+            printf("\txchg\n");
+        }
         printf("\tpop b\n");
         printf("\tret\n");
         break;
@@ -578,17 +585,63 @@ static void dumpheader(void)
         printf("\tjmp doswitch\n");	/* needs to be by type */
         break;
     case H_CASE:
-        if (h.h_data)
-            printf("\tjmp L%d_s\n", h.h_name);
         /* save_case to table - case [h.h_data] */
         /* Need a constant expression resolver */
         compile_expression();	/* FIXME */
         break;
     case H_SWITCH|H_FOOTER:
-        printf("L%d_s:\n", h.h_name);
+        printf("L%d_b:\n", h.h_name);
         /* dump_switch_table(h.h_name)) */
         break;
+    case H_DATA:
+        printf("\n\t\t.data\n\n");
+        printf("_%s:\n", namestr(h.h_name));
+        break;
+    case H_DATA|H_FOOTER:
+        printf("\n\t\t.code\n\n");
+        break;
+    case H_BSS:
+        printf("\n\t\t.bss\n\n");
+        printf("_%s:\n", namestr(h.h_name));
+        break;
+    case H_BSS|H_FOOTER:
+        printf("\n\t\t.code\n\n");
     }
+}
+
+/* TODO data v bss */
+static void data_node(void)
+{
+    struct node *n = load_tree();	/* Actually one node */
+    if (n->op == T_PAD)
+        printf("\t.ds %d\n", n->value);
+    else {
+        if (PTR(n->type)) {
+            if (n->op >= T_SYMBOL)
+                printf("\t.word %s+%d\n", namestr(n->snum), n->value);
+            else if (n->op == T_LABEL)
+                printf("\t.word T%d\n", n->value);
+        } else {
+            switch(n->type) {
+            case CCHAR:
+            case UCHAR:
+                printf("\t.byte ");
+                break;
+            case CLONG:
+            case ULONG:
+                printf("\t.word %d\n", n->value & 0xFFFF);
+                n->value >>= 16;
+            case CINT:
+            case UINT:
+                printf("\t.word ");
+                break;
+            default:
+                printf("BADTYPE %d / \n", n->type);
+            }
+            printf("%d\n", n->value);
+        }
+    }
+    free_node(n);
 }
 
 static void percentify(void)
@@ -603,6 +656,10 @@ static void percentify(void)
     }
     if (c == 'H') {
         dumpheader();
+        return;
+    }
+    if (c == '[') {
+        data_node();
         return;
     }
     if (c != '%') {
