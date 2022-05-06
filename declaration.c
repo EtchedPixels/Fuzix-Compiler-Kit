@@ -76,10 +76,14 @@ void declaration(unsigned defstorage)
 
 	if (sym->flags & INITIALIZED)
 		error("duplicate initializer");
-	sym->flags |= INITIALIZED;
-
-	if ((PTR(type) || !IS_FUNCTION(type)) && match(T_EQ))
+	if ((PTR(type) || !IS_FUNCTION(type)) && match(T_EQ)) {
+		sym->flags |= INITIALIZED;
+		if (s >= S_LSTATIC)
+		        header(H_DATA, sym->name, target_alignof(type));
 		initializers(sym, type, s);
+		if (s >= S_LSTATIC)
+		        footer(H_DATA, sym->name, 0);
+	}
 	if (s == AUTO)
 		sym->offset = assign_storage(type, S_AUTO);
 	need_semicolon();
