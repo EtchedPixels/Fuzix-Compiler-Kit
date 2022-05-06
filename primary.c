@@ -30,6 +30,12 @@ struct node *get_sizeof(void)
 	return make_constant(2, UINT);
 }
 
+/*
+ *	The tokenizer has already done the basic conversion work for us and
+ *	labelled the type produced. We just need to turn it into a name
+ *	and for strings deal with the fact that a string is actually a
+ *	literal holding the address of the characters.
+ */
 struct node *constant_node(void)
 {
 	struct node *n;
@@ -64,6 +70,14 @@ struct node *constant_node(void)
 	return n;
 }
 
+/*
+ *	A C language primary. This can be one of several things
+ *
+ *	1.	Another expression in brackets, in which case we recurse
+ *	2.	sizeof() - basically a magic constant.
+ *	3.	A name
+ *	4.	A constant
+ */
 struct node *primary(void)
 {
 	struct node *l;
