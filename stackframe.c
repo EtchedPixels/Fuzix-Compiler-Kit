@@ -9,6 +9,7 @@
 
 static unsigned arg_frame;
 static unsigned local_frame;
+static unsigned local_max;
 
 /*
  *	We will need to deal with alignment rules later
@@ -17,9 +18,9 @@ static unsigned local_frame;
 unsigned alloc_room(unsigned *p, unsigned type)
 {
     unsigned s = type_sizeof(type);
-    unsigned a = 0; /* type_alignof(type) */
+    unsigned a = target_alignof(type);
 
-    *p = (*p + a) & ~a;
+    *p = (*p + a) & ~(a - 1);
     a = *p;
     *p += s;
     return a;
@@ -28,9 +29,14 @@ unsigned alloc_room(unsigned *p, unsigned type)
 unsigned assign_storage(unsigned type, unsigned storage)
 {
     unsigned *p = &arg_frame;
+    unsigned n;
     if (storage == S_AUTO)
         p = &local_frame;
-    return alloc_room(p, type);
+    n = alloc_room(p, type);
+    if (storage == S_AUTO)
+        if (local_frame < local_max)
+            local_max = local_frame;
+    return n;
 }
 
 void mark_storage(unsigned *a, unsigned *b)
@@ -43,4 +49,16 @@ void pop_storage(unsigned *a, unsigned *b)
 {
     arg_frame = *a;
     local_frame = *b;
+}
+
+void init_storage(void)
+{
+    arg_frame = 0;
+    local_frame = 0;
+    local_max = 0;
+}
+
+unsigned frame_size(void)
+{
+    return local_max;
 }
