@@ -35,6 +35,8 @@ struct header {
 #define H_STRING	0x0013	/* string */
 #define H_FRAME		0x0014	/* declare the stack frame */
 #define H_EXPORT	0x0015	/* make name public */
+#define H_DATA		0x0016	/* data segment */
+#define H_BSS		0x0017	/* uninitialized data */
 
 extern void header(unsigned htype, unsigned name, unsigned data);
 extern void footer(unsigned htype, unsigned name, unsigned data);
