@@ -39,8 +39,6 @@ static struct node *hier11(void)
 	int direct;
 	struct node *l, *r;
 	unsigned ptr;
-	struct symbol *sym;
-	unsigned sname;
 	unsigned scale;
 	unsigned *tag;
 
@@ -82,8 +80,9 @@ static struct node *hier11(void)
 				tag = struct_find_member(l->type, symname());
 				if (tag == NULL) {
 					error("unknown member");
-					junk();
-					return 0;
+					/* So we don't internal error later */
+					l->type = CINT;
+					return l;
 				}
 				l = tree(T_PLUS, l,
 					 make_constant(tag[2], UINT));
@@ -425,7 +424,7 @@ struct node *expression_tree(unsigned comma)
 /* Generate an expression and write it the output */
 void expression(unsigned comma, unsigned mkbool, unsigned noret)
 {
-	struct node *n, *c;
+	struct node *n;
 	if (token == T_SEMICOLON)
 		return;
 	n = expression_tree(comma);
@@ -433,10 +432,6 @@ void expression(unsigned comma, unsigned mkbool, unsigned noret)
 		n = tree(T_BOOL, NULL, n);
 	if (noret)
 		n->flags |= NORETURN;
-	/* Constify it if we can to reduce the amount of generated code */
-	c = constify(n);
-	if (c)
-		n = c;
 	write_tree(n);
 }
 
@@ -446,17 +441,13 @@ void expression(unsigned comma, unsigned mkbool, unsigned noret)
 unsigned const_expression(void)
 {
 	unsigned v = 1;
-	struct node *e = expression_tree(0);
-	struct node *n = constify(e);
+	struct node *n = expression_tree(0);
 
-	if (n && n->op >= T_INTVAL && n->op <= T_ULONGVAL)
+	if (n->op >= T_INTVAL && n->op <= T_ULONGVAL)
 		v = n->value;
 	else
 		error("not constant");
-	if (n)
-		free_tree(n);
-	else
-		free_tree(e);
+	free_tree(n);
 	return v;
 }
 
