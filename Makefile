@@ -10,7 +10,7 @@ CFLAGS = -Wall -pedantic -g3
 
 INC0 = token.h
 INC1 = body.h compiler.h declaration.h error.h expression.h header.h \
-       idxdata.h initializer.h lex.h primary.h stackframe.h storage.h \
+       idxdata.h initializer.h label.h lex.h primary.h stackframe.h storage.h \
        struct.h symbol.h target.h token.h tree.h type.h
 
 
