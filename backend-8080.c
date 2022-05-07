@@ -24,9 +24,6 @@ static unsigned sp;		/* Stack pointer offset tracking */
 struct node *gen_rewrite_node(struct node *n)
 {
 	struct node *r = n->right;
-	/* Convert LVAL flag into pointer type */
-	if (n->flags & LVAL)
-		n->type++;
 	/* Rewrite references into a load operation */
 	if (n->type == CINT || n->type == UINT || PTR(n->type)) {
 		if (n->op == T_DEREF) {
@@ -81,10 +78,11 @@ void gen_frame(unsigned size)
 {
 	frame_len = size;
 	sp += size;
+	printf(";make frame now sp %d\n", sp);
 
 	printf("; frame %d\n", size);
 	if (size > 10) {
-		printf("\tlxi h,0x%x\n", size);
+		printf("\tlxi h,%d\n", -size);
 		printf("\tdad sp\n");
 		printf("\tsphl\n");
 		return;
@@ -111,6 +109,7 @@ void gen_epilogue(unsigned size)
 		printf("\tldsi %d\n", size);
 		printf("\txchg\n");
 		printf("\tsphl\n");
+		printf("\tret\n");
 		return;
 	}
 	printf("\txchg\n");
@@ -118,6 +117,7 @@ void gen_epilogue(unsigned size)
 		printf("\tlxi h,0x%x\n", (uint16_t) - size);
 		printf("\tdad sp\n");
 		printf("\tsphl\n");
+		printf("\tret\n");
 		return;
 	}
 	if (size % 1) {
@@ -149,6 +149,11 @@ void gen_jfalse(const char *tail, unsigned n)
 void gen_jtrue(const char *tail, unsigned n)
 {
 	printf("\tjnz L%d%s\n", n, tail);
+}
+
+void gen_helpcall(void)
+{
+	printf("\tcall ");
 }
 
 /* This is still being worked on */
@@ -190,7 +195,12 @@ void gen_space(unsigned value)
 
 void gen_text_label(unsigned n)
 {
-	printf("T%d:\n", n);
+	printf("\t.word T%d\n", n);
+}
+
+void gen_name(struct node *n)
+{
+	printf("\t.word _%s+%d\n", namestr(n->snum), n->value);
 }
 
 void gen_value(unsigned type, unsigned long value)
@@ -232,69 +242,6 @@ void gen_tree(struct node *n)
 {
 	codegen_lr(n);
 	printf(";\n");
-}
-
-void gen_push(unsigned type)
-{
-	if (type >= CLONG && !PTR(type)) {
-		sp += 4;
-		printf("\txchg\n\tlhld hireg\n\tpush h\n\tpush d\n");
-	} else {
-		sp += 2;
-		printf("\tpush h\n");
-	}
-}
-
-/*
- *	Generate a helper call according to the types
- */
-static void do_helper(struct node *n, const char *h, unsigned mod)
-{
-	unsigned t = n->type;
-	unsigned spmod = 2;
-	printf("\tcall %s", h);
-	if (PTR(n->type))
-		n->type = CINT;
-	switch (n->type) {
-	case UCHAR:
-		putchar('u');
-	case CCHAR:
-		putchar('c');
-		break;
-	case UINT:
-		putchar('u');
-	case CINT:
-		break;
-	case ULONG:
-		spmod = 4;
-		putchar('u');
-	case CLONG:
-		spmod = 4;
-		putchar('l');
-		break;
-	case FLOAT:
-		spmod = 4;
-		putchar('f');
-		break;
-	case DOUBLE:
-		spmod = 8;
-		putchar('d');
-		break;
-	default:
-		fprintf(stderr, "*** bad type %x\n", t);
-	}
-	if (mod)
-		sp -= spmod;
-}
-
-static void helper(struct node *n, const char *h)
-{
-	do_helper(n, h, 0);
-}
-
-static void helper_sp(struct node *n, const char *h)
-{
-	do_helper(n, h, 1);
 }
 
 /*
@@ -387,206 +334,139 @@ unsigned gen_direct(struct node *n)
 	return 0;
 }
 
-void gen_node(struct node *n)
+static unsigned get_size(unsigned t)
 {
+	if (PTR(t))
+		return 2;
+	if (t == CINT || t == UINT)
+		return 2;
+	if (t == CCHAR || t == UCHAR)
+		return 1;
+	if (t == CLONG || t == ULONG || t == FLOAT)
+		return 4;
+	if (t == CLONGLONG || t == ULONGLONG || t == DOUBLE)
+		return 8;
+	if (t == VOID)
+		return 0;
+	error("gs");
+	return 0;
+}
+
+static unsigned get_stack_size(unsigned t)
+{
+	unsigned n = get_size(t);
+	if (n == 1)
+		return 2;
+	return n;
+}
+
+/* Stack the node which is currently in the working register */
+unsigned gen_push(struct node *n)
+{
+	unsigned size = get_stack_size(n->type);
+
+	/* Our push will put the object on the stack, so account for it */
+	sp += size;
+
+	switch(size) {
+	case 2:
+		printf("\tpush h\n");
+		return 1;
+	case 4:
+		printf("\txchg\n\tlhld hireg\n\tpush h\n\tpush d\n");
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+
+unsigned gen_node(struct node *n)
+{
+	unsigned size = get_size(n->type);
+
+	/* An operation with a left hand node will have the left stacked
+	   and the operation will consume it so adjust the stack.
+
+	   The exception to this is comma and the function call nodes
+	   as we leave the arguments pushed for the function call */
+
+	if (n->left && n->op != T_COMMA && n->op != T_CALLNAME)
+		sp -= get_size(n->left->type);
+
 	switch (n->op) {
 		/* Load from a name */
 	case T_NVAL:
-		printf("\tlhld _%s+%d", namestr(n->snum), n->value);
-		break;
+		printf("\tlhld _%s+%d\n", namestr(n->snum), n->value);
+		return 1;
 		/* Call a function by name */
 	case T_CALLNAME:
-		printf("\tcall _%s+%d", namestr(n->snum), n->value);
-		break;
-	case T_NULL:
-		/* Dummy 'no expression' node */
-		break;
-	case T_SHLEQ:
-		helper_sp(n, "shleq");
-		break;
-	case T_SHREQ:
-		helper_sp(n, "shreq");
-		break;
-	case T_PLUSPLUS:
-		helper_sp(n, "preinc");
-		break;
-	case T_MINUSMINUS:
-		helper_sp(n, "postinc");
-		break;
-	case T_EQEQ:
-		helper_sp(n, "cceq");
-		break;
-	case T_LTLT:
-		helper_sp(n, "shl");
-		break;
-	case T_GTGT:
-		helper_sp(n, "shr");
-		break;
-	case T_OROR:
-		helper_sp(n, "lor");
-		break;
-	case T_ANDAND:
-		helper_sp(n, "land");
-		break;
-	case T_PLUSEQ:
-		helper_sp(n, "pluseq");
-		break;
-	case T_MINUSEQ:
-		helper_sp(n, "minuseq");
-		break;
-	case T_SLASHEQ:
-		helper_sp(n, "diveq");
-		break;
-	case T_STAREQ:
-		helper_sp(n, "muleq");
-		break;
-	case T_HATEQ:
-		helper_sp(n, "xoreq");
-		break;
-	case T_BANGEQ:
-		helper_sp(n, "noteq");
-		break;
-	case T_OREQ:
-		helper_sp(n, "oreq");
-		break;
-	case T_ANDEQ:
-		helper_sp(n, "andeq");
-		break;
-	case T_PERCENTEQ:
-		helper_sp(n, "modeq");
-		break;
-	case T_AND:
-		helper_sp(n, "band");
-		break;
-	case T_STAR:
-		helper_sp(n, "mul");
-		break;
-	case T_SLASH:
-		helper_sp(n, "div");
-		break;
-	case T_PERCENT:
-		helper_sp(n, "mod");
-		break;
-	case T_PLUS:
-		helper_sp(n, "plus");
-		break;
-	case T_MINUS:
-		helper_sp(n, "minus");
-		break;
-		/* TODO: This one will need special work */
-	case T_QUESTION:
-		helper_sp(n, "question");
-		break;
-	case T_COLON:
-		helper_sp(n, "colon");
-		break;
-	case T_HAT:
-		helper_sp(n, "xor");
-		break;
-	case T_LT:
-		helper_sp(n, "cclt");
-		break;
-	case T_GT:
-		helper_sp(n, "ccgt");
-		break;
-	case T_OR:
-		helper_sp(n, "or");
-		break;
-	case T_TILDE:
-		helper(n, "neg");
-		break;
-	case T_BANG:
-		helper(n, "not");
-		break;
+		printf("\tcall _%s+%d\n", namestr(n->snum), n->value);
+		return 1;
 	case T_EQ:
-		if (n->type == CINT || n->type == UINT || PTR(n->type)) {
+		if (size == 2) {
 			if (cpu == 8085)
-				printf("\txchg\n\tpop h\n\tshlx");
+				printf("\txchg\n\tpop h\n\tshlx\n");
 			else
 				printf("\txchg\n\tpop h\n\tmov m,e\n\tinx h\n\tmov m,d");
-			sp -= 2;
-		} else
-			helper_sp(n, "assign");
+			return 1;
+		}
 		break;
 	case T_DEREF:
-		if (n->type == CINT || n->type == UINT || PTR(n->type)) {
+		if (size == 2) {
 			if (cpu == 8085)
-				printf("\tlhlx");
+				printf("\tlhlx\n");
 			else
-				printf("\tmov e,m\n\tinx h\n\tmov d,m\n\txchg");
-		} else
-			helper(n, "deref");
-		break;
-	case T_NEGATE:
-		helper(n, "negate");
-		break;
-	case T_POSTINC:
-		helper(n, "postinc");
-		break;
-	case T_POSTDEC:
-		helper(n, "postdec");
+				printf("\tmov e,m\n\tinx h\n\tmov d,m\n\txchg\n");
+			return 1;
+		}
 		break;
 	case T_FUNCCALL:
-		printf("\tcall callhl");
-		break;
-	case T_CLEANUP:
-		/* Should never occur except direct */
-		error("tclu");
-		break;
+		printf("\tcall callhl\n");
+		return 1;
 	case T_LABEL:
 		/* Used for const strings */
-		printf("\tlxi h,T%d", n->value);
-		break;
-	case T_CAST:
-		printf("cast ");
-		break;
+		printf("\tlxi h,T%d\n", n->value);
+		return 1;
 	case T_CONSTANT:
 		switch(n->type) {
 		case CLONG:
 		case ULONG:
-			printf("lxi h,%u", ((n->value >> 16) & 0xFFFF));
-			printf("shld hireg");
+			printf("lxi h,%u\n", ((n->value >> 16) & 0xFFFF));
+			printf("shld hireg\n");
 		/* For readability */
 		case UCHAR:
 		case UINT:
-			printf("\tlxi h,%u", (n->value & 0xFFFF));
-			break;
+			printf("\tlxi h,%u\n", (n->value & 0xFFFF));
+			return 1;
 		case CCHAR:
 		case CINT:
-			printf("\tlxi h,%d", (n->value & 0xFFFF));
-			break;
+			printf("\tlxi h,%d\n", (n->value & 0xFFFF));
+			return 1;
 		}
-		break;
-	case T_COMMA:
-		/* Used for function arg chaining - just ignore */
-		return;
-	case T_BOOL:
-		helper(n, "bool");
 		break;
 	case T_NAME:
 		printf("\tlxi h,");
-		printf("_%s+%d", namestr(n->snum), n->value);
-		break;
+		printf("_%s+%d\n", namestr(n->snum), n->value);
+		return 1;
 	case T_LOCAL:
-		/* FIXME: add long, char etc to this and argument */
-		if (cpu == 8085 && n->value + sp <= 255) {
-			printf("\tldsi %d", n->value + sp);
+		/* We already adjusted sp so allow for this */
+		if (cpu == 8085 && n->value + sp + size <= 255) {
+			printf("\tldsi %d\n", n->value + sp + size);
 		} else {
-			printf("\tlxi h,%d\n", n->value + sp);
-			printf("\tdad sp");
+			printf("\tlxi h,%d\n", n->value + sp + size);
+			printf("\tdad sp\n");
 		}
-		break;
+		return 1;
 	case T_ARGUMENT:
-		if (cpu == 8085 && n->value + 2 + frame_len + sp <= 255) {
-			printf("ldsi %d\n", n->value + sp);
+		/* We already adjusted sp so allow for this */
+		if (cpu == 8085 && n->value + 2 + frame_len + sp + size <= 255) {
+			printf("ldsi %d\n", n->value + sp + size);
 		} else {
-			printf("\tlxi h,%d\n", n->value + 2 + frame_len + sp);
-			printf("\tdad sp");
+			printf("\tlxi h,%d\n", n->value + size + 2 + frame_len + sp);
+			printf("\tdad sp\n");
 		}
-		break;
-	default:
-		fprintf(stderr, "Invalid %04x ", n->op);
-		exit(1);
+		return 1;
 	}
-	printf("\n");
+	return 0;
 }

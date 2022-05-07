@@ -104,6 +104,14 @@ static struct node *rewrite_tree(struct node *n)
 		n->left = rewrite_tree(n->left);
 	if (n->right)
 		n->right = rewrite_tree(n->right);
+	/* Convert LVAL flag into pointer type */
+	if (n->flags & LVAL)
+		n->type++;
+	/* Turn any remaining object references (functions) into pointer type */
+	/* Need to review how we do this with name of function versus function vars etc */
+	/* FIXME */
+	if (IS_FUNCTION(n->type))
+		n->type = PTRTO;
 	return gen_rewrite_node(n);
 }
 
@@ -264,6 +272,9 @@ void process_data(void)
 	case T_LABEL:
 		gen_text_label(n->value);
 		break;
+	case T_NAME:
+		gen_name(n);
+		break;
 	default:
 		gen_value(n->type, n->value);
 		break;
@@ -271,6 +282,230 @@ void process_data(void)
 	free_node(n);
 }
 
+/*
+ *	Helpers for the code generation whenever the target has no
+ *	direct method
+ */
+
+/*
+ *	Generate a helper call according to the types
+ */
+void helper(struct node *n, const char *h)
+{
+	unsigned t = n->type;
+
+	/* A function call has a type that depends upon the call, but the
+	   type we want is a pointer */
+	if (n->op == T_FUNCCALL)
+		n->type = PTRTO;
+	gen_helpcall();
+	fputs(h, stdout);
+	if (PTR(n->type))
+		n->type = CINT;
+	switch (n->type) {
+	case UCHAR:
+		putchar('u');
+	case CCHAR:
+		putchar('c');
+		break;
+	case UINT:
+		putchar('u');
+	case CINT:
+		break;
+	case ULONG:
+		putchar('u');
+	case CLONG:
+		putchar('l');
+		break;
+	case FLOAT:
+		putchar('f');
+		break;
+	case DOUBLE:
+		putchar('d');
+		break;
+	default:
+		fflush(stdout);
+		fprintf(stderr, "*** bad type %x\n", t);
+	}
+	putchar('\n');
+}
+
+static unsigned ccop;	/* Was the last op a cc op so we can avoid bool */
+
+void make_node(struct node *n)
+{
+	unsigned occ = ccop;
+	ccop = 0;
+
+	/* Try the target code generator first, if not use helpers */
+	if (gen_node(n))
+		return;
+
+	switch (n->op) {
+	case T_NULL:
+		/* Dummy 'no expression' node */
+		break;
+	case T_SHLEQ:
+		helper(n, "shleq");
+		break;
+	case T_SHREQ:
+		helper(n, "shreq");
+		break;
+	case T_PLUSPLUS:
+		helper(n, "preinc");
+		break;
+	case T_MINUSMINUS:
+		helper(n, "postinc");
+		break;
+	case T_EQEQ:
+		helper(n, "cceq");
+		ccop = 1;
+		break;
+	case T_LTLT:
+		helper(n, "shl");
+		break;
+	case T_GTGT:
+		helper(n, "shr");
+		break;
+	case T_OROR:
+		helper(n, "lor");
+		break;
+	case T_ANDAND:
+		helper(n, "land");
+		break;
+	case T_PLUSEQ:
+		helper(n, "pluseq");
+		break;
+	case T_MINUSEQ:
+		helper(n, "minuseq");
+		break;
+	case T_SLASHEQ:
+		helper(n, "diveq");
+		break;
+	case T_STAREQ:
+		helper(n, "muleq");
+		break;
+	case T_HATEQ:
+		helper(n, "xoreq");
+		break;
+	case T_BANGEQ:
+		helper(n, "noteq");
+		break;
+	case T_OREQ:
+		helper(n, "oreq");
+		break;
+	case T_ANDEQ:
+		helper(n, "andeq");
+		break;
+	case T_PERCENTEQ:
+		helper(n, "modeq");
+		break;
+	case T_AND:
+		helper(n, "band");
+		break;
+	case T_STAR:
+		helper(n, "mul");
+		break;
+	case T_SLASH:
+		helper(n, "div");
+		break;
+	case T_PERCENT:
+		helper(n, "mod");
+		break;
+	case T_PLUS:
+		helper(n, "plus");
+		break;
+	case T_MINUS:
+		helper(n, "minus");
+		break;
+		/* TODO: This one will need special work */
+	case T_QUESTION:
+		helper(n, "question");
+		break;
+	case T_COLON:
+		helper(n, "colon");
+		break;
+	case T_HAT:
+		helper(n, "xor");
+		break;
+	case T_LT:
+		helper(n, "cclt");
+		ccop = 1;
+		break;
+	case T_GT:
+		helper(n, "ccgt");
+		ccop = 1;
+		break;
+	case T_OR:
+		helper(n, "or");
+		break;
+	case T_TILDE:
+		helper(n, "neg");
+		break;
+	case T_BANG:
+		helper(n, "not");
+		ccop = 1;
+		break;
+	case T_EQ:
+		helper(n, "assign");
+		break;
+	case T_DEREF:
+		helper(n, "deref");
+		break;
+	case T_NEGATE:
+		helper(n, "negate");
+		break;
+	case T_POSTINC:
+		helper(n, "postinc");
+		break;
+	case T_POSTDEC:
+		helper(n, "postdec");
+		break;
+	case T_FUNCCALL:
+		helper(n, "callfunc");
+		break;
+	case T_CLEANUP:
+		/* Should never occur except direct */
+		error("tclu");
+		break;
+	case T_LABEL:
+		helper(n, "const");
+		/* Used for const strings */
+		gen_text_label(n->value);
+		break;
+	case T_CAST:
+		/* TODO - needs to consider both types so not a usual
+		   special */
+		printf("cast\n");
+		break;
+	case T_CONSTANT:
+		helper(n, "const");
+		gen_value(n->type, n->value);
+		break;
+	case T_COMMA:
+		/* Used for function arg chaining - just ignore */
+		return;
+	case T_BOOL:
+		if (!occ)
+			helper(n, "bool");
+		break;
+	case T_NAME:
+		helper(n, "loadn");
+		gen_name(n);
+		break;
+	case T_LOCAL:
+		helper(n, "loadl");
+		gen_value(PTRTO, n->value);
+		break;
+	case T_ARGUMENT:
+		helper(n, "loada");
+		gen_value(PTRTO, n->value);
+		break;
+	default:
+		fprintf(stderr, "Invalid %04x\n", n->op);
+		exit(1);
+	}
+}
 /*
  *	Load the symbol table from the front end
  */
@@ -336,9 +571,10 @@ void codegen_lr(struct node *n)
 		/* See if we can direct generate this block. May recurse */
 		if (gen_direct(n))
 			return;
-		gen_push(n->left->type);
+		if (!gen_push(n->left))
+			helper(n, "push");
 	}
 	if (n->right)
 		codegen_lr(n->right);
-	gen_node(n);
+	make_node(n);
 }
