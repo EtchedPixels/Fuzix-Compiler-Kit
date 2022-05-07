@@ -1,0 +1,38 @@
+- clean up dead header types and passing multiple tags when 1 needed
+  (eg do/while ?)
+- (int *) casting syntax
+- finish operator type checking
+- rework the parsing so that int a=4, *b; stuff works
+- comma in definitions, typedefs
+- sizeof() [required reworking the currently buggy type parsing]
+- typedef  [ditto]
+- enum - do we care ?
+- build and generate logical and/or trees with branching so that the proper
+  C evaulation behaviour occurs
+- build a similar model out for ? :
+
+- for word stacking machines add target hooks to specify that arguments
+  take 2 bytes even if char, and alloc space correctly both in the func
+  declaration/argument side and in the arg stacking (arg passing side done)
+- deal with stacking of void (call of void function as statement end)...
+
+Broken 
+-	extern int foo;		warns wrongly and doesn't add symbol
+-	foo("x"); when foo is not yet defined gives an arg error
+-	constify needs a hard stare or two
+
+
+Longer term
+- float
+- allow char v uchar default to be set by target
+- literal based handling for some types (set by target) - eg double/longlong
+  so that we pass pointers around including one to a memory "register". 
+  &x will need care as do casts
+- do we want to go to some kind of table rule parsing model over the
+  current code based one ?
+- look at some kind of simple register assignment rewriting so that 6803/6809
+  etc can try and rewrite some subtrees to use an index register, and maybe
+  also eliminate the push case for some of those
+- how to deal with Z80 sanely
+- simple register tracking helper library
+
