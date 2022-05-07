@@ -4,3 +4,4 @@
 
 extern unsigned target_sizeof(unsigned t);
 extern unsigned target_alignof(unsigned t);
+extern unsigned target_argsize(unsigned t);

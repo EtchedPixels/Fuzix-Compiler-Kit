@@ -33,3 +33,11 @@ unsigned target_sizeof(unsigned t)
 	}
 	return s;
 }
+
+unsigned target_argsize(unsigned t)
+{
+	unsigned s = target_sizeof(t);
+	if (s == 1)
+		return 2;
+	return s;
+}
