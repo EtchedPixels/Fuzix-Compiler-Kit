@@ -596,8 +596,6 @@ int main(int argc, char *argv[])
 /*
  *	Perform a simple left right walk of the tree and feed the code
  *	to the node generator.
- *
- *	TODO; constant spotting and helper
  */
 void codegen_lr(struct node *n)
 {
