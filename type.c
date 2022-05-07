@@ -386,9 +386,14 @@ static unsigned type_parse_function(unsigned name, unsigned type) {
 }
 
 static unsigned type_parse_array(unsigned name, unsigned type) {
+	int n = const_int_expression();
+	if (n < 1) {
+		error("bad size");
+		n = 1;
+	}
 	if (!IS_ARRAY(type))
 		 type = make_array(type);
-	array_add_dimension(type, const_expression());
+	array_add_dimension(type, n);
 	return type;
 }
 
