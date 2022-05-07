@@ -31,9 +31,10 @@ unsigned assign_storage(unsigned type, unsigned storage)
     if (storage == S_AUTO)
         p = &local_frame;
     n = alloc_room(p, type);
-    if (storage == S_AUTO)
-        if (local_frame < local_max)
+    if (storage == S_AUTO) {
+        if (local_frame > local_max)
             local_max = local_frame;
+    }
     return n;
 }
 
