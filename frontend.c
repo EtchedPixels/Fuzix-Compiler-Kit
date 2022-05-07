@@ -232,7 +232,10 @@ static void outbyte_quoted(unsigned char c)
 {
 	if (c == 0 || c == 0xFF)
 		outbyte(0xFF);
-	outbyte(c);
+	if (c == 0)
+		outbyte(0xFE);
+	else
+		outbyte(c);
 }
 
 static unsigned char tokdata[8];
