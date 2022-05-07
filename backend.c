@@ -130,6 +130,7 @@ static unsigned compile_expression(void)
 
 static unsigned func_ret;
 static unsigned frame_len;
+static unsigned func_ret_used;
 
 static void process_header(void)
 {
@@ -143,12 +144,15 @@ static void process_header(void)
 	case H_FUNCTION:
 		gen_prologue(namestr(h.h_data));
 		func_ret = h.h_name;
+		func_ret_used = 0;
 		break;
 	case H_FRAME:
+		frame_len = h.h_name;
 		gen_frame(h.h_name);
 		break;
 	case H_FUNCTION | H_FOOTER:
-		gen_label("_r", h.h_name);
+		if (func_ret_used)
+			gen_label("_r", h.h_name);
 		gen_epilogue(frame_len);
 		break;
 	case H_FOR:
@@ -205,6 +209,9 @@ static void process_header(void)
 			gen_label("_e", h.h_name);
 		break;
 	case H_RETURN:
+		func_ret_used = 1;
+		break;
+	case H_RETURN | H_FOOTER:
 		gen_jump("_r", func_ret);
 		break;
 	case H_LABEL:
@@ -283,7 +290,6 @@ static void load_symbols(const char *path)
 
 int main(int argc, char *argv[])
 {
-	int c;
 	uint8_t h[2];
 
 	argv0 = argv[0];
@@ -327,6 +333,9 @@ void codegen_lr(struct node *n)
 {
 	if (n->left) {
 		codegen_lr(n->left);
+		/* See if we can direct generate this block. May recurse */
+		if (gen_direct(n))
+			return;
 		gen_push(n->left->type);
 	}
 	if (n->right)
