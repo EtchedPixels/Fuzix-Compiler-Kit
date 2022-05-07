@@ -1,4 +1,4 @@
-all: cc0 cc1 cc2 cc2.8080
+all: cc0 cc1 cc2 cc2.8080 cc2.6809
 
 OBJS0 = frontend.o
 
@@ -7,8 +7,8 @@ OBJS1 = body.o declaration.o error.o expression.o header.o idxdata.o \
 	struct.o symbol.o target-8080.o tree.o type.o
 
 OBJS2 = backend.o backend-default.o
-
 OBJS3 = backend.o backend-8080.o
+OBJS4 = backend.o backend-6809.o
 
 CFLAGS = -Wall -pedantic -g3
 
@@ -39,6 +39,9 @@ cc2:	$(OBJS2)
 cc2.8080:	$(OBJS3)
 	gcc -g3 $(OBJS3) -o cc2.8080
 
+cc2.6809:	$(OBJS4)
+	gcc -g3 $(OBJS4) -o cc2.6809
+
 clean:
-	rm -f cc0 cc1 cc2 cc2.8080
+	rm -f cc0 cc1 cc2 cc2.8080 cc2.6809
 	rm -f *~ *.o
