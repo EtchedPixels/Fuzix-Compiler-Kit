@@ -71,27 +71,7 @@ struct node *tree(unsigned op, struct node *l, struct node *r)
 struct node *make_constant(unsigned long value, unsigned type)
 {
 	struct node *n = new_node();
-	switch(type) {
-		case CCHAR:
-		case CINT:
-			n->op = T_INTVAL;
-			break;
-		case UCHAR:
-		case UINT:
-			n->op = T_UINTVAL;
-			break;
-		case CLONG:
-			n->op = T_LONGVAL;
-			break;
-		case ULONG:
-			n->op = T_ULONGVAL;
-			break;
-		default:
-			if (PTR(type))
-				n->op = T_UINTVAL;
-			else
-				fatal("mkcns");
-	}
+	n->op = T_CONSTANT;
 	n->value = value;
 	n->type = type;
 	fprintf(stderr, "const %lx\n", value);
@@ -138,7 +118,7 @@ struct node *make_label(unsigned label)
 
 unsigned is_constant(struct node *n)
 {
-	return (n->op >= T_INTVAL && n->op <= T_ULONGVAL) ? 1 : 0;
+	return (n->op == T_CONSTANT) ? 1 : 0;
 }
 
 /* Constant or name in linker constant form */
@@ -408,14 +388,14 @@ struct node *constify(struct node *n)
 		unsigned lt = l->type;
 
 		/* Lval names are constant but a maths operation on two name lval is not */
-		if (l->op >= T_SYMBOL || r->op >= T_SYMBOL) {
+		if (l->op == T_NAME || r->op == T_NAME) {
 			if (n->op != T_PLUS)
 				return NULL;
 			/* Special case for NAME + const */
-			if (l->op >= T_SYMBOL) {
-				if (r->op >= T_SYMBOL)
+			if (l->op == T_NAME) {
+				if (r->op == T_NAME)
 					return NULL;
-				l->value +=r->value;
+				l->value += r->value;
 				free_node(r);
 				free_node(n);
 				return l;
@@ -467,6 +447,8 @@ struct node *constify(struct node *n)
 		case T_HAT:
 			n = replace_constant(n, lt, l->value ^ r->value);
 			break;
+		default:
+			return NULL;
 		}
 		return n;
 	}
@@ -492,6 +474,8 @@ struct node *constify(struct node *n)
 			/* We are working with integer constant types so this is ok */
 			n = replace_constant(n, n->type, r->value);
 			break;
+		default:
+			return NULL;
 		}
 		return n;
 	}
