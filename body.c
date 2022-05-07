@@ -96,6 +96,7 @@ static void return_statement(void)
 	next_token();
 	header(H_RETURN, func_tag, 0);
 	expression_or_null(0, 0);
+	footer(H_RETURN, func_tag, 0);
 	need_semicolon();
 }
 
@@ -144,7 +145,9 @@ static void case_statement(void)
 		error("case outside of switch");
 	header(H_CASE, switch_tag, switch_count++);
 	next_token();
-	const_expression();
+	/* FIXME: we will need to switch to allowing float when we do the
+	   float support */
+	const_int_expression();
 	require(T_COLON);
 	statement_block(0);
 }
