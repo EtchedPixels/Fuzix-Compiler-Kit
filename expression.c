@@ -6,6 +6,11 @@ static void unexarg(void)
 	error("unexpected argument");
 }
 
+static void missedarg(void)
+{
+	error("missing argument");
+}
+
 /*
  *	At the moment this is used for functions, but it will be used for
  *	casting, hence all the sanity checks.
@@ -53,7 +58,7 @@ struct node *typeconv_implicit(struct node *n)
  *	we always push 2 bytes so char as arg takes 2 and we need to do
  *	the right thing.
  */
-struct node *call_args(unsigned narg, unsigned *argt)
+struct node *call_args(unsigned narg, unsigned *argt, unsigned *argsize)
 {
 	struct node *n = expression_tree(0);
 
@@ -69,11 +74,12 @@ struct node *call_args(unsigned narg, unsigned *argt)
 			n = typeconv(n, *argt++, 1);
 			narg--;
 		} else
-			unexarg();
+			missedarg();
 	}
+	*argsize += target_argsize(n->type);
 	if (match(T_COMMA))
 		/* Switch around for calling order */
-		return tree(T_COMMA, call_args(narg, argt), n);
+		return tree(T_COMMA, call_args(narg, argt, argsize), n);
 	require(T_RPAREN);
 	return n;
 }
@@ -89,6 +95,7 @@ struct node *function_call(struct node *n)
 {
 	unsigned type;
 	unsigned *argt, *argp;
+	unsigned argsize = 0;
 	if (!IS_FUNCTION(n->type))
 		error("not a function");
 	type = func_return(n->type);
@@ -97,11 +104,19 @@ struct node *function_call(struct node *n)
 		argp = &dummy_argp;
 	else
 		argp = argt + 1;
-	n = tree(T_FUNCCALL, call_args(*argt, argp), n);
-	/* FIXME: we want to make the size of the arguments pushed
-	   available somehow
-		n = tree(T_CLEANUP, n, make_constant(??)) */
+
+	/* A function without arguments */
+	if (match(T_RPAREN)) {
+		/* Make sure no arguments is acceptable */
+		if (!(*argt == 0 || argt[1] == ELLIPSIS || argt[1] == VOID))
+			missedarg();
+		n  = tree(T_FUNCCALL, NULL, n);
+	} else
+		n = tree(T_FUNCCALL, call_args(*argt, argp, &argsize), n);
+	/* Always emit this - some targets have other uses for knowing
+	   the boundary of a function call return */
 	n->type = type;
+	n = tree(T_CLEANUP, n, make_constant(argsize, UINT));
 	return n;
 }
 
@@ -516,12 +531,12 @@ void expression(unsigned comma, unsigned mkbool, unsigned noret)
 /* We need a another version of this for initializers that allows global or
    static names (and string labels) too */
 
-unsigned const_expression(void)
+unsigned const_int_expression(void)
 {
 	unsigned v = 1;
 	struct node *n = expression_tree(0);
 
-	if (n->op >= T_INTVAL && n->op <= T_ULONGVAL)
+	if (n->op == T_CONSTANT)
 		v = n->value;
 	else
 		error("not constant");
