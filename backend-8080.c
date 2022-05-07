@@ -78,8 +78,6 @@ void gen_frame(unsigned size)
 {
 	frame_len = size;
 	sp += size;
-	printf(";make frame now sp %d\n", sp);
-
 	printf("; frame %d\n", size);
 	if (size > 10) {
 		printf("\tlxi h,%d\n", -size);
@@ -198,6 +196,15 @@ void gen_text_label(unsigned n)
 	printf("\t.word T%d\n", n);
 }
 
+/* The label for a literal (currently only strings)
+   TODO: if we add other literals we may need alignment here */
+
+void gen_literal(unsigned n)
+{
+	printf("\t.data\n");
+	printf("T%d:\n", n);
+}
+
 void gen_name(struct node *n)
 {
 	printf("\t.word _%s+%d\n", namestr(n->snum), n->value);
@@ -206,23 +213,23 @@ void gen_name(struct node *n)
 void gen_value(unsigned type, unsigned long value)
 {
 	if (PTR(type)) {
-		printf(".word %u\n", (unsigned) value);
+		printf("\t.word %u\n", (unsigned) value);
 		return;
 	}
 	switch (type) {
 	case CCHAR:
 	case UCHAR:
-		printf(".byte %u\n", (unsigned) value & 0xFF);
+		printf("\t.byte %u\n", (unsigned) value & 0xFF);
 		break;
 	case CINT:
 	case UINT:
-		printf(".word %d\n", (unsigned) value & 0xFFFF);
+		printf("\t.word %d\n", (unsigned) value & 0xFFFF);
 		break;
 	case CLONG:
 	case ULONG:
 		/* We are little endian */
-		printf(".word %d\n", (unsigned) (value & 0xFFFF));
-		printf(".word %d\n", (unsigned) ((value >> 16) & 0xFFFF));
+		printf("\t.word %d\n", (unsigned) (value & 0xFFFF));
+		printf("\t.word %d\n", (unsigned) ((value >> 16) & 0xFFFF));
 		break;
 	default:
 		error("unsuported type");
@@ -391,8 +398,8 @@ unsigned gen_node(struct node *n)
 	   The exception to this is comma and the function call nodes
 	   as we leave the arguments pushed for the function call */
 
-	if (n->left && n->op != T_COMMA && n->op != T_CALLNAME)
-		sp -= get_size(n->left->type);
+	if (n->left && n->op != T_COMMA && n->op != T_CALLNAME && n->op != T_FUNCCALL)
+		sp -= get_stack_size(n->left->type);
 
 	switch (n->op) {
 		/* Load from a name */
@@ -429,18 +436,11 @@ unsigned gen_node(struct node *n)
 		printf("\tlxi h,T%d\n", n->value);
 		return 1;
 	case T_CONSTANT:
-		switch(n->type) {
-		case CLONG:
-		case ULONG:
+		switch(size) {
+		case 4:
 			printf("lxi h,%u\n", ((n->value >> 16) & 0xFFFF));
 			printf("shld hireg\n");
-		/* For readability */
-		case UCHAR:
-		case UINT:
-			printf("\tlxi h,%u\n", (n->value & 0xFFFF));
-			return 1;
-		case CCHAR:
-		case CINT:
+		case 2:
 			printf("\tlxi h,%d\n", (n->value & 0xFFFF));
 			return 1;
 		}
