@@ -377,13 +377,13 @@ struct node *constify(struct node *n)
 	if (l) {
 		l = constify(l);
 		if (l == NULL)
-			return n;
+			return NULL;
 		n->left = l;
 	}
 	if (r) {
 		r = constify(r);
 		if (r == NULL)
-			return n;
+			return NULL;
 		n->right = r;
 	}
 	if (l) {
@@ -410,7 +410,9 @@ struct node *constify(struct node *n)
 
 		/* Only do constant work with simple types */
 		if (!IS_INTARITH(lt) && !PTR(lt))
-			return n;
+			return NULL;
+		if (l->flags & LVAL)
+			return NULL;
 
 		switch(n->op) {
 		case T_PLUS:
@@ -459,6 +461,9 @@ struct node *constify(struct node *n)
 		unsigned rt = r->type;
 		if (!IS_INTARITH(rt) && !PTR(rt))
 			return NULL;
+		if (r->flags & LVAL)
+			return NULL;
+
 		switch(n->op) {
 		case T_NEGATE:
 			n = replace_constant(n, rt, -r->value);
