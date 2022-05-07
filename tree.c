@@ -112,6 +112,8 @@ struct node *make_label(unsigned label)
 	n->op = T_LABEL;
 	n->value = label;
 	n->flags = 0;
+	/* FIXME: we need a general setting for default char type */
+	n->type = PTRTO|UCHAR;
 	fprintf(stderr, "label %04x\n", label);
 	return n;
 }
