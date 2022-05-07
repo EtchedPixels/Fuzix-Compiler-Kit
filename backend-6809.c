@@ -11,9 +11,14 @@ static unsigned frame_len;	/* Number of bytes of stack frame */
 static unsigned sp;		/* Stack pointer offset tracking */
 
 
-#define T_NVAL		(T_USER)
-#define T_CALLNAME	(T_USER+1)
-#define T_LREF		(T_USER+2)
+/*
+ *	Private types we rewrite things into
+ */
+#define T_CALLNAME	(T_USER)
+#define T_NREF		(T_USER+1)
+#define T_NSTORE	(T_USER+2)
+#define T_LREF		(T_USER+3)
+#define T_LSTORE	(T_USER+4)
 
 
 /*
@@ -24,7 +29,7 @@ static unsigned sp;		/* Stack pointer offset tracking */
 struct node *gen_rewrite_node(struct node *n)
 {
 	struct node *r = n->right;
-	/* Rewrite references into a load operation */
+	/* Rewrite references into a load or store operation */
 	if (n->type == CINT || n->type == UINT || PTR(n->type)) {
 		if (n->op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
@@ -38,11 +43,32 @@ struct node *gen_rewrite_node(struct node *n)
 				return n;
 			}
 			if (r->op == T_NAME) {
-				n->op = T_NVAL;
+				n->op = T_NREF;
 				n->snum = r->snum;
 				n->value = r->value;
 				free_node(r);
 				n->right = NULL;
+				return n;
+			}
+		}
+		if (n->op == T_EQ) {
+			struct node *l = n->left;
+			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
+				n->op = T_LSTORE;
+				n->snum = l->snum;
+				if (l->op == T_ARGUMENT)
+					l->value += 2 + frame_len;
+				n->value = l->value;
+				free_node(l);
+				n->left = NULL;
+				return n;
+			}
+			if (l->op == T_NAME) {
+				n->op = T_NSTORE;
+				n->snum = l->snum;
+				n->value = l->value;
+				free_node(l);
+				n->left = NULL;
 				return n;
 			}
 		}
@@ -262,35 +288,75 @@ unsigned gen_direct(struct node *n)
 	unsigned v;
 	unsigned s = get_size(n->type);
 
+	if (n->right)
+		v = n->right->value;
+
 	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
 	   type of the function return so don't use that for the cleanup value
 	   in n->right */
 	case T_CLEANUP:
-		v = n->right->value;
 		if (v) {
 			printf("\tleas %d,s\n", v);
 			sp -= v;
 		}
 		return 1;
+	case T_NSTORE:
+		if (s == 1) {
+			/* CLR ?? */
+			printf("\tldb #%d\n", v);
+			printf("\tstb _%s+%d\n", namestr(n->snum), n->value);
+			return 1;
+		}
+		if (s == 2) {
+			printf("\tldd #%d\n", v);
+			return 1;
+		}
+		if (s == 4) {
+			printf("\tldd #%d\n", v & 0xFFFF);
+			printf("\tldu #%d\n", (v >> 16));
+			printf("\tstu _%s+%d\n", namestr(n->snum), n->value);
+			printf("\tstd _%s+%d\n", namestr(n->snum), n->value + 2);
+			return 1;
+		}
+		break;
+	case T_LSTORE:
+		if (s == 4) {
+			printf("\tldd #%d\n", v & 0xFFFF);
+			printf("\tldu #%d\n", (v >> 16));
+			printf("\tldu %d(s)\n", n->value);
+			printf("\tldd %d(s)\n", n->value + 2);
+			return 1;
+		}
+		if (s == 2) {
+			printf("\tldd #%d\n", v);
+			printf("\tstdd %d(s)\n", n->value);
+			return 1;
+		}
+		if (s == 1) {
+			printf("\tldb #%d\n", v);
+			printf("\tstb %d(s)\n", n->value);
+			return 1;
+		}
+		break;
 	case T_EQ:
 		printf("\ttfr d,x\n");
 		switch(s) {
 		case 1:
-			if (n->value) {
-				printf("\tldb #%d\n", n->value);
+			if (v) {
+				printf("\tldb #%d\n", v);
 				printf("\tstb (x)\n");
 			} else
 				printf("\tclr (x)\n");
 			return 1;
 		case 2:
-			printf("\tldd #%d\n", n->value);
+			printf("\tldd #%d\n", v);
 			printf("\tstd (x)\n");
 			return 1;
 		case 4:
-			printf("\tldu #%d\n", (n->value >> 16));
+			printf("\tldu #%d\n", (v >> 16));
 			printf("\tstu (x)\n");
-			printf("\tldd #%d\n", n->value & 0xFFFF);
+			printf("\tldd #%d\n", v & 0xFFFF);
 			printf("\tstd 2(x)\n");
 			return 1;
 		default:
@@ -300,7 +366,7 @@ unsigned gen_direct(struct node *n)
 	case T_PLUS:
 		if (s == 2) {
 			/* LHS is in D */
-			printf("\taddd %d\n", n->value);
+			printf("\taddd %d\n", v);
 			return 1;
 		}
 		break;
@@ -319,9 +385,18 @@ unsigned gen_node(struct node *n)
 	s = get_size(n->type);
 
 	switch(n->op) {
-	case T_NVAL:	/* Get the value held in a name */
+	case T_NREF:	/* Get the value held in a name */
+		if (s == 1) {
+			printf("\tldb _%s+%d\n", namestr(n->snum), n->value);
+			return 1;
+		}
 		if (s == 2) {
 			printf("\tldd _%s+%d\n", namestr(n->snum), n->value);
+			return 1;
+		}
+		if (s == 4) {
+			printf("\tldu _%s+%d\n", namestr(n->snum), n->value);
+			printf("\tldd _%s+%d\n", namestr(n->snum), n->value + 2);
 			return 1;
 		}
 		break;
@@ -337,6 +412,36 @@ unsigned gen_node(struct node *n)
 		}
 		if (s == 1) {
 			printf("\tldb %d(s)\n", n->value);
+			return 1;
+		}
+		break;
+	case T_NSTORE:
+		if (s == 1) {
+			printf("\tstb _%s+%d\n", namestr(n->snum), n->value);
+			return 1;
+		}
+		if (s == 2) {
+			printf("\tstd _%s+%d\n", namestr(n->snum), n->value);
+			return 1;
+		}
+		if (s == 4) {
+			printf("\tstu _%s+%d\n", namestr(n->snum), n->value);
+			printf("\tstd _%s+%d\n", namestr(n->snum), n->value + 2);
+			return 1;
+		}
+		break;
+	case T_LSTORE:
+		if (s == 4) {
+			printf("\tldu %d(s)\n", n->value);
+			printf("\tldd %d(s)\n", n->value + 2);
+			return 1;
+		}
+		if (s == 2) {
+			printf("\tstdd %d(s)\n", n->value);
+			return 1;
+		}
+		if (s == 1) {
+			printf("\tstb %d(s)\n", n->value);
 			return 1;
 		}
 		break;
