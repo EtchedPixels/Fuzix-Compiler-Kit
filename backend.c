@@ -403,10 +403,10 @@ void make_node(struct node *n)
 		helper(n, "shr");
 		break;
 	case T_OROR:
-		helper(n, "lor");
+		/* Handled with branches in the tree walk */
 		break;
 	case T_ANDAND:
-		helper(n, "land");
+		/* Handled with branches in the tree walk */
 		break;
 	case T_PLUSEQ:
 		helper(n, "pluseq");
@@ -458,7 +458,8 @@ void make_node(struct node *n)
 		helper(n, "question");
 		break;
 	case T_COLON:
-		helper(n, "colon");
+		/* We did the work in the code generator as it's not a simple
+		   operator behaviour */
 		break;
 	case T_HAT:
 		helper(n, "xor");
@@ -593,12 +594,51 @@ int main(int argc, char *argv[])
  *	Helpers for the targets
  */
 
+static unsigned codegen_label;
+
+static unsigned branching_operator(struct node *n)
+{
+	if (n->op == T_OROR)
+		return 1;
+	if (n->op == T_ANDAND)
+		return 2;
+	if (n->op == T_COLON)
+		return 3;
+	return 0;
+}
+
 /*
  *	Perform a simple left right walk of the tree and feed the code
  *	to the node generator.
  */
 void codegen_lr(struct node *n)
 {
+	unsigned o = branching_operator(n);
+
+	/* Certain operations require special handling because the rule is
+	   for partial evaluation only. Notably && || and ?: */
+	if (o) {
+		unsigned lab = codegen_label++;
+		if (o == 3) {
+			gen_jfalse("L", lab);
+			codegen_lr(n->left);
+			gen_jump("LC", lab);
+			gen_label("L", lab);
+			codegen_lr(n->right);
+			gen_label("LC", lab);
+			make_node(n);
+			return;
+		}
+		codegen_lr(n->left);
+		if (o == 1)
+			gen_jtrue("L", lab);
+		else
+			gen_jfalse("L", lab);
+		codegen_lr(n->right);
+		gen_label("L", lab);
+		/* We don't build the node itself - it's not relevant */
+		return;
+	}
 	if (n->left) {
 		codegen_lr(n->left);
 		/* See if we can direct generate this block. May recurse */
