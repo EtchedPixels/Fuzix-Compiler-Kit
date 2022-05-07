@@ -8,6 +8,7 @@
  *	State for the current function
  */
 static unsigned frame_len;	/* Number of bytes of stack frame */
+static unsigned sp;		/* Stack pointer offset tracking */
 
 /*
  *	Our chance to do tree rewriting. We don't do much for the 8080
@@ -34,6 +35,7 @@ void gen_prologue(const char *name)
 void gen_frame(unsigned size)
 {
 	frame_len = size;
+	sp += size;
 	gen_helpcall();
 	printf("enter\n");
 	gen_value(UINT, size);
@@ -41,6 +43,8 @@ void gen_frame(unsigned size)
 
 void gen_epilogue(unsigned size)
 {
+	if (sp != size)
+		error("sp");
 	gen_helpcall();
 	printf("exit\n");
 	gen_value(UINT, size);
@@ -115,6 +119,12 @@ void gen_text_label(unsigned n)
 	printf("\t.word T%d\n", n);
 }
 
+void gen_literal(unsigned n)
+{
+	printf("\t.data\n");
+	printf("T%d:\n", n);
+}
+
 void gen_name(struct node *n)
 {
 	printf("\t.word _%s+%d\n", namestr(n->snum), n->value);
@@ -161,8 +171,40 @@ void gen_tree(struct node *n)
 	printf(";\n");
 }
 
+/*
+ *	Example size handling. In this case for a system that always
+ *	pushes words.
+ */
+static unsigned get_size(unsigned t)
+{
+	if (PTR(t))
+		return 2;
+	if (t == CINT || t == UINT)
+		return 2;
+	if (t == CCHAR || t == UCHAR)
+		return 1;
+	if (t == CLONG || t == ULONG || t == FLOAT)
+		return 4;
+	if (t == CLONGLONG || t == ULONGLONG || t == DOUBLE)
+		return 8;
+	if (t == VOID)
+		return 0;
+	error("gs");
+	return 0;
+}
+
+static unsigned get_stack_size(unsigned t)
+{
+	unsigned n = get_size(t);
+	if (n == 1)
+		return 2;
+	return n;
+}
+
 unsigned gen_push(struct node *n)
 {
+	/* Our push will put the object on the stack, so account for it */
+	sp += get_stack_size(n->type);
 	return 0;
 }
 
@@ -181,6 +223,7 @@ unsigned gen_direct(struct node *n)
 		gen_helpcall();
 		printf("cleanup\n");
 		gen_value(UINT, n->right->value);
+		sp -= n->right->value;
 		return 1;
 	}
 	return 0;
@@ -188,5 +231,9 @@ unsigned gen_direct(struct node *n)
 
 unsigned gen_node(struct node *n)
 {
+	/* Function call arguments are special - they are removed by the
+	   act of call/return and reported via T_CLEANUP */
+	if (n->left && n->op != T_COMMA && n->op != T_FUNCCALL)
+		sp -= get_stack_size(n->left->type);
 	return 0;
 }
