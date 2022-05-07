@@ -9,10 +9,10 @@
 #define CINT		0x10
 #define	CLONG		0x20
 #define CLONGLONG	0x30
-#define UCHAR		0x40
-#define UINT		0x50
-#define ULONG		0x60
-#define ULONGLONG	0x70
+#define UCHAR		0x08
+#define UINT		0x18
+#define ULONG		0x28
+#define ULONGLONG	0x38
 #define	FLOAT		0x80
 #define DOUBLE		0x90
 #define VOID		0xA0
@@ -20,6 +20,8 @@
 
 #define UNKNOWN		0xFE
 #define ANY		0xFF
+
+#define PTRTO		1			/* Use with care for comparisons */
 
 /* For non simple types the information index */
 #define INFO(x)		(((x) >> 3) & 0x3FF)
