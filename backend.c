@@ -140,6 +140,35 @@ static unsigned func_ret;
 static unsigned frame_len;
 static unsigned func_ret_used;
 
+static void process_literal(unsigned id)
+{
+	unsigned char c;
+	unsigned char shifted = 0;
+
+	gen_literal(id);
+
+	/* A series of bytes terminated by a 0 marker. Internal
+	   zero is quoted, undo the quoting and turn it into data */
+	while(1) {
+		if (read(0, &c, 1) != 1)
+			error("unexpected EOF");
+		/* If we move from string only we'll need to encode the
+		   final 0 too */
+		if (c == 0) {
+			gen_value(UCHAR, 0);
+			break;
+		}
+		if (c == 255 && !shifted) {
+			shifted = 1;
+			continue;
+		}
+		if (shifted && c == 254)
+			c = 0;
+		shifted = 0;
+		gen_value(UCHAR, c);
+	}
+}
+
 static void process_header(void)
 {
 	struct header h;
@@ -251,6 +280,12 @@ static void process_header(void)
 		gen_bss(namestr(h.h_name));
 		break;
 	case H_BSS | H_FOOTER:
+		gen_code();
+		break;
+	case H_STRING:
+		process_literal(h.h_name);
+		break;
+	case H_STRING| H_FOOTER:
 		gen_code();
 		break;
 	default:
@@ -572,7 +607,7 @@ void codegen_lr(struct node *n)
 		if (gen_direct(n))
 			return;
 		if (!gen_push(n->left))
-			helper(n, "push");
+			helper(n->left, "push");
 	}
 	if (n->right)
 		codegen_lr(n->right);
