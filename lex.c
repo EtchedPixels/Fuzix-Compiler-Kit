@@ -1,4 +1,4 @@
-
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "compiler.h"
@@ -149,13 +149,11 @@ unsigned quoted_string(int *len)
 	header(H_STRING, label, 0);
 
 	while ((c = tokbyte()) != 0) {
-		if (c == 255)
-			c = tokbyte();
-//TODO        output_number(c);
+		write(1, &c, 1);
 		l++;
 	}
 	l++;
-//TODO    output_number(0);
+	write(1, &c, 1);
 
 	footer(H_STRING, label, l);
 
