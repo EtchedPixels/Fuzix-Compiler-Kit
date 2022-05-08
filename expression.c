@@ -201,15 +201,16 @@ static struct node *hier10(void)
 		/* Check for trailing forms */
 		l = hier11();
 		if (token == T_PLUSPLUS || token == T_MINUSMINUS) {
+			unsigned s = type_ptrscale(l->type);
 			next_token();
 			if (!(l->flags & LVAL)) {
 				needlval();
 				return l;
 			}
 			if (token == T_PLUSPLUS)
-				return tree(T_POSTINC, NULL, l);
+				return tree(T_POSTINC, make_constant(s, UINT), l);
 			else
-				return tree(T_POSTDEC, NULL, l);
+				return tree(T_POSTDEC, make_constant(s, UINT), l);
 		}
 		return l;
 	}
@@ -223,8 +224,7 @@ static struct node *hier10(void)
 			needlval();
 			return (0);
 		}
-		/* TODO:  Scaling... */
-		return tree(op, NULL, r);
+		return tree(op, make_constant(type_ptrscale(r->type), UINT), r);
 	case T_TILDE:
 	case T_BANG:
 		return tree(op, NULL, make_rval(hier10()));
