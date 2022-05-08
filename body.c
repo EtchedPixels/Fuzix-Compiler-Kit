@@ -254,8 +254,13 @@ static void statement(void)
 		/* It is valid to follow a label with just ; */
 		if (token == T_SEMICOLON)
 			next_token();
-		else
-			write_tree(expression_tree(1));
+		else {
+			struct node *n = expression_tree(1);
+			/* A statement top node need not worry about
+			   generating the correct result */
+			n->flags |= NORETURN;
+			write_tree(n);
+		}
 		break;
 	}
 }
