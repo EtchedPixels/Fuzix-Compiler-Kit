@@ -10,6 +10,7 @@ struct node
 #define NORETURN		4	/* Top level return is not used */
     unsigned value;		/* Offset for a NAME fp offset for a LOCAL */
     unsigned snum;		/* Name of symbol (for code generator) */
+    unsigned val2;		/* For code generator */
 };
 
 extern void init_nodes(void);
