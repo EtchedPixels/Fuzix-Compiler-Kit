@@ -229,6 +229,16 @@ unsigned gen_direct(struct node *n)
 	return 0;
 }
 
+/*
+ *	Allow the code generator to shortcut the generation of the argument
+ *	of a single argument operator (for example to shortcut constant cases
+ *	or simple name loads that can be done better directly)
+ */
+unsigned gen_uni_direct(struct node *n)
+{
+	return 0;
+}
+
 unsigned gen_node(struct node *n)
 {
 	/* Function call arguments are special - they are removed by the

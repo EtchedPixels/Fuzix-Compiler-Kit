@@ -646,6 +646,11 @@ void codegen_lr(struct node *n)
 			return;
 		if (!gen_push(n->left))
 			helper(n->left, "push");
+	} else {
+		/* Single argument hook to generate stuff without pre-loading
+		   right into working register */
+		if (gen_uni_direct(n))
+			return;
 	}
 	if (n->right)
 		codegen_lr(n->right);
