@@ -20,6 +20,28 @@ static unsigned sp;		/* Stack pointer offset tracking */
 #define T_LREF		(T_USER+3)
 #define T_LSTORE	(T_USER+4)
 
+static void squash_node(struct node *n, struct node *o)
+{
+	n->value = o->value;
+	n->snum = o->snum;
+	free_node(o);
+}
+
+static void squash_left(struct node *n, unsigned op)
+{
+	struct node *l = n->left;
+	n->op = op;
+	squash_node(n, l);
+	n->left = NULL;
+}
+
+static void squash_right(struct node *n, unsigned op)
+{
+	struct node *r = n->right;
+	n->op = op;
+	squash_node(n, r);
+	n->right = NULL;
+}
 
 /*
  *	Our chance to do tree rewriting. We don't do much for the 8080
@@ -29,48 +51,42 @@ static unsigned sp;		/* Stack pointer offset tracking */
 struct node *gen_rewrite_node(struct node *n)
 {
 	struct node *r = n->right;
+	struct node *l = n->left;
 	/* Rewrite references into a load or store operation */
 	if (n->type == CINT || n->type == UINT || PTR(n->type)) {
 		if (n->op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
-				n->op = T_LREF;
-				n->snum = r->snum;
 				if (r->op == T_ARGUMENT)
 					r->value += 2 + frame_len;
-				n->value = r->value;
-				free_node(r);
-				n->right = NULL;
+				squash_right(n, T_LREF);
 				return n;
 			}
 			if (r->op == T_NAME) {
-				n->op = T_NREF;
-				n->snum = r->snum;
-				n->value = r->value;
-				free_node(r);
-				n->right = NULL;
+				squash_right(n, T_NREF);
 				return n;
 			}
 		}
 		if (n->op == T_EQ) {
-			struct node *l = n->left;
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
-				n->op = T_LSTORE;
-				n->snum = l->snum;
 				if (l->op == T_ARGUMENT)
 					l->value += 2 + frame_len;
-				n->value = l->value;
-				free_node(l);
-				n->left = NULL;
+				squash_left(n, T_LSTORE);
 				return n;
 			}
 			if (l->op == T_NAME) {
-				n->op = T_NSTORE;
-				n->snum = l->snum;
-				n->value = l->value;
-				free_node(l);
-				n->left = NULL;
+				squash_left(n, T_NSTORE);
 				return n;
 			}
+		}
+		/* We can turn some operators into simpler nodes for
+		   code generation */
+		if (n->op == T_POSTINC || n->op == T_POSTDEC ||
+			n->op == T_PLUSPLUS || n->op == T_MINUSMINUS) {
+			/* left is a constant scaled value, right is
+			   the lval */
+			n->val2 = l->value;
+			free_node(l);
+			n->left = NULL;
 		}
 	}
 	/* Rewrite function call of a name into a new node so we can
@@ -278,6 +294,89 @@ unsigned gen_push(struct node *n)
 	return 1;
 }
 
+unsigned constval(struct node *n)
+{
+	if (n->op == T_CONSTANT || n->op == T_LABEL || n->op == T_NAME)
+		return 1;
+	return 0;
+}
+
+/* Turn a constant node into a string - for char/int/ptr */
+
+unsigned gen_constop(const char *op, char r, struct node *n)
+{
+	unsigned s;
+	s = get_size(n->type);
+	if (s > 2)
+		return 0;
+	if (r == 0) {
+		r = 'd';
+		if (s == 1)
+			r = 'b';
+	}
+
+	printf(";try to constop %s %x\n", op, n->op);
+	/* Objects we know how to directly access */
+	switch(n->op) {
+	case T_CONSTANT:
+		printf("\t%s%c #%d\n", op, r, n->value);
+		return 1;
+	case T_NAME:
+		printf("\t%s%c #%s+%d\n", op, r, namestr(n->snum), n->value);
+		return 1;
+	case T_LABEL:
+		printf("\t%s%c #T%d\n\n", op, r, n->value);
+		return 1;
+	case T_NREF:
+		printf("\t%s%c %s + %d\n", op, r, namestr(n->snum), n->value);
+		return 1;
+	case T_LREF:
+		printf("\t%s%c %d(s)\n", op, r, n->value);
+		return 1;
+	case T_LOCAL:
+		printf("\t%s%c %d(s)\n", op, r, n->value + sp);
+		return 1;
+	case T_ARGUMENT:
+		printf("\t%s%c %d(s)\n", op, r, n->value + frame_len + sp);
+		return 1;
+	}
+	return 0;
+}
+
+/*
+ *	Allow the code generator to shortcut the generation of the argument
+ *	of a single argument operator (for example to shortcut constant cases
+ *	or simple name loads that can be done better directly)
+ */
+unsigned gen_uni_direct(struct node *n)
+{
+	struct node *r = n->right;
+	char reg = 'd';
+	int v2 = n->val2;
+	unsigned s = get_size(n->type);
+
+	if (s == 1)
+		reg = 'b';
+
+	switch(n->op) {
+	case T_MINUSMINUS:
+	case T_POSTDEC:
+		v2 = -v2;
+	case T_PLUSPLUS:
+	case T_POSTINC:
+		if (!gen_constop("ld", 0, r))
+			break;
+		printf("\tadd%c #%d\n", reg, v2);
+		gen_constop("st", 0, r);
+		if (n->op == T_POSTINC || n->op == T_POSTDEC) {
+			if (!(n->flags & NORETURN))
+				printf("\tsub%c #%d\n", reg, v2);
+		}
+		return 1;
+	}
+	return 0;
+}
+
 /*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
@@ -287,29 +386,35 @@ unsigned gen_direct(struct node *n)
 {
 	unsigned v;
 	unsigned s = get_size(n->type);
+	struct node *r = n->right;
+	char *ldop = "ldd";
+	char *stop = "std";
 
-	if (n->right)
-		v = n->right->value;
-
-	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
 	   type of the function return so don't use that for the cleanup value
 	   in n->right */
-	case T_CLEANUP:
+	if (n->op == T_CLEANUP) {
+		v = r->value;
 		if (v) {
 			printf("\tleas %d,s\n", v);
 			sp -= v;
 		}
 		return 1;
+	}
+
+	if (r == NULL)
+		return 0;
+	v = r->value;
+	if (s == 1) {
+		ldop = "ldb";
+		stop = "stb";
+	}
+
+	switch(n->op) {
 	case T_NSTORE:
-		if (s == 1) {
-			/* CLR ?? */
-			printf("\tldb #%d\n", v);
-			printf("\tstb _%s+%d\n", namestr(n->snum), n->value);
-			return 1;
-		}
-		if (s == 2) {
-			printf("\tldd #%d\n", v);
+		if (s == 1 || s == 2) {
+			printf("\t%s #%d\n", ldop, v);
+			printf("\t%s _%s+%d\n", stop, namestr(n->snum), n->value);
 			return 1;
 		}
 		if (s == 4) {
@@ -328,30 +433,25 @@ unsigned gen_direct(struct node *n)
 			printf("\tldd %d(s)\n", n->value + 2);
 			return 1;
 		}
-		if (s == 2) {
-			printf("\tldd #%d\n", v);
-			printf("\tstdd %d(s)\n", n->value);
-			return 1;
-		}
-		if (s == 1) {
-			printf("\tldb #%d\n", v);
-			printf("\tstb %d(s)\n", n->value);
+		if (s == 1 || s == 2) {
+			printf("\t%s #%d\n", ldop, v);
+			printf("\t%s %d(s)\n", stop, n->value);
 			return 1;
 		}
 		break;
 	case T_EQ:
+		if (!constval(r))
+			return 0;
 		printf("\ttfr d,x\n");
 		switch(s) {
 		case 1:
-			if (v) {
-				printf("\tldb #%d\n", v);
-				printf("\tstb (x)\n");
-			} else
+			if (v == 0) {
 				printf("\tclr (x)\n");
-			return 1;
+				return 1;
+			}
 		case 2:
-			printf("\tldd #%d\n", v);
-			printf("\tstd (x)\n");
+			printf("\t%s #%d\n", ldop, v);
+			printf("\t%s (x)\n", stop);
 			return 1;
 		case 4:
 			printf("\tldu #%d\n", (v >> 16));
@@ -364,12 +464,7 @@ unsigned gen_direct(struct node *n)
 		}
 		break;
 	case T_PLUS:
-		if (s == 2) {
-			/* LHS is in D */
-			printf("\taddd %d\n", v);
-			return 1;
-		}
-		break;
+		return gen_constop("add", 0, n->right);
 	}
 	return 0;
 }
@@ -493,6 +588,24 @@ unsigned gen_node(struct node *n)
 		printf("\tleax %d,s\n", n->value + frame_len + 2 + sp);
 		/* Will need a lot of peepholing */
 		printf("\ttfr x,d\n");
+		return 1;
+	/* We rewrote these into a new form so must handle them. We can also
+	   do better probably TODO .. */
+	case T_PLUSPLUS:
+		helper(n, "preinc");
+		printf("\t.word %d\n", n->val2);
+		return 1;
+	case T_POSTINC:
+		helper(n, "postinc");
+		printf("\t.word %d\n", n->val2);
+		return 1;
+	case T_MINUSMINUS:
+		helper(n, "preinc");
+		printf("\t.word -%d\n", n->val2);
+		return 1;
+	case T_POSTDEC:
+		helper(n, "postinc");
+		printf("\t.word -%d\n", n->val2);
 		return 1;
 	}
 	return 0;
