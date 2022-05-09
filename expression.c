@@ -201,16 +201,15 @@ static struct node *hier10(void)
 		/* Check for trailing forms */
 		l = hier11();
 		if (token == T_PLUSPLUS || token == T_MINUSMINUS) {
-			unsigned s = type_ptrscale(l->type);
-			next_token();
 			if (!(l->flags & LVAL)) {
 				needlval();
 				return l;
 			}
-			if (token == T_PLUSPLUS)
-				return tree(T_POSTINC, make_constant(s, UINT), l);
-			else
-				return tree(T_POSTDEC, make_constant(s, UINT), l);
+			op = token;
+			/* It's an lval so we want the pointer form */
+			unsigned s = type_scale(l->type);
+			next_token();
+			return tree(op, make_constant(s, UINT), l);
 		}
 		return l;
 	}
@@ -224,7 +223,11 @@ static struct node *hier10(void)
 			needlval();
 			return (0);
 		}
-		return tree(op, make_constant(type_ptrscale(r->type), UINT), r);
+		if (op == T_PLUSPLUS)
+			op = T_PLUSEQ;
+		else
+			op = T_MINUSEQ;
+		return tree(op, r, make_constant(type_scale(r->type), UINT));
 	case T_TILDE:
 	case T_BANG:
 		return tree(op, NULL, make_rval(hier10()));
