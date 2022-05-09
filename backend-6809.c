@@ -80,8 +80,7 @@ struct node *gen_rewrite_node(struct node *n)
 		}
 		/* We can turn some operators into simpler nodes for
 		   code generation */
-		if (n->op == T_POSTINC || n->op == T_POSTDEC ||
-			n->op == T_PLUSPLUS || n->op == T_MINUSMINUS) {
+		if (n->op == T_PLUSPLUS || n->op == T_MINUSMINUS) {
 			/* left is a constant scaled value, right is
 			   the lval */
 			n->val2 = l->value;
@@ -343,6 +342,61 @@ unsigned gen_constop(const char *op, char r, struct node *n)
 	return 0;
 }
 
+unsigned can_constop(struct node *n)
+{
+	if (get_size(n->type) > 2)
+		return 0;
+	if (n->op == T_CONSTANT || n->op == T_NAME || n->op == T_LABEL ||
+		n->op == T_NREF || n->op == T_LREF || n->op == T_LOCAL ||
+		n->op == T_ARGUMENT)
+		return 1;
+	return 0;
+}
+
+unsigned gen_constpair(const char *op, struct node *n)
+{
+	unsigned s;
+	unsigned v;
+	s = get_size(n->type);
+	if (s == 1)
+		return gen_constop(op, 0, n);
+
+	v = n->value;
+
+	/* Generate pair forms */
+	switch(n->op) {
+	case T_CONSTANT:
+		printf("\t%sa #%d\n", op, (v >> 8) & 0xFF);
+		printf("\t%sb #%d\n", op, (v & 0xFF));
+		return 1;
+	case T_NAME:
+		printf("\t%sa >#%s+%d\n", op, namestr(n->snum), v);
+		printf("\t%sb <#%s+%d\n", op, namestr(n->snum), v);
+		return 1;
+	case T_LABEL:
+		printf("\t%sa >#T%d\n\n", op, v);
+		printf("\t%sa <#T%d\n\n", op, v);
+		return 1;
+	case T_NREF:
+		printf("\t%sa %s + %d\n", op, namestr(n->snum), v);
+		printf("\t%sb %s + %d\n", op, namestr(n->snum), v + 1);
+		return 1;
+	case T_LREF:
+		printf("\t%sa %d(s)\n", op, v);
+		printf("\t%sb %d(s)\n", op, v + 1);
+		return 1;
+	case T_LOCAL:
+		printf("\t%sa %d(s)\n", op, v + sp);
+		printf("\t%sb %d(s)\n", op, v + sp + 1);
+		return 1;
+	case T_ARGUMENT:
+		printf("\t%sa %d(s)\n", op, v + frame_len + sp);
+		printf("\t%sb %d(s)\n", op, v + frame_len + sp + 1);
+		return 1;
+	}
+	return 0;
+}
+
 /*
  *	Allow the code generator to shortcut the generation of the argument
  *	of a single argument operator (for example to shortcut constant cases
@@ -360,18 +414,14 @@ unsigned gen_uni_direct(struct node *n)
 
 	switch(n->op) {
 	case T_MINUSMINUS:
-	case T_POSTDEC:
 		v2 = -v2;
 	case T_PLUSPLUS:
-	case T_POSTINC:
 		if (!gen_constop("ld", 0, r))
 			break;
 		printf("\tadd%c #%d\n", reg, v2);
 		gen_constop("st", 0, r);
-		if (n->op == T_POSTINC || n->op == T_POSTDEC) {
-			if (!(n->flags & NORETURN))
-				printf("\tsub%c #%d\n", reg, v2);
-		}
+		if (!(n->flags & NORETURN))
+			printf("\tsub%c #%d\n", reg, v2);
 		return 1;
 	}
 	return 0;
@@ -464,7 +514,64 @@ unsigned gen_direct(struct node *n)
 		}
 		break;
 	case T_PLUS:
-		return gen_constop("add", 0, n->right);
+		return gen_constop("add", 0, r);
+	case T_MINUS:
+		return gen_constop("sub", 0, r);
+	case T_AND:
+		return gen_constpair("and", r);
+	case T_OR:
+		return gen_constpair("or", r);
+	case T_HAT:
+		return gen_constpair("eor", r);
+	case T_TILDE:
+		return gen_constpair("com", r);
+	case T_NEGATE:
+		if (s == 1)
+			return gen_constpair("neg", r);
+		if (gen_constpair("com", r) == 0)
+			return 0;
+		printf("\taddd #1\n");
+		return 1;
+	}
+	return 0;
+}
+
+unsigned gen_shortcut(struct node *n)
+{
+	struct node *l = n->left;
+	struct node *r = n->right;
+	unsigned s = get_size(n->type);
+
+	if (n->op == T_PLUSEQ) {
+		if (!gen_constop("lea", 'x', l))
+			return 0;
+		if (!gen_constop("ld", 0, r))
+			return 0;
+		if (s == 1) {
+			printf("\taddb (x)\n");
+			printf("\tstb (x)\n");
+		} else {
+			printf("\taddd (x)\n");
+			printf("\tstdd (x)\n");
+		}
+		return 1;
+	}
+	if (n->op == T_MINUSEQ) {
+		if (!can_constop(r))
+			return 0;
+		if (!gen_constop("lea", 'x', l))
+			return 0;
+		/* Load by size helper ? */
+		if (s == 1)
+			printf("\tldb (x)\n");
+		else
+			printf("\tldd (x)\n");
+		gen_constop("sub", 0, r);
+		if (s == 1)
+			printf("\tstb (x)\n");
+		else
+			printf("\tstdd (x)\n");
+		return 1;
 	}
 	return 0;
 }
@@ -595,16 +702,8 @@ unsigned gen_node(struct node *n)
 		helper(n, "preinc");
 		printf("\t.word %d\n", n->val2);
 		return 1;
-	case T_POSTINC:
-		helper(n, "postinc");
-		printf("\t.word %d\n", n->val2);
-		return 1;
 	case T_MINUSMINUS:
-		helper(n, "preinc");
-		printf("\t.word -%d\n", n->val2);
-		return 1;
-	case T_POSTDEC:
-		helper(n, "postinc");
+		helper(n, "predec");
 		printf("\t.word -%d\n", n->val2);
 		return 1;
 	}

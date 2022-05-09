@@ -239,6 +239,14 @@ unsigned gen_uni_direct(struct node *n)
 	return 0;
 }
 
+/*
+ *	Allow the code generator to shortcut trees it knows
+ */
+unsigned gen_shortcut(struct node *n)
+{
+	return 0;
+}
+
 unsigned gen_node(struct node *n)
 {
 	/* Function call arguments are special - they are removed by the

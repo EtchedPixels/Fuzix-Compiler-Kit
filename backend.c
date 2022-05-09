@@ -322,22 +322,11 @@ void process_data(void)
  *	direct method
  */
 
-/*
- *	Generate a helper call according to the types
- */
-void helper(struct node *n, const char *h)
+static void helper_type(unsigned t)
 {
-	unsigned t = n->type;
-
-	/* A function call has a type that depends upon the call, but the
-	   type we want is a pointer */
-	if (n->op == T_FUNCCALL)
-		n->type = PTRTO;
-	gen_helpcall();
-	fputs(h, stdout);
-	if (PTR(n->type))
-		n->type = CINT;
-	switch (n->type) {
+	if (PTR(t))
+		t = CINT;
+	switch (t) {
 	case UCHAR:
 		putchar('u');
 	case CCHAR:
@@ -362,6 +351,24 @@ void helper(struct node *n, const char *h)
 		fflush(stdout);
 		fprintf(stderr, "*** bad type %x\n", t);
 	}
+}
+
+/*
+ *	Generate a helper call according to the types
+ */
+void helper(struct node *n, const char *h)
+{
+	/* A function call has a type that depends upon the call, but the
+	   type we want is a pointer */
+	if (n->op == T_FUNCCALL)
+		n->type = PTRTO;
+	gen_helpcall();
+	if (n->op == T_CAST) {
+		helper_type(n->right->type);
+		putchar('_');
+	}
+	fputs(h, stdout);
+	helper_type(n->type);
 	putchar('\n');
 }
 
@@ -390,7 +397,7 @@ void make_node(struct node *n)
 		helper(n, "preinc");
 		break;
 	case T_MINUSMINUS:
-		helper(n, "postinc");
+		helper(n, "predec");
 		break;
 	case T_EQEQ:
 		helper(n, "cceq");
@@ -490,12 +497,6 @@ void make_node(struct node *n)
 		break;
 	case T_NEGATE:
 		helper(n, "negate");
-		break;
-	case T_POSTINC:
-		helper(n, "postinc");
-		break;
-	case T_POSTDEC:
-		helper(n, "postdec");
 		break;
 	case T_FUNCCALL:
 		helper(n, "callfunc");
@@ -639,6 +640,12 @@ void codegen_lr(struct node *n)
 		/* We don't build the node itself - it's not relevant */
 		return;
 	}
+
+	/* Allow the code generator to short cut the tree walk for things it
+	   knows how to directly complete */
+	if (gen_shortcut(n))
+		return;
+
 	if (n->left) {
 		codegen_lr(n->left);
 		/* See if we can direct generate this block. May recurse */

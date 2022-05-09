@@ -351,6 +351,15 @@ unsigned gen_uni_direct(struct node *n)
 	return 0;
 }
 
+/*
+ *	Allow the code generator to short cut any subtrees it can directly
+ *	generate.
+ */
+unsigned gen_shortcut(struct node *n)
+{
+	return 0;
+}
+
 static unsigned get_size(unsigned t)
 {
 	if (PTR(t))
