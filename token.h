@@ -129,13 +129,11 @@
 #define T_DEREF		0x1206
 #define T_ADDROF	0x1207
 #define T_NULL		0x1208
-#define T_POSTINC	0x1209
-#define T_POSTDEC	0x120A
-#define T_NEGATE	0x120B
-#define T_FUNCCALL	0x120C
-#define T_BOOL		0x120D
-#define T_PAD		0x120E
-#define T_CLEANUP	0x120F
+#define T_NEGATE	0x1209
+#define T_FUNCCALL	0x120A
+#define T_BOOL		0x120B
+#define T_PAD		0x120C
+#define T_CLEANUP	0x120D
 
 #define T_USER		0x2000		/* Tokens for code generators */
 
