@@ -82,6 +82,13 @@ unsigned type_ptrscale(unsigned t) {
 	return type_sizeof(type_deref(t));
 }
 
+unsigned type_scale(unsigned t) {
+	t = type_canonical(t);
+	if (!PTR(t))
+		return 1;
+	return type_sizeof(type_deref(t));
+}
+
 /* lvalue conversion is handled by caller */
 unsigned type_addrof(unsigned t) {
 	if (PTR(t))
