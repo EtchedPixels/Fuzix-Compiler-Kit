@@ -11,7 +11,7 @@
 #include "compiler.h"
 
 struct symbol symtab[MAXSYM];
-struct symbol *last_sym = symtab;
+struct symbol *last_sym = symtab - 1;
 struct symbol *local_top = symtab;
 
 struct symbol *symbol_ref(unsigned type)
@@ -89,10 +89,9 @@ struct symbol *update_symbol(unsigned name, unsigned storage,
 		if (sym->storage > S_EXTDEF)
 			error("invalid name");
 		else if (sym->storage <= S_LSTATIC || !local) {
-			fprintf(stderr, "Found sym %d\n", name);
 			/* Type matching is going to be a good deal more complex FIXME */
 			if (sym->type != type)
-				error("type mismatch");
+				typemismatch();
 			if (sym->storage == storage)
 				return sym;
 			/* extern foo and now found foo */
@@ -111,7 +110,6 @@ struct symbol *update_symbol(unsigned name, unsigned storage,
 		else
 			warning("local name obscures global");
 	}
-	fprintf(stderr, "Create sym %x\n", name);
 	/* Insert new symbol */
 	sym = alloc_symbol(name, local);
 	sym->type = type;
@@ -133,10 +131,8 @@ static struct symbol *do_func_match(unsigned rtype, unsigned *template)
 {
 	struct symbol *sym = symtab;
 	unsigned len = *template + 1;
-	fprintf(stderr, "dfm: %d\n", rtype);
 	while(sym <= last_sym) {
 		if (sym->storage == S_FUNCDEF && sym->type == rtype && memcmp(sym->idx, template, len) == 0) {
-			fprintf(stderr, "dfm: sym match\n");
 			return sym;
 		}
 		sym++;
@@ -145,7 +141,6 @@ static struct symbol *do_func_match(unsigned rtype, unsigned *template)
 	sym->storage = S_FUNCDEF;
 	sym->idx = idx_copy(template, len);
 	sym->type = rtype;
-	fprintf(stderr, "dfm: New sym %ld\n", sym - symtab);
 	return sym;
 }
 
@@ -280,7 +275,6 @@ void write_bss(void)
 				header(H_EXPORT, s->name, 0);
 			if (!(s->flags & INITIALIZED)) {
 				unsigned n = type_sizeof(s->type);
-				fprintf(stderr, "Writing %x for %d\n", s->name, n);
 				header(H_BSS, s->name, target_alignof(s->type));
 				put_padding_data(n, BSS);
 				footer(H_BSS, s->name, 0);
