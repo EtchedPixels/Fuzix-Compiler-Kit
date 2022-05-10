@@ -23,4 +23,4 @@
 #include "token.h"
 #include "tree.h"
 #include "type.h"
-
+#include "type_iterator.h"
