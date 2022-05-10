@@ -311,7 +311,7 @@ struct node *intarith_tree(unsigned op, struct node *l, struct node *r)
 		return arith_promotion_tree(op, l, r);
 }
 
-/* Two argument ordered compare - allows pointers, also assignment
+/* Two argument ordered compare - allows pointers
 		< > <= >= == != */
 struct node *ordercomp_tree(unsigned op, struct node *l, struct node *r)
 {
@@ -320,9 +320,26 @@ struct node *ordercomp_tree(unsigned op, struct node *l, struct node *r)
 		n = tree(op, l, r);
 	else
 		n = arith_tree(op, l, r);
-	/* But the final logic 0 or 1 is integer */
+	/* But the final logic 0 or 1 is integer except for assign when it's
+	   right side */
 	n->type = CINT;
 	return n;
+}
+
+struct node *assign_tree(struct node *l, struct node *r)
+{
+	struct node *n;
+	if (l->type == r->type)
+		return tree(T_EQ, l, r);
+	if (PTR(r->type)) {
+		type_pointermatch(l, r);
+		return tree(T_EQ, l, r);
+	} else if (PTR(l->type))
+		error("type mismatch");
+	else if (!IS_ARITH(l->type) || !IS_ARITH(r->type))
+		error("invalid type");
+	fprintf(stderr, "AS %x %x\n", l->type, r->type);
+	return tree(T_EQ, l, make_cast(r, l->type));
 }
 
 /* && || */
@@ -374,6 +391,29 @@ struct node *constify(struct node *n)
 	struct node *l = n->left;
 	struct node *r = n->right;
 
+	/* Remove multiply by 1 or 0 */
+	if (n->op == T_STAR && r->op == T_CONSTANT) {
+		if (r->value == 1) {
+			free_node(n);
+			free_node(r);
+			return l;
+		}
+		if (r->value == 0) {
+			l = make_constant(0, n->type);
+			free_tree(n);
+			return l;
+		}
+	}
+	/* Divide by 1 */
+	if (n->op == T_SLASH && r->op == T_CONSTANT) {
+		if (r->value == 1) {
+			free_node(n);
+			free_tree(r);
+			return l;
+		}
+	}
+
+
 	if (l) {
 		l = constify(l);
 		if (l == NULL)
@@ -407,7 +447,6 @@ struct node *constify(struct node *n)
 			free_node(n);
 			return r;
 		}
-
 		/* Only do constant work with simple types */
 		if (!IS_INTARITH(lt) && !PTR(lt))
 			return NULL;
