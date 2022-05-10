@@ -100,13 +100,14 @@ unsigned type_addrof(unsigned t) {
 	return VOID + 1;
 }
 
-int type_pointermatch(struct node *l, struct node *r)
+/*
+ *	Can we turn the right hand object into the left hand type
+ *	for pointers.
+ */
+int type_pointerconv(struct node *r, unsigned lt)
 {
-    unsigned lt = l->type;
     unsigned rt = r->type;
     /* The C zero case */
-    if (is_constant_zero(l) && PTR(rt))
-        return 1;
     if (is_constant_zero(r) && PTR(lt))
         return 1;
     /* Not pointers */
@@ -126,6 +127,19 @@ int type_pointermatch(struct node *l, struct node *r)
         return 1;
     }
     return 0;
+}
+
+/*
+ *	Do two pointers match for conversion purposes
+ */
+int type_pointermatch(struct node *l, struct node *r)
+{
+    unsigned lt = l->type;
+    unsigned rt = r->type;
+    /* The C zero case */
+    if (is_constant_zero(l) && PTR(rt))
+        return 1;
+    return type_pointerconv(r, lt);
 }
 
 unsigned type_ptrscale_binop(unsigned op, struct node *l, struct node *r,
@@ -153,6 +167,6 @@ unsigned type_ptrscale_binop(unsigned op, struct node *l, struct node *r,
 	}
 	if (IS_ARITH(lt) && IS_ARITH(rt))
 		return 1;
-	error("invalid types");
+	invalidtype();
 	return 1;
 }
