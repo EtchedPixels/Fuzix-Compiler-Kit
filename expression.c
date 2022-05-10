@@ -6,9 +6,11 @@ static void unexarg(void)
 	error("unexpected argument");
 }
 
-static void missedarg(void)
+static void missedarg(unsigned narg, unsigned ti)
 {
-	error("missing argument");
+	/* Make sure no arguments is acceptable */
+	if (!(narg == 0 || ti == ELLIPSIS || ti == VOID))
+		error("missing argument");
 }
 
 /*
@@ -26,14 +28,11 @@ struct node *typeconv(struct node *n, unsigned type, unsigned warn)
 			return n;
 		}
 	} else {
-		/* FIXME: use pointer comp helper */
-		/* Pointers - void * rule */
-		if (BASE_TYPE(n->type) == VOID || BASE_TYPE(type) == VOID)
+		if (type_pointerconv(n, type))
 			return make_cast(n, type);
 	}
-	/* TODO: need a general helper that deals with sign warnings */
 	if (n->type != type)
-		warning("type mismatch");
+		typemismatch();
 	return make_cast(n, type);
 }
 
@@ -58,7 +57,7 @@ struct node *typeconv_implicit(struct node *n)
  *	we always push 2 bytes so char as arg takes 2 and we need to do
  *	the right thing.
  */
-struct node *call_args(unsigned narg, unsigned *argt, unsigned *argsize)
+struct node *call_args(unsigned *narg, unsigned *argt, unsigned *argsize)
 {
 	struct node *n = expression_tree(0);
 
@@ -70,9 +69,9 @@ struct node *call_args(unsigned narg, unsigned *argt, unsigned *argsize)
 		n = typeconv_implicit(n);
 	else {
 		/* Explicit prototyped argument */
-		if (narg) {
+		if (*narg) {
 			n = typeconv(n, *argt++, 1);
-			narg--;
+			(*narg)--;
 		} else
 			unexarg();
 	}
@@ -80,8 +79,6 @@ struct node *call_args(unsigned narg, unsigned *argt, unsigned *argsize)
 	if (match(T_COMMA))
 		/* Switch around for calling order */
 		return tree(T_COMMA, call_args(narg, argt, argsize), n);
-	if (*argt != ELLIPSIS && narg)
-		missedarg();
 	require(T_RPAREN);
 	return n;
 }
@@ -98,6 +95,8 @@ struct node *function_call(struct node *n)
 	unsigned type;
 	unsigned *argt, *argp;
 	unsigned argsize = 0;
+	unsigned narg;
+
 	if (!IS_FUNCTION(n->type)) {
 		error("not a function");
 		return n;
@@ -105,8 +104,9 @@ struct node *function_call(struct node *n)
 	type = func_return(n->type);
 	argt = func_args(n->type);
 
-	fprintf(stderr, "args %d\n", *argt);
-	if (*argt == 0)
+	narg = *argt;
+
+	if (narg == 0)
 		argp = &dummy_argp;
 	else
 		argp = argt + 1;
@@ -114,11 +114,12 @@ struct node *function_call(struct node *n)
 	/* A function without arguments */
 	if (match(T_RPAREN)) {
 		/* Make sure no arguments is acceptable */
-		if (!(*argt == 0 || argp[0] == ELLIPSIS || argp[0] == VOID))
-			missedarg();
 		n  = tree(T_FUNCCALL, NULL, n);
-	} else
-		n = tree(T_FUNCCALL, call_args(*argt, argp, &argsize), n);
+		missedarg(narg, argp[0]);
+	} else {
+		n = tree(T_FUNCCALL, call_args(&narg, argp, &argsize), n);
+		missedarg(narg, argp[0]);
+	}
 	/* Always emit this - some targets have other uses for knowing
 	   the boundary of a function call return */
 	n->type = type;
@@ -225,9 +226,9 @@ static struct node *hier10(void)
 	case T_PLUSPLUS:
 	case T_MINUSMINUS:
 		r = hier10();
-		if (!r->flags & LVAL) {
+		if (!(r->flags & LVAL)) {
 			needlval();
-			return (0);
+			return r;
 		}
 		if (op == T_PLUSPLUS)
 			op = T_PLUSEQ;
