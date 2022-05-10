@@ -10,6 +10,31 @@
 static unsigned frame_len;	/* Number of bytes of stack frame */
 static unsigned sp;		/* Stack pointer offset tracking */
 
+/*
+ *	We can push bytes so everything is native sized
+ */
+static unsigned get_size(unsigned t)
+{
+	if (PTR(t))
+		return 2;
+	if (t == CINT || t == UINT)
+		return 2;
+	if (t == CCHAR || t == UCHAR)
+		return 1;
+	if (t == CLONG || t == ULONG || t == FLOAT)
+		return 4;
+	if (t == CLONGLONG || t == ULONGLONG || t == DOUBLE)
+		return 8;
+	if (t == VOID)
+		return 0;
+	error("gs");
+	return 0;
+}
+
+static unsigned get_stack_size(unsigned t)
+{
+	return get_size(t);
+}
 
 /*
  *	Private types we rewrite things into
@@ -17,6 +42,7 @@ static unsigned sp;		/* Stack pointer offset tracking */
 #define T_CALLNAME	(T_USER)
 #define T_NREF		(T_USER+1)
 #define T_NSTORE	(T_USER+2)
+
 #define T_LREF		(T_USER+3)
 #define T_LSTORE	(T_USER+4)
 
@@ -52,17 +78,20 @@ struct node *gen_rewrite_node(struct node *n)
 {
 	struct node *r = n->right;
 	struct node *l = n->left;
+	unsigned s = get_size(n->type);
 	/* Rewrite references into a load or store operation */
-	if (n->type == CINT || n->type == UINT || PTR(n->type)) {
+	if (s <= 2) {
 		if (n->op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
 				if (r->op == T_ARGUMENT)
 					r->value += 2 + frame_len;
+				/* Lose a pointer level as it's an LVAL */
 				squash_right(n, T_LREF);
 				return n;
 			}
 			if (r->op == T_NAME) {
 				squash_right(n, T_NREF);
+				/* Lose a pointer level as it's an LVAL */
 				return n;
 			}
 		}
@@ -70,10 +99,14 @@ struct node *gen_rewrite_node(struct node *n)
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
 				if (l->op == T_ARGUMENT)
 					l->value += 2 + frame_len;
+				/* Lose a pointer level as it's an LVAL */
+				n->type--;
 				squash_left(n, T_LSTORE);
 				return n;
 			}
 			if (l->op == T_NAME) {
+				/* Lose a pointer level as it's an LVAL */
+				n->type--;
 				squash_left(n, T_NSTORE);
 				return n;
 			}
@@ -250,31 +283,6 @@ void gen_tree(struct node *n)
 	printf(";\n");
 }
 
-/*
- *	We can push bytes so everything is native sized
- */
-static unsigned get_size(unsigned t)
-{
-	if (PTR(t))
-		return 2;
-	if (t == CINT || t == UINT)
-		return 2;
-	if (t == CCHAR || t == UCHAR)
-		return 1;
-	if (t == CLONG || t == ULONG || t == FLOAT)
-		return 4;
-	if (t == CLONGLONG || t == ULONGLONG || t == DOUBLE)
-		return 8;
-	if (t == VOID)
-		return 0;
-	error("gs");
-	return 0;
-}
-
-static unsigned get_stack_size(unsigned t)
-{
-	return get_size(t);
-}
 
 unsigned gen_push(struct node *n)
 {
@@ -314,7 +322,6 @@ unsigned gen_constop(const char *op, char r, struct node *n)
 			r = 'b';
 	}
 
-	printf(";try to constop %s %x\n", op, n->op);
 	/* Objects we know how to directly access */
 	switch(n->op) {
 	case T_CONSTANT:
@@ -330,7 +337,7 @@ unsigned gen_constop(const char *op, char r, struct node *n)
 		printf("\t%s%c %s + %d\n", op, r, namestr(n->snum), n->value);
 		return 1;
 	case T_LREF:
-		printf("\t%s%c %d(s)\n", op, r, n->value);
+		printf("\t%s%c %d(s)\n", op, r, n->value + sp);
 		return 1;
 	case T_LOCAL:
 		printf("\t%s%c %d(s)\n", op, r, n->value + sp);
@@ -397,6 +404,61 @@ unsigned gen_constpair(const char *op, struct node *n)
 	return 0;
 }
 
+unsigned gen_pair(const char *op, struct node *n)
+{
+	unsigned s = get_size(n->type);
+	/* For now */
+	if (s > 2)
+		return 0;
+	printf("\t%sb\n", op);
+	if (s == 2)
+		printf("\t%sa\n", op);
+	return 1;
+}
+
+unsigned gen_pair_pop(const char *op, struct node *n)
+{
+	unsigned s = get_size(n->type);
+	/* For now */
+	if (s > 2)
+		return 0;
+	if (s == 2)
+		printf("\t%sa (s+)\n", op);
+	printf("\t%sb (s+)\n", op);
+	return 1;
+}
+
+/* Just deal with integer types for now */
+unsigned gen_cast(struct node *n, struct node *r)
+{
+	unsigned stype = r->type;
+	unsigned dtype = n->type;
+	if (PTR(stype))
+		stype = CINT;
+	if (PTR(dtype))
+		dtype = CINT;
+	if (!IS_INTARITH(stype) || !IS_INTARITH(dtype))
+		return 0;
+	/* Going to a smaller type is free */
+	if ((stype & ~UNSIGNED) >= (dtype & ~UNSIGNED))
+		return 1;
+	switch(stype) {
+	case CCHAR:
+		printf("\tsex\n");
+		break;
+	case UCHAR:
+		printf("\tclra\n");
+		break;
+	}
+	if (dtype == CLONG || dtype == ULONG) {
+		if (stype & UNSIGNED)
+			printf("\tldu #0\n");
+		else
+			printf("\tjsr ___sexl\n");
+	}
+	return 1;
+}
+
 /*
  *	Allow the code generator to shortcut the generation of the argument
  *	of a single argument operator (for example to shortcut constant cases
@@ -422,6 +484,19 @@ unsigned gen_uni_direct(struct node *n)
 		gen_constop("st", 0, r);
 		if (!(n->flags & NORETURN))
 			printf("\tsub%c #%d\n", reg, v2);
+		return 1;
+	case T_TILDE:
+		if (!gen_constop("ld", 0, r))
+			break;
+		return gen_pair("com", r);
+	case T_NEGATE:
+		if (!gen_constop("ld", 0, r))
+			break;
+		if (s == 1)
+			return gen_pair("neg", r);
+		if (gen_constpair("com", r) == 0)
+			return 0;
+		printf("\taddd #1\n");
 		return 1;
 	}
 	return 0;
@@ -517,63 +592,78 @@ unsigned gen_direct(struct node *n)
 		return gen_constop("add", 0, r);
 	case T_MINUS:
 		return gen_constop("sub", 0, r);
+	/* There are optimizations to consider here TODO
+		and 0 = clr
+		and 255 =
+		or 0 =
+		or 255 = 255
+		eor 0 = */
 	case T_AND:
 		return gen_constpair("and", r);
 	case T_OR:
 		return gen_constpair("or", r);
 	case T_HAT:
 		return gen_constpair("eor", r);
-	case T_TILDE:
-		return gen_constpair("com", r);
-	case T_NEGATE:
-		if (s == 1)
-			return gen_constpair("neg", r);
-		if (gen_constpair("com", r) == 0)
-			return 0;
-		printf("\taddd #1\n");
-		return 1;
 	}
 	return 0;
 }
 
+/* Generate helpers for commutative x= operations on single register objects */
+unsigned gen_xeqop(struct node *n, const char *cop, unsigned has16)
+{
+	struct node *l = n->left;
+	unsigned s = get_size(n->type);
+
+	if (s > 2 || !can_constop(l))
+		return 0;
+
+	/* Get the value on the right into D */
+	codegen_lr(n->right);
+
+	/* Was an lval so we want the type it referenced not the pointer */
+	l->type--;
+
+	if (has16)
+		gen_constop(cop, 0, l);
+	else
+		gen_constpair(cop, l);
+	gen_constop("st", 0, l);
+	return 1;
+}
+
+
 unsigned gen_shortcut(struct node *n)
 {
 	struct node *l = n->left;
-	struct node *r = n->right;
-	unsigned s = get_size(n->type);
-
-	if (n->op == T_PLUSEQ) {
-		if (!gen_constop("lea", 'x', l))
+	switch(n->op) {
+	case T_PLUSEQ:
+		return gen_xeqop(n, "add", 1);
+	case T_ANDEQ:
+		return gen_xeqop(n, "and", 0);
+	case T_OREQ:
+		return gen_xeqop(n, "or", 0);
+	case T_HATEQ:
+		return gen_xeqop(n, "eor", 0);
+	case T_EQ:
+		if (!can_constop(l))
 			return 0;
-		if (!gen_constop("ld", 0, r))
-			return 0;
-		if (s == 1) {
-			printf("\taddb (x)\n");
-			printf("\tstb (x)\n");
-		} else {
-			printf("\taddd (x)\n");
-			printf("\tstdd (x)\n");
-		}
+		codegen_lr(n->right);
+		/* Was an lval so we want the referenced type */
+		l->type--;
+		gen_constop("st", 0, l);
 		return 1;
-	}
-	if (n->op == T_MINUSEQ) {
-		if (!can_constop(r))
-			return 0;
-		if (!gen_constop("lea", 'x', l))
-			return 0;
-		/* Load by size helper ? */
-		if (s == 1)
-			printf("\tldb (x)\n");
-		else
-			printf("\tldd (x)\n");
-		gen_constop("sub", 0, r);
-		if (s == 1)
-			printf("\tstb (x)\n");
-		else
-			printf("\tstdd (x)\n");
+	/* Some casts are easy.. */
+	case T_CAST:
+		codegen_lr(n->right);
+		if (gen_cast(n, n->right))
+			return 1;
+		/* We generated the subtree, so finish the cast off ourselves too */
+		helper(n, "cast");
 		return 1;
+	/* And the mul/div/mod ones need helpers anyway */
+	default:
+		return 0;
 	}
-	return 0;
 }
 
 unsigned gen_node(struct node *n)
@@ -639,7 +729,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (s == 2) {
-			printf("\tstdd %d(s)\n", n->value);
+			printf("\tstd %d(s)\n", n->value);
 			return 1;
 		}
 		if (s == 1) {
@@ -664,7 +754,12 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_DEREF:
 		printf("\ttfr d,x\n");
-		printf("\tldd (x)\n");
+		if (s == 1)
+			printf("\tldb (x)\n");
+		else if (s == 2)
+			printf("\tldd (x)\n");
+		else
+			return 0;
 		return 1;
 	case T_LABEL:
 		printf("\tldd T%d\n", n->value);
@@ -696,16 +791,33 @@ unsigned gen_node(struct node *n)
 		/* Will need a lot of peepholing */
 		printf("\ttfr x,d\n");
 		return 1;
+	case T_PLUS:
+		if (s == 1)
+			printf("\taddb (s+)\n");
+		if (s == 2)
+			printf("\taddd (s++)\n");
+		else
+			return 0;
+		return 1;
+	case T_AND:
+		return gen_pair_pop("and", n);
+	case T_OR:
+		return gen_pair_pop("or", n);
+	case T_HAT:
+		return gen_pair_pop("eor", n);
 	/* We rewrote these into a new form so must handle them. We can also
 	   do better probably TODO .. */
 	case T_PLUSPLUS:
-		helper(n, "preinc");
+		helper(n, "postinc");
 		printf("\t.word %d\n", n->val2);
 		return 1;
 	case T_MINUSMINUS:
-		helper(n, "predec");
+		helper(n, "postdec");
 		printf("\t.word -%d\n", n->val2);
 		return 1;
+	/* Some casts are easy.. */
+	case T_CAST:
+		return gen_cast(n, n->right);
 	}
 	return 0;
 }
