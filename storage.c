@@ -8,10 +8,13 @@ unsigned is_storage_word(void)
 
 unsigned get_storage(unsigned dflt)
 {
+	unsigned t;
 	skip_modifiers();
 	if (!is_storage_word())
 		return dflt;
-	switch (token) {
+	t = token;
+	next_token();
+	switch (t) {
 	case T_AUTO:
 		return AUTO;
 	case T_REGISTER:
