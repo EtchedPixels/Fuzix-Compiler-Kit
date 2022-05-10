@@ -85,13 +85,11 @@ struct node *gen_rewrite_node(struct node *n)
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
 				if (r->op == T_ARGUMENT)
 					r->value += 2 + frame_len;
-				/* Lose a pointer level as it's an LVAL */
 				squash_right(n, T_LREF);
 				return n;
 			}
 			if (r->op == T_NAME) {
 				squash_right(n, T_NREF);
-				/* Lose a pointer level as it's an LVAL */
 				return n;
 			}
 		}
