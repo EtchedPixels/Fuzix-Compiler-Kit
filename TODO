@@ -2,25 +2,19 @@
   (eg do/while ?)
 - (int *) casting syntax
 - finish operator type checking
-- rework the parsing so that int a=4, *b; stuff works
-- comma in definitions, typedefs
-- sizeof() [required reworking the currently buggy type parsing]
-- typedef  [ditto]
+- typedef  (partly done - we sort of create them but we don't recognize them)
 - enum - do we care ?
-DONE - build and generate logical and/or trees with branching so that the proper
-  C evaulation behaviour occurs
-- build a similar model out for ? :
-
 - for word stacking machines add target hooks to specify that arguments
   take 2 bytes even if char, and alloc space correctly both in the func
   declaration/argument side and in the arg stacking (arg passing side done)
-- deal with stacking of void (call of void function as statement end)...
+- rewrite x = x + .. and x = x -... etc as += -=
 
 Broken 
--	extern int foo;		warns wrongly and doesn't add symbol
--	foo("x"); when foo is not yet defined gives an arg error
 -	constify needs a hard stare or two
-
+-	scoping fixes for the iterator
+-	see if we can just treat typedef base behaviour as a storage
+	class so that we can embed the code into the iterator and remove
+	the callout stuff
 
 Longer term
 - float
@@ -35,4 +29,3 @@ Longer term
   also eliminate the push case for some of those
 - how to deal with Z80 sanely
 - simple register tracking helper library
-
