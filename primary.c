@@ -58,7 +58,7 @@ struct node *constant_node(void)
 	if (label) {
 		/* We have a temporary name */
 		n = make_label(label);
-		n->type = CCHAR + 1;	/* PTR to CHAR */
+		n->type = PTRTO + CCHAR;	/* PTR to CHAR */
 		return n;
 	}
 	/* Numeric */
@@ -119,7 +119,6 @@ struct node *primary(void)
 		/* You can't size fields and structs by field/struct name without 
 		   the type specifier */
 		if (sym == NULL || sym->storage > S_EXTDEF) {
-			fprintf(stderr, "Couldn't find %u %p\n", name, (void *)sym);
 			error("unknown symbol");
 			return make_constant(0, UINT);
 		}
