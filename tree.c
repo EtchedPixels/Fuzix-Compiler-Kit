@@ -102,7 +102,7 @@ struct node *make_symbol(struct symbol *s)
 			n->type++;
 	}
 #endif
-	fprintf(stderr, "name %04x\n", s->name - 0x8000);
+	fprintf(stderr, "name %04x type %04x\n", s->name, s->type);
 	return n;
 }
 
@@ -330,14 +330,13 @@ struct node *assign_tree(struct node *l, struct node *r)
 {
 	if (l->type == r->type)
 		return tree(T_EQ, l, r);
-	if (PTR(r->type)) {
+	if (PTR(l->type)) {
 		type_pointermatch(l, r);
 		return tree(T_EQ, l, r);
-	} else if (PTR(l->type))
-		error("type mismatch");
+	} else if (PTR(r->type))
+		typemismatch();
 	else if (!IS_ARITH(l->type) || !IS_ARITH(r->type))
-		error("invalid type");
-	fprintf(stderr, "AS %x %x\n", l->type, r->type);
+		invalidtype();
 	return tree(T_EQ, l, make_cast(r, l->type));
 }
 
@@ -464,13 +463,13 @@ struct node *constify(struct node *n)
 			break;
 		case T_SLASH:
 			if (r->value == 0)
-				error("divide by zero");
+				divzero();
 			else
 				n = replace_constant(n, lt, l->value / r->value);
 			break;
 		case T_PERCENT:
 			if (r->value == 0)
-				error("divide by zero");
+				divzero();
 			else
 				n = replace_constant(n, lt, l->value % r->value);
 			break;
