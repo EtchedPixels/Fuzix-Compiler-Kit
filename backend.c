@@ -511,9 +511,7 @@ void make_node(struct node *n)
 		gen_text_label(n->value);
 		break;
 	case T_CAST:
-		/* TODO - needs to consider both types so not a usual
-		   special */
-		printf("cast\n");
+		helper(n, "cast");
 		break;
 	case T_CONSTANT:
 		helper(n, "const");
