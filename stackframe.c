@@ -18,7 +18,7 @@ unsigned alloc_room(unsigned *p, unsigned type)
     unsigned s = type_sizeof(type);
     unsigned a = target_alignof(type);
 
-    *p = (*p + a) & ~(a - 1);
+    *p = (*p + a - 1) & ~(a - 1);
     a = *p;
     *p += s;
     return a;
