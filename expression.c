@@ -74,12 +74,14 @@ struct node *call_args(unsigned narg, unsigned *argt, unsigned *argsize)
 			n = typeconv(n, *argt++, 1);
 			narg--;
 		} else
-			missedarg();
+			unexarg();
 	}
 	*argsize += target_argsize(n->type);
 	if (match(T_COMMA))
 		/* Switch around for calling order */
 		return tree(T_COMMA, call_args(narg, argt, argsize), n);
+	if (*argt != ELLIPSIS && narg)
+		missedarg();
 	require(T_RPAREN);
 	return n;
 }
@@ -89,17 +91,21 @@ struct node *call_args(unsigned narg, unsigned *argt, unsigned *argsize)
  *	yet. Take any arguments for a function we've not seen a prototype for.
  */
 
-static unsigned dummy_argp = T_ELLIPSIS;
+static unsigned dummy_argp = ELLIPSIS;
 
 struct node *function_call(struct node *n)
 {
 	unsigned type;
 	unsigned *argt, *argp;
 	unsigned argsize = 0;
-	if (!IS_FUNCTION(n->type))
+	if (!IS_FUNCTION(n->type)) {
 		error("not a function");
+		return n;
+	}
 	type = func_return(n->type);
 	argt = func_args(n->type);
+
+	fprintf(stderr, "args %d\n", *argt);
 	if (*argt == 0)
 		argp = &dummy_argp;
 	else
@@ -108,7 +114,7 @@ struct node *function_call(struct node *n)
 	/* A function without arguments */
 	if (match(T_RPAREN)) {
 		/* Make sure no arguments is acceptable */
-		if (!(*argt == 0 || argt[1] == ELLIPSIS || argt[1] == VOID))
+		if (!(*argt == 0 || argp[0] == ELLIPSIS || argp[0] == VOID))
 			missedarg();
 		n  = tree(T_FUNCCALL, NULL, n);
 	} else
@@ -465,7 +471,7 @@ struct node *hier1(void)
 		if ((l->flags & LVAL) == 0)
 			needlval();
 		r = make_rval(hier1());
-		return ordercomp_tree(T_EQ, l, r);	/* Assignment */
+		return assign_tree(l, r);	/* Assignment */
 	} else {
 		fc = token;
 		if (match(T_MINUSEQ) ||
@@ -484,7 +490,7 @@ struct node *hier1(void)
 			switch (fc) {
 			case T_MINUSEQ:
 			case T_PLUSEQ:
-				scale = type_ptrscale(l->type);
+				scale = type_scale(l->type);
 				break;
 			}
 			if (scale)
