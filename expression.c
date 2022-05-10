@@ -302,14 +302,14 @@ static struct node *hier8(void)
 	if (op == T_PLUS) {
 		/* if left is pointer and right is int, scale right */
 		scale =
-		    type_ptrscale_binop(op, l->type, r->type, &scalediv);
+		    type_ptrscale_binop(op, l, r, &scalediv);
 	} else if (op == T_MINUS) {
 		/* if dbl, can only be: pointer - int, or
 		   pointer - pointer, thus,
 		   in first case, int is scaled up,
 		   in second, result is scaled down. */
 		scale =
-		    type_ptrscale_binop(op, l->type, r->type, &scalediv);
+		    type_ptrscale_binop(op, l, r, &scalediv);
 	}
 	if (scale == 1)
 		return tree(op, l, r);

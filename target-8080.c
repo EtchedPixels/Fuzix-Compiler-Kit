@@ -14,8 +14,7 @@ unsigned target_alignof(unsigned t)
 static unsigned sizetab[16] = {
 	1, 2, 4, 8,		/* char, short, long, longlong */
 	1, 2, 4, 8,		/* unsigned forms */
-	4, 8, 1, 0,		/* float, double, void, unused.. */
-            /* A void has no size but a void * x++ is deemed to be 1 */
+	4, 8, 0, 0,		/* float, double, void, unused.. */
 	0, 0, 0, 0		/* unused */
 };
 

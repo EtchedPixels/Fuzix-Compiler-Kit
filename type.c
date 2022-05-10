@@ -79,6 +79,9 @@ unsigned type_ptrscale(unsigned t) {
 		error("not a pointer");
 		return 1;
 	}
+	/* void * is special */
+	if (t == PTRTO + VOID)
+		return 1;
 	return type_sizeof(type_deref(t));
 }
 
@@ -86,7 +89,7 @@ unsigned type_scale(unsigned t) {
 	t = type_canonical(t);
 	if (!PTR(t))
 		return 1;
-	return type_sizeof(type_deref(t));
+	return type_ptrscale(t);
 }
 
 /* lvalue conversion is handled by caller */
@@ -95,33 +98,6 @@ unsigned type_addrof(unsigned t) {
 		return t - 1;
 	error("cannot take address");
 	return VOID + 1;
-}
-
-unsigned type_ptrscale_binop(unsigned op, unsigned l, unsigned r,
-			     unsigned *div) {
-	*div = 1;
-
-	if (PTR(l) && PTR(r)) {
-		/* FIXME: allow for sign differences as warning. Want
-		   a generic ptrcompare() */
-		if (type_canonical(l) != type_canonical(r))
-			error("pointer type mismatch");
-		if (op == T_MINUS)
-			return type_ptrscale(r);
-		else {
-			error("invalid pointer difference");
-			return 1;
-		}
-	}
-	*div = 0;
-	if (PTR(l) && IS_ARITH(r))
-		return type_ptrscale(l);
-	if (PTR(r) && IS_ARITH(l))
-		return type_ptrscale(r);
-	if (IS_ARITH(l) && IS_ARITH(r))
-		return 1;
-	error("invalid types");
-	return 1;
 }
 
 int type_pointermatch(struct node *l, struct node *r)
@@ -152,3 +128,31 @@ int type_pointermatch(struct node *l, struct node *r)
     return 0;
 }
 
+unsigned type_ptrscale_binop(unsigned op, struct node *l, struct node *r,
+			     unsigned *div) {
+	unsigned lt = l->type;
+	unsigned rt = r->type;
+	*div = 1;
+
+	if (type_pointermatch(l, r)) {
+		if (op == T_MINUS)
+			return type_ptrscale(r->type);
+		else {
+			error("invalid pointer difference");
+			return 1;
+		}
+	}
+	*div = 0;
+	if (PTR(lt) && IS_ARITH(rt))
+		return type_ptrscale(lt);
+	if (PTR(rt) && IS_ARITH(lt))
+		return type_ptrscale(rt);
+	if (PTR(lt) || PTR(rt)) {
+		error("incompatible pointers");
+		return 1;
+	}
+	if (IS_ARITH(lt) && IS_ARITH(rt))
+		return 1;
+	error("invalid types");
+	return 1;
+}

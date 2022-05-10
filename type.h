@@ -49,5 +49,5 @@ extern unsigned type_alignof(unsigned t);
 extern unsigned type_ptrscale(unsigned t);
 extern unsigned type_scale(unsigned t);
 extern unsigned type_addrof(unsigned t);
-extern unsigned type_ptrscale_binop(unsigned op, unsigned l, unsigned r, unsigned *div);
+extern unsigned type_ptrscale_binop(unsigned op, struct node *l, struct node *r, unsigned *div);
 extern int type_pointermatch(struct node *l, struct node *r);
