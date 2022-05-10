@@ -51,9 +51,3 @@ extern unsigned type_scale(unsigned t);
 extern unsigned type_addrof(unsigned t);
 extern unsigned type_ptrscale_binop(unsigned op, unsigned l, unsigned r, unsigned *div);
 extern int type_pointermatch(struct node *l, struct node *r);
-
-extern void skip_modifiers(void);
-extern unsigned type_and_name(unsigned *np, unsigned needname, unsigned deftype);
-
-extern unsigned is_modifier(void);
-extern unsigned is_type_word(void);
