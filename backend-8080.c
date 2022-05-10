@@ -13,8 +13,32 @@ static int cpu = 8085;
 static unsigned frame_len;	/* Number of bytes of stack frame */
 static unsigned sp;		/* Stack pointer offset tracking */
 
-#define T_NVAL		(T_USER)
+#define T_NREF		(T_USER)
 #define T_CALLNAME	(T_USER+1)
+#define T_NSTORE	(T_USER+2)
+
+static void squash_node(struct node *n, struct node *o)
+{
+	n->value = o->value;
+	n->snum = o->snum;
+	free_node(o);
+}
+
+static void squash_left(struct node *n, unsigned op)
+{
+	struct node *l = n->left;
+	n->op = op;
+	squash_node(n, l);
+	n->left = NULL;
+}
+
+static void squash_right(struct node *n, unsigned op)
+{
+	struct node *r = n->right;
+	n->op = op;
+	squash_node(n, r);
+	n->right = NULL;
+}
 
 /*
  *	Our chance to do tree rewriting. We don't do much for the 8080
@@ -23,26 +47,19 @@ static unsigned sp;		/* Stack pointer offset tracking */
  */
 struct node *gen_rewrite_node(struct node *n)
 {
+	struct node *l = n->left;
 	struct node *r = n->right;
 	/* Rewrite references into a load operation */
 	if (n->type == CINT || n->type == UINT || PTR(n->type)) {
 		if (n->op == T_DEREF) {
-#if 0
-			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
-				n->op = T_LREF;
-				n->snum = r->snum;
-				n->value = r->value;
-				free_node(r);
-				n->right = NULL;
+			if (r->op == T_NAME) {
+				squash_right(n, T_NREF);
 				return n;
 			}
-#endif
-			if (r->op == T_NAME) {
-				n->op = T_NVAL;
-				n->snum = r->snum;
-				n->value = r->value;
-				free_node(r);
-				n->right = NULL;
+		}
+		if (n->op == T_EQ) {
+			if (l->op == T_NAME) {
+				squash_left(n, T_NSTORE);
 				return n;
 			}
 		}
@@ -255,6 +272,32 @@ void gen_tree(struct node *n)
  *	Try and generate shorter code for stuff we can directly access
  */
 
+static unsigned get_size(unsigned t)
+{
+	if (PTR(t))
+		return 2;
+	if (t == CINT || t == UINT)
+		return 2;
+	if (t == CCHAR || t == UCHAR)
+		return 1;
+	if (t == CLONG || t == ULONG || t == FLOAT)
+		return 4;
+	if (t == CLONGLONG || t == ULONGLONG || t == DOUBLE)
+		return 8;
+	if (t == VOID)
+		return 0;
+	error("gs");
+	return 0;
+}
+
+static unsigned get_stack_size(unsigned t)
+{
+	unsigned n = get_size(t);
+	if (n == 1)
+		return 2;
+	return n;
+}
+
 /*
  *	Return 1 if the node can be turned into direct access. The VOID check
  *	is a special case we need to handle stack clean up of void functions.
@@ -263,7 +306,7 @@ static unsigned access_direct(struct node *n)
 {
 	/* We can direct access integer or smaller types that are constants
 	   global/static or string labels */
-	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_LABEL && n->op != T_NVAL)
+	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_LABEL && n->op != T_NREF)
 		return 0;
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CINT)
 		return 0;
@@ -288,7 +331,7 @@ static void load_de_with(struct node *n)
 		/* We know this is not a long from the checks above */
 		printf("\tlxi d, %d\n", n->value);
 		break;
-	case T_NVAL:
+	case T_NREF:
 		/* We know it is int or pointer */
 		printf("\txchg\n");
 		printf("\tlhld (_%s+%d)\n", namestr(n->snum), n->value);
@@ -314,6 +357,8 @@ static void load_de_with(struct node *n)
  */
 unsigned gen_direct(struct node *n)
 {
+	unsigned s = get_size(n->type);
+
 	/* We only deal with simple cases for now */
 	if (n->right && !access_direct(n->right))
 		return 0;
@@ -332,6 +377,18 @@ unsigned gen_direct(struct node *n)
 		   so put it into HL */
 		printf("\txchg\n");
 		return 1;
+	case T_NSTORE:
+		if (s == 1) {
+			printf("\tmov a,l\n");
+			printf("\tsta _%s+%d\n", namestr(n->snum), n->value);
+			return 1;
+		}
+		if (s == 2) {
+			printf("\tshld _%s+%d\n", namestr(n->snum), n->value);
+			return 1;
+		}
+		/* TODO 4/8 for long etc */
+		return 0;	
 	case T_PLUS:
 		/* LHS is in HL at the moment, end up with the result in HL */
 		load_de_with(n->right);
@@ -358,32 +415,6 @@ unsigned gen_uni_direct(struct node *n)
 unsigned gen_shortcut(struct node *n)
 {
 	return 0;
-}
-
-static unsigned get_size(unsigned t)
-{
-	if (PTR(t))
-		return 2;
-	if (t == CINT || t == UINT)
-		return 2;
-	if (t == CCHAR || t == UCHAR)
-		return 1;
-	if (t == CLONG || t == ULONG || t == FLOAT)
-		return 4;
-	if (t == CLONGLONG || t == ULONGLONG || t == DOUBLE)
-		return 8;
-	if (t == VOID)
-		return 0;
-	error("gs");
-	return 0;
-}
-
-static unsigned get_stack_size(unsigned t)
-{
-	unsigned n = get_size(t);
-	if (n == 1)
-		return 2;
-	return n;
 }
 
 /* Stack the node which is currently in the working register */
@@ -422,8 +453,19 @@ unsigned gen_node(struct node *n)
 
 	switch (n->op) {
 		/* Load from a name */
-	case T_NVAL:
-		printf("\tlhld _%s+%d\n", namestr(n->snum), n->value);
+	case T_NREF: /* NREF/STORE FIXME for long/float/double */
+		if (size == 1) {
+			printf("\tlda _%s+%d\n", namestr(n->snum), n->value);
+			printf("\tmov l,a\n");
+		} else
+			printf("\tlhld _%s+%d\n", namestr(n->snum), n->value);
+		return 1;
+	case T_NSTORE:
+		if (size == 1)
+			printf("\tmov a.l\n\tsta");
+		else
+			printf("\tshld");
+		printf(" _%s+%d\n", namestr(n->snum), n->value);
 		return 1;
 		/* Call a function by name */
 	case T_CALLNAME:
