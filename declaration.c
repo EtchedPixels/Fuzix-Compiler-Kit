@@ -51,6 +51,8 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 
 	if (IS_FUNCTION(type) && !PTR(type)) {
 		if (token == T_LCURLY) {
+			if (s == S_AUTO)
+				error("can't nest functions");
 			if (s == S_EXTDEF)
 				header(H_EXPORT, name, 0);
 			ltop = mark_local_symbols();
@@ -83,6 +85,5 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 void declaration(unsigned defstorage)
 {
 	unsigned s = get_storage(defstorage);
-	next_token();
 	type_iterator(s, CINT, defstorage, one_declaration);
 }
