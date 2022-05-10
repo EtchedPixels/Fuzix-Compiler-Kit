@@ -56,3 +56,18 @@ void indirections(void)
 {
 	error("too many indirections");
 }
+
+void typemismatch(void)
+{
+	error("type mismatch");
+}
+
+void invalidtype(void)
+{
+	error("invalid type");
+}
+
+void divzero(void)
+{
+	warning("division by zero");
+}
