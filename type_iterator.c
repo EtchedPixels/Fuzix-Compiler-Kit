@@ -79,18 +79,23 @@ static unsigned base_type(void)
 			set_once(8);
 			break;
 		case T_CHAR:
+			set_once(16);
 			type = CCHAR;
 			break;
 		case T_INT:
+			set_once(16);
 			type = CINT;
 			break;
 		case T_FLOAT:
+			set_once(16);
 			type = FLOAT;
 			break;
 		case T_DOUBLE:
+			set_once(16);
 			type = DOUBLE;
 			break;
 		case T_VOID:
+			set_once(16);
 			type = VOID;
 			break;
 		}
@@ -104,11 +109,11 @@ static unsigned base_type(void)
 	/* No long or short char */
 	if (type == CCHAR && (once_flags & 3))
 		return typeconflict();
-	/* No signed/unsigned float or double */
-	if ((type == FLOAT || type == DOUBLE) && (once_flags & 12))
+	/* No signed/unsigned/short float or double */
+	if ((type == FLOAT || type == DOUBLE) && (once_flags & 13))
 		return typeconflict();
 	/* No void modifiers */
-	if (type == VOID && once_flags)
+	if (type == VOID && (once_flags & 15))
 		return typeconflict();
 	/* long */
 	if (type == CINT && (once_flags & 2))
@@ -177,9 +182,7 @@ static unsigned type_parse_function(unsigned name, unsigned type) {
 			break;
 		}
 		t = type_and_name(&an, 0, CINT);
-		fprintf(stderr, "tan %x\n", t);
 		if (t == VOID) {
-			fprintf(stderr, "void argument\n");
 			*tn++ = VOID;
 			break;
 		}
@@ -189,8 +192,7 @@ static unsigned type_parse_function(unsigned name, unsigned type) {
 			error("cannot pass structures");
 			t = CINT;
 		}
-		if (name) {
-			fprintf(stderr, "argument symbol %x\n", name);
+		if (an) {
 			sym = update_symbol(an, S_ARGUMENT, t);
 			sym->offset = assign_storage(t, S_ARGUMENT);
 			*tn++ = t;
@@ -204,15 +206,14 @@ static unsigned type_parse_function(unsigned name, unsigned type) {
 	require(T_RPAREN);
 	/* A zero length comes from () and means 'whatever' so semantically
 	   for us at least 8) it's an ellipsis only */
-	if (tn == tplt)
+	if (tn == tplt + 1)
 		*tn++ = ELLIPSIS;
-	*tplt = tn - tplt;
+	*tplt = tn - tplt - 1;
 	type = func_symbol_type(type, tplt);
-	fprintf(stderr, "func type %x\n", type);
 	return type;
 }
 
-static unsigned type_parse_array(unsigned name, unsigned type) {
+static unsigned type_parse_array(unsigned type) {
 	int n = const_int_expression();
 	if (n < 1) {
 		error("bad size");
@@ -224,38 +225,48 @@ static unsigned type_parse_array(unsigned name, unsigned type) {
 	return type;
 }
 
-static unsigned type_name_parse(unsigned type, unsigned *name)
+/* Recursively walk any *(*(*(*x))) bits */
+
+static unsigned declarator(unsigned *name)
 {
 	unsigned ptr = 0;
-	struct symbol *ltop;
 
+	*name = 0;
 	skip_modifiers();
 	while (match(T_STAR)) {
 		skip_modifiers();
 		ptr++;
 	}
-	if (ptr > 7)
-		error("too many indirections");
 	skip_modifiers();
-	*name = symname();
+	if (token >= T_SYMBOL) {	/* It's a name */
+		*name = token;
+		next_token();
+		return ptr;
+	}
+	if (token == T_LPAREN) {
+		next_token();
+		ptr += declarator(name);
+		require(T_RPAREN);
+	}
+	return ptr;
+}
+
+static unsigned type_name_parse(unsigned type, unsigned *name)
+{
+	unsigned ptr = declarator(name);
+	if (ptr > 7)
+		indirections();
 	/* We may be a function specification or an array or both. The other
 	   post forms (-> and .) are not valid in a declaration */
 	while (token == T_LSQUARE || token == T_LPAREN) {
 		if (token == T_LSQUARE) {
 			next_token();
-			fprintf(stderr, "Array\n");
-			type = type_parse_array(*name, type);
-			fprintf(stderr, "Array Done\n");
+			type = type_parse_array(type);
 			require(T_RSQUARE);
 		} else if (token == T_LPAREN) {
-			fprintf(stderr, "func check\n");
 			next_token();
-			/* Throw away any names in the function declaration */
-			ltop = mark_local_symbols();
 			/* It's a function description  */
 			type = type_parse_function(*name, type);
-			pop_local_symbols(ltop);
-			fprintf(stderr, "tok now %x\n", token);
 			/* Can be an array of functions .. */
 		}
 	}
@@ -269,7 +280,7 @@ unsigned type_and_name(unsigned *name, unsigned nn, unsigned deftype)
 		type = deftype;
 	if (type == UNKNOWN)
 		return type;
-	type = type_name_parse(deftype, name);
+	type = type_name_parse(type, name);
 	if (nn && *name == 0)
 		error("name required");
 	return type;
@@ -290,14 +301,11 @@ void type_iterator(unsigned storage, unsigned deftype, unsigned info,
 
 //	while (is_modifier() || is_type_word() || token >= T_SYMBOL || token == T_STAR) {
 	while (token != T_SEMICOLON) {
-		fprintf(stderr, "iter %x\n", token);
 		utype = type_name_parse(type, &name);
-		fprintf(stderr, "final type is %x\n", type);
 		if (handler(storage, utype, name, info) == 0)
 			return;
 		if (!match(T_COMMA))
 			break;
 	}
-	fprintf(stderr, "iter done %x\n", token);
 	need_semicolon();
 }
