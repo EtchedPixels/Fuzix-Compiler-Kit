@@ -6,28 +6,39 @@
 #include <stdio.h>
 #include "compiler.h"
 
+static struct node *badsizeof(void)
+{
+	error("bad sizeof");
+	return make_constant(1, UINT);
+}
+
+/*
+ *	sizeof() is a strange C thing that is sort of
+ *	a function call but magic.
+ */
 struct node *get_sizeof(void)
 {
 	unsigned name;
+	unsigned type;
+	struct node *n, *r;
+
+	/* Bracketing is required for sizeof unlike return */
 	require(T_LPAREN);
-	/* Names or types */
-	name = symname();
-	if (name) {
-		/* This chunk is wrong... we should parse a full type description 
-		   FIXME: it's legal to sizeof(x[4]) or sizeof(x->y); */
-		struct symbol *sym = find_symbol(name);
-		/* You can't size fields and structs by field/struct name without 
-		   the type specifier */
+
+	/* We wille eventually need to count typedefs as type_word */
+	if (is_type_word()) {
+		type = type_and_name(&name, 0, UNKNOWN);
+		if (type != UNKNOWN || name)
+			return badsizeof();
 		require(T_RPAREN);
-		if (sym == NULL || sym->storage > S_EXTDEF) {
-			error("unknown symbol");
-			return make_constant(1, UINT);
-		}
-		return make_constant(type_sizeof(sym->type), UINT);
+		return make_constant(type_sizeof(type), UINT);
 	}
-	/* Not a name.. should be a type */
-	/* TODO */
-	return make_constant(2, UINT);
+	/* We can just allow sizeof on any expression */
+	n = expression_tree(0);
+	r = make_constant(type_sizeof(n->type), UINT);
+	free_tree(n);
+	require(T_RPAREN);
+	return r;
 }
 
 /*
