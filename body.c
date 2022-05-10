@@ -301,17 +301,13 @@ void statement_block(unsigned need_brack)
  */
 void function_body(unsigned st, unsigned name, unsigned type)
 {
-	/* We need to add ourselves to the symbols first as we can self
-	   reference */
-	struct symbol *sym;
-
 	/* This makes me sad, but there isn't a nice way to work out
 	   the frame size ahead of time */
 	off_t hrw;
 
 	if (st == AUTO || st == EXTERN)
 		error("invalid storage class");
-	sym = update_symbol(name, st, type);
+	update_symbol(name, st, type);
 	func_tag = next_tag++;
 	header(H_FUNCTION, st, name);
 	hrw = mark_header();
