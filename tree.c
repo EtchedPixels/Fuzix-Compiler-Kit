@@ -328,7 +328,6 @@ struct node *ordercomp_tree(unsigned op, struct node *l, struct node *r)
 
 struct node *assign_tree(struct node *l, struct node *r)
 {
-	struct node *n;
 	if (l->type == r->type)
 		return tree(T_EQ, l, r);
 	if (PTR(r->type)) {
