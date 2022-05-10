@@ -16,6 +16,8 @@ static unsigned sp;		/* Stack pointer offset tracking */
 #define T_NREF		(T_USER)
 #define T_CALLNAME	(T_USER+1)
 #define T_NSTORE	(T_USER+2)
+#define T_LREF		(T_USER+3)
+#define T_LSTORE	(T_USER+4)
 
 static void squash_node(struct node *n, struct node *o)
 {
@@ -52,6 +54,12 @@ struct node *gen_rewrite_node(struct node *n)
 	/* Rewrite references into a load operation */
 	if (n->type == CINT || n->type == UINT || PTR(n->type)) {
 		if (n->op == T_DEREF) {
+			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
+				if (r->op == T_ARGUMENT)
+					r->value += 2 + frame_len;
+				squash_right(n, T_LREF);
+				return n;
+			}
 			if (r->op == T_NAME) {
 				squash_right(n, T_NREF);
 				return n;
@@ -59,7 +67,17 @@ struct node *gen_rewrite_node(struct node *n)
 		}
 		if (n->op == T_EQ) {
 			if (l->op == T_NAME) {
+				/* Lose a pointer level as it's an LVAL */
+				n->type--;
 				squash_left(n, T_NSTORE);
+				return n;
+			}
+			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
+				if (l->op == T_ARGUMENT)
+					l->value += 2 + frame_len;
+				/* Lose a pointer level as it's an LVAL */
+				n->type--;
+				squash_left(n, T_LSTORE);
 				return n;
 			}
 		}
@@ -318,28 +336,71 @@ static unsigned access_direct(struct node *n)
  *	we merge this with the similar hl one in the main table ?
  */
 
-static void load_de_with(struct node *n)
+static unsigned load_r_with(const char r, struct node *n)
 {
+	unsigned v = n->value;
+	const char *name;
+
 	switch(n->op) {
 	case T_NAME:
-		printf("\tlxi d, _%s+%d\n", namestr(n->snum), n->value);
-		break;
+		printf("\tlxi %c, _%s+%d\n", r, namestr(n->snum), v);
+		return 1;
 	case T_LABEL:
-		printf("\tlxi d, T%d\n", n->value);
-		break;
+		printf("\tlxi %c, T%d\n", r, v);
+		return 1;
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
-		printf("\tlxi d, %d\n", n->value);
-		break;
+		printf("\tlxi %c, %d\n", r, v);
+		return 1;
 	case T_NREF:
-		/* We know it is int or pointer */
-		printf("\txchg\n");
-		printf("\tlhld (_%s+%d)\n", namestr(n->snum), n->value);
-		printf("\txchg\n");
+		name = namestr(n->snum);
+		if (r == 'b')
+			return 0;
+		else if (r == 'h')
+			printf("\tlhld (_%s+%d)\n", name, v);
+		else if (r == 'd') {
+			/* We know it is int or pointer */
+			printf("\txchg\n");
+			printf("\tlhld (_%s+%d)\n", name, v);
+			printf("\txchg\n");
+			return 1;
+		}
 		break;
 	default:
-		error("ldew");
+		return 0;
 	}
+	return 1;
+}
+
+static unsigned load_bc_with(struct node *n)
+{
+	return load_r_with('b', n);
+}
+
+static unsigned load_de_with(struct node *n)
+{
+	return load_r_with('d', n);
+}
+
+static unsigned load_hl_with(struct node *n)
+{
+	return load_r_with('h', n);
+}
+
+static unsigned load_a_with(struct node *n)
+{
+	switch(n->op) {
+	case T_CONSTANT:
+		/* We know this is not a long from the checks above */
+		printf("\tlda %d\n", n->value);
+		break;
+	case T_NREF:
+		printf("\tlda _%s+%d\n", namestr(n->snum), n->value);
+		break;
+	default:
+		return 0;
+	}
+	return 1;
 }
 
 /*
@@ -358,20 +419,31 @@ static void load_de_with(struct node *n)
 unsigned gen_direct(struct node *n)
 {
 	unsigned s = get_size(n->type);
+	struct node *r = n->right;
+	unsigned v;
 
 	/* We only deal with simple cases for now */
-	if (n->right && !access_direct(n->right))
-		return 0;
+	if (r) {
+		if (!access_direct(n->right))
+			return 0;
+		v = r->value;
+	}
 
 	switch (n->op) {
 	case T_CLEANUP:
 		/* CLEANUP is special and needs to be handled directly */
-		/* TODO - optimizations like inx sp and pops */
-		if (n->right->value) {
-			printf("\tlxi h, %d\n", n->right->value);
+		sp -= v;
+		if (v > 10) {
+			printf("\tlxi h, %d\n", r->value);
 			printf("\tdad sp\n");
 			printf("\tsphl\n");
-			sp -= n->right->value;
+		} else {
+			while(v >= 2) {
+				printf("\tpop h\n");
+				v -= 2;
+			}
+			if (v)
+				printf("\tdcr sp\n");
 		}
 		/* The call return is in DE at this point due to stack juggles
 		   so put it into HL */
@@ -388,12 +460,50 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		/* TODO 4/8 for long etc */
-		return 0;	
+		return 0;
+	case T_EQ:
+		/* The address is in HL at this point */
+		if (cpu == 8085 && s == 2 ) {
+			if (load_de_with(r) == 0)
+				return 0;
+			printf("\tshlx\n");
+			return 1;
+		}
+		if (s == 1) {
+			if (load_a_with(r) == 0)
+				return 0;
+			printf("\tmov m,a\n");
+			return 1;
+		}
+		return 0;
 	case T_PLUS:
-		/* LHS is in HL at the moment, end up with the result in HL */
-		load_de_with(n->right);
-		printf("\tdad d\n");
-		return 1;
+		if (s <= 2) {
+			/* LHS is in HL at the moment, end up with the result in HL */
+			if (s == 1) {
+				if (load_a_with(r) == 0)
+					return 0;
+				printf("\tmov e,a\n");
+			}
+			if (s > 2 || load_de_with(r) == 0)
+				return 0;
+			printf("\tdad d\n");
+			return 1;
+		}
+		return 0;
+	case T_MINUS:
+		if (cpu == 8085 && s <= 2) {
+			/* LHS is in HL at the moment, end up with the result in HL */
+			if (s == 1) {
+				if (load_a_with(r) == 0)
+					return 0;
+				printf("\tmov c,a\n");
+			}
+			if (s > 2 || load_bc_with(r) == 0)
+				return 0;
+			printf("\tdsub  ; b\n");
+			return 1;
+		}
+		return 0;
 	}
 	return 0;
 }
@@ -437,10 +547,42 @@ unsigned gen_push(struct node *n)
 	}
 }
 
+static unsigned gen_cast(struct node *n)
+{
+	unsigned lt = n->type;
+	unsigned rt = n->right->type;
+	unsigned rs;
+	unsigned ls;
+
+	if (PTR(rt))
+		rt = CINT;
+	if (PTR(lt))
+		lt = CINT;
+
+	/* Floats and stuff handled by helper */
+	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
+		return 0;
+
+	rs = get_size(rt);
+	ls = get_size(lt);
+
+	/* Size shrink is free */
+	if ((ls & ~UNSIGNED) <= (rs & ~UNSIGNED))
+		return 1;
+	/* Don't do the harder ones */
+	if (!(rs & UNSIGNED) || rs > 2)
+		return 0;
+	printf("\tmvi h,0\n");
+	return 1;
+}
 
 unsigned gen_node(struct node *n)
 {
 	unsigned size = get_size(n->type);
+	unsigned v;
+	char *name;
+
+	v = n->value;
 
 	/* An operation with a left hand node will have the left stacked
 	   and the operation will consume it so adjust the stack.
@@ -455,21 +597,78 @@ unsigned gen_node(struct node *n)
 		/* Load from a name */
 	case T_NREF: /* NREF/STORE FIXME for long/float/double */
 		if (size == 1) {
-			printf("\tlda _%s+%d\n", namestr(n->snum), n->value);
+			printf("\tlda _%s+%d\n", namestr(n->snum), v);
 			printf("\tmov l,a\n");
-		} else
-			printf("\tlhld _%s+%d\n", namestr(n->snum), n->value);
+		} else if (size == 2) {
+			printf("\tlhld _%s+%d\n", namestr(n->snum), v);
+			return 1;
+		}
+		break;
+	case T_LREF:
+		if (v == sp && size == 2) {
+			printf("\tpop h\n\tpush h\n");
+			return 1;
+		}
+		v += sp;
+		if (cpu == 8085 && v <= 255) {
+			printf("\tldsi %d\n", v);
+			if (size == 2)
+				printf("\tlhlx\n");
+			else
+				printf("\tldax d\n\tmov d,a\n");
+			return 1;
+		}
+		/* Via helper magic for compactness on 8080 */
+		if (size == 1)
+			name = "ldbyte";
+		else
+			name = "ldword";
+		if (v < 24)
+			printf("\tcall %s%d\n", name, v);
+		else if (v < 255)
+			printf("\tcall %s\n\t.byte %d\n", name, v);
+		else
+			printf("\tcall %sw\n\t.word %d\n", name, v);
 		return 1;
 	case T_NSTORE:
+		if (size > 2)
+			return 0;
 		if (size == 1)
-			printf("\tmov a.l\n\tsta");
+			printf("\tmov a,l\n\tsta");
 		else
 			printf("\tshld");
-		printf(" _%s+%d\n", namestr(n->snum), n->value);
+		printf(" _%s+%d\n", namestr(n->snum), v);
+		return 1;
+	case T_LSTORE:
+		if (v == sp && size == 2 ) {
+			printf("\tpop a\n\tpush h\n");
+			return 1;
+		}
+		v += sp;
+		if (cpu == 8085 && v + sp <= 255) {
+			printf("\tldsi %d\n", v);
+			if (size == 2)
+				printf("\tshlx\n");
+			else
+				printf("\tmov a,l\n\tstax d\n");
+			return 1;
+		}
+		/* Via helper magic for compactness on 8080 */
+		/* Can rewrite some of them into rst if need be */
+		if (size == 1)
+			name = "stbyte";
+		else
+			name = "stword";
+		if (v < 24)
+			printf("\tcall %s%d\n", name, v);
+		else if (v < 255)
+			printf("\tcall %s\n\t.byte %d\n", name, v);
+		else
+			printf("\tcall %sw\n\t.word %d\n", name, v);
 		return 1;
 		/* Call a function by name */
 	case T_CALLNAME:
-		printf("\tcall _%s+%d\n", namestr(n->snum), n->value);
+		printf("\tcall _%s+%d\n", namestr(n->snum), v);
 		return 1;
 	case T_EQ:
 		if (size == 2) {
@@ -479,13 +678,21 @@ unsigned gen_node(struct node *n)
 				printf("\txchg\n\tpop h\n\tmov m,e\n\tinx h\n\tmov m,d");
 			return 1;
 		}
+		if (size == 1) {
+			printf("\txchg\n\tpop h\n\tstax d\n");
+			return 1;
+		}
 		break;
 	case T_DEREF:
 		if (size == 2) {
 			if (cpu == 8085)
-				printf("\tlhlx\n");
+				printf("\txchg\n\tlhlx\n");
 			else
 				printf("\tmov e,m\n\tinx h\n\tmov d,m\n\txchg\n");
+			return 1;
+		}
+		if (size == 1) {
+			printf("\tmov l,m\n");
 			return 1;
 		}
 		break;
@@ -494,40 +701,45 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LABEL:
 		/* Used for const strings */
-		printf("\tlxi h,T%d\n", n->value);
+		printf("\tlxi h,T%d\n", v);
 		return 1;
 	case T_CONSTANT:
 		switch(size) {
 		case 4:
-			printf("lxi h,%u\n", ((n->value >> 16) & 0xFFFF));
+			printf("lxi h,%u\n", ((v >> 16) & 0xFFFF));
 			printf("shld hireg\n");
 		case 2:
-			printf("\tlxi h,%d\n", (n->value & 0xFFFF));
+			printf("\tlxi h,%d\n", (v & 0xFFFF));
+			return 1;
+		case 1:
+			printf("\tlxi l,%d\n", (v & 0xFF));
 			return 1;
 		}
 		break;
 	case T_NAME:
 		printf("\tlxi h,");
-		printf("_%s+%d\n", namestr(n->snum), n->value);
+		printf("_%s+%d\n", namestr(n->snum), v);
 		return 1;
 	case T_LOCAL:
 		/* We already adjusted sp so allow for this */
-		if (cpu == 8085 && n->value + sp + size <= 255) {
-			printf("\tldsi %d\n", n->value + sp + size);
+		if (cpu == 8085 && v + sp + size <= 255) {
+			printf("\tldsi %d\n", v + sp + size);
 		} else {
-			printf("\tlxi h,%d\n", n->value + sp + size);
+			printf("\tlxi h,%d\n", v + sp + size);
 			printf("\tdad sp\n");
 		}
 		return 1;
 	case T_ARGUMENT:
 		/* We already adjusted sp so allow for this */
-		if (cpu == 8085 && n->value + 2 + frame_len + sp + size <= 255) {
-			printf("ldsi %d\n", n->value + sp + size);
+		if (cpu == 8085 && v + 2 + frame_len + sp + size <= 255) {
+			printf("ldsi %d\n", v + sp + size);
 		} else {
-			printf("\tlxi h,%d\n", n->value + size + 2 + frame_len + sp);
+			printf("\tlxi h,%d\n", v + size + 2 + frame_len + sp);
 			printf("\tdad sp\n");
 		}
 		return 1;
+	case T_CAST:
+		return gen_cast(n);
 	}
 	return 0;
 }
