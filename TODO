@@ -8,6 +8,8 @@
   take 2 bytes even if char, and alloc space correctly both in the func
   declaration/argument side and in the arg stacking (arg passing side done)
 - rewrite x = x + .. and x = x -... etc as += -=
+- char a[8] = { "foo" } needs to be handled - right now we'll try and stuff
+  the pointer into it which is wrong
 
 Broken 
 -	constify needs a hard stare or two
@@ -15,8 +17,11 @@ Broken
 -	see if we can just treat typedef base behaviour as a storage
 	class so that we can embed the code into the iterator and remove
 	the callout stuff
+-	default: for the switch tables
 
 Longer term
+- helper formats C style versus postfix, who cleans up need to be controlled
+  by target by type
 - float
 - allow char v uchar default to be set by target
 - literal based handling for some types (set by target) - eg double/longlong
@@ -29,3 +34,8 @@ Longer term
   also eliminate the push case for some of those
 - how to deal with Z80 sanely
 - simple register tracking helper library
+- rewrite && and || and maybe ?: so that we don't have
+  (AND (BOOL (x)) (BOOL(y))) but some kind of
+  BOOL(AND(CC(x) CC(y))) and work on condition code plus a tidy if needed so
+  that we can have ccode setting trees that drop the top bool if the CC is
+  ok.
