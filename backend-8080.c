@@ -189,17 +189,28 @@ void gen_helpcall(void)
 	printf("\tcall ");
 }
 
-/* This is still being worked on */
-void gen_switch_begin(unsigned n, unsigned type)
+void gen_switch(unsigned n, unsigned type)
 {
+	printf("\tlxi d, Sw%d\n", n);
+	printf("\tcall __switch");
+	helper_type(type);
+	printf("\n");
 }
 
-void gen_switch(unsigned n)
+void gen_switchdata(unsigned n, unsigned size)
 {
+	printf("\t.data\nSw%d:\n", n);
+	printf("\t.word %d\n", size);
 }
 
-void gen_case(unsigned type)
+void gen_case(unsigned tag, unsigned entry)
 {
+	printf("Sw%d_%d:\n", tag, entry);
+}
+
+void gen_case_label(unsigned tag, unsigned entry)
+{
+	printf("\t.word Sw%d_%d\n", tag, entry);
 }
 
 /* TODO: Need to pass alignment */
