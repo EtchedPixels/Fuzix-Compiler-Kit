@@ -19,6 +19,7 @@
 #include "storage.h"
 #include "stackframe.h"
 #include "struct.h"
+#include "switch.h"
 #include "target.h"
 #include "token.h"
 #include "tree.h"
