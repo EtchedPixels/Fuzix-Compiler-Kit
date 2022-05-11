@@ -68,7 +68,7 @@ void fatal(const char *p)
 
 static unsigned pushback;
 static unsigned pbstack[2];
-static unsigned isnl;
+static unsigned isnl = 1;
 static unsigned lastbslash;
 
 static void directive(void);
@@ -79,15 +79,20 @@ unsigned get(void)
 	if (pushback) {
 		c = pbstack[--pushback];
 		pushback = 0;
-		if (c == '\n')
+		if (c == '\n') {
+			isnl = 1;
 			line++;
+		}
 		return c;
 	}
-	c = getchar();
-	if (c == '#' && isnl) {
-		directive();
+	do {
 		c = getchar();
-	}
+		if (c == '#' && isnl) {
+			fprintf(stderr, "directive\n");
+			directive();
+			c = getchar();
+		}
+	} while(c == '#');
 	isnl = 0;
 	if (c == '\n') {
 		line++;
@@ -445,8 +450,11 @@ static void directive(void)
 	line = decimal(c);
 	/* don't yet look for file name */
 	while ((c = get()) != 0) {
-		if (c == '\n')
+		fputc(c, stderr);
+		if (c == '\n') {
+			isnl = 1;
 			return;
+		}
 	}
 	fatal("bad cpp");
 }
@@ -513,11 +521,6 @@ static unsigned tokenize_numeric(int sign, unsigned c)
 static unsigned tokenize_number(unsigned c)
 {
 	return tokenize_numeric(1, c);
-}
-
-static unsigned tokenize_neg(unsigned c)
-{
-	return tokenize_numeric(-1, c);
 }
 
 static unsigned hexpair(void)
@@ -671,8 +674,8 @@ static unsigned tokenize(void)
 		return tokenize_string();
 	/* Look for things like ++ and the special case of -n for constants */
 	c2 = get();
-	if (c == '-' && isdigit(c2))
-		return tokenize_neg(c2);
+/*	if (c == '-' && isdigit(c2))
+		return tokenize_neg(c2); */
 	if (c2 == c) {
 		p = strchr(doublesym, c);
 		if (p) {
