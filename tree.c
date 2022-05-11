@@ -8,8 +8,6 @@
 
 #include "compiler.h"
 
-#define NUM_NODES 100
-
 static struct node node_table[NUM_NODES];
 static struct node *nodes;
 

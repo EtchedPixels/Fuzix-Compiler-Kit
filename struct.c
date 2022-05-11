@@ -1,7 +1,5 @@
 #include "compiler.h"
 
-#define NUM_STRUCT_FIELD	30
-
 /*
  *	Struct declarations
  */

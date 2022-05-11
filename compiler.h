@@ -1,6 +1,22 @@
 
 /* Pass 2 values */
-#define MAXSYM		512
+
+/* This controls the number of symbols (including complex types, arrays and
+   unique function prototypes. Cost is 10 bytes per node on a small box. We
+   can probably make symbols the self expanding one eventually */
+#define MAXSYM			512
+/* Expression nodes. Currently 16 bytes on a small box will be about 24 once
+   we have everythign in */
+#define NUM_NODES		100
+/* Number of bytees of index data used for tagging structs, prototypes etc */
+#define IDX_SIZE		2048
+/* Maximum number of goto labels per function (not switches), 4 bytes each */
+#define MAXLABEL		16
+/* Maximum number of fields per structure, 4 bytes per entry on stack, per
+   recursive struct definition */
+#define NUM_STRUCT_FIELD	30
+/* Number of switch entries within the current scope. 4 bytes per entry */
+#define NUM_SWITCH		100
 
 #include <stdio.h>
 

@@ -11,8 +11,6 @@
 
 #include "compiler.h"
 
-#define IDX_SIZE	2048
-
 static unsigned idxmem[IDX_SIZE];
 static unsigned *idxptr = idxmem;
 /*

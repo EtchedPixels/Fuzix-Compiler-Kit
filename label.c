@@ -6,8 +6,6 @@
 #include <stdint.h>
 #include "compiler.h"
 
-#define MAXLABEL	16
-
 #define L_DECLARED	0x8000
 
 struct label {

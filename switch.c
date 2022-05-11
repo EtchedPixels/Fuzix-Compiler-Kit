@@ -1,7 +1,5 @@
 #include "compiler.h"
 
-#define NUM_SWITCH	100
-
 /* Will need typing for the largest integral type TODO */
 unsigned long switch_table[NUM_SWITCH];
 unsigned long *switch_next = switch_table;
