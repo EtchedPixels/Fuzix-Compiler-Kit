@@ -49,4 +49,4 @@ cc2.6809:	$(OBJS4)
 
 clean:
 	rm -f cc0 cc1 cc2 cc2.8080 cc2.6809
-	rm -f *~ *.rel *.asm *.rel *.lnk
+	rm -f *~ *.rel *.asm *.rel *.lnk *.map
