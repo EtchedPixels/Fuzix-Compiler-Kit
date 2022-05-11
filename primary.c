@@ -28,7 +28,7 @@ struct node *get_sizeof(void)
 	/* We wille eventually need to count typedefs as type_word */
 	if (is_type_word()) {
 		type = type_and_name(&name, 0, UNKNOWN);
-		if (type != UNKNOWN || name)
+		if (type == UNKNOWN || name)
 			return badsizeof();
 		require(T_RPAREN);
 		return make_constant(type_sizeof(type), UINT);
