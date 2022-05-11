@@ -87,6 +87,10 @@ unsigned type_ptrscale(unsigned t) {
 
 unsigned type_scale(unsigned t) {
 	t = type_canonical(t);
+	if (!IS_SIMPLE(t)) {
+		badtype();
+		return 1;
+	}
 	if (!PTR(t))
 		return 1;
 	return type_ptrscale(t);
