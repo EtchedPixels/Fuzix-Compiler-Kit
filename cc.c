@@ -43,6 +43,8 @@
  *	Split I/D
  */
 
+#define DEBUG
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -61,7 +63,7 @@
 #define CMD_AS		BINPATH"as85"
 #define CMD_CC0		LIBPATH"cc0"
 #define CMD_CC1		LIBPATH"cc1"
-#define CMD_CC2		LIBPATH"cc2.8085"
+#define CMD_CC2		LIBPATH"cc2.8080"
 #define CMD_CPP		LIBPATH"cpp"
 #define CMD_LD		BINPATH"ld85"
 #define CRT0		LIBPATH"crt0.o"
@@ -147,21 +149,6 @@ static char *xstrdup(char *p, int extra)
 	return n;
 }
 
-static char *extend(char *p, char *e)
-{
-	char *n = xstrdup(p, strlen(e));
-	strcat(n, e);
-	return n;
-}
-
-static off_t filesize(char *path)
-{
-	struct stat st;
-	if (stat(path, &st) < 0)
-		return -1;
-	return st.st_size;
-}
-
 static void append_obj(struct objhead *h, char *p, uint8_t type)
 {
 	struct obj *o = malloc(sizeof(struct obj));
@@ -204,13 +191,6 @@ static void add_argument(char *p)
 		fatal();
 	}
 	*argptr++ = p;
-}
-
-static void add_int_argument(int n)
-{
-	char buf[16];
-	snprintf(buf, 16, "%d", n);
-	return add_argument(xstrdup(buf, 0));
 }
 
 static void add_argument_list(char *header, struct objhead *h)
@@ -357,9 +337,12 @@ void convert_c_to_s(char *path)
 	run_command();
 	build_arglist(CMD_CC1);
 	redirect_in(tmp);
-	redirect_out(pathmod(path, ".@", ".%", 0));
+	tmp = pathmod(path, ".@", ".%", 0);
+	redirect_out(tmp);
 	run_command();
 	build_arglist(CMD_CC2);
+	/* The sym stuff is a bit hackish right now */
+	add_argument(".symtmp");
 	redirect_in(tmp);
 	redirect_out(pathmod(path, ".%", ".s", 2));
 	run_command();
@@ -369,21 +352,25 @@ void convert_c_to_s(char *path)
 void convert_S_to_s(char *path)
 {
 	build_arglist(CMD_CPP);
-	redirect_in(path);
+	add_argument("-E");
+	add_argument(path);
 	redirect_out(pathmod(path, ".S", ".s", 1));
 	run_command();
 }
 
 void preprocess_c(char *path)
 {
+	char *tmp;
 	build_arglist(CMD_CPP);
 
 	add_argument_list("-I", &inclist);
 	add_argument_list("-D", &deflist);
+	add_argument("-E");
 	add_argument(path);
 	/* Weird one .. -E goes to stdout */
+	tmp = xstrdup(path, 0);
 	if (last_phase != 1)
-		redirect_out(pathmod(path, ".c", ".%", 0));
+		redirect_out(pathmod(tmp, ".c", ".%", 0));
 	run_command();
 }
 
@@ -594,45 +581,7 @@ void uniopt(char *p)
 		usage();
 }
 
-static char *passopts[] = {
-	"*bss-name",
-	" check-stack",
-	"*code-name",
-	"*data-name",
-	" debug",
-	" inline-stdfuncs",
-	"*register-space",
-	" register-vars",
-	"*rodata-name",
-	" signed-char",
-	"*standard",
-	" verbose",
-	" writable-strings",
-	NULL
-};
-	
-char **longopt(char **ap)
-{
-	char *p = *ap + 2;
-	char **x = passopts;
-	while(*x) {
-		char *t = *x++;
-		if (strcmp(t + 1, p) == 0) {
-			append_obj(&ccargs, p - 2, 0);
-			if (*t == '*') {
-				p = *++ap;
-				if (p == NULL)
-					usage();
-				append_obj(&ccargs, p, 0);
-			}
-			return ap;
-		}
-	}
-	usage();
-}
-	
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
 	char **p = argv;
 	signal(SIGCHLD, SIG_DFL);
 
@@ -643,9 +592,6 @@ int main(int argc, char *argv[])
 			continue;
 		}
 		switch ((*p)[1]) {
-		case '-':
-			p = longopt(p);
-			break;
 			/* Don't link */
 		case 'c':
 			uniopt(*p);
