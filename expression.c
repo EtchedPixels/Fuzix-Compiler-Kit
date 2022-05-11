@@ -23,7 +23,7 @@ struct node *typeconv(struct node *n, unsigned type, unsigned warn)
 		/* You can cast pointers to things but not actual block
 		   classes */
 		if (!IS_SIMPLE(n->type) || !IS_ARITH(n->type) ||
-			!IS_SIMPLE(type) || !IS_ARITH(n->type)) {
+			!IS_SIMPLE(type) || !IS_ARITH(type)) {
 			error("invalid type conversion");
 			return n;
 		}
@@ -31,6 +31,7 @@ struct node *typeconv(struct node *n, unsigned type, unsigned warn)
 		if (type_pointerconv(n, type))
 			return make_cast(n, type);
 	}
+	/* TODO: review float promotions here */
 	if (n->type == type || (IS_INTARITH(n->type) && IS_INTARITH(type)))
 		return make_cast(n, type);
 	typemismatch();
@@ -266,6 +267,7 @@ static struct node *hier10(void)
 
 /*
  *	Multiplication, division and remainder
+ *	The '%' operator does not apply to floating point.
  */
 static struct node *hier9(void)
 {
@@ -313,6 +315,7 @@ static struct node *hier8(void)
 		scale =
 		    type_ptrscale_binop(op, l, r, &scalediv);
 	}
+	/* The type checking was done in type_ptrscale_binop */
 	if (scale == 1)
 		return tree(op, l, r);
 	if (scalediv)
@@ -380,7 +383,7 @@ static struct node *hier4(void)
 	l = hier5();
 	if (!match(T_AND))
 		return (l);
-	return tree(T_AND, make_rval(l), make_rval(hier4()));
+	return intarith_tree(T_AND, make_rval(l), make_rval(hier4()));
 }
 
 /*
@@ -436,16 +439,27 @@ static struct node *hier1b(void)
 }
 
 /*
- *	The ?: operator. This needs thought.
+ *	The ?: operator. We turn this into trees, the backend turns it into
+ *	bramches/
+ *
+ *	Type rules are bool for ? and both sides matching for :
  */
 static struct node *hier1a(void)
 {
 	struct node *l;
 	struct node *a1, *a2;
+	unsigned lt;
+
 	l = hier1b();
 	if (!match(T_QUESTION))
 		return (l);
 	l = make_rval(l);
+	lt = l->type;
+
+	/* Must be convertible to a boolean != 0 test */
+	/* TODO: is float ? valid */
+	if (!PTR(lt) && !IS_ARITH(lt))
+		badtype();
 	/* Now do the left of the colon */
 	a1 = make_rval(hier1a());
 	if (!match(T_COLON)) {
@@ -453,7 +467,10 @@ static struct node *hier1a(void)
 		return l;
 	}
 	a2 = make_rval(hier1b());
-	return tree(T_QUESTION, tree(T_BOOL, NULL, l), tree(T_COLON, a1, a2));
+	/* Check the two sides of colon are compatible */
+	if (!(type_pointermatch(a1, a2) || (IS_ARITH(a1->type) && IS_ARITH(a2->type))))
+		badtype();
+	return tree(T_QUESTION, tree(T_BOOL, NULL, l), tree(T_COLON, a1, typeconv(a2, a1->type, 1)));
 }
 
 
