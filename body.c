@@ -10,6 +10,7 @@ static unsigned break_tag;
 static unsigned cont_tag;
 static unsigned switch_tag;
 static unsigned switch_count;
+static unsigned switch_type;
 
 /* C keyword statements */
 static void if_statement(void)
@@ -123,6 +124,8 @@ static void switch_statement(void)
 	unsigned oldbrk = break_tag;
 	unsigned oldswt = switch_tag;
 	unsigned oldswc = switch_count;
+	unsigned oldswtype = switch_type;
+	unsigned long *swptr;
 
 	switch_tag = next_tag++;
 	break_tag = next_tag++;
@@ -130,10 +133,22 @@ static void switch_statement(void)
 
 	next_token();
 	header(H_SWITCH, switch_tag, break_tag);
-	bracketed_expression(0);
+	switch_type = bracketed_expression(0);
+
+	/* Only integral types */
+	if (!IS_INTARITH(switch_type)) {
+		error("bad type");
+		switch_type = CINT;
+	}
+
+	swptr = switch_alloc();
+
 	statement_block(0);
 	footer(H_SWITCH, switch_tag, break_tag);
 
+	switch_done(switch_tag, swptr, switch_type);
+
+	switch_type = oldswtype;
 	break_tag = oldbrk;
 	switch_tag = oldswt;
 	switch_count = oldswc;
@@ -141,14 +156,20 @@ static void switch_statement(void)
 
 static void case_statement(void)
 {
+	struct node *n;
 	if (switch_tag == 0)
 		error("case outside of switch");
-	header(H_CASE, switch_tag, switch_count++);
 	next_token();
-	/* FIXME: we will need to switch to allowing float when we do the
-	   float support */
-	const_int_expression();
+	n = expression_tree(0);
+	if (!is_constant(n))
+		error("not constant");
+	else {
+		switch_add_node(n->value);
+	}
+	free_tree(n);
+	header(H_CASE, switch_tag, switch_count);
 	require(T_COLON);
+	switch_count++;
 	statement_block(0);
 }
 
