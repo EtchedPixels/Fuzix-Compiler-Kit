@@ -8,6 +8,8 @@
 
 #include "compiler.h"
 
+FILE *debug;
+
 /*
  *	A C program consists of a series of declarations that by default
  *	are external definitions.
@@ -21,8 +23,16 @@ int main(int argc, char *argv[])
 {
 	next_token();
 	init_nodes();
+	if (argv[1]) {
+		debug = fopen(argv[1], "w");
+		if (debug == NULL) {
+			perror(argv[1]);
+			return 255;
+		}
+	}
 	while (token != T_EOF)
 		toplevel();
 	/* No write out any uninitialized variables */
 	write_bss();
+	return 0;
 }
