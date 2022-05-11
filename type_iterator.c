@@ -281,8 +281,10 @@ unsigned type_and_name(unsigned *name, unsigned nn, unsigned deftype)
 	if (type == UNKNOWN)
 		return type;
 	type = type_name_parse(type, name);
-	if (nn && *name == 0)
+	if (nn && *name == 0) {
 		error("name required");
+		junk();
+	}
 	return type;
 }
 
