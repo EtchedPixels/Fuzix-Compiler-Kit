@@ -134,6 +134,7 @@
 #define T_BOOL		0x120B
 #define T_PAD		0x120C
 #define T_CLEANUP	0x120D
+#define T_CASELABEL	0x120E
 
 #define T_USER		0x2000		/* Tokens for code generators */
 
