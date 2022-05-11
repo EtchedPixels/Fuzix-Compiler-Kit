@@ -37,6 +37,7 @@ struct header {
 #define H_EXPORT	0x0015	/* make name public */
 #define H_DATA		0x0016	/* data segment */
 #define H_BSS		0x0017	/* uninitialized data */
+#define H_SWITCHTAB	0x0018	/* switch jump table */
 
 extern void header(unsigned htype, unsigned name, unsigned data);
 extern void footer(unsigned htype, unsigned name, unsigned data);
