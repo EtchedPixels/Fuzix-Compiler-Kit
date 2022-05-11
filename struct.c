@@ -1,5 +1,7 @@
 #include "compiler.h"
 
+#define NUM_STRUCT_FIELD	30
+
 /*
  *	Struct declarations
  */
@@ -37,7 +39,7 @@ void struct_declaration(struct symbol *sym)
 {
     unsigned name;
     unsigned t;
-    unsigned tags[62];	/* max 20 fields per struct for the moment */
+    unsigned tags[2 * NUM_STRUCT_FIELD + 3];	/* max 30 fields per struct for the moment */
     unsigned nfield = 0;
     unsigned err = 0;
 
@@ -54,7 +56,7 @@ void struct_declaration(struct symbol *sym)
     require(T_LCURLY);
     while(token != T_RCURLY) {
         t = type_and_name(&name, 1, CINT);
-        if (nfield == 20) {
+        if (nfield == NUM_STRUCT_FIELD) {
             if (err == 0)
                 error("too many struct/union fields");
             err = 1;
