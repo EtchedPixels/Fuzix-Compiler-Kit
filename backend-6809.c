@@ -159,7 +159,7 @@ void gen_epilogue(unsigned size)
 		error("sp");
 	}
 	if (size)
-		printf("\tleas %d,a\n", size);
+		printf("\tleas %d,s\n", size);
 	printf("\trts\n");
 }
 
@@ -829,14 +829,19 @@ unsigned gen_node(struct node *n)
 			return 0;
 		return 1;
 	case T_DEREF:
-		printf("\ttfr d,x\n");
-		if (s == 1)
-			printf("\tldb (x)\n");
-		else if (s == 2)
-			printf("\tldd (x)\n");
-		else
-			return 0;
-		return 1;
+		if (s <= 4) {
+			printf("\ttfr d,x\n");
+			if (s == 4) {
+				printf("\tldu (x)\n");
+				printf("\tldd 2(x)\n");
+			}
+			if (s == 2)
+				printf("\tldd (x)\n");
+			else
+				printf("\tldb (x)\n");
+			return 1;
+		}
+		return 0;
 	case T_LABEL:
 		printf("\tldd T%d\n", n->value);
 		return 1;
