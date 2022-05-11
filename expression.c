@@ -275,8 +275,7 @@ static struct node *hier10(void)
 		r->type = type_addrof(r->type);
 		return r;
 	}
-	/* gcc */
-	return NULL;
+	fatal("h10");
 }
 
 /*
@@ -517,7 +516,7 @@ struct node *hier1(void)
 		    match(T_ANDEQ) || match(T_HATEQ) || match(T_OREQ)) {
 			if ((l->flags & LVAL) == 0) {
 				needlval();
-				return (0);
+				return l;
 			}
 			r = make_rval(hier1());
 			switch (fc) {
