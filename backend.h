@@ -7,6 +7,7 @@ extern void free_node(struct node *n);
 extern void init_nodes(void);
 
 extern void helper(struct node *n, const char *h);
+extern void helper_type(unsigned t);
 extern void codegen_lr(struct node *n);
 
 extern struct node *gen_rewrite_node(struct node *n);
@@ -21,9 +22,10 @@ extern void gen_jump(const char *t, unsigned n);
 extern void gen_jfalse(const char *t, unsigned n);
 extern void gen_jtrue(const char *t, unsigned n);
 
-extern void gen_switch_begin(unsigned n, unsigned type);
-extern void gen_switch(unsigned n);
-extern void gen_case(unsigned type);
+extern void gen_switch(unsigned n, unsigned type);
+extern void gen_switchdata(unsigned n, unsigned size);
+extern void gen_case(unsigned tag, unsigned entry);
+extern void gen_case_label(unsigned tag, unsigned entry);
 
 extern void gen_data(const char *name);
 extern void gen_bss(const char *name);

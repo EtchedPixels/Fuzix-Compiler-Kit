@@ -261,14 +261,19 @@ static void process_header(void)
 	case H_SWITCH:
 		/* Will need to stack switch case tables somehow */
 		/* FIXME */
-		gen_switch_begin(h.h_name, compile_expression());	/* need the type of it back */
+		gen_switch(h.h_name, compile_expression());	/* need the type of it back */
 		break;
 	case H_CASE:
-		gen_case(compile_expression());	/* Will be a const expr */
+		gen_case_label(h.h_name, h.h_data);
 		break;
 	case H_SWITCH | H_FOOTER:
 		gen_label("_b", h.h_name);
-		gen_switch(h.h_name);
+		break;
+	case H_SWITCHTAB:
+		gen_switchdata(h.h_name, h.h_data);
+		break;
+	case H_SWITCHTAB | H_FOOTER:
+		gen_code();
 		break;
 	case H_DATA:
 		gen_data(namestr(h.h_name));
@@ -310,6 +315,9 @@ void process_data(void)
 	case T_NAME:
 		gen_name(n);
 		break;
+	case T_CASELABEL:
+		gen_case_label(n->value, n->val2);
+		break;
 	default:
 		gen_value(n->type, n->value);
 		break;
@@ -322,7 +330,7 @@ void process_data(void)
  *	direct method
  */
 
-static void helper_type(unsigned t)
+void helper_type(unsigned t)
 {
 	if (PTR(t))
 		t = CINT;
@@ -355,6 +363,8 @@ static void helper_type(unsigned t)
 
 /*
  *	Generate a helper call according to the types
+ *
+ *	Would be nice to have an option to build C like helper calls
  */
 void helper(struct node *n, const char *h)
 {
@@ -363,22 +373,17 @@ void helper(struct node *n, const char *h)
 	if (n->op == T_FUNCCALL)
 		n->type = PTRTO;
 	gen_helpcall();
+	fputs(h, stdout);
 	if (n->op == T_CAST) {
 		helper_type(n->right->type);
 		putchar('_');
 	}
-	fputs(h, stdout);
 	helper_type(n->type);
 	putchar('\n');
 }
 
-static unsigned ccop;	/* Was the last op a cc op so we can avoid bool */
-
 void make_node(struct node *n)
 {
-	unsigned occ = ccop;
-	ccop = 0;
-
 	/* Try the target code generator first, if not use helpers */
 	if (gen_node(n))
 		return;
@@ -401,7 +406,7 @@ void make_node(struct node *n)
 		break;
 	case T_EQEQ:
 		helper(n, "cceq");
-		ccop = 1;
+		n->flags |= ISBOOL;
 		break;
 	case T_LTLT:
 		helper(n, "shl");
@@ -460,11 +465,8 @@ void make_node(struct node *n)
 	case T_MINUS:
 		helper(n, "minus");
 		break;
-		/* TODO: This one will need special work */
-	case T_QUESTION:
-		helper(n, "question");
-		break;
 	case T_COLON:
+	case T_QUESTION:
 		/* We did the work in the code generator as it's not a simple
 		   operator behaviour */
 		break;
@@ -473,11 +475,19 @@ void make_node(struct node *n)
 		break;
 	case T_LT:
 		helper(n, "cclt");
-		ccop = 1;
+		n->flags |= ISBOOL;
 		break;
 	case T_GT:
 		helper(n, "ccgt");
-		ccop = 1;
+		n->flags |= ISBOOL;
+		break;
+	case T_LTEQ:
+		helper(n, "cclteq");
+		n->flags |= ISBOOL;
+		break;
+	case T_GTEQ:
+		helper(n, "ccgteq");
+		n->flags |= ISBOOL;
 		break;
 	case T_OR:
 		helper(n, "or");
@@ -487,7 +497,7 @@ void make_node(struct node *n)
 		break;
 	case T_BANG:
 		helper(n, "not");
-		ccop = 1;
+		n->flags |= ISBOOL;
 		break;
 	case T_EQ:
 		helper(n, "assign");
@@ -521,8 +531,10 @@ void make_node(struct node *n)
 		/* Used for function arg chaining - just ignore */
 		return;
 	case T_BOOL:
-		if (!occ)
-			helper(n, "bool");
+		/* Check if we know it's already bool */
+		if (n->right && (n->right->flags & ISBOOL))
+			break;
+		helper(n, "bool");
 		break;
 	case T_NAME:
 		helper(n, "loadn");
@@ -595,6 +607,10 @@ int main(int argc, char *argv[])
 
 static unsigned codegen_label;
 
+/*
+ *	Some 'expressions' are actually flow changing things disguised
+ *	as expressions. Deal with them above the processor specific level.
+ */
 static unsigned branching_operator(struct node *n)
 {
 	if (n->op == T_OROR)
@@ -603,6 +619,8 @@ static unsigned branching_operator(struct node *n)
 		return 2;
 	if (n->op == T_COLON)
 		return 3;
+	if (n->op == T_QUESTION)
+		return 4;
 	return 0;
 }
 
@@ -618,6 +636,11 @@ void codegen_lr(struct node *n)
 	   for partial evaluation only. Notably && || and ?: */
 	if (o) {
 		unsigned lab = codegen_label++;
+		/*  foo ? a : b is a strange beast. At this point we have
+		    foo in the work register so need do nothing, and let the
+		    ? subtree resolve it */
+		if (o == 4)
+			return;
 		if (o == 3) {
 			gen_jfalse("L", lab);
 			codegen_lr(n->left);
