@@ -489,6 +489,15 @@ struct node *constify(struct node *n)
 		case T_HAT:
 			n = replace_constant(n, lt, l->value ^ r->value);
 			break;
+		case T_LTLT:
+			n = replace_constant(n, lt, l->value << r->value);
+			break;
+		case T_GTGT:
+			if (l->type & UNSIGNED)
+				n = replace_constant(n, lt, l->value >> r->value);
+			else
+				n = replace_constant(n, lt, ((signed long)l->value) >> r->value);
+			break;
 		default:
 			return NULL;
 		}
@@ -504,6 +513,8 @@ struct node *constify(struct node *n)
 
 		switch(n->op) {
 		case T_NEGATE:
+			/* This also cleans up any negative constants that were tokenized
+			   as T_NEGATE, T_CONST <n> */
 			n = replace_constant(n, rt, -r->value);
 			break;
 		case T_TILDE:
