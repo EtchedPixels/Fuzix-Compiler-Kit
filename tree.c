@@ -48,12 +48,14 @@ struct node *tree(unsigned op, struct node *l, struct node *r)
 {
 	struct node *n = new_node();
 	struct node *c;
-	fprintf(stderr, "tree %04x [", op);
-	if (l)
-		fprintf(stderr, "%04x ", l->op);
-	if (r)
-		fprintf(stderr, "%04x ", r->op);
-	fprintf(stderr, "]\n");
+	if (debug) {
+		fprintf(debug, "tree %04x [", op);
+		if (l)
+			fprintf(debug, "%04x ", l->op);
+		if (r)
+			fprintf(debug, "%04x ", r->op);
+		fprintf(debug, "]\n");
+	}
 	n->left = l;
 	n->right = r;
 	n->op = op;
@@ -74,7 +76,6 @@ struct node *make_constant(unsigned long value, unsigned type)
 	n->op = T_CONSTANT;
 	n->value = value;
 	n->type = type;
-	fprintf(stderr, "const %lx\n", value);
 	return n;
 }
 
@@ -102,7 +103,8 @@ struct node *make_symbol(struct symbol *s)
 			n->type++;
 	}
 #endif
-	fprintf(stderr, "name %04x type %04x\n", s->name, s->type);
+	if (debug)
+		fprintf(debug, "name %04x type %04x\n", s->name, s->type);
 	return n;
 }
 
@@ -114,7 +116,6 @@ struct node *make_label(unsigned label)
 	n->flags = 0;
 	/* FIXME: we need a general setting for default char type */
 	n->type = PTRTO|UCHAR;
-	fprintf(stderr, "label %04x\n", label);
 	return n;
 }
 
