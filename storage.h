@@ -7,7 +7,7 @@ extern unsigned is_storage_word(void);
 #define EXTDEF		4
 #define EXTERN		5
 #define BSS		6	/* Only used to pass info to the code generator */
-extern void put_typed_data(struct node *n, unsigned storage);
-extern void put_padding_data(unsigned space, unsigned storage);
-
-
+extern void put_typed_data(struct node *n);
+extern void put_padding_data(unsigned space);
+extern void put_typed_constant(unsigned type, unsigned long value);
+extern void put_typed_case(unsigned tag);

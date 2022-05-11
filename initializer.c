@@ -10,11 +10,12 @@ static void initializer_single(struct symbol *sym, unsigned type, unsigned stora
     struct node *n = expression_tree(0);
     /* Need to make constant_node do its own casting TODO */
     if (storage == AUTO) {
-        write_tree(tree(T_EQ, make_symbol(sym), n));
+        n = tree(T_EQ, make_symbol(sym), n);
+        write_tree(n);
     } else {
-        put_typed_data(n, storage);
+        put_typed_data(n);
+        free_tree(n);
     }
-    free_tree(n);
 }
 
 /* C99 permits trailing comma and ellipsis */
@@ -39,7 +40,7 @@ static void initializer_group(struct symbol *sym, unsigned type, unsigned n, uns
     }
     if (n) {
         unsigned s = type_sizeof(type) * n;
-        put_padding_data(s, storage);
+        put_padding_data(s);
     }
     /* Catches any excess elements */
     require(T_RCURLY);
@@ -85,9 +86,9 @@ static void initializer_struct(struct symbol *psym, unsigned type, unsigned stor
     /* For a struct fill from the offset of the next field to the size of
        the base object */
     if (sym->storage == S_UNION)
-        put_padding_data(s - type_sizeof(type), storage);
+        put_padding_data(s - type_sizeof(type));
     else if (n)
-        put_padding_data(s - p[2], storage);	/* From offset of field to end */
+        put_padding_data(s - p[2]);	/* From offset of field to end */
 }
 
 /*

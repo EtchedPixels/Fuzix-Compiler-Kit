@@ -276,7 +276,7 @@ void write_bss(void)
 			if (!(s->flags & INITIALIZED)) {
 				unsigned n = type_sizeof(s->type);
 				header(H_BSS, s->name, target_alignof(s->type));
-				put_padding_data(n, BSS);
+				put_padding_data(n);
 				footer(H_BSS, s->name, 0);
 			}
 		}

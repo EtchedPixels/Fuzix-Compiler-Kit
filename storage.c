@@ -35,19 +35,33 @@ unsigned get_storage(unsigned dflt)
  *	Storage I/O - hacks for now
  */
 
-void put_typed_data(struct node *n, unsigned storage)
+void put_typed_data(struct node *n)
 {
 	write(1, "%[", 2);
 	if (n->op != T_PAD && !is_constname(n))
 		error("not constant");
-	n->snum = storage;
 	write(1, n, sizeof(struct node));
 }
 
-void put_padding_data(unsigned space, unsigned storage)
+void put_padding_data(unsigned space)
 {
 	struct node *n = make_constant(space, UINT);
 	n->op = T_PAD;
-	put_typed_data(n, storage);
+	put_typed_data(n);
+	free_node(n);
+}
+
+void put_typed_constant(unsigned type, unsigned long value)
+{
+	struct node *n = make_constant(value, type);
+	put_typed_data(n);
+	free_node(n);
+}
+
+void put_typed_case(unsigned tag)
+{
+	struct node *n = make_constant(tag, PTRTO|VOID);
+	n->op = T_CASELABEL;
+	put_typed_data(n);
 	free_node(n);
 }
