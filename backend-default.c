@@ -71,20 +71,31 @@ void gen_jtrue(const char *tail, unsigned n)
 	printf("\tjnz L%d%s\n", n, tail);
 }
 
-/* This is still being worked on */
-void gen_switch_begin(unsigned n, unsigned type)
+void gen_switch(unsigned n, unsigned type)
 {
+	gen_helpcall();
+	printf("switch");
+	helper_type(type);
+	printf("\n\t.word Sw%d\n", n);
 }
 
-void gen_switch(unsigned n)
+void gen_switchdata(unsigned n, unsigned size)
 {
+	printf("\t.data\n");
+	printf("Sw%d:\n", n);
+	printf("\t.word %d\n", size);
 }
 
-void gen_case(unsigned type)
+void gen_case(unsigned tag, unsigned entry)
 {
+	printf("Sw%d_%d:\n", tag, entry);
 }
 
-/* Output whatever goes in front of a helper call */
+void gen_case_label(unsigned tag, unsigned entry)
+{
+	printf("\t.word Sw%d_%d\n", tag, entry);
+}
+
 void gen_helpcall(void)
 {
 	printf("\tcall ");
