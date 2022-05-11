@@ -2,6 +2,7 @@ extern unsigned token;
 extern unsigned line_num;
 /* value will change as we handle more type stuff */
 extern unsigned token_value;
+extern char filename[16];
 
 extern void next_token(void);
 extern void push_token(unsigned);

@@ -9,7 +9,7 @@ unsigned errors;
 
 void warningline(unsigned line, const char *p)
 {
-	fprintf(stderr, "line %d:%s\n", line, p);
+	fprintf(stderr, "%s %d:%s\n", filename, line, p);
 }
 
 void warning(const char *p)
@@ -37,7 +37,7 @@ void fatal(const char *p)
 
 void errorc(const unsigned c, const char *p)
 {
-	fprintf(stderr, "line %d:'%s '%c'\n", line_num, p, c);
+	fprintf(stderr, "%s %d:'%s '%c'\n", filename, line_num, p, c);
 	errors++;
 }
 

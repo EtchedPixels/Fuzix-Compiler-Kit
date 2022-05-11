@@ -20,6 +20,9 @@
 #define MAXSYM		512
 #define	NAMELEN		16	/* Matches linker */
 
+static unsigned char filename[16] = { "<stdin>" };
+static unsigned filechange = 1;
+
 static int isoctal(unsigned char c)
 {
 	if (c >= '0' && c <= '7')
@@ -51,13 +54,13 @@ static unsigned oldline = 0;
 
 void error(const char *p)
 {
-	fprintf(stderr, "%d: E: %s\n", line, p);
+	fprintf(stderr, "%s: %d: E: %s\n", filename, line, p);
 	err++;
 }
 
 void warning(const char *p)
 {
-	fprintf(stderr, "%d: W: %s\n", line, p);
+	fprintf(stderr, "%s: %d: W: %s\n", filename, line, p);
 }
 
 void fatal(const char *p)
@@ -85,14 +88,13 @@ unsigned get(void)
 		}
 		return c;
 	}
-	do {
-		c = getchar();
+	c = getchar();
+	while(c == '#') {
 		if (c == '#' && isnl) {
-			fprintf(stderr, "directive\n");
 			directive();
-			c = getchar();
 		}
-	} while(c == '#');
+		c = getchar();
+	}
 	isnl = 0;
 	if (c == '\n') {
 		line++;
@@ -254,11 +256,16 @@ static void encode_byte(unsigned c)
 static void write_token(unsigned c)
 {
 	unsigned char *tp;
-	if (oldline != line) {
+	if (oldline != line || filechange) {
 		oldline = line;
+		filechange = 0;
 		write_token(T_LINE);
 		outbyte(line);
 		outbyte(line << 8);
+		tp = filename;
+		while(*tp)
+			outbyte(*tp++);
+		outbyte(0);
 	}
 	/* Write the token, then any data for it */
 	outbyte(c);
@@ -444,17 +451,36 @@ static unsigned long octal(void)
 /* TODO file name saving */
 static void directive(void)
 {
-	unsigned c = get_nb();
-	if (!isdigit(c))
-		fatal("bad cpp");
-	line = decimal(c);
-	/* don't yet look for file name */
-	while ((c = get()) != 0) {
-		fputc(c, stderr);
-		if (c == '\n') {
-			isnl = 1;
-			return;
+	unsigned char *p = filename;
+	unsigned c;
+	line = 0;
+
+	do {
+		c = getchar();
+	} while(isspace(c));
+
+	while (isdigit(c)) {
+		line = 10 * line + c - '0';
+		c = getchar();
+	}
+	/* Should be a quote next */
+	c = getchar();
+	if (c == '"') {
+		while ((c = getchar()) != EOF && c != '"') {
+			/* Skip magic names */
+			if (p == filename && c == '<')
+				p = filename + 15;
+			if (c == '/')
+				p = filename;
+			else if (p < filename + 15)
+				*p++ = c;
 		}
+		filechange = 1;
+	}
+	*p = 0;
+	while((c = getchar()) != EOF) {
+		if (c == '\n')
+			return;
 	}
 	fatal("bad cpp");
 }

@@ -10,6 +10,8 @@
 
 #define NO_TOKEN	0xFFFF		/* An unused value */
 
+char filename[16];
+
 unsigned line_num;
 
 unsigned token_value;
@@ -52,8 +54,17 @@ void next_token(void)
 	token |= (c << 8);
 
 	if (token == T_LINE) {
+		char *p = filename;
+
 		line_num = tokbyte();
 		line_num |= tokbyte() << 8;
+
+		for (c = 0; c < 16; c++) {
+			*p = tokbyte();
+			if (*p == 0)
+				break;
+			p++;
+		}
 		next_token();
 		return;
 	}
