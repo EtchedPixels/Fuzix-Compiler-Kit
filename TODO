@@ -10,6 +10,7 @@
 - rewrite x = x + .. and x = x -... etc as += -=
 - char a[8] = { "foo" } needs to be handled - right now we'll try and stuff
   the pointer into it which is wrong
+- Turn the frame the other way up ?
 
 Broken 
 -	constify needs a hard stare or two
@@ -22,6 +23,7 @@ Broken
 Longer term
 - helper formats C style versus postfix, who cleans up need to be controlled
   by target by type
+- backend hooks for building stack frame via initializers
 - float
 - allow char v uchar default to be set by target
 - literal based handling for some types (set by target) - eg double/longlong
