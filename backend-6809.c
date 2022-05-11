@@ -408,8 +408,8 @@ unsigned gen_constpair(const char *op, struct node *n)
 		printf("\t%sb %d(s)\n", op, v + sp + 1);
 		return 1;
 	case T_ARGUMENT:
-		printf("\t%sa %d(s)\n", op, v + frame_len + sp);
-		printf("\t%sb %d(s)\n", op, v + frame_len + sp + 1);
+		printf("\t%sa %d(s)\n", op, v + frame_len + sp + 2);
+		printf("\t%sb %d(s)\n", op, v + frame_len + sp + 3);
 		return 1;
 	}
 	return 0;
