@@ -31,9 +31,10 @@ struct node *typeconv(struct node *n, unsigned type, unsigned warn)
 		if (type_pointerconv(n, type))
 			return make_cast(n, type);
 	}
-	if (n->type != type)
-		typemismatch();
-	return make_cast(n, type);
+	if (n->type == type || (IS_INTARITH(n->type) && IS_INTARITH(type)))
+		return make_cast(n, type);
+	typemismatch();
+	return n;
 }
 
 /*
@@ -452,7 +453,7 @@ static struct node *hier1a(void)
 		return l;
 	}
 	a2 = make_rval(hier1b());
-	return tree(T_QUESTION, l, tree(T_COLON, a1, a2));
+	return tree(T_QUESTION, tree(T_BOOL, NULL, l), tree(T_COLON, a1, a2));
 }
 
 
@@ -525,17 +526,21 @@ struct node *expression_tree(unsigned comma)
 
 
 /* Generate an expression and write it the output */
-void expression(unsigned comma, unsigned mkbool, unsigned noret)
+unsigned expression(unsigned comma, unsigned mkbool, unsigned noret)
 {
 	struct node *n;
+	unsigned t;
 	if (token == T_SEMICOLON)
-		return;
+		return VOID;
 	n = expression_tree(comma);
+	/* FIXME: type check for the boolify */
 	if (mkbool)
 		n = tree(T_BOOL, NULL, n);
 	if (noret)
 		n->flags |= NORETURN;
+	t = n->type;
 	write_tree(n);
+	return t;
 }
 
 /* We need a another version of this for initializers that allows global or
@@ -554,11 +559,13 @@ unsigned const_int_expression(void)
 	return v;
 }
 
-void bracketed_expression(unsigned mkbool)
+unsigned bracketed_expression(unsigned mkbool)
 {
+	unsigned t;
 	require(T_LPAREN);
-	expression(1, mkbool, 0);
+	t = expression(1, mkbool, 0);
 	require(T_RPAREN);
+	return t;
 }
 
 void expression_or_null(unsigned mkbool, unsigned noret)
