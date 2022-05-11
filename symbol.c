@@ -77,6 +77,12 @@ struct symbol *alloc_symbol(unsigned name, unsigned local)
 	fatal("too many symbols");
 }
 
+/*
+ *	Create or update a symbol. Warn about any symbol we are hiding.
+ *	A symbol can be setup as S_ANY meaning "we've no idea yet" to hold
+ *	the slot. Once the types are found it will get updated with the
+ *	types and any checking done.
+ */
 struct symbol *update_symbol(unsigned name, unsigned storage,
 			     unsigned type)
 {
@@ -86,6 +92,10 @@ struct symbol *update_symbol(unsigned name, unsigned storage,
 		local = 1;
 	sym = find_symbol(name);
 	if (sym != NULL) {
+		if (storage == S_ANY)
+			return sym;
+		if (sym->storage == S_ANY)
+			sym->storage = storage;
 		if (sym->storage > S_EXTDEF)
 			error("invalid name");
 		else if (sym->storage <= S_LSTATIC || !local) {
@@ -101,7 +111,7 @@ struct symbol *update_symbol(unsigned name, unsigned storage,
 			}
 			/* foo and now found extern foo */
 			if (sym->storage == S_EXTDEF && storage == S_EXTERN)
-				return sym;
+					return sym;
 			error("storage class mismatch");
 			return sym;
 		}

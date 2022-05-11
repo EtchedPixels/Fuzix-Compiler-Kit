@@ -22,6 +22,7 @@ struct symbol
 #define S_ARRAY		10	/* An array description slot (unnamed) */
 #define S_TYPEDEF	11	/* A typedef */
 #define S_FUNCDEF	12	/* A function definition */
+#define S_ANY		0xFF	/* Used to reserve/lookup entries */
 
 /* For types idx always points to the symbol entry holding the complex type.
    In turn the idx for it points to the desciption blocks.
