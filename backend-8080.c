@@ -284,6 +284,7 @@ void gen_value(unsigned type, unsigned long value)
 
 void gen_start(void)
 {
+	printf("\t.setcpu %d\n", cpu);
 	printf("\t.code\n");
 }
 
@@ -743,7 +744,7 @@ unsigned gen_node(struct node *n)
 	case T_ARGUMENT:
 		/* We already adjusted sp so allow for this */
 		if (cpu == 8085 && v + 2 + frame_len + sp + size <= 255) {
-			printf("ldsi %d\n", v + sp + size);
+			printf("\tldsi %d\n", v + sp + size);
 		} else {
 			printf("\tlxi h,%d\n", v + size + 2 + frame_len + sp);
 			printf("\tdad sp\n");
