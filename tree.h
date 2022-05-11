@@ -6,8 +6,9 @@ struct node
     unsigned type;
     unsigned flags;
 #define LVAL			1
-#define NOEFF			2
+#define NOEFF			2	/* No side effect.. not yet used */
 #define NORETURN		4	/* Top level return is not used */
+#define ISBOOL			8	/* Return value is boolean truth */
     unsigned value;		/* Offset for a NAME fp offset for a LOCAL */
     unsigned snum;		/* Name of symbol (for code generator) */
     unsigned val2;		/* For code generator */
