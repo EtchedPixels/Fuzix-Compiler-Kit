@@ -196,6 +196,8 @@ static struct node *hier11(void)
 
 /*
  *	Unary operators
+ *
+ *	type_scale() typechecks the increment/decrement operators
  */
 static struct node *hier10(void)
 {
@@ -238,14 +240,26 @@ static struct node *hier10(void)
 			op = T_MINUSEQ;
 		return tree(op, r, make_constant(type_scale(r->type), UINT));
 	case T_TILDE:
-	case T_BANG:
-		return tree(op, NULL, make_rval(hier10()));
-		/* Disambiguate forms */
+		/* Floating point bit ops are not allowed */
+		r = make_rval(hier10());
+		if (!IS_INTARITH(r->type))
+			badtype();
+		return tree(op, NULL, r);
 	case T_MINUS:
-		return tree(T_NEGATE, NULL, make_rval(hier10()));
+		/* Disambiguate */
+		op = T_NEGATE;
+	case T_BANG:
+		/* Floating point allowed */
+		r = make_rval(hier10());
+		if (!IS_ARITH(r->type))
+			badtype();
+		return tree(op, NULL, r);
 	case T_STAR:
-		/* TODO *array */
-		r = tree(T_DEREF, NULL, make_rval(hier10()));
+		r = make_rval(hier10());
+		/* TODO: To review - array */
+		if (!PTR(type_canonical(r->type)))
+			badtype();
+		r = tree(T_DEREF, NULL, r);
 		r->type = r->right->type - 1;
 		return r;
 	case T_AND:
