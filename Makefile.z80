@@ -1,0 +1,52 @@
+all: cc0 cc1 cc2 cc2.8080 cc2.6809
+
+.SUFFIXES: .c .rel
+
+OBJS0 = frontend.rel
+
+OBJS1 = body.rel declaration.rel error.rel expression.rel header.rel idxdata.rel \
+	initializer.rel label.rel lex.rel main.rel primary.rel stackframe.rel storage.rel \
+	struct.rel switch.rel symbol.rel target-8080.rel tree.rel type.rel type_iterator.rel
+
+OBJS2 = backend.rel backend-default.rel
+OBJS3 = backend.rel backend-8080.rel
+OBJS4 = backend.rel backend-6809.rel
+
+CFLAGS = -O2
+
+.c.rel:
+	fcc $(CFLAGS) -c $<
+
+INC0 = token.h
+INC1 = body.h compiler.h declaration.h error.h expression.h header.h \
+       idxdata.h initializer.h label.h lex.h primary.h stackframe.h storage.h \
+       struct.h switch.h symbol.h target.h token.h tree.h type.h type_iterator.h
+INC2 = backend.h
+
+
+$(OBJS0): $(INC0)
+
+$(OBJS1): $(INC1)
+
+$(OBJS2): $(INC1) $(INC2)
+
+$(OBJS3): $(INC1) $(INC2)
+
+cc0:	$(OBJS0)
+	fcc $(OBJS0) -o cc0
+
+cc1:	$(OBJS1)
+	fcc $(OBJS1) -o cc1
+
+cc2:	$(OBJS2)
+	fcc $(OBJS2) -o cc2
+
+cc2.8080:	$(OBJS3)
+	fcc $(OBJS3) -o cc2.8080
+
+cc2.6809:	$(OBJS4)
+	fcc $(OBJS4) -o cc2.6809
+
+clean:
+	rm -f cc0 cc1 cc2 cc2.8080 cc2.6809
+	rm -f *~ *.rel *.asm *.rel *.lnk
