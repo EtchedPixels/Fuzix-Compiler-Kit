@@ -83,6 +83,15 @@ void init_nodes(void)
 		free_node(n++);
 }
 
+void free_tree(struct node *n)
+{
+	if (n->left)
+		free_tree(n->left);
+	if (n->right)
+		free_tree(n->right);
+	free_node(n);
+}
+
 /* I/O buffering stuff can wait - as can switching to a block write method */
 static struct node *load_tree(void)
 {
@@ -118,8 +127,11 @@ static struct node *rewrite_tree(struct node *n)
 static unsigned process_expression(void)
 {
 	struct node *n = rewrite_tree(load_tree());
+	unsigned t;
 	gen_tree(n);
-	return n->type;
+	t = n->type;
+	free_tree(n);
+	return t;
 }
 
 static unsigned compile_expression(void)
