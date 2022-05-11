@@ -1,4 +1,4 @@
-all: cc0 cc1 cc2 cc2.8080 cc2.6809
+all: cc cc0 cc1 cc2 cc2.8080 cc2.6809
 
 OBJS0 = frontend.o
 
@@ -27,6 +27,9 @@ $(OBJS2): $(INC1) $(INC2)
 
 $(OBJS3): $(INC1) $(INC2)
 
+cc:	cc.o
+	gcc -g3 cc.o -o cc
+
 cc0:	$(OBJS0)
 	gcc -g3 $(OBJS0) -o cc0
 
@@ -45,3 +48,13 @@ cc2.6809:	$(OBJS4)
 clean:
 	rm -f cc0 cc1 cc2 cc2.8080 cc2.6809
 	rm -f *~ *.o
+
+# Hack for now
+# assumes a suitable cpp, as, libs and includes are present
+install:
+	mkdir -p /opt/cc85/bin
+	mkdir -p /opt/cc85/lib
+	mkdir -p /opt/cc85/include
+	cp cc /opt/cc85/bin/cc85
+	cp cc[01] /opt/cc85/lib
+	cp cc2.8080 /opt/cc85/lib
