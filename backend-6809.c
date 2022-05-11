@@ -154,8 +154,10 @@ void gen_frame(unsigned size)
 
 void gen_epilogue(unsigned size)
 {
-	if (sp)
+	if (sp) {
+		fprintf(stderr, "sp out by %d\n", sp);
 		error("sp");
+	}
 	if (size)
 		printf("\tleas %d,a\n", size);
 	printf("\trts\n");
@@ -181,19 +183,29 @@ void gen_jtrue(const char *tail, unsigned n)
 	printf("\tjnz L%d%s\n", n, tail);
 }
 
-/* This is still being worked on */
-void gen_switch_begin(unsigned n, unsigned type)
+void gen_switch(unsigned n, unsigned type)
 {
+	printf("\tldx #Sw%d\n", n);
+	printf("\tcall __switch");
+	helper_type(type);
+	printf("\n");
 }
 
-void gen_switch(unsigned n)
+void gen_switchdata(unsigned n, unsigned size)
 {
+	printf("\t.data\nSw%d:\n", n);
+	printf("\t.word %d\n", size);
 }
 
-void gen_case(unsigned type)
+void gen_case(unsigned tag, unsigned entry)
 {
+	printf("Sw%d_%d:\n", tag, entry);
 }
 
+void gen_case_label(unsigned tag, unsigned entry)
+{
+	printf("\t.word Sw%d_%d\n", tag, entry);
+}
 /* Output whatever goes in front of a helper call */
 void gen_helpcall(void)
 {
@@ -278,6 +290,7 @@ void gen_end(void)
 void gen_tree(struct node *n)
 {
 	codegen_lr(n);
+	printf(";SP %d\n", sp);
 	printf(";\n");
 }
 
@@ -500,6 +513,23 @@ unsigned gen_uni_direct(struct node *n)
 	return 0;
 }
 
+unsigned gen_compare(struct node *n, const char *p)
+{
+	unsigned v = n->right->value;
+	unsigned s = get_size(n->type);
+	if (s == 1)
+		printf("\tsubb #%d\n", v & 0xFF);
+	else if (s == 2)
+		printf("\tsubd #%d\n", v & 0xFFFF);
+	else
+		return 0;
+	/* Sets the bool and flags */
+	printf("jsr %s\n", p);
+	/* Tell the core backend that it doesn't need to bool this */
+	n->flags |= ISBOOL;
+	return 1;
+}
+
 /*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
@@ -602,12 +632,24 @@ unsigned gen_direct(struct node *n)
 		return gen_constpair("or", r);
 	case T_HAT:
 		return gen_constpair("eor", r);
+	case T_EQEQ:
+		return gen_compare(n, "booleq");
+	case T_BANGEQ:
+		return gen_compare(n, "boolne");
+	case T_GT:
+		return gen_compare(n, "boolgt");
+	case T_GTEQ:
+		return gen_compare(n, "boolgteq");
+	case T_LT:
+		return gen_compare(n, "boollt");
+	case T_LTEQ:
+		return gen_compare(n, "boollteq");
 	}
 	return 0;
 }
 
 /* Generate helpers for commutative x= operations on single register objects */
-unsigned gen_xeqop(struct node *n, const char *cop, unsigned has16)
+static unsigned gen_xeqop(struct node *n, const char *cop, unsigned has16)
 {
 	struct node *l = n->left;
 	unsigned s = get_size(n->type);
@@ -629,6 +671,29 @@ unsigned gen_xeqop(struct node *n, const char *cop, unsigned has16)
 	return 1;
 }
 
+/* Helpers for comparisons we can do cleanly. We might have the good stuff
+   on either side so we have to pick the right compare operator according
+   to our direction */
+static unsigned gen_compop(struct node *n, const char *lo, const char *ro)
+{
+	if (can_constop(n->left)) {
+		codegen_lr(n->right);
+		gen_constop("subd", 0, n->left);
+		printf("\tjsr bool%s\n", ro);
+		/* Tell the core backend that it doesn't need to bool this */
+		n->flags |= ISBOOL;
+		return 1;
+	}
+	if (can_constop(n->right)) {
+		codegen_lr(n->left);
+		gen_constop("subd", 0, n->right);
+		printf("\tjsr bool%s\n", lo);
+		/* Tell the core backend that it doesn't need to bool this */
+		n->flags |= ISBOOL;
+		return 1;
+	}
+	return 0;
+}
 
 unsigned gen_shortcut(struct node *n)
 {
@@ -658,6 +723,19 @@ unsigned gen_shortcut(struct node *n)
 		/* We generated the subtree, so finish the cast off ourselves too */
 		helper(n, "cast");
 		return 1;
+	/* Some compares */
+	case T_EQEQ:
+		return gen_compop(n, "eq", "eq");
+	case T_BANGEQ:
+		return gen_compop(n, "ne", "ne");
+	case T_LT:
+		return gen_compop(n, "lt", "ge");
+	case T_LTEQ:
+		return gen_compop(n, "le", "gt");
+	case T_GT:
+		return gen_compop(n, "gt", "le");
+	case T_GTEQ:
+		return gen_compop(n, "ge", "lt");
 	/* And the mul/div/mod ones need helpers anyway */
 	default:
 		return 0;
