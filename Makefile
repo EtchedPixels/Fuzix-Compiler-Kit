@@ -1,4 +1,6 @@
-all: cc cc0 cc1 cc2 cc2.8080 cc2.6809
+all: cc cc0 cc1 cc2 cc2.8080 cc2.6809 support8085
+
+.PHONY: support8085
 
 OBJS0 = frontend.o
 
@@ -45,16 +47,23 @@ cc2.8080:	$(OBJS3)
 cc2.6809:	$(OBJS4)
 	gcc -g3 $(OBJS4) -o cc2.6809
 
+support8085:
+	(cd support8085; make)
+
 clean:
 	rm -f cc cc0 cc1 cc2 cc2.8080 cc2.6809
 	rm -f *~ *.o
+	(cd support8085; make clean)
 
 # Hack for now
 # assumes a suitable cpp, as, libs and includes are present
-install:
+install: all
 	mkdir -p /opt/cc85/bin
 	mkdir -p /opt/cc85/lib
 	mkdir -p /opt/cc85/include
 	cp cc /opt/cc85/bin/cc85
 	cp cc[01] /opt/cc85/lib
 	cp cc2.8080 /opt/cc85/lib
+	cp support8085/crt0.o /opt/cc85/lib
+	cp support8085/lib8085.a /opt/cc85/lib/lib8085.a
+	ar cq /opt/cc85/lib/libc.a
