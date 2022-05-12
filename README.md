@@ -15,12 +15,25 @@ expression trees embedded within
 
 cc2 will then turn this into code.
 
-In theory it ought to also be possible to add a cc1b that optimizes the
+In theory it ought to also be possible to add a cc1b that further optimizes the
 trees from cc1.
 
 ## Status
 
 Early development. Not usable for anything
+
+## Installation
+
+As a cross compiler the front end expects it all to live in /opt/cc85. The
+tool chain provides the compiler front end and phases. For cpp for now
+symlink the native gcc /lib/cpp.
+
+The assembler, linker and support tools are the 8085 pieces from the
+assembler/linker toolchain currently in the CC6303 repository. In the
+as68 directory of that git do a make clean; make -f Makefile.8085 and then
+copy the various xx85 tools it produces into the /opt/cc85 space.
+
+At the moment there is no C library, no support code and no crt0.
 
 ## Intended C Subset
 
@@ -77,7 +90,7 @@ C scoping so 0x8004 isn't tied to any kind of scope, merely a grouup of
 letters.
 
 After tokenizing it writes the symbol table out to disk as well. It turns
-out that the compiler phase has no use at all for symbol names and they both
+out that the compiler phase has no use at all for symbol names and they
 take a lot of space to store and slow down comparisons.
 
 ### cc1
