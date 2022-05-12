@@ -6,11 +6,11 @@
 /* These are orderd for promotion rules */
 #define UNSIGNED	0x08
 #define CCHAR		0x00			/* 00-7F - integer */
-#define CINT		0x10
+#define CSHORT		0x10
 #define	CLONG		0x20
 #define CLONGLONG	0x30
 #define UCHAR		0x08
-#define UINT		0x18
+#define USHORT		0x18
 #define ULONG		0x28
 #define ULONGLONG	0x38
 #define	FLOAT		0x80

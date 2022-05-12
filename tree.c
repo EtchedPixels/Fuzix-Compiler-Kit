@@ -371,7 +371,7 @@ static struct node *replace_constant(struct node *n, unsigned t, unsigned long v
 	case CCHAR:
 		value &= 0xFF;
 		break;
-	case CINT:
+	case CSHORT:
 		value &= 0xFFFF;
 		break;
 	case CLONG:
