@@ -10,7 +10,6 @@
 
 Broken 
 -	constify needs a hard stare or two
--	scoping fixes for the iterator
 -	see if we can just treat typedef base behaviour as a storage
 	class so that we can embed the code into the iterator and remove
 	the callout stuff
