@@ -14,7 +14,7 @@ char filename[16];
 
 unsigned line_num;
 
-unsigned token_value;
+unsigned long token_value;
 unsigned token;
 unsigned last_token = NO_TOKEN;
 
@@ -70,12 +70,11 @@ void next_token(void)
 	}
 
 	if (token == T_INTVAL || token == T_LONGVAL || token == T_UINTVAL
-	    || token == T_ULONGVAL) {
+	    || token == T_ULONGVAL || token == T_FLOATVAL) {
 		token_value = tokbyte();
 		token_value |= tokbyte() << 8;
-		/* Throw the upper word for now */
-		tokbyte();
-		tokbyte();
+		token_value |= tokbyte() << 16;
+		token_value |= tokbyte() << 24;
 	}
 }
 

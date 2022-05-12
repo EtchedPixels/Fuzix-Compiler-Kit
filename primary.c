@@ -75,6 +75,9 @@ struct node *constant_node(void)
 	case T_ULONGVAL:
 		t = ULONG;
 		break;
+	case T_FLOATVAL:
+		t = FLOAT;
+		break;
 	}
 	n = make_constant(token_value, t);
 	next_token();
