@@ -18,6 +18,8 @@ Broken
 	int x(char *foo[]); and the like
 
 Longer term
+- z80 6809 style helpers for catching simpler ops and doing them via pairs
+  of (ix) ops
 - enum - do we care ?
 - backend hooks for building stack frame via initializers
 - literal based handling for some types (set by target) - eg double/longlong
