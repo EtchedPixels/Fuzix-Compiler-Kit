@@ -16,6 +16,33 @@ static int cpu = 8085;
 static unsigned frame_len;	/* Number of bytes of stack frame */
 static unsigned sp;		/* Stack pointer offset tracking */
 
+static unsigned get_size(unsigned t)
+{
+	if (PTR(t))
+		return 2;
+	if (t == CSHORT || t == USHORT)
+		return 2;
+	if (t == CCHAR || t == UCHAR)
+		return 1;
+	if (t == CLONG || t == ULONG || t == FLOAT)
+		return 4;
+	if (t == CLONGLONG || t == ULONGLONG || t == DOUBLE)
+		return 8;
+	if (t == VOID)
+		return 0;
+	error("gs");
+	return 0;
+}
+
+static unsigned get_stack_size(unsigned t)
+{
+	unsigned n = get_size(t);
+	if (n == 1)
+		return 2;
+	return n;
+}
+
+
 #define T_NREF		(T_USER)
 #define T_CALLNAME	(T_USER+1)
 #define T_NSTORE	(T_USER+2)
@@ -115,8 +142,6 @@ void gen_prologue(const char *name)
 void gen_frame(unsigned size)
 {
 	frame_len = size;
-	sp += size;
-	printf("; frame %d\n", size);
 	if (size > 10) {
 		printf("\tlxi h,%d\n", -size);
 		printf("\tdad sp\n");
@@ -131,12 +156,12 @@ void gen_frame(unsigned size)
 		printf("\tpush h\n");
 		size -= 2;
 	}
+	sp = 0;
 }
 
 void gen_epilogue(unsigned size)
 {
-	printf("; eframe %d sp %d\n", size, sp);
-	if (sp != size)
+	if (sp != 0)
 		error("sp");
 	/* Return in DE so we can adjust the stack more easily. The caller
 	   will xchg it back after cleanup */
@@ -187,13 +212,54 @@ void gen_jtrue(const char *tail, unsigned n)
 	printf("\tjnz L%d%s\n", n, tail);
 }
 
+static void gen_cleanup(unsigned v)
+{
+	/* CLEANUP is special and needs to be handled directly */
+	sp -= v;
+	if (v > 10) {
+		printf("\tlxi h, %d\n", -v);
+		printf("\tdad sp\n");
+		printf("\tsphl\n");
+	} else {
+		while(v >= 2) {
+			printf("\tpop h\n");
+			v -= 2;
+		}
+		if (v)
+			printf("\tdcr sp\n");
+	}
+	/* The call return is in DE at this point due to stack juggles
+	   so put it into HL */
+	printf("\txchg\n");
+}
+
+/*
+ *	Helper handlers. We use a tight format for integers but C
+ *	style for float as we'll have C coded float support if any
+ */
 void gen_helpcall(struct node *n)
 {
+	if (n->type == FLOAT)
+		gen_push(n->right);
 	printf("\tcall __");
 }
 
 void gen_helpclean(struct node *n)
 {
+	unsigned s;
+
+	if (n->type != FLOAT)
+		return;
+
+	s = 0;
+	if (n->left) {
+		s += get_size(n->left->type);
+		/* gen_node already accounted for removing this thinking
+		   the helper did the work, adjust it back as we didn't */
+		sp += s;
+	}
+	s += get_size(n->right->type);
+	gen_cleanup(s);
 }
 
 void gen_switch(unsigned n, unsigned type)
@@ -311,32 +377,6 @@ void gen_tree(struct node *n)
  *	Try and generate shorter code for stuff we can directly access
  */
 
-static unsigned get_size(unsigned t)
-{
-	if (PTR(t))
-		return 2;
-	if (t == CSHORT || t == USHORT)
-		return 2;
-	if (t == CCHAR || t == UCHAR)
-		return 1;
-	if (t == CLONG || t == ULONG || t == FLOAT)
-		return 4;
-	if (t == CLONGLONG || t == ULONGLONG || t == DOUBLE)
-		return 8;
-	if (t == VOID)
-		return 0;
-	error("gs");
-	return 0;
-}
-
-static unsigned get_stack_size(unsigned t)
-{
-	unsigned n = get_size(t);
-	if (n == 1)
-		return 2;
-	return n;
-}
-
 /*
  *	Return 1 if the node can be turned into direct access. The VOID check
  *	is a special case we need to handle stack clean up of void functions.
@@ -452,23 +492,7 @@ unsigned gen_direct(struct node *n)
 
 	switch (n->op) {
 	case T_CLEANUP:
-		/* CLEANUP is special and needs to be handled directly */
-		sp -= v;
-		if (v > 10) {
-			printf("\tlxi h, %d\n", WORD(r->value));
-			printf("\tdad sp\n");
-			printf("\tsphl\n");
-		} else {
-			while(v >= 2) {
-				printf("\tpop h\n");
-				v -= 2;
-			}
-			if (v)
-				printf("\tdcr sp\n");
-		}
-		/* The call return is in DE at this point due to stack juggles
-		   so put it into HL */
-		printf("\txchg\n");
+		gen_cleanup(v);
 		return 1;
 	case T_NSTORE:
 		if (s == 1) {
@@ -602,6 +626,8 @@ unsigned gen_node(struct node *n)
 	unsigned size = get_size(n->type);
 	unsigned v;
 	char *name;
+	/* We adjust sp so track the pre-adjustment one too when we need it */
+	unsigned spval = sp;
 
 	v = n->value;
 
@@ -626,11 +652,11 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_LREF:
-		if (v == sp && size == 2) {
+		if (v + spval == 0 && size == 2) {
 			printf("\tpop h\n\tpush h\n");
 			return 1;
 		}
-		v += sp;
+		v += spval;
 		if (cpu == 8085 && v <= 255) {
 			printf("\tldsi %d\n", v);
 			if (size == 2)
@@ -661,11 +687,11 @@ unsigned gen_node(struct node *n)
 		printf(" _%s+%d\n", namestr(n->snum), v);
 		return 1;
 	case T_LSTORE:
-		if (v == sp && size == 2 ) {
+		if (v + spval == 0 && size == 2 ) {
 			printf("\tpop a\n\tpush h\n");
 			return 1;
 		}
-		v += sp;
+		v += spval;
 		if (cpu == 8085 && v + sp <= 255) {
 			printf("\tldsi %d\n", v);
 			if (size == 2)
@@ -743,21 +769,21 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LOCAL:
 		/* We already adjusted sp so allow for this */
-		if (cpu == 8085 && v + sp + size <= 255) {
-			printf("\tldsi %d\n", v + sp + size);
+		if (cpu == 8085 && v + spval + size <= 255) {
+			printf("\tldsi %d\n", v + spval + size);
 			printf("\txchg\n");
 		} else {
-			printf("\tlxi h,%d\n", v + sp + size);
+			printf("\tlxi h,%d\n", v + spval + size);
 			printf("\tdad sp\n");
 		}
 		return 1;
 	case T_ARGUMENT:
 		/* We already adjusted sp so allow for this */
-		if (cpu == 8085 && v + 2 + frame_len + sp + size <= 255) {
-			printf("\tldsi %d\n", v + sp + size);
+		if (cpu == 8085 && v + frame_len + spval + size <= 255) {
+			printf("\tldsi %d\n", v + spval + size);
 			printf("\txchg\n");
 		} else {
-			printf("\tlxi h,%d\n", v + size + 2 + frame_len + sp);
+			printf("\tlxi h,%d\n", v + size + frame_len + spval);
 			printf("\tdad sp\n");
 		}
 		return 1;
