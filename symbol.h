@@ -22,13 +22,14 @@ struct symbol
 #define S_ARRAY		10	/* An array description slot (unnamed) */
 #define S_TYPEDEF	11	/* A typedef */
 #define S_FUNCDEF	12	/* A function definition */
-#define S_ANY		0xFF	/* Used to reserve/lookup entries */
+#define S_BSS		13	/* Only used to pass info to code generator */
 
 /* For types idx always points to the symbol entry holding the complex type.
    In turn the idx for it points to the desciption blocks.
    Offset for locals gives the base stack offset of the symbol */
 
-extern struct symbol *update_symbol(unsigned name, unsigned storage, unsigned type);
+extern struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage, unsigned type);
+extern struct symbol *update_symbol_by_name(unsigned name, unsigned storage, unsigned type);
 extern struct symbol *find_symbol(unsigned name);
 extern struct symbol *alloc_symbol(unsigned name, unsigned local);
 extern void pop_local_symbols(struct symbol *top);

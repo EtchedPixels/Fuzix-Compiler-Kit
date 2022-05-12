@@ -9,7 +9,7 @@ static void initializer_single(struct symbol *sym, unsigned type, unsigned stora
 {
     struct node *n = expression_tree(0);
     /* Need to make constant_node do its own casting TODO */
-    if (storage == AUTO) {
+    if (storage == S_AUTO) {
         n = tree(T_EQ, make_symbol(sym), n);
         write_tree(n);
     } else {

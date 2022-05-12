@@ -212,7 +212,7 @@ static void statement(void)
 	/* Classic C requires variables at the block start, C99 doesn't. Whilst
 	   the C99 approach is ugly allow it */
 	if (is_modifier() || is_storage_word() || is_type_word()) {
-		declaration(AUTO);
+		declaration(S_AUTO);
 		return;
 	}
 	/* Check for keywords */
@@ -326,9 +326,8 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	   the frame size ahead of time */
 	off_t hrw;
 
-	if (st == AUTO || st == EXTERN)
+	if (st == S_AUTO || st == S_EXTERN)
 		error("invalid storage class");
-	update_symbol(name, st, type);
 	func_tag = next_tag++;
 	header(H_FUNCTION, st, name);
 	hrw = mark_header();

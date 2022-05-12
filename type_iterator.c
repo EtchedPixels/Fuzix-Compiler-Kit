@@ -152,16 +152,19 @@ unsigned get_type(void) {
 	return type;
 }
 
-
 /*
- *	Parse an ANSI C style function header (we don't do K&R at all)
+ *	Parse an ANSI C style function (we don't do K&R at all)
  *
  *	We build a vector of type descriptors for the arguments and then
  *	build a type from that. All functions with the same argument pattern
  *	have the same type code. That saves us a ton of space and also means
  *	we can compare function pointer equivalence trivially
+ *
+ *	ptr tells us if this is a pointer declaration and therefore must
+ *	not have a body. We will need that once we move the body parsing
+ *	here.
  */
-static unsigned type_parse_function(unsigned name, unsigned type) {
+static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsigned type, unsigned ptr) {
 	/* Function returning the type accumulated so far */
 	/* We need an anonymous symbol entry to hang the function description onto */
 	struct symbol *sym;
@@ -169,6 +172,7 @@ static unsigned type_parse_function(unsigned name, unsigned type) {
 	unsigned t;
 	unsigned tplt[33];	/* max 32 typed arguments */
 	unsigned *tn = tplt + 1;
+
 
 	/* Parse the bracketed arguments if any and nail them to the
 	   symbol. */
@@ -181,7 +185,7 @@ static unsigned type_parse_function(unsigned name, unsigned type) {
 			*tn++ = ELLIPSIS;
 			break;
 		}
-		t = type_and_name(&an, 0, CINT);
+		t = type_and_name(S_ARGUMENT, &an, 0, CINT);
 		if (t == VOID) {
 			*tn++ = VOID;
 			break;
@@ -193,7 +197,7 @@ static unsigned type_parse_function(unsigned name, unsigned type) {
 			t = CINT;
 		}
 		if (an) {
-			sym = update_symbol(an, S_ARGUMENT, t);
+			sym = update_symbol_by_name(an, S_ARGUMENT, t);
 			sym->offset = assign_storage(t, S_ARGUMENT);
 			*tn++ = t;
 		} else {
@@ -210,6 +214,27 @@ static unsigned type_parse_function(unsigned name, unsigned type) {
 		*tn++ = ELLIPSIS;
 	*tplt = tn - tplt - 1;
 	type = func_symbol_type(type, tplt);
+	if (!ptr) {
+		/* Must do this first as a function may reference itself */
+		update_symbol(fsym, fsym->name, storage, type);
+		if (token == T_LCURLY) {
+			unsigned argsave, locsave;
+			struct symbol *ltop;
+
+			if (fsym->flags & INITIALIZED)
+				error("duplicate function");
+			if (storage == S_AUTO)
+				error("function not allowed");
+			if (storage == S_EXTDEF)
+				header(H_EXPORT, fsym->name, 0);
+			ltop = mark_local_symbols();
+			mark_storage(&argsave, &locsave);
+			function_body(storage, fsym->name, type);
+			pop_local_symbols(ltop);
+			pop_storage(&argsave, &locsave);
+			fsym->flags |= INITIALIZED;
+		}
+	}
 	return type;
 }
 
@@ -230,8 +255,8 @@ static unsigned type_parse_array(unsigned type) {
 static unsigned declarator(unsigned *name)
 {
 	unsigned ptr = 0;
-
 	*name = 0;
+
 	skip_modifiers();
 	while (match(T_STAR)) {
 		skip_modifiers();
@@ -251,11 +276,20 @@ static unsigned declarator(unsigned *name)
 	return ptr;
 }
 
-static unsigned type_name_parse(unsigned type, unsigned *name)
+static unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
 {
 	unsigned ptr = declarator(name);
+	struct symbol *sym, *ltop;
 	if (ptr > 7)
 		indirections();
+
+	/* Reserve a symbol slot if needed */
+	if (*name)
+		sym = update_symbol_by_name(*name, storage, C_ANY);
+
+	/* All the symbols within the declaration below are local to the
+	   declaration if not static/global */
+	ltop = mark_local_symbols();
 	/* We may be a function specification or an array or both. The other
 	   post forms (-> and .) are not valid in a declaration */
 	while (token == T_LSQUARE || token == T_LPAREN) {
@@ -266,21 +300,26 @@ static unsigned type_name_parse(unsigned type, unsigned *name)
 		} else if (token == T_LPAREN) {
 			next_token();
 			/* It's a function description  */
-			type = type_parse_function(*name, type);
+			type = type_parse_function(sym, storage, type, ptr);
 			/* Can be an array of functions .. */
 		}
+		/* FIXME: stop nonsense like func()[]() */
 	}
-	return type + ptr;
+	pop_local_symbols(ltop);
+	type += ptr;
+	if (*name)
+		update_symbol(sym, *name, storage, type);
+	return type;
 }
 
-unsigned type_and_name(unsigned *name, unsigned nn, unsigned deftype)
+unsigned type_and_name(unsigned storage, unsigned *name, unsigned nn, unsigned deftype)
 {
 	unsigned type = get_type();
 	if (type == UNKNOWN)
 		type = deftype;
 	if (type == UNKNOWN)
 		return type;
-	type = type_name_parse(type, name);
+	type = type_name_parse(storage, type, name);
 	if (nn && *name == 0) {
 		error("name required");
 		junk();
@@ -303,9 +342,10 @@ void type_iterator(unsigned storage, unsigned deftype, unsigned info,
 
 //	while (is_modifier() || is_type_word() || token >= T_SYMBOL || token == T_STAR) {
 	while (token != T_SEMICOLON) {
-		utype = type_name_parse(type, &name);
-		if (handler(storage, utype, name, info) == 0)
+		utype = type_name_parse(storage, type, &name);
+		if (handler(storage, utype, name, info) == 0) {
 			return;
+		}
 		if (!match(T_COMMA))
 			break;
 	}

@@ -28,7 +28,7 @@ struct symbol *find_symbol(unsigned name)
 	   by scope */
 	while (s >= symtab) {
 		if (s->name == name) {
-			if (s->storage <= LSTATIC)
+			if (s->storage <= S_LSTATIC)
 				return s;
 			else	/* Still need to look for a local */
 				gmatch = s;
@@ -42,8 +42,10 @@ void pop_local_symbols(struct symbol *top)
 {
 	struct symbol *s = top + 1;
 	while (s <= last_sym) {
-		if (s->storage <= S_LSTATIC)
+		if (s->storage <= S_LSTATIC) {
 			s->storage = S_FREE;
+			s->name = 0;
+		}
 		s++;
 	}
 	local_top = top;
@@ -59,7 +61,9 @@ struct symbol *mark_local_symbols(void)
    may be holes, above last_sym is free */
 struct symbol *alloc_symbol(unsigned name, unsigned local)
 {
-	struct symbol *s = local_top;
+	struct symbol *s = local_top; /* FIXME ? */
+	if (name == 0)
+		fatal("as0");
 	while (s <= &symtab[MAXSYM]) {
 		if (s->storage == S_FREE) {
 			if (local && local_top < s)
@@ -79,23 +83,19 @@ struct symbol *alloc_symbol(unsigned name, unsigned local)
 
 /*
  *	Create or update a symbol. Warn about any symbol we are hiding.
- *	A symbol can be setup as S_ANY meaning "we've no idea yet" to hold
+ *	A symbol can be setup as C_ANY meaning "we've no idea yet" to hold
  *	the slot. Once the types are found it will get updated with the
  *	types and any checking done.
  */
-struct symbol *update_symbol(unsigned name, unsigned storage,
+struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage,
 			     unsigned type)
 {
 	unsigned local = 0;
-	struct symbol *sym;
 	if (storage <= S_LSTATIC)
 		local = 1;
-	sym = find_symbol(name);
-	if (sym != NULL) {
-		if (storage == S_ANY)
+	if (sym != NULL && sym->type != C_ANY) {
+		if (type == C_ANY)
 			return sym;
-		if (sym->storage == S_ANY)
-			sym->storage = storage;
 		if (sym->storage > S_EXTDEF)
 			error("invalid name");
 		else if (sym->storage <= S_LSTATIC || !local) {
@@ -121,13 +121,21 @@ struct symbol *update_symbol(unsigned name, unsigned storage,
 			warning("local name obscures global");
 	}
 	/* Insert new symbol */
-	sym = alloc_symbol(name, local);
+	if (sym == NULL)
+		sym = alloc_symbol(name, local);
+	/* Fill in the new or reserved symbol */
 	sym->type = type;
 	sym->storage = storage;
 	sym->flags = 0;
 	sym->idx = 0;
 	sym->offset = 0;
 	return sym;
+}
+
+struct symbol *update_symbol_by_name(unsigned name, unsigned storage,
+			     unsigned type)
+{
+	return update_symbol(find_symbol(name), name, storage, type);
 }
 
 /*
@@ -147,7 +155,7 @@ static struct symbol *do_func_match(unsigned rtype, unsigned *template)
 		}
 		sym++;
 	}
-	sym = alloc_symbol(0, 0);
+	sym = alloc_symbol(0xFFFF, 0);
 	sym->storage = S_FUNCDEF;
 	sym->idx = idx_copy(template, len);
 	sym->type = rtype;
@@ -192,7 +200,7 @@ unsigned array_dimension(unsigned type, unsigned depth)
 
 unsigned make_array(unsigned type)
 {
-	struct symbol *sym = alloc_symbol(0, 0);
+	struct symbol *sym = alloc_symbol(0xFFFF, 0);
 	sym->storage = S_ARRAY;
 	sym->type = type;
 	sym->flags = 0;
@@ -282,7 +290,7 @@ void write_bss(void)
 		if (debug)
 			fprintf(debug, "sym %x %x %x %d\n", s->name, s->type, s->flags, s->storage);
 		if (!IS_FUNCTION(s->type) && s->storage >= S_LSTATIC && s->storage <= S_EXTDEF) {
-			if (s->storage == EXTDEF)
+			if (s->storage == S_EXTDEF)
 				header(H_EXPORT, s->name, 0);
 			if (!(s->flags & INITIALIZED)) {
 				unsigned n = type_sizeof(s->type);

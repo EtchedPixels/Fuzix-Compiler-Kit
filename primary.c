@@ -27,7 +27,7 @@ struct node *get_sizeof(void)
 
 	/* We wille eventually need to count typedefs as type_word */
 	if (is_type_word()) {
-		type = type_and_name(&name, 0, UNKNOWN);
+		type = type_and_name(S_AUTO, &name, 0, UNKNOWN);
 		if (type == UNKNOWN || name)
 			return badsizeof();
 		require(T_RPAREN);
@@ -114,7 +114,7 @@ struct node *primary(void)
 		if (func && sym == NULL) {
 			unsigned p = 0;
 			unsigned tf = func_symbol_type(CINT, &p);
-			sym = update_symbol(name, S_EXTERN, tf);
+			sym = update_symbol_by_name(name, S_EXTERN, tf);
 		}
 		/* You can't size fields and structs by field/struct name without 
 		   the type specifier */

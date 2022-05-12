@@ -41,6 +41,8 @@
 #define C_FUNCTION	0x8000
 #define C_ARRAY		0xC000		/* and other special later ? */
 
+#define C_ANY		0xFFFF		/* Special compiler internal */
+
 extern unsigned type_deref(unsigned t);
 extern unsigned type_ptr(unsigned t);
 extern unsigned type_canonical(unsigned t);

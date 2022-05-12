@@ -16,16 +16,16 @@ unsigned get_storage(unsigned dflt)
 	next_token();
 	switch (t) {
 	case T_AUTO:
-		return AUTO;
+		return S_AUTO;
 	case T_REGISTER:
-		return AUTO;	/* For now */
+		return S_AUTO;	/* For now */
 	case T_STATIC:
 		if (dflt == T_AUTO)
-			return LSTATIC;
+			return S_STATIC;
 		else
-			return STATIC;
+			return S_STATIC;
 	case T_EXTERN:
-		return EXTERN;
+		return S_EXTERN;
 	}
 	/* gcc */
 	return 0;

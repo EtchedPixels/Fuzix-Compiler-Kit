@@ -35,8 +35,6 @@ void dotypedef(void)
 
 unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defstorage)
 {
-	unsigned argsave, locsave;
-	struct symbol *ltop;
 	struct symbol *sym;
 
 	/* It's quite valid C to just write "int;" but usually dumb except
@@ -49,27 +47,18 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 	if (s == S_AUTO && defstorage == S_EXTDEF)
 		error("no automatic globals");
 
-	if (IS_FUNCTION(type) && !PTR(type)) {
-		if (token == T_LCURLY) {
-			if (s == S_AUTO)
-				error("can't nest functions");
-			if (s == S_EXTDEF)
-				header(H_EXPORT, name, 0);
-			ltop = mark_local_symbols();
-			mark_storage(&argsave, &locsave);
-			function_body(s, name, type);
-			pop_local_symbols(ltop);
-			pop_storage(&argsave, &locsave);
-			return 0;
-		} else if (s == S_EXTDEF)
-			s = S_EXTERN;
-	}
-	/* Do we already have this symbol */
-	sym = update_symbol(name, s, type);
+	if (IS_FUNCTION(type) && !PTR(type) && s == S_EXTDEF)
+		s = S_EXTERN;
 
-	if (sym->flags & INITIALIZED)
-		error("duplicate initializer");
+	/* Do we already have this symbol */
+	sym = update_symbol_by_name(name, s, type);
+
+	if (IS_FUNCTION(type) && !PTR(type))
+		return 0;
+
 	if ((PTR(type) || !IS_FUNCTION(type)) && match(T_EQ)) {
+		if (sym->flags & INITIALIZED)
+			error("duplicate initializer");
 		sym->flags |= INITIALIZED;
 		if (s >= S_LSTATIC)
 		        header(H_DATA, sym->name, target_alignof(type));
@@ -77,7 +66,7 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 		if (s >= S_LSTATIC)
 		        footer(H_DATA, sym->name, 0);
 	}
-	if (s == AUTO)
+	if (s == S_AUTO)
 		sym->offset = assign_storage(type, S_AUTO);
 	return 1;
 }
