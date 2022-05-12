@@ -112,11 +112,12 @@
 #define T_UINTVAL	0x1101
 #define T_LONGVAL	0x1102
 #define T_ULONGVAL	0x1103
+#define T_FLOATVAL	0x1104
 /* This is followed by a literal bytestream terminated by a 0. 0 and 255 in the
    stream are encoded as 255,0 and 255,255. */
-#define T_STRING	0x1104
+#define T_STRING	0x1105
 /* End marker for strings (mostly a dummy for convenience) */
-#define T_STRING_END	0x1105
+#define T_STRING_END	0x1106
 
 /* Encodings that are used internally for nodes but have no actual equivalent
    token */

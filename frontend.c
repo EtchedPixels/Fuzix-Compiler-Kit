@@ -141,6 +141,45 @@ void required(unsigned cr)
 	}
 }
 
+/* # directive from cpp # line file - # line "file" */
+/* TODO file name saving */
+static void directive(void)
+{
+	unsigned char *p = filename;
+	unsigned c;
+	line = 0;
+
+	do {
+		c = getchar();
+	} while(isspace(c));
+
+	while (isdigit(c)) {
+		line = 10 * line + c - '0';
+		c = getchar();
+	}
+	/* Should be a quote next */
+	c = getchar();
+	if (c == '"') {
+		while ((c = getchar()) != EOF && c != '"') {
+			/* Skip magic names */
+			if (p == filename && c == '<')
+				p = filename + 15;
+			if (c == '/')
+				p = filename;
+			else if (p < filename + 15)
+				*p++ = c;
+		}
+		filechange = 1;
+	}
+	*p = 0;
+	while((c = getchar()) != EOF) {
+		if (c == '\n')
+			return;
+	}
+	fatal("bad cpp");
+}
+
+
 #define NHASH	64
 
 /* We could infer the symbol number from the table position in theory */
@@ -365,6 +404,81 @@ static unsigned tokenize_symbol(unsigned c)
 	return new_symbol(symstr, h, symnum++)->id;
 }
 
+/*
+ *	Floating point helpers
+ *
+ *	It would probably make sense to rewrite these entirely in integer
+ *	type terms for compactness - and also so we can support other
+ *	formats.
+ */
+
+/*
+ *	val is an entire number that we want to make float instead
+ */
+
+unsigned long float_convert(float val)
+{
+	static union {
+		float f;
+		unsigned long ul;
+	} v;
+	v.f = val;
+	return v.ul;
+}
+
+static float float_exp(float val)
+{
+	unsigned c;
+	unsigned exp = 0;
+	unsigned eneg = 0;
+
+	c = get();
+	if (c == '-') {
+		eneg = 1;
+		c = get();
+	}
+	while(isdigit(c)) {
+		unsigned pe;
+		pe = exp;
+		exp = exp * 10 + c - '0';
+		if (exp < pe)
+			error("overflow");
+		c = get();
+	}
+	unget(c);
+	while(exp--) {
+		if (eneg == 1)
+			val /= 10;
+		else
+			val *= 10;
+	}
+	return val;
+}
+
+/*
+ *	val is the whole number before the exponent declaration as we
+ *	didn't find a dot
+ */
+unsigned long floatify_e(unsigned long val)
+{
+	return float_convert(float_exp(val));
+}
+/*
+ *	val is the piece before the decimal point and we now need to
+ *	make this a float
+ */
+unsigned long floatify(unsigned long val)
+{
+	unsigned c;
+	float frac = 0.0;
+	while (isdigit(c = get())) {
+		frac += (c - '0');
+		frac /= 10.0;
+	}
+	if (c == 'e')
+		return float_convert(float_exp(val + frac));
+	return float_convert(val + frac);
+}
 
 static unsigned long decimal(unsigned char c)
 {
@@ -447,94 +561,88 @@ static unsigned long octal(void)
 	return val;
 }
 
-/* # directive from cpp # line file - # line "file" */
-/* TODO file name saving */
-static void directive(void)
-{
-	unsigned char *p = filename;
-	unsigned c;
-	line = 0;
-
-	do {
-		c = getchar();
-	} while(isspace(c));
-
-	while (isdigit(c)) {
-		line = 10 * line + c - '0';
-		c = getchar();
-	}
-	/* Should be a quote next */
-	c = getchar();
-	if (c == '"') {
-		while ((c = getchar()) != EOF && c != '"') {
-			/* Skip magic names */
-			if (p == filename && c == '<')
-				p = filename + 15;
-			if (c == '/')
-				p = filename;
-			else if (p < filename + 15)
-				*p++ = c;
-		}
-		filechange = 1;
-	}
-	*p = 0;
-	while((c = getchar()) != EOF) {
-		if (c == '\n')
-			return;
-	}
-	fatal("bad cpp");
-}
-
 
 /*
  *	TODO
  *	float, double, longlong
  */
-static unsigned tokenize_numeric(int sign, unsigned c)
+static unsigned tokenize_numeric(unsigned c)
 {
 	unsigned long val;
-	unsigned signmod = 0;
 	unsigned force_unsigned = 0;
 	unsigned force_long = 0;
+	unsigned force_float = 0;
+	unsigned is_float = 0;
 	unsigned type;
-	/* Two's complement assumed so -(n+1) <= x <= n */
-	if (sign)
-		signmod = 1;
+	unsigned cup;
 
 	if (c == '0')
 		val = octal();
 	else
 		val = decimal(c);
 
-	while (1) {
+	c = get();
+	cup = toupper(c);
+
+	/* Integer part of a float */
+	if (c == '.') {
+		val = floatify(val);
+		is_float = 1;
 		c = get();
-		if ((c == 'U' || c == 'u') && !force_unsigned)
+	} else if (cup == 'e') {
+		val = floatify_e(val);
+		is_float = 1;
+		c = get();
+	}
+
+	while (1) {
+		cup = toupper(c);
+		if (cup == 'F' && !force_float)
+			force_float = 1;
+		if (cup == 'U' && !force_unsigned)
 			force_unsigned = 1;
-		else if ((c == 'L' || c == 'l') && !force_long)
+		else if (cup == 'L' && !force_long)
 			force_long = 1;
 		else {
 			unget(c);
 			break;
 		}
+		c = get();
 	}
-	/* FIXME: deal with 32bit + sign overflow */
-	if (sign == -1)
-		val = -val;
-	/* Anything can be shoved in a ulong */
-	type = T_ULONGVAL;
-	/* Will it fit in a uint ? */
-	if (!force_long && val < TARGET_MAX_UINT)
-		type = T_UINTVAL;
-	if (!force_unsigned) {
-		/* Maybe a signed long then ? */
-		if (val < TARGET_MAX_LONG + signmod)
-			type = T_LONGVAL;
-		/* Will it fit in a signed integer ? */
-		if (!force_long && val < TARGET_MAX_INT + signmod)
-			type = T_INTVAL;
+	/* UF is not valid but LF or FL is a double */
+	if (force_float && force_unsigned)
+		error("??");
+
+	if (force_float && !is_float) {
+		val = float_convert(val);
+		is_float = 1;
 	}
-	if (sign == -1)
-		val = -val;
+	if (is_float) {
+		/* We don't care about double yet - and we'll probably usually
+		   have double == float anyway */
+		type = T_FLOATVAL;
+	} else {
+		/* Anything can be shoved in a ulong */
+		type = T_ULONGVAL;
+
+		/* FIXME: this needs review for the -32768 case */
+#ifdef TARGET_LONG_INT
+		if (!force_long)
+			type = T_UINTVAL;
+#else
+		/* Will it fit in a uint ? */
+		if (!force_long && val < TARGET_MAX_UINT)
+			type = T_UINTVAL;
+		if (!force_unsigned) {
+			/* Maybe a signed long then ? */
+			if (val < TARGET_MAX_LONG)
+				type = T_LONGVAL;
+			/* Will it fit in a signed integer ? */
+			if (!force_long && val < TARGET_MAX_INT)
+				type = T_INTVAL;
+		}
+#endif
+	}
 	/* Order really doesn't matter here so stick to LE. We will worry about 
 	   actual byte order in the code generation */
 	encode_byte(val);
@@ -546,7 +654,7 @@ static unsigned tokenize_numeric(int sign, unsigned c)
 
 static unsigned tokenize_number(unsigned c)
 {
-	return tokenize_numeric(1, c);
+	return tokenize_numeric(c);
 }
 
 static unsigned hexpair(void)
