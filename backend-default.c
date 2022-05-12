@@ -4,6 +4,9 @@
 #include "compiler.h"
 #include "backend.h"
 
+#define BYTE(x)		(((unsigned)(x)) & 0xFF)
+#define WORD(x)		(((unsigned)(x)) & 0xFFFF)
+
 /*
  *	State for the current function
  */
@@ -138,7 +141,7 @@ void gen_literal(unsigned n)
 
 void gen_name(struct node *n)
 {
-	printf("\t.word _%s+%d\n", namestr(n->snum), n->value);
+	printf("\t.word _%s+%d\n", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)

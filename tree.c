@@ -66,8 +66,6 @@ struct node *tree(unsigned op, struct node *l, struct node *r)
 	return n;
 }
 
-/*  TODO: get rid of T_xxxval forms and rely on ->type field plus
-	T_CONSTANT */
 struct node *make_constant(unsigned long value, unsigned type)
 {
 	struct node *n = new_node();
@@ -425,6 +423,7 @@ struct node *constify(struct node *n)
 	}
 	if (l) {
 		unsigned lt = l->type;
+		unsigned long value = l->value;
 
 		/* Lval names are constant but a maths operation on two name lval is not */
 		if (l->op == T_NAME || r->op == T_NAME) {
@@ -452,58 +451,63 @@ struct node *constify(struct node *n)
 
 		switch(n->op) {
 		case T_PLUS:
-			n = replace_constant(n, lt, l->value + r->value);
+			value += r->value;
 			break;
 		case T_MINUS:
-			n = replace_constant(n, lt, l->value - r->value);
+			value -= r->value;
 			break;
 		case T_STAR:
-			n = replace_constant(n, lt, l->value * r->value);
+			value *= r->value;
 			break;
 		case T_SLASH:
-			if (r->value == 0)
+			/* Zero may cause an exception which may be what
+			   the programmer wanted so don't optimize it out */
+			if (r->value == 0) {
 				divzero();
-			else
-				n = replace_constant(n, lt, l->value / r->value);
+				return NULL;
+			} else
+				value /= r->value;
 			break;
 		case T_PERCENT:
-			if (r->value == 0)
+			if (r->value == 0) {
 				divzero();
-			else
-				n = replace_constant(n, lt, l->value % r->value);
+				return NULL;
+			} else
+				value %= r->value;
 			break;
 		case T_ANDAND:
-			n = replace_constant(n, lt, l->value && r->value);
+			value = value && r->value;
 			break;
 		case T_OROR:
-			n = replace_constant(n, lt, l->value || r->value);
+			value = value || r->value;
 			break;
 		case T_AND:
-			n = replace_constant(n, lt, l->value & r->value);
+			value &= r->value;
 			break;
 		case T_OR:
-			n = replace_constant(n, lt, l->value | r->value);
+			value |= r->value;
 			break;
 		case T_HAT:
-			n = replace_constant(n, lt, l->value ^ r->value);
+			value ^= r->value;
 			break;
 		case T_LTLT:
-			n = replace_constant(n, lt, l->value << r->value);
+			value <<= r->value;
 			break;
 		case T_GTGT:
 			if (l->type & UNSIGNED)
-				n = replace_constant(n, lt, l->value >> r->value);
+				value >>= r->value;
 			else
-				n = replace_constant(n, lt, ((signed long)l->value) >> r->value);
+				value = ((signed long)value) >> r->value;
 			break;
 		default:
 			return NULL;
 		}
-		return n;
+		return replace_constant(n, lt, value);
 	}
 	if (r) {
 		/* Uni-ops */
 		unsigned rt = r->type;
+		unsigned long value = r->value;
 		if (!IS_INTARITH(rt) && !PTR(rt))
 			return NULL;
 		if (r->flags & LVAL)
@@ -513,25 +517,24 @@ struct node *constify(struct node *n)
 		case T_NEGATE:
 			/* This also cleans up any negative constants that were tokenized
 			   as T_NEGATE, T_CONST <n> */
-			n = replace_constant(n, rt, -r->value);
+			value =  -value;
 			break;
 		case T_TILDE:
-			n = replace_constant(n, rt, ~r->value);
+			value = ~value;
 			break;
 		case T_BANG:
-			n = replace_constant(n, rt, !r->value);
+			value = !value;
 			break;
 		case T_BOOL:
-			n = replace_constant(n, rt, !!r->value);
+			value = !!value;
 			break;
 		case T_CAST:
 			/* We are working with integer constant types so this is ok */
-			n = replace_constant(n, n->type, r->value);
-			break;
+			return replace_constant(n, n->type, value);
 		default:
 			return NULL;
 		}
-		return n;
+		return replace_constant(n, rt, value);
 	}
 	/* Terminal node.. are we const ?? */
 	if (is_constname(n))

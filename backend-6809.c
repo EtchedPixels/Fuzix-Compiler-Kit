@@ -4,6 +4,9 @@
 #include "compiler.h"
 #include "backend.h"
 
+#define BYTE(x)		(((unsigned)(x)) & 0xFF)
+#define WORD(x)		(((unsigned)(x)) & 0xFFFF)
+
 /*
  *	State for the current function
  */
@@ -249,7 +252,7 @@ void gen_literal(unsigned n)
 
 void gen_name(struct node *n)
 {
-	printf("\t.word _%s+%d\n", namestr(n->snum), n->value);
+	printf("\t.word _%s+%d\n", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
@@ -324,6 +327,7 @@ unsigned constval(struct node *n)
 unsigned gen_constop(const char *op, char r, struct node *n)
 {
 	unsigned s;
+	unsigned v = n->value;
 	s = get_size(n->type);
 	if (s > 2)
 		return 0;
@@ -336,25 +340,25 @@ unsigned gen_constop(const char *op, char r, struct node *n)
 	/* Objects we know how to directly access */
 	switch(n->op) {
 	case T_CONSTANT:
-		printf("\t%s%c #%d\n", op, r, n->value);
+		printf("\t%s%c #%d\n", op, r, v);
 		return 1;
 	case T_NAME:
-		printf("\t%s%c #%s+%d\n", op, r, namestr(n->snum), n->value);
+		printf("\t%s%c #%s+%d\n", op, r, namestr(n->snum), v);
 		return 1;
 	case T_LABEL:
-		printf("\t%s%c #T%d\n\n", op, r, n->value);
+		printf("\t%s%c #T%d\n\n", op, r, v);
 		return 1;
 	case T_NREF:
-		printf("\t%s%c %s + %d\n", op, r, namestr(n->snum), n->value);
+		printf("\t%s%c %s + %d\n", op, r, namestr(n->snum), v);
 		return 1;
 	case T_LREF:
-		printf("\t%s%c %d(s)\n", op, r, n->value + sp);
+		printf("\t%s%c %d(s)\n", op, r, v + sp);
 		return 1;
 	case T_LOCAL:
-		printf("\t%s%c %d(s)\n", op, r, n->value + sp);
+		printf("\t%s%c %d(s)\n", op, r, v + sp);
 		return 1;
 	case T_ARGUMENT:
-		printf("\t%s%c %d(s)\n", op, r, n->value + frame_len + sp);
+		printf("\t%s%c %d(s)\n", op, r, v + frame_len + sp);
 		return 1;
 	}
 	return 0;
@@ -537,7 +541,7 @@ unsigned gen_compare(struct node *n, const char *p)
  */
 unsigned gen_direct(struct node *n)
 {
-	unsigned v;
+	unsigned v, nv = n->value;
 	unsigned s = get_size(n->type);
 	struct node *r = n->right;
 	char *ldop = "ldd";
@@ -567,14 +571,14 @@ unsigned gen_direct(struct node *n)
 	case T_NSTORE:
 		if (s == 1 || s == 2) {
 			printf("\t%s #%d\n", ldop, v);
-			printf("\t%s _%s+%d\n", stop, namestr(n->snum), n->value);
+			printf("\t%s _%s+%d\n", stop, namestr(n->snum), nv);
 			return 1;
 		}
 		if (s == 4) {
 			printf("\tldd #%d\n", v & 0xFFFF);
 			printf("\tldu #%d\n", (v >> 16));
-			printf("\tstu _%s+%d\n", namestr(n->snum), n->value);
-			printf("\tstd _%s+%d\n", namestr(n->snum), n->value + 2);
+			printf("\tstu _%s+%d\n", namestr(n->snum), nv);
+			printf("\tstd _%s+%d\n", namestr(n->snum), nv + 2);
 			return 1;
 		}
 		break;
@@ -582,13 +586,13 @@ unsigned gen_direct(struct node *n)
 		if (s == 4) {
 			printf("\tldd #%d\n", v & 0xFFFF);
 			printf("\tldu #%d\n", (v >> 16));
-			printf("\tldu %d(s)\n", n->value);
-			printf("\tldd %d(s)\n", n->value + 2);
+			printf("\tldu %d(s)\n", nv);
+			printf("\tldd %d(s)\n", nv + 2);
 			return 1;
 		}
 		if (s == 1 || s == 2) {
 			printf("\t%s #%d\n", ldop, v);
-			printf("\t%s %d(s)\n", stop, n->value);
+			printf("\t%s %d(s)\n", stop, nv);
 			return 1;
 		}
 		break;
@@ -745,6 +749,7 @@ unsigned gen_shortcut(struct node *n)
 unsigned gen_node(struct node *n)
 {
 	unsigned s;
+	unsigned nv = n->value;
 	/* Function call arguments are special - they are removed by the
 	   act of call/return and reported via T_CLEANUP */
 	if (n->left && n->op != T_COMMA && n->op != T_FUNCCALL && n->op != T_CALLNAME)
@@ -755,66 +760,66 @@ unsigned gen_node(struct node *n)
 	switch(n->op) {
 	case T_NREF:	/* Get the value held in a name */
 		if (s == 1) {
-			printf("\tldb _%s+%d\n", namestr(n->snum), n->value);
+			printf("\tldb _%s+%d\n", namestr(n->snum), nv);
 			return 1;
 		}
 		if (s == 2) {
-			printf("\tldd _%s+%d\n", namestr(n->snum), n->value);
+			printf("\tldd _%s+%d\n", namestr(n->snum), nv);
 			return 1;
 		}
 		if (s == 4) {
-			printf("\tldu _%s+%d\n", namestr(n->snum), n->value);
-			printf("\tldd _%s+%d\n", namestr(n->snum), n->value + 2);
+			printf("\tldu _%s+%d\n", namestr(n->snum), nv);
+			printf("\tldd _%s+%d\n", namestr(n->snum), nv + 2);
 			return 1;
 		}
 		break;
 	case T_LREF:
 		if (s == 4) {
-			printf("\tldu %d(s)\n", n->value);
-			printf("\tldd %d(s)\n", n->value + 2);
+			printf("\tldu %d(s)\n", nv);
+			printf("\tldd %d(s)\n", nv + 2);
 			return 1;
 		}
 		if (s == 2) {
-			printf("\tldd %d(s)\n", n->value);
+			printf("\tldd %d(s)\n", nv);
 			return 1;
 		}
 		if (s == 1) {
-			printf("\tldb %d(s)\n", n->value);
+			printf("\tldb %d(s)\n", nv);
 			return 1;
 		}
 		break;
 	case T_NSTORE:
 		if (s == 1) {
-			printf("\tstb _%s+%d\n", namestr(n->snum), n->value);
+			printf("\tstb _%s+%d\n", namestr(n->snum), nv);
 			return 1;
 		}
 		if (s == 2) {
-			printf("\tstd _%s+%d\n", namestr(n->snum), n->value);
+			printf("\tstd _%s+%d\n", namestr(n->snum), nv);
 			return 1;
 		}
 		if (s == 4) {
-			printf("\tstu _%s+%d\n", namestr(n->snum), n->value);
-			printf("\tstd _%s+%d\n", namestr(n->snum), n->value + 2);
+			printf("\tstu _%s+%d\n", namestr(n->snum), nv);
+			printf("\tstd _%s+%d\n", namestr(n->snum), nv + 2);
 			return 1;
 		}
 		break;
 	case T_LSTORE:
 		if (s == 4) {
-			printf("\tldu %d(s)\n", n->value);
-			printf("\tldd %d(s)\n", n->value + 2);
+			printf("\tldu %d(s)\n", nv);
+			printf("\tldd %d(s)\n", nv + 2);
 			return 1;
 		}
 		if (s == 2) {
-			printf("\tstd %d(s)\n", n->value);
+			printf("\tstd %d(s)\n", nv);
 			return 1;
 		}
 		if (s == 1) {
-			printf("\tstb %d(s)\n", n->value);
+			printf("\tstb %d(s)\n", nv);
 			return 1;
 		}
 		break;
 	case T_CALLNAME:	/* Call function by name */
-		printf("\tjsr _%s+%d\n", namestr(n->snum), n->value);
+		printf("\tjsr _%s+%d\n", namestr(n->snum), nv);
 		return 1;
 	case T_EQ:
 		printf("\tldx (-s)\n");
@@ -843,32 +848,32 @@ unsigned gen_node(struct node *n)
 		}
 		return 0;
 	case T_LABEL:
-		printf("\tldd T%d\n", n->value);
+		printf("\tldd T%d\n", nv);
 		return 1;
 	case T_CONSTANT:
 		switch(s) {
 		case 1:
-			printf("\tldb #%d\n", n->value);
+			printf("\tldb #%d\n", nv);
 			return 1;
 		case 4:
-			printf("\tldu #%d\n", (n->value >> 16) & 0xFFFF);
+			printf("\tldu #%d\n", (unsigned)((n->value >> 16) & 0xFFFF));
 		case 2:
-			printf("\tldd #%d\n", n->value & 0xFFFF);
+			printf("\tldd #%d\n", nv & 0xFFFF);
 			return 1;
 		}
 		break;
 	case T_NAME:
-		printf("ldd #%s+%d\n", namestr(n->snum), n->value);
+		printf("ldd #%s+%d\n", namestr(n->snum), nv);
 		return 1;
 	case T_LOCAL:
 		/* FIXME: correct offsets */
-		printf("\tleax %d,s\n", n->value + sp);
+		printf("\tleax %d,s\n", nv + sp);
 		/* Will need a lot of peepholing */
 		printf("\ttfr x,d\n");
 		return 1;
 	case T_ARGUMENT:
 		/* FIXME: correct offsets */
-		printf("\tleax %d,s\n", n->value + frame_len + 2 + sp);
+		printf("\tleax %d,s\n", nv + frame_len + 2 + sp);
 		/* Will need a lot of peepholing */
 		printf("\ttfr x,d\n");
 		return 1;

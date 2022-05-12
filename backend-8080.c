@@ -4,6 +4,9 @@
 #include "compiler.h"
 #include "backend.h"
 
+#define BYTE(x)		(((unsigned)(x)) & 0xFF)
+#define WORD(x)		(((unsigned)(x)) & 0xFFFF)
+
 /* FIXME: wire options in backend to this */
 static int cpu = 8085;
 
@@ -253,7 +256,7 @@ void gen_literal(unsigned n)
 
 void gen_name(struct node *n)
 {
-	printf("\t.word _%s+%d\n", namestr(n->snum), n->value);
+	printf("\t.word _%s+%d\n", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
@@ -350,7 +353,7 @@ static unsigned access_direct(struct node *n)
 
 static unsigned load_r_with(const char r, struct node *n)
 {
-	unsigned v = n->value;
+	unsigned v = WORD(n->value);
 	const char *name;
 
 	switch(n->op) {
@@ -404,10 +407,10 @@ static unsigned load_a_with(struct node *n)
 	switch(n->op) {
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
-		printf("\tmvi a,%d\n", n->value);
+		printf("\tmvi a,%d\n", BYTE(n->value));
 		break;
 	case T_NREF:
-		printf("\tlda _%s+%d\n", namestr(n->snum), n->value);
+		printf("\tlda _%s+%d\n", namestr(n->snum), WORD(n->value));
 		break;
 	default:
 		return 0;
@@ -446,7 +449,7 @@ unsigned gen_direct(struct node *n)
 		/* CLEANUP is special and needs to be handled directly */
 		sp -= v;
 		if (v > 10) {
-			printf("\tlxi h, %d\n", r->value);
+			printf("\tlxi h, %d\n", WORD(r->value));
 			printf("\tdad sp\n");
 			printf("\tsphl\n");
 		} else {
@@ -464,11 +467,11 @@ unsigned gen_direct(struct node *n)
 	case T_NSTORE:
 		if (s == 1) {
 			printf("\tmov a,l\n");
-			printf("\tsta _%s+%d\n", namestr(n->snum), n->value);
+			printf("\tsta _%s+%d\n", namestr(n->snum), WORD(n->value));
 			return 1;
 		}
 		if (s == 2) {
-			printf("\tshld _%s+%d\n", namestr(n->snum), n->value);
+			printf("\tshld _%s+%d\n", namestr(n->snum), WORD(n->value));
 			return 1;
 		}
 		/* TODO 4/8 for long etc */
