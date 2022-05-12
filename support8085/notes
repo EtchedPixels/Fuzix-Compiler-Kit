@@ -1,0 +1,126 @@
+
+
+lsl32:
+	dad h
+	xchg
+	jc prop1
+	dad h
+	ret
+prop1:
+	dad h
+	inc h
+	ret
+
+
+Need a way to handle helpers in non C form when entered with HL = half
+of workreg and tos is return addr. Ok for single arg stuff, less fun
+for double
+
+
+not:
+	mov a,h
+	ora a,l
+	lxi h,0
+	rnz
+	inx h
+	ret
+
+add32
+	xchg
+	pop h
+	shld .ret+1
+	pop h
+	dad d
+	shld .tmp
+	pop d
+	jnc carry0
+	inx d
+carry0:
+	lhld hireg
+	dad d
+	shld hireg
+	jmp .ret
+
+
+mul16:
+	xchg
+	pop h
+	shld .ret+1
+	pop h
+	; now do HL * DE
+
+
+
+32bit pattern can be similar
+
+	xchg
+	pop h
+	shld .ret+1
+	
+	; can now pop/store 4 bytes into tmp space fine
+
+
+load2:
+	lxi h,2
+	dad sp
+loader:
+	mov a,m
+	inx h
+	mov l,m
+	mov h,a
+	ret
+
+loadn:
+	pop h
+	mov d,0
+	mov e,m
+	inx h
+	push h
+	xchg
+	dad sp
+	bra loader
+
+; If we hack some ops to put const info in DE maybe cleaner but a shade longer
+
+	
+store:
+	xchg
+	dad sp
+	mov m,e
+	inx h
+	mov m,d
+	xchg
+	ret
+
+store2:
+	xchg
+	lxi h,2
+	dad sp
+	mov m,e
+	inx h
+	mov m,d
+	xchg
+	ret
+
+
+versus
+
+store:
+	shld .tmp
+	xchg
+	pop hl
+	mov e,m
+	inx m
+	mov d,m
+	inx m
+	shld .ret+1
+	lhld .tmp
+	xchg
+	dad sp
+	mov m,e
+	inx h
+	mov m,d
+	xchg
+	jmp .ret
+
+	

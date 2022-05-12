@@ -4,6 +4,7 @@ OBJ = workspace.o \
       __and.o __andeq.o __or.o __oreq.o __xor.o __xoreq.o \
       __minuseq.o __pluseq.o \
       __bool.o __cpl.o __not.o \
+      __boolc.o __cplc.o __notc.o \
       __minus.o __plus.o \
       __cclt.o __ccltu.o __ccgteq.o __ccgtequ.o \
       __ccgt.o __ccgtu.o __cclteq.o __ccltequ.o \
