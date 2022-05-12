@@ -37,7 +37,8 @@ extern void gen_value(unsigned type, unsigned long value);
 extern void gen_name(struct node *n);
 extern void gen_literal(unsigned value);
 
-extern void gen_helpcall(void);
+extern void gen_helpcall(struct node *n);
+extern void gen_helpclean(struct node *n);
 
 extern void gen_start(void);
 extern void gen_end(void);

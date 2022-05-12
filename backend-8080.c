@@ -55,7 +55,7 @@ struct node *gen_rewrite_node(struct node *n)
 	struct node *l = n->left;
 	struct node *r = n->right;
 	/* Rewrite references into a load operation */
-	if (n->type == CINT || n->type == UINT || PTR(n->type)) {
+	if (n->type == CSHORT || n->type == USHORT || PTR(n->type)) {
 		if (n->op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
 				if (r->op == T_ARGUMENT)
@@ -187,9 +187,13 @@ void gen_jtrue(const char *tail, unsigned n)
 	printf("\tjnz L%d%s\n", n, tail);
 }
 
-void gen_helpcall(void)
+void gen_helpcall(struct node *n)
 {
-	printf("\tcall ");
+	printf("\tcall __");
+}
+
+void gen_helpclean(struct node *n)
+{
 }
 
 void gen_switch(unsigned n, unsigned type)
@@ -261,23 +265,25 @@ void gen_name(struct node *n)
 
 void gen_value(unsigned type, unsigned long value)
 {
+	unsigned w = WORD(value);
 	if (PTR(type)) {
-		printf("\t.word %u\n", (unsigned) value);
+		printf("\t.word %u\n", w);
 		return;
 	}
 	switch (type) {
 	case CCHAR:
 	case UCHAR:
-		printf("\t.byte %u\n", (unsigned) value & 0xFF);
+		printf("\t.byte %u\n", BYTE(w));
 		break;
-	case CINT:
-	case UINT:
-		printf("\t.word %d\n", (unsigned) value & 0xFFFF);
+	case CSHORT:
+	case USHORT:
+		printf("\t.word %d\n", w);
 		break;
 	case CLONG:
 	case ULONG:
+	case FLOAT:
 		/* We are little endian */
-		printf("\t.word %d\n", (unsigned) (value & 0xFFFF));
+		printf("\t.word %d\n", w);
 		printf("\t.word %d\n", (unsigned) ((value >> 16) & 0xFFFF));
 		break;
 	default:
@@ -309,7 +315,7 @@ static unsigned get_size(unsigned t)
 {
 	if (PTR(t))
 		return 2;
-	if (t == CINT || t == UINT)
+	if (t == CSHORT || t == USHORT)
 		return 2;
 	if (t == CCHAR || t == UCHAR)
 		return 1;
@@ -341,7 +347,7 @@ static unsigned access_direct(struct node *n)
 	   global/static or string labels */
 	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_LABEL && n->op != T_NREF)
 		return 0;
-	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CINT)
+	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
 	return 1;
 }
@@ -570,9 +576,9 @@ static unsigned gen_cast(struct node *n)
 	unsigned ls;
 
 	if (PTR(rt))
-		rt = CINT;
+		rt = CSHORT;
 	if (PTR(lt))
-		lt = CINT;
+		lt = CSHORT;
 
 	/* Floats and stuff handled by helper */
 	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
@@ -739,6 +745,7 @@ unsigned gen_node(struct node *n)
 		/* We already adjusted sp so allow for this */
 		if (cpu == 8085 && v + sp + size <= 255) {
 			printf("\tldsi %d\n", v + sp + size);
+			printf("\txchg\n");
 		} else {
 			printf("\tlxi h,%d\n", v + sp + size);
 			printf("\tdad sp\n");
@@ -748,6 +755,7 @@ unsigned gen_node(struct node *n)
 		/* We already adjusted sp so allow for this */
 		if (cpu == 8085 && v + 2 + frame_len + sp + size <= 255) {
 			printf("\tldsi %d\n", v + sp + size);
+			printf("\txchg\n");
 		} else {
 			printf("\tlxi h,%d\n", v + size + 2 + frame_len + sp);
 			printf("\tdad sp\n");

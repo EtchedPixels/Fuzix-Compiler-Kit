@@ -39,16 +39,18 @@ void gen_frame(unsigned size)
 {
 	frame_len = size;
 	sp += size;
-	gen_helpcall();
+	gen_helpcall(NULL);
 	printf("enter\n");
 	gen_value(UINT, size);
 }
 
 void gen_epilogue(unsigned size)
 {
-	if (sp != size)
+	if (sp != size) {
 		error("sp");
-	gen_helpcall();
+	}
+	sp -= size;
+	gen_helpcall(NULL);
 	printf("exit\n");
 	gen_value(UINT, size);
 	printf("\tret\n");
@@ -76,7 +78,7 @@ void gen_jtrue(const char *tail, unsigned n)
 
 void gen_switch(unsigned n, unsigned type)
 {
-	gen_helpcall();
+	gen_helpcall(NULL);
 	printf("switch");
 	helper_type(type);
 	printf("\n\t.word Sw%d\n", n);
@@ -99,9 +101,13 @@ void gen_case_label(unsigned tag, unsigned entry)
 	printf("\t.word Sw%d_%d\n", tag, entry);
 }
 
-void gen_helpcall(void)
+void gen_helpcall(struct node *n)
 {
-	printf("\tcall ");
+	printf("\tcall __");
+}
+
+void gen_helpclean(struct node *n)
+{
 }
 
 /* TODO: Need to pass alignment */
@@ -155,12 +161,13 @@ void gen_value(unsigned type, unsigned long value)
 	case UCHAR:
 		printf("\t.byte %u\n", (unsigned) value & 0xFF);
 		break;
-	case CINT:
-	case UINT:
+	case CSHORT:
+	case USHORT:
 		printf("\t.word %d\n", (unsigned) value & 0xFFFF);
 		break;
 	case CLONG:
 	case ULONG:
+	case FLOAT:
 		/* We are little endian */
 		printf("\t.word %d\n", (unsigned) (value & 0xFFFF));
 		printf("\t.word %d\n", (unsigned) ((value >> 16) & 0xFFFF));
@@ -193,7 +200,7 @@ static unsigned get_size(unsigned t)
 {
 	if (PTR(t))
 		return 2;
-	if (t == CINT || t == UINT)
+	if (t == CSHORT || t == USHORT)
 		return 2;
 	if (t == CCHAR || t == UCHAR)
 		return 1;
@@ -234,7 +241,7 @@ unsigned gen_direct(struct node *n)
 	   type of the function return so don't use that for the cleanup value
 	   in n->right */
 	case T_CLEANUP:
-		gen_helpcall();
+		gen_helpcall(NULL);
 		printf("cleanup\n");
 		gen_value(UINT, n->right->value);
 		sp -= n->right->value;

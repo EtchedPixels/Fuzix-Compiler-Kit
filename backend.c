@@ -345,7 +345,7 @@ void process_data(void)
 void helper_type(unsigned t)
 {
 	if (PTR(t))
-		t = CINT;
+		t = CSHORT;
 	switch (t) {
 	case UCHAR:
 		putchar('u');
@@ -354,7 +354,7 @@ void helper_type(unsigned t)
 		break;
 	case UINT:
 		putchar('u');
-	case CINT:
+	case CSHORT:
 		break;
 	case ULONG:
 		putchar('u');
@@ -384,7 +384,7 @@ void helper(struct node *n, const char *h)
 	   type we want is a pointer */
 	if (n->op == T_FUNCCALL)
 		n->type = PTRTO;
-	gen_helpcall();
+	gen_helpcall(n);
 	fputs(h, stdout);
 	if (n->op == T_CAST) {
 		helper_type(n->right->type);
@@ -392,6 +392,7 @@ void helper(struct node *n, const char *h)
 	}
 	helper_type(n->type);
 	putchar('\n');
+	gen_helpclean(n);
 }
 
 void make_node(struct node *n)

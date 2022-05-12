@@ -20,7 +20,7 @@ static unsigned get_size(unsigned t)
 {
 	if (PTR(t))
 		return 2;
-	if (t == CINT || t == UINT)
+	if (t == CSHORT || t == USHORT)
 		return 2;
 	if (t == CCHAR || t == UCHAR)
 		return 1;
@@ -210,9 +210,13 @@ void gen_case_label(unsigned tag, unsigned entry)
 	printf("\t.word Sw%d_%d\n", tag, entry);
 }
 /* Output whatever goes in front of a helper call */
-void gen_helpcall(void)
+void gen_helpcall(struct node *n)
 {
 	printf("\tjsr ");
+}
+
+void gen_helpclean(struct node *n)
+{
 }
 
 /* TODO: Need to pass alignment */
@@ -266,12 +270,13 @@ void gen_value(unsigned type, unsigned long value)
 	case UCHAR:
 		printf("\t.byte %u\n", (unsigned) value & 0xFF);
 		break;
-	case CINT:
-	case UINT:
+	case CSHORT:
+	case USHORT:
 		printf("\t.word %d\n", (unsigned) value & 0xFFFF);
 		break;
 	case CLONG:
 	case ULONG:
+	case FLOAT:
 		/* We are big endian */
 		printf("\t.word %d\n", (unsigned) ((value >> 16) & 0xFFFF));
 		printf("\t.word %d\n", (unsigned) (value & 0xFFFF));
@@ -449,9 +454,9 @@ unsigned gen_cast(struct node *n, struct node *r)
 	unsigned stype = r->type;
 	unsigned dtype = n->type;
 	if (PTR(stype))
-		stype = CINT;
+		stype = CSHORT;
 	if (PTR(dtype))
-		dtype = CINT;
+		dtype = CSHORT;
 	if (!IS_INTARITH(stype) || !IS_INTARITH(dtype))
 		return 0;
 	/* Going to a smaller type is free */
