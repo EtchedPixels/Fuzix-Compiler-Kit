@@ -506,7 +506,7 @@ void make_node(struct node *n)
 		helper(n, "or");
 		break;
 	case T_TILDE:
-		helper(n, "neg");
+		helper(n, "cpl");
 		break;
 	case T_BANG:
 		helper(n, "not");
