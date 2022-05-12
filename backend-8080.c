@@ -404,7 +404,7 @@ static unsigned load_a_with(struct node *n)
 	switch(n->op) {
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
-		printf("\tlda %d\n", n->value);
+		printf("\tmvi a,%d\n", n->value);
 		break;
 	case T_NREF:
 		printf("\tlda _%s+%d\n", namestr(n->snum), n->value);
