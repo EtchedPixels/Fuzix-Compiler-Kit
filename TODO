@@ -1,9 +1,5 @@
-- clean up dead header types and passing multiple tags when 1 needed
-  (eg do/while ?)
 - (int *) casting syntax
-- finish operator type checking
 - typedef  (partly done - we sort of create them but we don't recognize them)
-- enum - do we care ?
 - for word stacking machines add target hooks to specify that arguments
   take 2 bytes even if char, and alloc space correctly both in the func
   declaration/argument side and in the arg stacking (arg passing side done)
@@ -19,13 +15,12 @@ Broken
 	class so that we can embed the code into the iterator and remove
 	the callout stuff
 -	default: for the switch tables
+-	Post name argument bits on parameters. Need to allow for
+	int x(char *foo[]); and the like
 
 Longer term
-- helper formats C style versus postfix, who cleans up need to be controlled
-  by target by type
+- enum - do we care ?
 - backend hooks for building stack frame via initializers
-- float
-- allow char v uchar default to be set by target
 - literal based handling for some types (set by target) - eg double/longlong
   so that we pass pointers around including one to a memory "register". 
   &x will need care as do casts
