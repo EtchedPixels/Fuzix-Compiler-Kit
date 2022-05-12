@@ -287,16 +287,19 @@ static struct node *hier10(void)
 static struct node *hier9(void)
 {
 	struct node *l;
+	struct node *r;
 	unsigned op;
 	l = hier10();
 	if (token != T_STAR && token != T_PERCENT && token != T_SLASH)
 		return l;
+	l = make_rval(l);
 	op = token;
 	next_token();
+	r = make_rval(hier9());
 	if (op == T_PERCENT)
-		return intarith_tree(op, l, hier9());
+		return intarith_tree(op, l, r);
 	else
-		return arith_tree(op, l, hier9());
+		return arith_tree(op, l, r);
 }
 
 /*
