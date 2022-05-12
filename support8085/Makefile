@@ -11,6 +11,7 @@ OBJ = workspace.o \
 	cc85 -c $<
 
 lib8085.a: $(OBJ)
+	rm -f lib8085.a
 	ar qc lib8085.a $(OBJ)
 
 clean:

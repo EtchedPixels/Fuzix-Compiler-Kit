@@ -1,7 +1,7 @@
 ;
 ;		True if TOS >= HL
 ;
-		.export __ccgteq
+		.export __ccgtequ
 
 		.setcpu 8085
 
