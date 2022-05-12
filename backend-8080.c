@@ -149,7 +149,7 @@ void gen_frame(unsigned size)
 		return;
 	}
 	if (size & 1) {
-		printf("\tdcr sp\n");
+		printf("\tdcx sp\n");
 		size--;
 	}
 	while(size) {
@@ -181,8 +181,8 @@ void gen_epilogue(unsigned size)
 		printf("\tret\n");
 		return;
 	}
-	if (size % 1) {
-		printf("\tinr sp\n");
+	if (size & 1) {
+		printf("\tinx sp\n");
 		size--;
 	}
 	while (size) {
