@@ -412,10 +412,10 @@ void make_node(struct node *n)
 		helper(n, "shreq");
 		break;
 	case T_PLUSPLUS:
-		helper(n, "preinc");
+		helper(n, "postinc");
 		break;
 	case T_MINUSMINUS:
-		helper(n, "predec");
+		helper(n, "postdec");
 		break;
 	case T_EQEQ:
 		helper(n, "cceq");
