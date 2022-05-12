@@ -1,4 +1,4 @@
-all: cc0 cc1 cc2 cc2.8080 cc2.6809
+all: cc cc0 cc1 cc2 cc2.8080 cc2.6809
 
 .SUFFIXES: .c .rel
 
@@ -32,6 +32,9 @@ $(OBJS2): $(INC1) $(INC2)
 
 $(OBJS3): $(INC1) $(INC2)
 
+cc:	cc.c
+	fcc cc.c -o cc
+
 cc0:	$(OBJS0)
 	fcc $(OBJS0) -o cc0
 
@@ -48,5 +51,8 @@ cc2.6809:	$(OBJS4)
 	fcc $(OBJS4) -o cc2.6809
 
 clean:
-	rm -f cc0 cc1 cc2 cc2.8080 cc2.6809
+	rm -f cc cc0 cc1 cc2 cc2.8080 cc2.6809
 	rm -f *~ *.rel *.asm *.rel *.lnk *.map
+
+size:
+	size.fuzix cc cc0 cc1 cc2.8080 cc2.6809

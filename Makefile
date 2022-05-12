@@ -46,7 +46,7 @@ cc2.6809:	$(OBJS4)
 	gcc -g3 $(OBJS4) -o cc2.6809
 
 clean:
-	rm -f cc0 cc1 cc2 cc2.8080 cc2.6809
+	rm -f cc cc0 cc1 cc2 cc2.8080 cc2.6809
 	rm -f *~ *.o
 
 # Hack for now
