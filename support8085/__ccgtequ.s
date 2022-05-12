@@ -16,6 +16,7 @@ __ccgtequ:
 		sub	e
 		mov	a,h
 		sbb	d
+; FIXME: flags
 		lxi	h,0
 		rc
 		inr	l

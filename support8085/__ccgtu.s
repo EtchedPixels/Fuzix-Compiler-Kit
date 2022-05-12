@@ -1,15 +1,15 @@
 ;
 ;		True if TOS < HL
 ;
-		.export __ccltu
+		.export __ccgtu
 
 		.setcpu 8085
 
 		.code
 ;
-;	FIXME: flags as well as hl should be set up
+;	FIXME: flags as well as HL should be set up
 ;
-__ccltu:
+__ccgtu:
 		xchg
 		pop	h
 		shld	__retaddr
@@ -19,6 +19,7 @@ __ccltu:
 		mov	a,h
 		sbb	d
 		lxi	h,0
-		rnc
+		rc
+		rz
 		inr	l
 		ret
