@@ -106,6 +106,8 @@ struct node *function_call(struct node *n)
 	type = func_return(n->type);
 	argt = func_args(n->type);
 
+	if (!*argt)
+		fatal("narg");
 	narg = *argt;
 
 	if (narg == 0)
