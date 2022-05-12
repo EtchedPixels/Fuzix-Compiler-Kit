@@ -722,11 +722,15 @@ unsigned gen_node(struct node *n)
 			if (cpu == 8085)
 				printf("\txchg\n\tpop h\n\tshlx\n");
 			else
-				printf("\txchg\n\tpop h\n\tmov m,e\n\tinx h\n\tmov m,d");
+				printf("\txchg\n\tpop h\n\tmov m,e\n\tinx h\n\tmov m,d\n");
+			if (!(n->flags & NORETURN))
+				printf("\txchg\n");
 			return 1;
 		}
 		if (size == 1) {
-			printf("\txchg\n\tpop h\n\tstax d\n");
+			printf("\tpop d\n\tmov m,e\n");
+			if (!(n->flags & NORETURN))
+				printf("\txchg\n");
 			return 1;
 		}
 		break;
@@ -759,7 +763,7 @@ unsigned gen_node(struct node *n)
 			printf("\tlxi h,%d\n", (v & 0xFFFF));
 			return 1;
 		case 1:
-			printf("\tlxi l,%d\n", (v & 0xFF));
+			printf("\tmvi l,%d\n", (v & 0xFF));
 			return 1;
 		}
 		break;
