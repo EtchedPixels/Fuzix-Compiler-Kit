@@ -1,4 +1,4 @@
-all: cc cc0 cc1 cc2 cc2.8080 cc2.6809 cc2.z80 support8085
+all: cc cc0 cc1 cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 support8085
 
 .PHONY: support8085
 
@@ -12,6 +12,7 @@ OBJS2 = backend.o backend-default.o
 OBJS3 = backend.o backend-8080.o
 OBJS4 = backend.o backend-6809.o
 OBJS5 = backend.o backend-z80.o
+OBJS6 = backend.o backend-65c816.o
 
 CFLAGS = -Wall -pedantic -g3
 
@@ -50,6 +51,9 @@ cc2.6809:	$(OBJS4)
 
 cc2.z80:	$(OBJS5)
 	gcc -g3 $(OBJS5) -o cc2.z80
+
+cc2.65c816:	$(OBJS6)
+	gcc -g3 $(OBJS6) -o cc2.65c816
 
 support8085:
 	(cd support8085; make)
