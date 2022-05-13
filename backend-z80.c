@@ -370,11 +370,14 @@ void gen_tree(struct node *n)
  */
 static unsigned access_direct(struct node *n)
 {
+	int off = n->value;
 	/* We can direct access integer or smaller types that are constants
 	   global/static or string labels */
-	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_LABEL && n->op != T_NREF)
+	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_LABEL && n->op != T_NREF && n->op != T_LREF)
 		return 0;
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
+		return 0;
+	if (n->op == T_LREF && (off > 126 || off < -128))
 		return 0;
 	return 1;
 }
@@ -387,6 +390,7 @@ static unsigned access_direct(struct node *n)
 static unsigned load_r_with(const char *r, struct node *n)
 {
 	unsigned v = WORD(n->value);
+	int vs = v;
 	const char *name;
 
 	switch(n->op) {
@@ -404,6 +408,12 @@ static unsigned load_r_with(const char *r, struct node *n)
 		name = namestr(n->snum);
 		printf("\tld %s,(_%s+%d)\n", r, name, v);
 		return 1;
+	case T_LREF:
+		if (vs >= -128 && vs < 126) {
+			printf("\tld %c,(ix + %d)\n", *r, vs + 1);
+			printf("\tld %c,(ix + %d)\n", r[1], vs);
+			return 1;
+		}
 	default:
 		return 0;
 	}
@@ -427,13 +437,18 @@ static unsigned load_hl_with(struct node *n)
 
 static unsigned load_a_with(struct node *n)
 {
+	int v = n->value;
 	switch(n->op) {
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
 		printf("\tld a,%d\n", BYTE(n->value));
 		break;
 	case T_NREF:
-		printf("\tld a,( _%s+%d)\n", namestr(n->snum), WORD(n->value));
+		printf("\tld a,(_%s+%d)\n", namestr(n->snum), v);
+		break;
+	case T_LREF:
+		if (v >= -128 && v <= 127)
+			printf("\tld a,(ix+%d)\n", v);
 		break;
 	default:
 		return 0;
@@ -446,7 +461,7 @@ static unsigned load_a_with(struct node *n)
  *	that the right hand side is suitable. If this returns 0 it will instead
  *	fall back to doing it stack based.
  *
- *	The 8080 is pretty basic so there isn't a lot we turn around here. As
+ *	The Z80 is pretty basic so there isn't a lot we turn around here. As
  *	proof of concept we deal with the add case. Other processors may be
  *	able to handle a lot more.
  *
@@ -460,12 +475,47 @@ unsigned gen_direct(struct node *n)
 	struct node *r = n->right;
 	unsigned v;
 
-	/* We only deal with simple cases for now */
-	if (r) {
-		if (!access_direct(n->right))
-			return 0;
+	if (r)
 		v = r->value;
+
+	switch (n->op) {
+	case T_PLUSPLUS:
+		/* Left (ie HL) is address of object */
+		if (s == 1) {
+			printf("\tld a,(hl)\n");
+			printf("\tadd a,%d\n", BYTE(v));
+			printf("\tld (hl),a\n");
+			if (!(n->flags & NORETURN))
+				printf("\tld l,a\n");
+			return 1;
+		}
+		if (s == 2) {
+			printf("\tld de,%d\n", v);
+			helper(n, "cpostinc");
+			return 1;
+		}
+		return 0;
+	case T_MINUSMINUS:
+		/* Left (ie HL) is address of object */
+		if (s == 1) {
+			printf("\tld a,(hl)\n");
+			printf("\tsub a,%d\n", BYTE(v));
+			printf("\tld (hl),a\n");
+			if (!(n->flags & NORETURN))
+				printf("\tld l,a\n");
+			return 1;
+		}
+		if (s == 2) {
+			printf("\tld de,%d\n", -v);
+			helper(n, "__cpostinc");
+			return 1;
+		}
+		return 0;
 	}
+
+	/* We only deal with simple cases for now */
+	if (r && !access_direct(r))
+		return 0;
 
 	switch (n->op) {
 	case T_CLEANUP:
@@ -485,7 +535,7 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	case T_EQ:
 		/* The address is in HL at this point */
-		if (cpu == 8085 && s == 2 ) {
+		if (s == 2 ) {
 			if (load_de_with(r) == 0)
 				return 0;
 			printf("\tld (hl),e\n");
@@ -493,7 +543,8 @@ unsigned gen_direct(struct node *n)
 			printf("\tld (hl),e\n");
 			/* FIXME: can eliminate this in many cases - need to
 			   add this to 8080 tree so we pass value right */
-			printf("\tex de,hl\n");
+			if (!(n->flags & NORETURN))
+				printf("\tex de,hl\n");
 			return 1;
 		}
 		if (s == 1) {
@@ -501,7 +552,8 @@ unsigned gen_direct(struct node *n)
 				return 0;
 			printf("\tld a,(hl)\n");
 			/* FIXME: add to 8080 tree, eliminate on noresult */
-			printf("\tld l,a\n");
+			if (!(n->flags & NORETURN))
+				printf("\tld l,a\n");
 			return 1;
 		}
 		return 0;
@@ -520,7 +572,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_MINUS:
-		if (cpu == 8085 && s <= 2) {
+		if (s <= 2) {
 			/* LHS is in HL at the moment, end up with the result in HL */
 			if (s == 1) {
 				if (load_a_with(r) == 0)
@@ -553,6 +605,25 @@ unsigned gen_uni_direct(struct node *n)
  */
 unsigned gen_shortcut(struct node *n)
 {
+	struct node *l = n->left;
+	switch(n->op) {
+	case T_PLUS:
+		printf(";plus direct access l says %d\n", access_direct(l));
+		if (access_direct(l)) {
+			codegen_lr(n->right);
+			load_de_with(l);
+			printf("\tadd hl,de\n");
+			return 1;
+		}
+		printf(";plus direct access r says %d\n", access_direct(n->right));
+		if (access_direct(l)) {
+			codegen_lr(l);
+			load_de_with(n->right);
+			printf("\tadd hl,de\n");
+			return 1;
+		}
+		break;
+	}
 	return 0;
 }
 
@@ -609,7 +680,6 @@ unsigned gen_node(struct node *n)
 {
 	unsigned size = get_size(n->type);
 	unsigned v;
-	char *name;
 	/* We adjust sp so track the pre-adjustment one too when we need it */
 	unsigned spval = sp;
 
@@ -626,11 +696,17 @@ unsigned gen_node(struct node *n)
 
 	switch (n->op) {
 		/* Load from a name */
-	case T_NREF: /* NREF/STORE FIXME for long/float/double */
+	case T_NREF: /* NREF/STORE FIXME for double */
 		if (size == 1) {
 			printf("\tld a,(_%s+%d)\n", namestr(n->snum), v);
 			printf("\tld l,a\n");
+			return 1;
 		} else if (size == 2) {
+			printf("\tld hl,(_%s+%d)\n", namestr(n->snum), v);
+			return 1;
+		} else if (size == 4) {
+			printf("\tld hl,(_%s+%d)\n", namestr(n->snum), v + 2);
+			printf("\tld (__hireg),hl\n");
 			printf("\tld hl,(_%s+%d)\n", namestr(n->snum), v);
 			return 1;
 		}
