@@ -357,13 +357,13 @@ unsigned gen_constop(const char *op, char r, struct node *n)
 		printf("\t%s%c %s + %d\n", op, r, namestr(n->snum), v);
 		return 1;
 	case T_LREF:
-		printf("\t%s%c %d(s)\n", op, r, v + sp);
+		printf("\t%s%c %d,s\n", op, r, v + sp);
 		return 1;
 	case T_LOCAL:
-		printf("\t%s%c %d(s)\n", op, r, v + sp);
+		printf("\t%s%c %d,s\n", op, r, v + sp);
 		return 1;
 	case T_ARGUMENT:
-		printf("\t%s%c %d(s)\n", op, r, v + frame_len + sp);
+		printf("\t%s%c %d,s\n", op, r, v + frame_len + sp);
 		return 1;
 	}
 	return 0;
@@ -409,16 +409,16 @@ unsigned gen_constpair(const char *op, struct node *n)
 		printf("\t%sb %s + %d\n", op, namestr(n->snum), v + 1);
 		return 1;
 	case T_LREF:
-		printf("\t%sa %d(s)\n", op, v);
-		printf("\t%sb %d(s)\n", op, v + 1);
+		printf("\t%sa %d,s\n", op, v);
+		printf("\t%sb %d,s\n", op, v + 1);
 		return 1;
 	case T_LOCAL:
-		printf("\t%sa %d(s)\n", op, v + sp);
-		printf("\t%sb %d(s)\n", op, v + sp + 1);
+		printf("\t%sa %d,s\n", op, v + sp);
+		printf("\t%sb %d,s\n", op, v + sp + 1);
 		return 1;
 	case T_ARGUMENT:
-		printf("\t%sa %d(s)\n", op, v + frame_len + sp + 2);
-		printf("\t%sb %d(s)\n", op, v + frame_len + sp + 3);
+		printf("\t%sa %d,s\n", op, v + frame_len + sp + 2);
+		printf("\t%sb %d,s\n", op, v + frame_len + sp + 3);
 		return 1;
 	}
 	return 0;
@@ -591,13 +591,13 @@ unsigned gen_direct(struct node *n)
 		if (s == 4) {
 			printf("\tldd #%d\n", v & 0xFFFF);
 			printf("\tldu #%d\n", (v >> 16));
-			printf("\tldu %d(s)\n", nv);
-			printf("\tldd %d(s)\n", nv + 2);
+			printf("\tldu %d,s\n", nv);
+			printf("\tldd %d,s\n", nv + 2);
 			return 1;
 		}
 		if (s == 1 || s == 2) {
 			printf("\t%s #%d\n", ldop, v);
-			printf("\t%s %d(s)\n", stop, nv);
+			printf("\t%s %d,s\n", stop, nv);
 			return 1;
 		}
 		break;
@@ -608,18 +608,18 @@ unsigned gen_direct(struct node *n)
 		switch(s) {
 		case 1:
 			if (v == 0) {
-				printf("\tclr (x)\n");
+				printf("\tclr ,x\n");
 				return 1;
 			}
 		case 2:
 			printf("\t%s #%d\n", ldop, v);
-			printf("\t%s (x)\n", stop);
+			printf("\t%s ,x\n", stop);
 			return 1;
 		case 4:
 			printf("\tldu #%d\n", (v >> 16));
-			printf("\tstu (x)\n");
+			printf("\tstu ,x\n");
 			printf("\tldd #%d\n", v & 0xFFFF);
-			printf("\tstd 2(x)\n");
+			printf("\tstd 2,x\n");
 			return 1;
 		default:
 			return 0;
@@ -708,6 +708,13 @@ unsigned gen_shortcut(struct node *n)
 {
 	struct node *l = n->left;
 	switch(n->op) {
+	case T_PLUS:
+		if (can_constop(l)) {
+			codegen_lr(n->right);
+			gen_constop("add", 0, n->left);
+			return 1;
+		}
+		break;
 	case T_PLUSEQ:
 		return gen_xeqop(n, "add", 1);
 	case T_ANDEQ:
@@ -780,16 +787,16 @@ unsigned gen_node(struct node *n)
 		break;
 	case T_LREF:
 		if (s == 4) {
-			printf("\tldu %d(s)\n", nv);
-			printf("\tldd %d(s)\n", nv + 2);
+			printf("\tldu %d,s\n", nv);
+			printf("\tldd %d,s\n", nv + 2);
 			return 1;
 		}
 		if (s == 2) {
-			printf("\tldd %d(s)\n", nv);
+			printf("\tldd %d,s\n", nv);
 			return 1;
 		}
 		if (s == 1) {
-			printf("\tldb %d(s)\n", nv);
+			printf("\tldb %d,s\n", nv);
 			return 1;
 		}
 		break;
@@ -810,16 +817,16 @@ unsigned gen_node(struct node *n)
 		break;
 	case T_LSTORE:
 		if (s == 4) {
-			printf("\tldu %d(s)\n", nv);
-			printf("\tldd %d(s)\n", nv + 2);
+			printf("\tldu %d,s\n", nv);
+			printf("\tldd %d,s\n", nv + 2);
 			return 1;
 		}
 		if (s == 2) {
-			printf("\tstd %d(s)\n", nv);
+			printf("\tstd %d,s\n", nv);
 			return 1;
 		}
 		if (s == 1) {
-			printf("\tstb %d(s)\n", nv);
+			printf("\tstb %d,s\n", nv);
 			return 1;
 		}
 		break;
@@ -829,12 +836,12 @@ unsigned gen_node(struct node *n)
 	case T_EQ:
 		printf("\tldx (-s)\n");
 		if (s == 1)
-			printf("\tstb (x)\n");
+			printf("\tstb ,x\n");
 		else if (s == 2)
-			printf("\tstd (x)\n");
+			printf("\tstd ,x\n");
 		else if (s == 4) {
-			printf("\tstd 2(x)\n");
-			printf("\tstu (x)\n");
+			printf("\tstd 2,x\n");
+			printf("\tstu ,x\n");
 		} else
 			return 0;
 		return 1;
@@ -842,13 +849,13 @@ unsigned gen_node(struct node *n)
 		if (s <= 4) {
 			printf("\ttfr d,x\n");
 			if (s == 4) {
-				printf("\tldu (x)\n");
-				printf("\tldd 2(x)\n");
+				printf("\tldu ,x\n");
+				printf("\tldd 2,x\n");
 			}
 			if (s == 2)
-				printf("\tldd (x)\n");
+				printf("\tldd ,x\n");
 			else
-				printf("\tldb (x)\n");
+				printf("\tldb ,x\n");
 			return 1;
 		}
 		return 0;
@@ -884,9 +891,9 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_PLUS:
 		if (s == 1)
-			printf("\taddb (s+)\n");
+			printf("\taddb ,s+\n");
 		if (s == 2)
-			printf("\taddd (s++)\n");
+			printf("\taddd ,s++\n");
 		else
 			return 0;
 		return 1;
