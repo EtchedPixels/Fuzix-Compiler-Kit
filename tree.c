@@ -393,11 +393,14 @@ struct node *constify(struct node *n)
 			free_node(r);
 			return l;
 		}
+#if 0
+		/* We can only do this if n has no side effects */
 		if (r->value == 0) {
 			l = make_constant(0, n->type);
 			free_tree(n);
 			return l;
 		}
+#endif
 	}
 	/* Divide by 1 */
 	if (n->op == T_SLASH && r->op == T_CONSTANT) {
