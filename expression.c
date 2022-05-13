@@ -222,7 +222,8 @@ static struct node *hier10(void)
 			/* It's an lval so we want the pointer form */
 			unsigned s = type_scale(l->type);
 			next_token();
-			return tree(op, make_constant(s, UINT), l);
+			/* Put the constant on the right for convenience */
+			return tree(op, l, make_constant(s, UINT));
 		}
 		return l;
 	}

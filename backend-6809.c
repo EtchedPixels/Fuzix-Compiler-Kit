@@ -115,10 +115,12 @@ struct node *gen_rewrite_node(struct node *n)
 		/* We can turn some operators into simpler nodes for
 		   code generation */
 		if (n->op == T_PLUSPLUS || n->op == T_MINUSMINUS) {
-			/* left is a constant scaled value, right is
+			/* right is a constant scaled value, left is
 			   the lval */
-			n->val2 = l->value;
-			free_node(l);
+			n->val2 = r->value;
+			free_node(r);
+			/* We must keep a right when we convert */
+			n->right = l;
 			n->left = NULL;
 		}
 	}
@@ -189,7 +191,7 @@ void gen_jtrue(const char *tail, unsigned n)
 void gen_switch(unsigned n, unsigned type)
 {
 	printf("\tldx #Sw%d\n", n);
-	printf("\tcall __switch");
+	printf("\tjsr __switch");
 	helper_type(type);
 	printf("\n");
 }
@@ -209,6 +211,7 @@ void gen_case_label(unsigned tag, unsigned entry)
 {
 	printf("\t.word Sw%d_%d\n", tag, entry);
 }
+
 /* Output whatever goes in front of a helper call */
 void gen_helpcall(struct node *n)
 {
@@ -298,7 +301,6 @@ void gen_end(void)
 void gen_tree(struct node *n)
 {
 	codegen_lr(n);
-	printf(";SP %d\n", sp);
 	printf(";\n");
 }
 
@@ -359,6 +361,23 @@ unsigned gen_constop(const char *op, char r, struct node *n)
 	case T_LREF:
 		printf("\t%s%c %d,s\n", op, r, v + sp);
 		return 1;
+	}
+	return 0;
+}
+
+unsigned gen_derefop(const char *op, struct node *n)
+{
+	unsigned s = get_size(n->type);
+	unsigned v = n->value;
+	char r = 'd';
+
+	if (s > 2)
+		return 0;
+
+	if (s == 1)
+		r = 'b';
+
+	switch(n->op) {
 	case T_LOCAL:
 		printf("\t%s%c %d,s\n", op, r, v + sp);
 		return 1;
@@ -374,8 +393,7 @@ unsigned can_constop(struct node *n)
 	if (get_size(n->type) > 2)
 		return 0;
 	if (n->op == T_CONSTANT || n->op == T_NAME || n->op == T_LABEL ||
-		n->op == T_NREF || n->op == T_LREF || n->op == T_LOCAL ||
-		n->op == T_ARGUMENT)
+		n->op == T_NREF || n->op == T_LREF)
 		return 1;
 	return 0;
 }
@@ -411,14 +429,6 @@ unsigned gen_constpair(const char *op, struct node *n)
 	case T_LREF:
 		printf("\t%sa %d,s\n", op, v);
 		printf("\t%sb %d,s\n", op, v + 1);
-		return 1;
-	case T_LOCAL:
-		printf("\t%sa %d,s\n", op, v + sp);
-		printf("\t%sb %d,s\n", op, v + sp + 1);
-		return 1;
-	case T_ARGUMENT:
-		printf("\t%sa %d,s\n", op, v + frame_len + sp + 2);
-		printf("\t%sb %d,s\n", op, v + frame_len + sp + 3);
 		return 1;
 	}
 	return 0;
@@ -498,10 +508,10 @@ unsigned gen_uni_direct(struct node *n)
 	case T_MINUSMINUS:
 		v2 = -v2;
 	case T_PLUSPLUS:
-		if (!gen_constop("ld", 0, r))
+		if (!gen_derefop("ld", r))
 			break;
 		printf("\tadd%c #%d\n", reg, v2);
-		gen_constop("st", 0, r);
+		gen_derefop("st", r);
 		if (!(n->flags & NORETURN))
 			printf("\tsub%c #%d\n", reg, v2);
 		return 1;
@@ -527,9 +537,9 @@ unsigned gen_compare(struct node *n, const char *p)
 	unsigned v = n->right->value;
 	unsigned s = get_size(n->type);
 	if (s == 1)
-		printf("\tsubb #%d\n", v & 0xFF);
+		printf("\tcmpb #%d\n", v & 0xFF);
 	else if (s == 2)
-		printf("\tsubd #%d\n", v & 0xFFFF);
+		printf("\tcmpd #%d\n", v & 0xFFFF);
 	else
 		return 0;
 	/* Sets the bool and flags */
@@ -756,6 +766,7 @@ unsigned gen_shortcut(struct node *n)
 	default:
 		return 0;
 	}
+	return 0;
 }
 
 unsigned gen_node(struct node *n)
@@ -860,7 +871,7 @@ unsigned gen_node(struct node *n)
 		}
 		return 0;
 	case T_LABEL:
-		printf("\tldd T%d\n", nv);
+		printf("\tldd #T%d\n", nv);
 		return 1;
 	case T_CONSTANT:
 		switch(s) {
