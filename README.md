@@ -66,7 +66,7 @@ auto, static, extern, probably not register for now.
 
 Things that add size and complexity or are just pointless.
 
-* K&R initializers
+* K&R function declarations
 * Most C95 stuff - wide char, digraph etc
 * Most C99 bloat by committee
 * C11 bloat by committee
