@@ -8,6 +8,7 @@ OBJ = workspace.o \
       __minus.o __plus.o \
       __cclt.o __ccltu.o __ccgteq.o __ccgtequ.o \
       __ccgt.o __ccgtu.o __cclteq.o __ccltequ.o \
+      __andc.o __orc.o __xorc.o \
       __minuseqc.o __pluseqc.o \
       __castc.o __castcl.o
 
