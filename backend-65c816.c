@@ -73,7 +73,7 @@ static void squash_right(struct node *n, unsigned op)
 }
 
 /*
- *	Our chance to do tree rewriting. We don't do much for the 8080
+ *	Our chance to do tree rewriting. We don't do much for the 65C816
  *	at this point, but we do rewrite name references and function calls
  *	to make them easier to process.
  */
@@ -87,7 +87,7 @@ struct node *gen_rewrite_node(struct node *n)
 		if (n->op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
 				if (r->op == T_ARGUMENT)
-					r->value += 2 + frame_len;
+					r->value += 4 + frame_len;
 				if (r->value < 254)
 					squash_right(n, T_LREF);
 				return n;
@@ -100,7 +100,7 @@ struct node *gen_rewrite_node(struct node *n)
 		if (n->op == T_EQ) {
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
 				if (l->op == T_ARGUMENT)
-					l->value += 2 + frame_len;
+					l->value += 4 + frame_len;
 				if (l ->value < 254) {								
 					/* Lose a pointer level as it's an LVAL */
 					n->type--;
@@ -161,7 +161,7 @@ void gen_frame(unsigned size)
 	printf("\tphd\n");
 	sp = 0;	/* Stack is relative to bottom of frame */
 	if (size > 12) { 
-		printf("\ttsx\n\ttxa\n\tclc\tsbc #%d\n", -size);
+		printf("\ttsx\n\ttxa\n\tsec\tsbc #%d\n", -size);
 		printf("\ttcd\n\ttax\n\ttxs\n");
 	} else {
 		while(size >= 2) {
@@ -181,7 +181,7 @@ void gen_epilogue(unsigned size)
 		error("sp");
 	}
 	if (size > 12) { 
-		printf("\ttsx\n\ttxa\n\tclc\tsbc #%d\n", -size);
+		printf("\ttsx\n\ttxa\n\tsec\tsbc #%d\n", -size);
 		printf("\tpld\n");
 	} else {
 		while(size >= 2) {
@@ -419,7 +419,7 @@ unsigned gen_derefop(const char *op, struct node *n)
 		printf("\t%s z:%d\n", op, v + sp);
 		break;
 	case T_ARGUMENT:
-		printf("\t%s %d,s\n", op, v + frame_len + sp);
+		printf("\t%s z:%d\n", op, v + frame_len + sp);
 		break;
 	default:
 		return 0;
@@ -494,7 +494,7 @@ unsigned gen_uni_direct(struct node *n)
 		printf("\tclc\n\tadc #%d\n", v2);
 		gen_derefop("sta", r);
 		if (!(n->flags & NORETURN))
-			printf("\tclc\n\tsbc #%d\n", v2);
+			printf("\tsec\n\tsbc #%d\n", v2);
 		return 1;
 	case T_TILDE:
 		if (!gen_constop("lda", r))
@@ -520,7 +520,7 @@ unsigned gen_compare(struct node *n, const char *p)
 		return 0;
 	if (s == 1)
 		mode8bit();
-	printf("clc");
+	printf("\tsec\n");
 	printf("\tsbc #%d\n", v & 0xFFFF);
 	if (s == 1)
 		mode16bit();
@@ -624,9 +624,9 @@ unsigned gen_direct(struct node *n)
 		}
 		break;
 	case T_PLUS:
-		return gen_constop("add", r);
+		return gen_constop("clc\n\tadc", r);
 	case T_MINUS:
-		return gen_constop("sub", r);
+		return gen_constop("sec\n\tsbc", r);
 	case T_AND:
 		return gen_constop("and", r);
 	case T_OR:
@@ -677,7 +677,7 @@ static unsigned gen_compop(struct node *n, const char *lo, const char *ro)
 	/* TODO: compare operator instead ? */
 	if (can_constop(n->left)) {
 		codegen_lr(n->right);
-		printf("\tclc\n");
+		printf("\tsec\n");
 		gen_constop("sbc", n->left);
 		printf("\tjsr bool%s\n", ro);
 		/* Tell the core backend that it doesn't need to bool this */
@@ -686,7 +686,7 @@ static unsigned gen_compop(struct node *n, const char *lo, const char *ro)
 	}
 	if (can_constop(n->right)) {
 		codegen_lr(n->left);
-		printf("\tclc\n");
+		printf("\tsec\n");
 		gen_constop("sbc", n->right);
 		printf("\tjsr bool%s\n", lo);
 		/* Tell the core backend that it doesn't need to bool this */
@@ -759,15 +759,6 @@ static unsigned gen_pop_and_op(const char *op, struct node *n)
 	printf("\ttsx\n");
 	printf("\t%s f:0,x\n", op);
 	printf("\tply\n");	/* 16 or 8bit op so y is sacrificial */
-	return 1;
-}
-
-static unsigned gen_pop_and_op_cc(const char *op, struct node *n)
-{
-	if (get_size(n->type) > 2)
-		return 0;
-	printf("\tclc\n");
-	gen_pop_and_op(op, n);
 	return 1;
 }
 
@@ -913,15 +904,15 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_ARGUMENT:
 		/* FIXME: correct offsets */
-		printf("\tleax %d,s\n", nv + frame_len + 2 + sp);
+		printf("\tleax %d,s\n", nv + frame_len + 4 + sp);
 		/* Will need a lot of peepholing */
 		printf("\ttfr x,d\n");
 		return 1;
 	/* Not as nice as 6809 as we have to set up x, go via ,x and pop */
 	case T_PLUS:
-		return gen_pop_and_op_cc("adc", n);
+		return gen_pop_and_op("clc\n\tadc", n);
 	case T_MINUS:
-		return gen_pop_and_op_cc("sbc", n);
+		return gen_pop_and_op("sec\n\tsbc", n);
 	case T_AND:
 		return gen_pop_and_op("and", n);
 	case T_OR:
