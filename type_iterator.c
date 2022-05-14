@@ -164,6 +164,9 @@ unsigned get_type(void) {
  *	not have a body. We will need that once we move the body parsing
  *	here.
  */
+
+static unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name);
+
 static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsigned type, unsigned ptr) {
 	/* Function returning the type accumulated so far */
 	/* We need an anonymous symbol entry to hang the function description onto */
@@ -172,7 +175,6 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 	unsigned t;
 	unsigned tplt[33];	/* max 32 typed arguments */
 	unsigned *tn = tplt + 1;
-
 
 	/* Parse the bracketed arguments if any and nail them to the
 	   symbol. */
@@ -185,15 +187,18 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 			*tn++ = ELLIPSIS;
 			break;
 		}
-		t = type_and_name(S_ARGUMENT, &an, 0, CINT);
+		t = get_type();
+		if (t == UNKNOWN)
+			t = CINT;
+		t = type_name_parse(S_ARGUMENT, t, &an);
 		if (t == VOID) {
 			*tn++ = VOID;
 			break;
 		}
 		/* Arrays pass the pointer */
 		t = type_canonical(t);
-		if (IS_STRUCT(t)) {
-			error("cannot pass structures");
+		if (IS_STRUCT(t) || IS_FUNCTION(t)) {
+			error("cannot pass objects");
 			t = CINT;
 		}
 		if (an) {
@@ -238,15 +243,31 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 	return type;
 }
 
-static unsigned type_parse_array(unsigned type) {
-	int n = const_int_expression();
+static unsigned type_parse_array(unsigned storage, unsigned type)
+{
+	int n;
+
+	/* Arguments can have [] form but it's just an alias of * and
+	   a syntactic quirk. We need to handle it here because of the
+	   way our type matching is handled and to allow [] */
+	if (token == T_RSQUARE) {
+		if (storage == S_ARGUMENT)
+			return type + 1;
+		error("size required");
+	}
+	n = const_int_expression();
 	if (n < 1) {
 		error("bad size");
 		n = 1;
 	}
-	if (!IS_ARRAY(type))
-		 type = make_array(type);
-	array_add_dimension(type, n);
+	/* Pointer cases and arguments */
+	if (storage == S_ARGUMENT || PTR(type))
+		type = type_ptr(type);
+	else {
+		if (!IS_ARRAY(type))
+			type = make_array(type);
+		array_add_dimension(type, n);
+	}
 	return type;
 }
 
@@ -295,7 +316,7 @@ static unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
 	while (token == T_LSQUARE || token == T_LPAREN) {
 		if (token == T_LSQUARE) {
 			next_token();
-			type = type_parse_array(type);
+			type = type_parse_array(storage, type);
 			require(T_RSQUARE);
 		} else if (token == T_LPAREN) {
 			next_token();
