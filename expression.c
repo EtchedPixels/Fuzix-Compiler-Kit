@@ -223,7 +223,10 @@ static struct node *hier10(void)
 			unsigned s = type_scale(l->type);
 			next_token();
 			/* Put the constant on the right for convenience */
-			return tree(op, l, make_constant(s, UINT));
+			r = tree(op, l, make_constant(s, UINT));
+			/* Fix up the type */
+			r->type = l->type;
+			return r;
 		}
 		return l;
 	}
