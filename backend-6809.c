@@ -73,7 +73,7 @@ static void squash_right(struct node *n, unsigned op)
 }
 
 /*
- *	Our chance to do tree rewriting. We don't do much for the 8080
+ *	Our chance to do tree rewriting. We don't do much for the 6809
  *	at this point, but we do rewrite name references and function calls
  *	to make them easier to process.
  */
