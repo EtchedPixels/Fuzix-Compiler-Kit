@@ -86,7 +86,7 @@ results from stuff like x+++++y; (x++ ++ +y).
 
 All names are translated into a 16bit token number. So for example every
 occurence of "fred" might be 0x8004. The cc0 stage has no understanding of
-C scoping so 0x8004 isn't tied to any kind of scope, merely a grouup of
+C scoping so 0x8004 isn't tied to any kind of scope, merely a group of
 letters.
 
 After tokenizing it writes the symbol table out to disk as well. It turns
@@ -104,7 +104,7 @@ the code generator or an optimizer pass wished.
 
 The biggest challenge on a small machine is the memory management. To keep
 things tight types are packed into 16bits. Where the type is complex it
-contains an index to an object in the symbol take which describes the type
+contains an index to an object in the symbol table which describes the type
 in question (and if the type is named also has the type naming attached).
 
 Various per object fields are packed into runs of 16bit values, such as
