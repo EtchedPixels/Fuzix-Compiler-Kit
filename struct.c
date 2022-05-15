@@ -53,9 +53,7 @@ void struct_declaration(struct symbol *sym)
 
     require(T_LCURLY);
     while(token != T_RCURLY) {
-        /* The storage type doesn't really make sense here, but we pass
-           auto so you can't declare functions in a struct */
-        t = type_and_name(S_AUTO, &name, 1, CINT);
+        t = type_and_name(S_NONE, &name, 1, CINT);
         if (nfield == NUM_STRUCT_FIELD) {
             if (err == 0)
                 error("too many struct/union fields");

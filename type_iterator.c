@@ -15,6 +15,12 @@ unsigned is_type_word(void)
 	return (token >= T_CHAR && token <= T_VOID);
 }
 
+/* This one is more expensive so use it last when possible */
+struct symbol *is_typedef(void)
+{
+	return find_symbol_by_class(token, S_TYPEDEF);
+}
+
 void skip_modifiers(void)
 {
 	while (is_modifier())
@@ -32,8 +38,6 @@ static unsigned structured_type(unsigned sflag)
 	struct symbol *sym;
 	unsigned name = symname();
 
-	/* Our func/sym names partly clash for now like an old school compiler. We
-	   can address that later FIXME */
 	sym = update_struct(name, sflag);
 	if (sym == NULL) {
 		error("not a struct");
@@ -139,25 +143,23 @@ unsigned get_type(void) {
 	struct symbol *sym;
 	unsigned type;
 
-
-	/* Not a type */
-	if (!is_modifier() && !is_type_word()) {
-		/* Check for typedef */
-		sym = find_symbol(token);
-		if (sym == NULL || sym->storage != S_TYPEDEF)
-			return UNKNOWN;
-		next_token();
-		skip_modifiers();
-		return sym->type;
-	}
-	skip_modifiers();	/* volatile const etc */
+	skip_modifiers();
 
 	if (match(T_ENUM))
 		type = enum_body();
 	else if ((sflag = match(T_STRUCT)) || match(T_UNION))
 		type = structured_type(sflag);
-	else
+	else if (is_type_word())
 		type = base_type();
+	else {
+		/* Check for typedef */
+		sym = find_symbol_by_class(token, S_TYPEDEF);
+		if (sym == NULL)
+			return UNKNOWN;
+		next_token();
+		type = sym->type;
+	}
+	skip_modifiers();
 	return type;
 }
 
@@ -236,7 +238,7 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 
 			if (fsym->flags & INITIALIZED)
 				error("duplicate function");
-			if (storage == S_AUTO)
+			if (storage == S_AUTO || storage == S_NONE)
 				error("function not allowed");
 			if (storage == S_EXTDEF)
 				header(H_EXPORT, fsym->name, 0);
@@ -308,12 +310,12 @@ static unsigned declarator(unsigned *name)
 unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
 {
 	unsigned ptr = declarator(name);
-	struct symbol *sym, *ltop;
+	struct symbol *sym = NULL, *ltop;
 	if (ptr > 7)
 		indirections();
 
 	/* Reserve a symbol slot if needed */
-	if (*name)
+	if (*name && storage != S_NONE)
 		sym = update_symbol_by_name(*name, storage, C_ANY);
 
 	/* All the symbols within the declaration below are local to the
@@ -336,7 +338,7 @@ unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
 	}
 	pop_local_symbols(ltop);
 	type += ptr;
-	if (*name)
+	if (sym)
 		update_symbol(sym, *name, storage, type);
 	return type;
 }

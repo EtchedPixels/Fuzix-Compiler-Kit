@@ -325,15 +325,19 @@ struct node *ordercomp_tree(unsigned op, struct node *l, struct node *r)
 
 struct node *assign_tree(struct node *l, struct node *r)
 {
-	if (l->type == r->type)
+	unsigned lt = type_canonical(l->type);
+	unsigned rt = type_canonical(r->type);
+
+	if (lt == rt)
 		return tree(T_EQ, l, r);
-	if (PTR(l->type)) {
+	if (PTR(lt)) {
 		type_pointermatch(l, r);
 		return tree(T_EQ, l, r);
-	} else if (PTR(r->type))
+	} else if (PTR(rt))
 		typemismatch();
-	else if (!IS_ARITH(l->type) || !IS_ARITH(r->type))
+	else if (!IS_ARITH(lt) || !IS_ARITH(rt)) {
 		invalidtype();
+	}
 	return tree(T_EQ, l, make_cast(r, l->type));
 }
 
@@ -381,6 +385,13 @@ static struct node *replace_constant(struct node *n, unsigned t, unsigned long v
 	return make_constant(value, t);
 }
 
+static unsigned is_name(unsigned n)
+{
+	if (n >= T_NAME && n <= T_ARGUMENT)
+		return 1;
+	return 0;
+}
+
 struct node *constify(struct node *n)
 {
 	struct node *l = n->left;
@@ -412,12 +423,6 @@ struct node *constify(struct node *n)
 	}
 
 
-	if (l) {
-		l = constify(l);
-		if (l == NULL)
-			return NULL;
-		n->left = l;
-	}
 	if (r) {
 		r = constify(r);
 		if (r == NULL)
@@ -429,12 +434,12 @@ struct node *constify(struct node *n)
 		unsigned long value = l->value;
 
 		/* Lval names are constant but a maths operation on two name lval is not */
-		if (l->op == T_NAME || r->op == T_NAME) {
+		if (is_name(l->op) || is_name(r->op)) {
 			if (n->op != T_PLUS)
 				return NULL;
-			/* Special case for NAME + const */
-			if (l->op == T_NAME) {
-				if (r->op == T_NAME)
+			/* Special case for name + const */
+			if (is_name(l->op)) {
+				if (is_name(r->op))
 					return NULL;
 				l->value += r->value;
 				free_node(r);
@@ -445,6 +450,12 @@ struct node *constify(struct node *n)
 			free_node(l);
 			free_node(n);
 			return r;
+		}
+		if (l) {
+			l = constify(l);
+			if (l == NULL)
+				return NULL;
+			n->left = l;
 		}
 		/* Only do constant work with simple types */
 		if (!IS_INTARITH(lt) && !PTR(lt))

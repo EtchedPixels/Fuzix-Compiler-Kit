@@ -122,7 +122,7 @@ struct node *primary(void)
 		}
 		/* You can't size fields and structs by field/struct name without 
 		   the type specifier */
-		if (sym == NULL || sym->storage > S_EXTDEF) {
+		if (sym == NULL) {
 			/* Enum... */
 			if (find_constant(name, &p) == 0)
 				error("unknown symbol");

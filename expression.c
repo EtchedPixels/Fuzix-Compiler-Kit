@@ -19,22 +19,26 @@ static void missedarg(unsigned narg, unsigned ti)
  */
 struct node *typeconv(struct node *n, unsigned type, unsigned warn)
 {
-	if (!PTR(n->type)) {
+	unsigned nt = type_canonical(n->type);
+	if (!PTR(nt)) {
 		/* You can cast pointers to things but not actual block
 		   classes */
-		if (!IS_SIMPLE(n->type) || !IS_ARITH(n->type) ||
+		if (!IS_SIMPLE(nt) || !IS_ARITH(nt) ||
 			!IS_SIMPLE(type) || !IS_ARITH(type)) {
 			error("invalid type conversion");
 			return n;
 		}
 	} else {
+		fprintf(stderr, "try ptrconv %x %x\n", n->type, type);
 		if (type_pointerconv(n, type))
 			return make_cast(n, type);
 	}
 	/* TODO: review float promotions here */
-	if (n->type == type || (IS_INTARITH(n->type) && IS_INTARITH(type)))
+	if (nt == type || (IS_INTARITH(nt) && IS_INTARITH(type)))
 		return make_cast(n, type);
+	fprintf(stderr, "tcmm %x %x\n", nt, type);
 	typemismatch();
+	n->type = nt;
 	return n;
 }
 
@@ -44,10 +48,12 @@ struct node *typeconv(struct node *n, unsigned type, unsigned warn)
  */
 struct node *typeconv_implicit(struct node *n)
 {
-	if (n->type == CCHAR || n->type == UCHAR)
+	unsigned t = n->type;
+	if (t == CCHAR || t == UCHAR)
 		return typeconv(n, CINT, 0);
-	if (n->type == FLOAT)
+	if (t == FLOAT)
 		return typeconv(n, DOUBLE, 0);
+	n->type = type_canonical(t);
 	return n;
 }
 
@@ -72,6 +78,7 @@ struct node *call_args(unsigned *narg, unsigned *argt, unsigned *argsize)
 	else {
 		/* Explicit prototyped argument */
 		if (*narg) {
+			fprintf(stderr, "typed %x\n", *argt);
 			n = typeconv(n, *argt++, 1);
 			(*narg)--;
 		} else
@@ -106,7 +113,7 @@ struct node *function_call(struct node *n)
 	type = func_return(n->type);
 	argt = func_args(n->type);
 
-	if (!*argt)
+	if (!argt)
 		fatal("narg");
 	narg = *argt;
 
@@ -142,10 +149,12 @@ static struct node *hier11(void)
 	unsigned ptr;
 	unsigned scale;
 	unsigned *tag;
+	unsigned lt;
 
 	l = primary();
+	lt = l->type;;
 
-	ptr = PTR(l->type) || IS_ARRAY(l->type);
+	ptr = PTR(lt) || IS_ARRAY(lt);
 	if (token == T_LSQUARE || token == T_LPAREN || token == T_DOT
 	    || token == T_POINTSTO) {
 		for (;;) {
@@ -160,12 +169,14 @@ static struct node *hier11(void)
 				require(T_RSQUARE);
 				/* Need a proper method for this stuff */
 				/* TODO arrays */
-				scale = type_ptrscale(l->type);
+				scale = type_ptrscale(lt);
 				l = tree(T_PLUS, l,
 					 tree(T_STAR, r,
 					      make_constant(scale, UINT)));
 				l->flags |= LVAL;
-				l->type = type_deref(l->type);
+				/* Force the type back correct as tree()
+				   defaults to the RH type */
+				l->type = lt;
 			} else if (match(T_LPAREN)) {
 				l = function_call(l);
 			} else if ((direct = match(T_DOT))

@@ -209,12 +209,9 @@ static void goto_statement(void)
  */
 static void statement(void)
 {
-	/* Classic C requires variables at the block start, C99 doesn't. Whilst
-	   the C99 approach is ugly allow it */
-	if (is_modifier() || is_storage_word() || is_type_word()) {
-		declaration(S_AUTO);
-		return;
-	}
+#if 0	/* C99 for later if we want it */
+	declaration_block();
+#endif
 	/* Check for keywords */
 	switch (token) {
 	case T_IF:
@@ -286,6 +283,16 @@ static void statement(void)
 	}
 }
 
+static void declaration_block(void)
+{
+	struct symbol *sym;
+
+	while (is_modifier() || is_storage_word() || is_type_word() ||
+			is_typedef()) {
+		declaration(S_AUTO);
+	}
+}
+
 /*
  *	Either a statement or a sequence of statements enclosed in { }. In
  *	some cases the sequence is mandatory (eg a function) so we pass in
@@ -308,6 +315,7 @@ void statement_block(unsigned need_brack)
 	ltop = mark_local_symbols();
 	while (token != T_RCURLY) {
 		/* declarations */
+		declaration_block();
 		/* statements */
 		statement_block(0);
 	}

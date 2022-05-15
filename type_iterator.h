@@ -6,3 +6,4 @@ extern unsigned get_type(void);
 
 extern unsigned is_modifier(void);
 extern unsigned is_type_word(void);
+extern struct symbol *is_typedef(void);

@@ -20,6 +20,7 @@ struct symbol *symbol_ref(unsigned type)
 }
 
 /* Local symbols have priority in all cases */
+/* Find a symbol in the normal name space */
 struct symbol *find_symbol(unsigned name)
 {
 	struct symbol *s = last_sym;
@@ -27,7 +28,25 @@ struct symbol *find_symbol(unsigned name)
 	/* Walk backwards so that the first local we find is highest priority
 	   by scope */
 	while (s >= symtab) {
-		if (s->name == name) {
+		if (s->name == name && s->storage < S_TYPEDEF) {
+			if (s->storage <= S_LSTATIC)
+				return s;
+			else	/* Still need to look for a local */
+				gmatch = s;
+		}
+		s--;
+	}
+	return gmatch;
+}
+
+struct symbol *find_symbol_by_class(unsigned name, unsigned class)
+{
+	struct symbol *s = last_sym;
+	struct symbol *gmatch = NULL;
+	/* Walk backwards so that the first local we find is highest priority
+	   by scope */
+	while (s >= symtab) {
+		if (s->name == name && s->storage == class) {
 			if (s->storage <= S_LSTATIC)
 				return s;
 			else	/* Still need to look for a local */
@@ -62,8 +81,6 @@ struct symbol *mark_local_symbols(void)
 struct symbol *alloc_symbol(unsigned name, unsigned local)
 {
 	struct symbol *s = local_top; /* FIXME ? */
-	if (name == 0)
-		fatal("as0");
 	while (s <= &symtab[MAXSYM]) {
 		if (s->storage == S_FREE) {
 			if (local && local_top < s)
@@ -115,10 +132,6 @@ struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage
 			error("storage class mismatch");
 			return sym;
 		}
-		/* We can find a matching global for our local. That's allowed
-		   but bad */
-		else
-			warning("local name obscures global");
 	}
 	/* Insert new symbol */
 	if (sym == NULL)
@@ -132,10 +145,17 @@ struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage
 	return sym;
 }
 
+/* Update a symbol by name. In the case of things like typedefs we need
+   to do an explicit search, otherwise we look for conventional names */
 struct symbol *update_symbol_by_name(unsigned name, unsigned storage,
 			     unsigned type)
 {
-	return update_symbol(find_symbol(name), name, storage, type);
+	struct symbol *sym;
+	if (storage >= S_TYPEDEF)
+		sym = find_symbol_by_class(name, storage);
+	else
+		sym = find_symbol(name);
+	return update_symbol(sym, name, storage, type);
 }
 
 /*
@@ -148,7 +168,7 @@ struct symbol *update_symbol_by_name(unsigned name, unsigned storage,
 static struct symbol *do_func_match(unsigned rtype, unsigned *template)
 {
 	struct symbol *sym = symtab;
-	unsigned len = *template + 1;
+	unsigned len = sizeof(unsigned) * (*template + 1);
 	while(sym <= last_sym) {
 		if (sym->storage == S_FUNCDEF && sym->type == rtype && memcmp(sym->idx, template, len) == 0) {
 			return sym;

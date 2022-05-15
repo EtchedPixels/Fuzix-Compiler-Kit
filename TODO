@@ -35,3 +35,6 @@ Longer term
 - Optimizer pass for tree rearrangement ?
 - Whilst we need to be careful for side effects on * 0, we don't for and/or
   subtrees with && || so should deal with those
+- cc0 and the -32768 funny (understand a little of previous token is needed)
+- target 'ptr_arith_type_of(x)' and cast ptr/ptr hooks. Need these so we can
+  word machines and charptrs etc

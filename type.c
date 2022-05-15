@@ -67,7 +67,6 @@ unsigned type_sizeof(unsigned t)
 		error("struct/union not declared");
 		return 1;
 	}
-	/* Umm.. help ?? */
 	error("can't size type");
 	return 1;
 }
@@ -110,7 +109,7 @@ unsigned type_addrof(unsigned t) {
  */
 int type_pointerconv(struct node *r, unsigned lt)
 {
-    unsigned rt = r->type;
+    unsigned rt = type_canonical(r->type);
     /* The C zero case */
     if (is_constant_zero(r) && PTR(lt))
         return 1;

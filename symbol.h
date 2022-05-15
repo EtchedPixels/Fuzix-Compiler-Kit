@@ -25,6 +25,8 @@ struct symbol
 #define S_BSS		13	/* Only used to pass info to code generator */
 #define S_ENUM		14	/* An enumeration name */
 
+#define S_NONE		255	/* Used to tell internal code not to add symbols */
+
 /* For types idx always points to the symbol entry holding the complex type.
    In turn the idx for it points to the desciption blocks.
    Offset for locals gives the base stack offset of the symbol */
@@ -32,6 +34,7 @@ struct symbol
 extern struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage, unsigned type);
 extern struct symbol *update_symbol_by_name(unsigned name, unsigned storage, unsigned type);
 extern struct symbol *find_symbol(unsigned name);
+extern struct symbol *find_symbol_by_class(unsigned name, unsigned class);
 extern struct symbol *alloc_symbol(unsigned name, unsigned local);
 extern void pop_local_symbols(struct symbol *top);
 extern struct symbol *mark_local_symbols(void);

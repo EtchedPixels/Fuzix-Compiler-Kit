@@ -122,8 +122,8 @@
 /* Encodings that are used internally for nodes but have no actual equivalent
    token */
 #define T_CAST		0x1200
-#define T_NAME		0x1201
-#define T_CONSTANT	0x1202
+#define T_CONSTANT	0x1201
+#define T_NAME		0x1202
 #define T_LOCAL		0x1203
 #define T_LABEL		0x1204
 #define T_ARGUMENT	0x1205

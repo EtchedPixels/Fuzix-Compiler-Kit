@@ -66,13 +66,8 @@ unsigned enum_body(void)
     /* Optional */
     ename = symname();
 
-    if (ename) {
-        sym = find_symbol(ename);
-        if (sym && sym->storage != S_ENUM) {
-            typemismatch();
-            return CINT;
-        }
-    }
+    if (ename)
+        sym = find_symbol_by_class(ename, S_ENUM);
         
     /* TODO: we should if possible pick a range to cover the type. We take
        a rather simplistc approach */
