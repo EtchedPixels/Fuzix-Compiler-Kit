@@ -44,10 +44,11 @@ The goal is to support the following
 * char, short, int, long, signed and unsigned
 * float, double
 * struct, union
+* enum
+* typedef
 
-Maybe typedef and long long, probably not enum. The long long handling is
-actually quite easy in the compiler, but the code generator end is not
-funny.
+Maybe long long. The long long handling is actually quite easy in the compiler,
+but the code generator end is not funny.
 
 ### Storage classes
 
