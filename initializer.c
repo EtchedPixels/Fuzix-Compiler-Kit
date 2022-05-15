@@ -26,14 +26,11 @@ static void initializer_single(struct symbol *sym, unsigned type, unsigned stora
  */
 static void initializer_group(struct symbol *sym, unsigned type, unsigned n, unsigned storage)
 {
-    /* Up to n comma delimited initializers of a type */
-    /* For now via number */
     require(T_LCURLY);
     while(n && token != T_RCURLY) {
         if (token == T_ELLIPSIS)
             break;
         n--;
-        next_token();
         initializer_single(sym, type, storage);
         if (!match(T_COMMA))
             break;
@@ -104,13 +101,13 @@ static void initializer_array(struct symbol *sym, unsigned type, unsigned depth,
     if (depth < array_num_dimensions(type)) {
         require(T_LCURLY);
         while(n--)
-            initializer_array(sym, type, depth + 1, storage);
+            initializer_array(sym, type_deref(type), depth + 1, storage);
         require(T_RCURLY);
     } else {
         if (IS_STRUCT(type) && !PTR(type))
-            initializer_struct(sym, type, storage);
+            initializer_struct(sym, type_deref(type), storage);
         else
-            initializer_group(sym, type, n, storage);
+            initializer_group(sym, type_deref(type), n, storage);
     }
 }
 
@@ -142,7 +139,7 @@ void initializers(struct symbol *sym, unsigned type, unsigned storage)
                                    function forms even if it would be more
                                    logical than the C syntax */
     else if (IS_ARRAY(type))
-        initializer_array(sym, type, 0, storage);
+        initializer_array(sym, type, 1, storage);
     else if (IS_STRUCT(type))
         initializer_struct(sym, type, storage);
     else
