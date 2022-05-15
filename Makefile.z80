@@ -4,7 +4,7 @@ all: cc cc0 cc1 cc2 cc2.8080 cc2.6809
 
 OBJS0 = frontend.rel
 
-OBJS1 = body.rel declaration.rel error.rel expression.rel header.rel idxdata.rel \
+OBJS1 = body.rel declaration.rel enum.rel error.rel expression.rel header.rel idxdata.rel \
 	initializer.rel label.rel lex.rel main.rel primary.rel stackframe.rel storage.rel \
 	struct.rel switch.rel symbol.rel target-8080.rel tree.rel type.rel type_iterator.rel
 
@@ -18,7 +18,7 @@ CFLAGS = -O2
 	fcc $(CFLAGS) -c $<
 
 INC0 = token.h
-INC1 = body.h compiler.h declaration.h error.h expression.h header.h \
+INC1 = body.h compiler.h declaration.h enum.h error.h expression.h header.h \
        idxdata.h initializer.h label.h lex.h primary.h stackframe.h storage.h \
        struct.h switch.h symbol.h target.h token.h tree.h type.h type_iterator.h
 INC2 = backend.h
