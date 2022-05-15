@@ -200,14 +200,8 @@ struct node *make_noreturn(struct node *n)
 
 struct node *make_cast(struct node *n, unsigned t)
 {
-	/* Sign casting is just symbolic */
-	if ((t & 0xF0) == (n->type & 0xF0))
-		return n;
-	/* Pointer casting likewise */
-	if (PTR(n->type)) {
-		n->type = t;
-		return n;
-	}
+	unsigned nt = type_canonical(n->type);
+	n->type = nt;
 	n = tree(T_CAST, NULL, n);
 	n->type = t;
 	return n;

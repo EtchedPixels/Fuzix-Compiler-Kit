@@ -29,14 +29,14 @@ struct node *typeconv(struct node *n, unsigned type, unsigned warn)
 			return n;
 		}
 	} else {
-		if (type_pointerconv(n, type))
-			return make_cast(n, type);
+		if (type_pointerconv(n, nt))
+			return make_cast(n, nt);
 	}
 	if (nt == type || (IS_ARITH(nt) && IS_ARITH(type)))
-		return make_cast(n, type);
+		return make_cast(n, nt);
 	if ((IS_ARITH(nt) && PTR(type)) || (IS_ARITH(type) && PTR(nt))) {
 		if (!warn)
-			return make_cast(n, type);
+			return make_cast(n, nt);
 	}
 	typemismatch();
 	n->type = nt;
@@ -81,6 +81,7 @@ struct node *call_args(unsigned *narg, unsigned *argt, unsigned *argsize)
 		if (*narg) {
 			n = typeconv(n, *argt++, 1);
 			(*narg)--;
+			fprintf(stderr, "n->type %x\n", n->type);
 		} else
 			unexarg();
 	}
