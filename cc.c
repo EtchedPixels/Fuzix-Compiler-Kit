@@ -296,6 +296,7 @@ static void redirect_in(const char *p)
 		perror(p);
 		fatal();
 	}
+	printf("<%s\n", p);
 }
 
 static void redirect_out(const char *p)
@@ -305,6 +306,7 @@ static void redirect_out(const char *p)
 		perror(p);
 		fatal();
 	}
+	printf(">%s\n", p);
 }
 
 static void build_arglist(char *p)
@@ -328,23 +330,25 @@ void convert_c_to_s(char *path)
 	char *tmp, *t;
 
 	build_arglist(CMD_CC0);
-	redirect_in(path);
 	t = xstrdup(path, 0);
-	tmp = pathmod(t, ".c", ".@", 0);
+	tmp = pathmod(t, ".c", ".%", 0);
+	redirect_in(tmp);
+	t = xstrdup(path, 0);
+	tmp = pathmod(t, ".%", ".@", 0);
 	if (tmp == NULL)
 		memory();
 	redirect_out(tmp);
 	run_command();
 	build_arglist(CMD_CC1);
 	redirect_in(tmp);
-	tmp = pathmod(path, ".@", ".%", 0);
+	tmp = pathmod(path, ".@", ".#", 0);
 	redirect_out(tmp);
 	run_command();
 	build_arglist(CMD_CC2);
 	/* The sym stuff is a bit hackish right now */
 	add_argument(".symtmp");
 	redirect_in(tmp);
-	redirect_out(pathmod(path, ".%", ".s", 2));
+	redirect_out(pathmod(path, ".#", ".s", 2));
 	run_command();
 	free(t);
 }
