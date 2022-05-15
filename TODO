@@ -1,5 +1,4 @@
 - (int *) casting syntax
-- typedef  (partly done - we sort of create them but we don't recognize them)
 - for word stacking machines add target hooks to specify that arguments
   take 2 bytes even if char, and alloc space correctly both in the func
   declaration/argument side and in the arg stacking (arg passing side done)
@@ -7,20 +6,15 @@
 - char a[8] = { "foo" } needs to be handled - right now we'll try and stuff
   the pointer into it which is wrong
 - Turn the frame the other way up ?
+- Track register state on backend
 
 Broken 
 -	constify needs a hard stare or two
--	see if we can just treat typedef base behaviour as a storage
-	class so that we can embed the code into the iterator and remove
-	the callout stuff
 -	default: for the switch tables
--	Post name argument bits on parameters. Need to allow for
-	int x(char *foo[]); and the like
 
 Longer term
 - z80 6809 style helpers for catching simpler ops and doing them via pairs
   of (ix) ops
-- enum - do we care ?
 - backend hooks for building stack frame via initializers
 - literal based handling for some types (set by target) - eg double/longlong
   so that we pass pointers around including one to a memory "register". 
@@ -37,3 +31,7 @@ Longer term
   BOOL(AND(CC(x) CC(y))) and work on condition code plus a tidy if needed so
   that we can have ccode setting trees that drop the top bool if the CC is
   ok.
+- 6809 - use pshs/puls as a sneaky tight way to mod the stack
+- Optimizer pass for tree rearrangement ?
+- Whilst we need to be careful for side effects on * 0, we don't for and/or
+  subtrees with && || so should deal with those
