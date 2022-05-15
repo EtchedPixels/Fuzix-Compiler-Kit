@@ -219,13 +219,24 @@ static struct node *hier10(void)
 	unsigned op;
 	unsigned name;
 	unsigned t;
+	unsigned is_tcast = 0;
+
+	/* C syntax fun. The grammar has two cases here for (, the first
+	   is a primary (a bracketed expression) the second is a typecast
+	   which has a *different* priority */
 
 	op = token;
+	if (op == T_LPAREN) {
+		next_token();
+		if (is_type_word() || is_typedef())
+			is_tcast = 1;
+		push_token(T_LPAREN);
+	}
 	if (token != T_PLUSPLUS
 	    && token != T_MINUSMINUS
 	    && token != T_MINUS
 	    && token != T_TILDE
-	    && token != T_LPAREN
+	    && is_tcast == 0
 	    && token != T_BANG && token != T_STAR && token != T_AND) {
 		/* Check for trailing forms */
 		l = hier11();
