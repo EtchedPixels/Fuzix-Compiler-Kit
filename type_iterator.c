@@ -136,13 +136,20 @@ static unsigned base_type(void)
 
 unsigned get_type(void) {
 	unsigned sflag = 0;
+	struct symbol *sym;
 	unsigned type;
 
 
 	/* Not a type */
-	if (!is_modifier() && !is_type_word())
-		 return UNKNOWN;
-
+	if (!is_modifier() && !is_type_word()) {
+		/* Check for typedef */
+		sym = find_symbol(token);
+		if (sym == NULL || sym->storage != S_TYPEDEF)
+			return UNKNOWN;
+		next_token();
+		skip_modifiers();
+		return sym->type;
+	}
 	skip_modifiers();	/* volatile const etc */
 
 	if ((sflag = match(T_STRUCT)) || match(T_UNION))
@@ -165,7 +172,6 @@ unsigned get_type(void) {
  *	here.
  */
 
-static unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name);
 
 static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsigned type, unsigned ptr) {
 	/* Function returning the type accumulated so far */
@@ -297,7 +303,7 @@ static unsigned declarator(unsigned *name)
 	return ptr;
 }
 
-static unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
+unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
 {
 	unsigned ptr = declarator(name);
 	struct symbol *sym, *ltop;
@@ -346,29 +352,4 @@ unsigned type_and_name(unsigned storage, unsigned *name, unsigned nn, unsigned d
 		junk();
 	}
 	return type;
-}
-
-void type_iterator(unsigned storage, unsigned deftype, unsigned info,
-		   unsigned (*handler)(unsigned storage, unsigned type, unsigned name, unsigned info))
-{
-	unsigned name;
-	unsigned utype;
-	unsigned type;
-
-	type = get_type();
-	if (type == UNKNOWN)
-		type = deftype;
-	if (type == UNKNOWN)
-		return;
-
-//	while (is_modifier() || is_type_word() || token >= T_SYMBOL || token == T_STAR) {
-	while (token != T_SEMICOLON) {
-		utype = type_name_parse(storage, type, &name);
-		if (handler(storage, utype, name, info) == 0) {
-			return;
-		}
-		if (!match(T_COMMA))
-			break;
-	}
-	need_semicolon();
 }

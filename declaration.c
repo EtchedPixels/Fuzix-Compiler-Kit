@@ -8,29 +8,34 @@
 #include "compiler.h"
 
 
-unsigned one_typedef(unsigned storage, unsigned type, unsigned name, unsigned unused)
+unsigned one_typedef(unsigned type, unsigned name)
 {
-	struct symbol *sym;
 	if (name == 0) {
 		error("invalid typedef");
 		junk();
 		return 0;
 	}
-	sym = find_symbol(name);
-	if (sym) {
-		error("name already in use");
-		return 1;
-	}
-	sym = alloc_symbol(name, 0);
-	sym->type = type;
-	sym->storage = S_TYPEDEF;
-	sym->name = name;
+	update_symbol_by_name(name, S_TYPEDEF, type);
 	return 1;
 }
 
 void dotypedef(void)
 {
-	type_iterator(0, 0, 0, one_typedef);
+	unsigned type = get_type();
+	unsigned name;
+
+	if (type == UNKNOWN)
+		type = CINT;
+
+//	while (is_modifier() || is_type_word() || token >= T_SYMBOL || token == T_STAR) {
+	while (token != T_SEMICOLON) {
+		unsigned utype = type_name_parse(S_TYPEDEF, type, &name);
+		if (one_typedef(utype, name) == 0)
+			return;
+		if (!match(T_COMMA))
+			break;
+	}
+	need_semicolon();
 }
 
 unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defstorage)
@@ -74,5 +79,21 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 void declaration(unsigned defstorage)
 {
 	unsigned s = get_storage(defstorage);
-	type_iterator(s, CINT, defstorage, one_declaration);
+	unsigned name;
+	unsigned utype;
+	unsigned type;
+
+	type = get_type();
+	if (type == UNKNOWN)
+		type = CINT;
+
+//	while (is_modifier() || is_type_word() || token >= T_SYMBOL || token == T_STAR) {
+	while (token != T_SEMICOLON) {
+		utype = type_name_parse(s, type, &name);
+		if (one_declaration(s, utype, name, defstorage) == 0)
+			return;
+		if (!match(T_COMMA))
+			break;
+	}
+	need_semicolon();
 }

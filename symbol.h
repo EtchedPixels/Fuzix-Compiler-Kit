@@ -17,10 +17,10 @@ struct symbol
 #define S_STATIC	5	/* Static in public scope */
 #define S_EXTERN	6	/* External reference */
 #define S_EXTDEF	7	/* Exported global */
-#define S_STRUCT	8	/* The name of a struct type */
-#define S_UNION		9	/* The name of a union type */
-#define S_ARRAY		10	/* An array description slot (unnamed) */
-#define S_TYPEDEF	11	/* A typedef */
+#define S_TYPEDEF	8	/* A typedef */
+#define S_STRUCT	9	/* The name of a struct type */
+#define S_UNION		10	/* The name of a union type */
+#define S_ARRAY		11	/* An array description slot (unnamed) */
 #define S_FUNCDEF	12	/* A function definition */
 #define S_BSS		13	/* Only used to pass info to code generator */
 

@@ -16,7 +16,11 @@ FILE *debug;
  */
 static void toplevel(void)
 {
-	declaration(S_EXTDEF);
+	if (token == T_TYPEDEF) {
+		next_token();
+		dotypedef();
+	} else
+		declaration(S_EXTDEF);
 }
 
 int main(int argc, char *argv[])

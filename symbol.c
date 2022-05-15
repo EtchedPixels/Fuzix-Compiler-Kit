@@ -96,7 +96,7 @@ struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage
 	if (sym != NULL && sym->type != C_ANY) {
 		if (type == C_ANY)
 			return sym;
-		if (sym->storage > S_EXTDEF)
+		if (sym->storage > S_TYPEDEF)
 			error("invalid name");
 		else if (sym->storage <= S_LSTATIC || !local) {
 			/* Type matching is going to be a good deal more complex FIXME */
