@@ -4,7 +4,7 @@ all: cc cc0 cc1 cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 support8085
 
 OBJS0 = frontend.o
 
-OBJS1 = body.o declaration.o error.o expression.o header.o idxdata.o \
+OBJS1 = body.o declaration.o enum.o error.o expression.o header.o idxdata.o \
 	initializer.o label.o lex.o main.o primary.o stackframe.o storage.o \
 	struct.o switch.o symbol.o target-8080.o tree.o type.o type_iterator.o
 
@@ -17,7 +17,7 @@ OBJS6 = backend.o backend-65c816.o
 CFLAGS = -Wall -pedantic -g3
 
 INC0 = token.h
-INC1 = body.h compiler.h declaration.h error.h expression.h header.h \
+INC1 = body.h compiler.h declaration.h enum.h error.h expression.h header.h \
        idxdata.h initializer.h label.h lex.h primary.h stackframe.h storage.h \
        struct.h symbol.h target.h token.h tree.h type.h type_iterator.h
 INC2 = backend.h

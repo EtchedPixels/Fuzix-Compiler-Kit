@@ -152,7 +152,9 @@ unsigned get_type(void) {
 	}
 	skip_modifiers();	/* volatile const etc */
 
-	if ((sflag = match(T_STRUCT)) || match(T_UNION))
+	if (match(T_ENUM))
+		type = enum_body();
+	else if ((sflag = match(T_STRUCT)) || match(T_UNION))
 		type = structured_type(sflag);
 	else
 		type = base_type();

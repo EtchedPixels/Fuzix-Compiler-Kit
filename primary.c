@@ -97,6 +97,8 @@ struct node *primary(void)
 	struct node *l;
 	unsigned func = 0;
 	unsigned name;
+	unsigned p = 0;
+
 	/* Expression case first.. a bracketed expression is a primary */
 	if (match(T_LPAREN)) {
 		l = hier1();
@@ -115,15 +117,16 @@ struct node *primary(void)
 		/* Weird case you can call a function you've not declared. This
 		   makes it int f() */
 		if (func && sym == NULL) {
-			unsigned p = 0;
 			unsigned tf = func_symbol_type(CINT, &p);
 			sym = update_symbol_by_name(name, S_EXTERN, tf);
 		}
 		/* You can't size fields and structs by field/struct name without 
 		   the type specifier */
 		if (sym == NULL || sym->storage > S_EXTDEF) {
-			error("unknown symbol");
-			return make_constant(0, UINT);
+			/* Enum... */
+			if (find_constant(name, &p) == 0)
+				error("unknown symbol");
+			return make_constant(p, CINT);
 		}
 		/* Primary can be followed by operators and the caller handles those */
 		return make_symbol(sym);

@@ -6,7 +6,7 @@
    can probably make symbols the self expanding one eventually */
 #define MAXSYM			512
 /* Expression nodes. Currently 16 bytes on a small box will be about 24 once
-   we have everythign in */
+   we have everything in */
 #define NUM_NODES		100
 /* Number of bytees of index data used for tagging structs, prototypes etc */
 #define IDX_SIZE		2048
@@ -17,6 +17,8 @@
 #define NUM_STRUCT_FIELD	30
 /* Number of switch entries within the current scope. 4 bytes per entry */
 #define NUM_SWITCH		100
+/* Number of constants from enum. 4 bytes per entry */
+#define NUM_CONSTANT		50
 
 #include <stdio.h>
 
@@ -24,6 +26,7 @@
 
 #include "body.h"
 #include "declaration.h"
+#include "enum.h"
 #include "error.h"
 #include "expression.h"
 #include "header.h"

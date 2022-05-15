@@ -23,6 +23,7 @@ struct symbol
 #define S_ARRAY		11	/* An array description slot (unnamed) */
 #define S_FUNCDEF	12	/* A function definition */
 #define S_BSS		13	/* Only used to pass info to code generator */
+#define S_ENUM		14	/* An enumeration name */
 
 /* For types idx always points to the symbol entry holding the complex type.
    In turn the idx for it points to the desciption blocks.
