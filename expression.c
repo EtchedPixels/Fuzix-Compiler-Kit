@@ -29,14 +29,15 @@ struct node *typeconv(struct node *n, unsigned type, unsigned warn)
 			return n;
 		}
 	} else {
-		fprintf(stderr, "try ptrconv %x %x\n", n->type, type);
 		if (type_pointerconv(n, type))
 			return make_cast(n, type);
 	}
-	/* TODO: review float promotions here */
-	if (nt == type || (IS_INTARITH(nt) && IS_INTARITH(type)))
+	if (nt == type || (IS_ARITH(nt) && IS_ARITH(type)))
 		return make_cast(n, type);
-	fprintf(stderr, "tcmm %x %x\n", nt, type);
+	if ((IS_ARITH(nt) && PTR(type)) || (IS_ARITH(type) && PTR(nt))) {
+		if (!warn)
+			return make_cast(n, type);
+	}
 	typemismatch();
 	n->type = nt;
 	return n;
@@ -78,7 +79,6 @@ struct node *call_args(unsigned *narg, unsigned *argt, unsigned *argsize)
 	else {
 		/* Explicit prototyped argument */
 		if (*narg) {
-			fprintf(stderr, "typed %x\n", *argt);
 			n = typeconv(n, *argt++, 1);
 			(*narg)--;
 		} else
@@ -216,11 +216,15 @@ static struct node *hier10(void)
 {
 	struct node *l, *r;
 	unsigned op;
+	unsigned name;
+	unsigned t;
+
 	op = token;
 	if (token != T_PLUSPLUS
 	    && token != T_MINUSMINUS
 	    && token != T_MINUS
 	    && token != T_TILDE
+	    && token != T_LPAREN
 	    && token != T_BANG && token != T_STAR && token != T_AND) {
 		/* Check for trailing forms */
 		l = hier11();
@@ -291,6 +295,13 @@ static struct node *hier10(void)
 		r = tree(T_ADDROF, NULL, r);
 		r->type = type_addrof(r->type);
 		return r;
+	case T_LPAREN:
+		/* Should be a type without a name */
+		t = type_and_name(S_AUTO, &name, 0, UNKNOWN);
+		require(T_RPAREN);
+		if (t == UNKNOWN || name)
+			badtype();
+		return typeconv(hier10(), t, 0);
 	}
 	fatal("h10");
 }
