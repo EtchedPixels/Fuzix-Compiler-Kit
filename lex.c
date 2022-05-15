@@ -59,11 +59,14 @@ void next_token(void)
 		line_num = tokbyte();
 		line_num |= tokbyte() << 8;
 
-		for (c = 0; c < 16; c++) {
-			*p = tokbyte();
-			if (*p == 0)
-				break;
-			p++;
+		if (line_num & 0x8000) {
+			line_num &= 0x7FFF;
+			for (c = 0; c < 16; c++) {
+				*p = tokbyte();
+				if (*p == 0)
+					break;
+				p++;
+			}
 		}
 		next_token();
 		return;

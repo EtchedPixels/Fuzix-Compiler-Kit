@@ -295,16 +295,20 @@ static void encode_byte(unsigned c)
 static void write_token(unsigned c)
 {
 	unsigned char *tp;
+	unsigned fc = filechange;
 	if (oldline != line || filechange) {
 		oldline = line;
 		filechange = 0;
 		write_token(T_LINE);
 		outbyte(line);
-		outbyte(line << 8);
-		tp = filename;
-		while(*tp)
-			outbyte(*tp++);
-		outbyte(0);
+		if (fc) {
+			outbyte(0x80 | (line >> 8));
+			tp = filename;
+			while(*tp)
+				outbyte(*tp++);
+			outbyte(0);
+		} else
+			outbyte(line >> 8);
 	}
 	/* Write the token, then any data for it */
 	outbyte(c);
