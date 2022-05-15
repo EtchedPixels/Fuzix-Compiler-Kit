@@ -30,6 +30,7 @@ static unsigned get_size(unsigned t)
 		return 8;
 	if (t == VOID)
 		return 0;
+	fprintf(stderr, "type %x\n", t);
 	error("gs");
 	return 0;
 }
@@ -464,6 +465,12 @@ static unsigned load_a_with(struct node *n)
 	return 1;
 }
 
+static void repeated_op(const char *o, unsigned n)
+{
+	while(n--)
+		printf("\t%s\n", o);
+}
+
 /*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
@@ -522,6 +529,18 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_PLUS:
+		/* Zero should be eliminated in cc1 FIXME */
+		if (r->op == T_CONSTANT) {
+			if (v == 0)
+				return 1;
+			if (v < 4 && s <= 2) {
+				if (s == 1)
+					repeated_op("inr l", v);
+				else
+					repeated_op("inx h", v);
+				return 1;
+			}
+		}
 		if (s <= 2) {
 			/* LHS is in HL at the moment, end up with the result in HL */
 			if (s == 1) {
@@ -536,6 +555,17 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_MINUS:
+		if (r->op == T_CONSTANT) {
+			if (v == 0)
+				return 1;
+			if (v < 6 && s <= 2) {
+				if (s == 1)
+					repeated_op("dcr l", v);
+				else
+					repeated_op("dcx h", v);
+				return 1;
+			}
+		}
 		if (cpu == 8085 && s <= 2) {
 			/* LHS is in HL at the moment, end up with the result in HL */
 			if (s == 1) {
