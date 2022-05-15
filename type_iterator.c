@@ -205,7 +205,7 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 		}
 		/* Arrays pass the pointer */
 		t = type_canonical(t);
-		if (IS_STRUCT(t) || IS_FUNCTION(t)) {
+		if (!PTR(t) && (IS_STRUCT(t) || IS_FUNCTION(t))) {
 			error("cannot pass objects");
 			t = CINT;
 		}
@@ -251,7 +251,7 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 	return type;
 }
 
-static unsigned type_parse_array(unsigned storage, unsigned type)
+static unsigned type_parse_array(unsigned storage, unsigned type, unsigned ptr)
 {
 	int n;
 
@@ -259,7 +259,7 @@ static unsigned type_parse_array(unsigned storage, unsigned type)
 	   a syntactic quirk. We need to handle it here because of the
 	   way our type matching is handled and to allow [] */
 	if (token == T_RSQUARE) {
-		if (storage == S_ARGUMENT)
+		if (storage == S_ARGUMENT || ptr)
 			return type + 1;
 		error("size required");
 	}
@@ -269,7 +269,7 @@ static unsigned type_parse_array(unsigned storage, unsigned type)
 		n = 1;
 	}
 	/* Pointer cases and arguments */
-	if (storage == S_ARGUMENT || PTR(type))
+	if (storage == S_ARGUMENT || ptr)
 		type = type_ptr(type);
 	else {
 		if (!IS_ARRAY(type))
@@ -324,7 +324,7 @@ unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
 	while (token == T_LSQUARE || token == T_LPAREN) {
 		if (token == T_LSQUARE) {
 			next_token();
-			type = type_parse_array(storage, type);
+			type = type_parse_array(storage, type, ptr);
 			require(T_RSQUARE);
 		} else if (token == T_LPAREN) {
 			next_token();
