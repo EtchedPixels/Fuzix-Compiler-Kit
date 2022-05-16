@@ -87,7 +87,7 @@ struct node *call_args(unsigned *narg, unsigned *argt, unsigned *argsize)
 	*argsize += target_argsize(n->type);
 	if (match(T_COMMA))
 		/* Switch around for calling order */
-		return tree(T_COMMA, call_args(narg, argt, argsize), n);
+		return tree(T_ARGCOMMA, call_args(narg, argt, argsize), n);
 	require(T_RPAREN);
 	return n;
 }
@@ -152,12 +152,13 @@ static struct node *hier11(void)
 	unsigned lt;
 
 	l = primary();
-	lt = l->type;;
+	lt = l->type;
 
 	ptr = PTR(lt) || IS_ARRAY(lt);
 	if (token == T_LSQUARE || token == T_LPAREN || token == T_DOT
 	    || token == T_POINTSTO) {
 		for (;;) {
+			lt = l->type;;
 			if (match(T_LSQUARE)) {
 				if (ptr == 0) {
 					error("can't subscript");
@@ -182,21 +183,34 @@ static struct node *hier11(void)
 				l = function_call(l);
 			} else if ((direct = match(T_DOT))
 				   || match(T_POINTSTO)) {
-				if (direct == 0)
-					l = tree(T_DEREF, NULL, l);
-				if (PTR(l->type)
-				    || !IS_STRUCT(l->type)) {
+				fprintf(stderr, "%d type before %x/%x\n", direct, l->type, l->flags);
+				if (direct == 0) {
+					/* The pointer we have holds the address of the
+					   struct which is thus an lval */
+					l = make_rval(l);
+					l->flags |= LVAL;
+					lt = type_deref(lt);
+				}
+				fprintf(stderr, "type after %x\n", lt);
+				if (PTR(lt)
+				    || !IS_STRUCT(lt)) {
 					error("can't take member");
 					junk();
-					return 0;
+					l->type = CINT;
+					return l;
 				}
-				tag = struct_find_member(l->type, symname());
+				tag = struct_find_member(lt, symname());
 				if (tag == NULL) {
 					error("unknown member");
 					/* So we don't internal error later */
 					l->type = CINT;
 					return l;
 				}
+				/* Type is tricky here. It's a pointer to the
+				   type of the field, sort of - except for the
+				   maths. TODO This will need work for things like
+				   bytepointer and word addressed machines */
+				l->type = PTRTO | tag[1];
 				l = tree(T_PLUS, l,
 					 make_constant(tag[2], UINT));
 				l->flags |= LVAL;
@@ -292,7 +306,8 @@ static struct node *hier10(void)
 		/* TODO: To review - array */
 		if (!PTR(type_canonical(r->type)))
 			badtype();
-		r = tree(T_DEREF, NULL, r);
+		r->flags |= LVAL;
+//		r = tree(T_DEREF, NULL, r);
 		r->type = r->right->type - 1;
 		return r;
 	case T_AND:
