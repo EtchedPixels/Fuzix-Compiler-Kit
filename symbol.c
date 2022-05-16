@@ -310,8 +310,10 @@ void write_bss(void)
 {
 	struct symbol *s = symtab;
 	while(s <= last_sym) {
+#ifdef DEBUG
 		if (debug)
 			fprintf(debug, "sym %x %x %x %d\n", s->name, s->type, s->flags, s->storage);
+#endif
 		if (!IS_FUNCTION(s->type) && s->storage >= S_LSTATIC && s->storage <= S_EXTDEF) {
 			if (s->storage == S_EXTDEF)
 				header(H_EXPORT, s->name, 0);

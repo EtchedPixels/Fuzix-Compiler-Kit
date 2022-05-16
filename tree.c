@@ -46,6 +46,7 @@ struct node *tree(unsigned op, struct node *l, struct node *r)
 {
 	struct node *n = new_node();
 	struct node *c;
+#ifdef DEBUG
 	if (debug) {
 		fprintf(debug, "tree %04x [", op);
 		if (l)
@@ -54,6 +55,7 @@ struct node *tree(unsigned op, struct node *l, struct node *r)
 			fprintf(debug, "%04x ", r->op);
 		fprintf(debug, "]\n");
 	}
+#endif
 	n->left = l;
 	n->right = r;
 	n->op = op;
@@ -101,8 +103,10 @@ struct node *make_symbol(struct symbol *s)
 			n->type++;
 	}
 #endif
+#ifdef DEBUG
 	if (debug)
 		fprintf(debug, "name %04x type %04x\n", s->name, s->type);
+#endif		
 	return n;
 }
 
