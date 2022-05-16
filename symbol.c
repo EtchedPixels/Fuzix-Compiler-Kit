@@ -80,7 +80,7 @@ struct symbol *mark_local_symbols(void)
    may be holes, above last_sym is free */
 struct symbol *alloc_symbol(unsigned name, unsigned local)
 {
-	struct symbol *s = local_top; /* FIXME ? */
+	struct symbol *s = local_top;
 	while (s <= &symtab[MAXSYM]) {
 		if (s->storage == S_FREE) {
 			if (local && local_top < s)
@@ -248,6 +248,9 @@ void array_add_dimension(unsigned type, unsigned num)
 static struct symbol *find_struct(unsigned name)
 {
 	struct symbol *sym = symtab;
+	/* Anonymous structs are unique each time */
+	if (name == 0)
+		return 0;
 	while(sym <= last_sym) {
 		if (sym->name == name && (sym->storage == S_STRUCT || sym->storage == S_UNION))
 			return sym;
