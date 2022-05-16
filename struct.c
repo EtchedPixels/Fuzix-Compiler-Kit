@@ -66,5 +66,5 @@ void struct_declaration(struct symbol *sym)
     }
     require(T_RCURLY);
 
-    sym->idx = idx_copy(tags, 3 + 2 * *tags);
+    sym->idx = idx_copy(tags, 2 + 3 * *tags);
 }
