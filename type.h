@@ -32,9 +32,9 @@
 #define IS_FUNCTION(x)	(CLASS(x) == C_FUNCTION)
 #define IS_ARRAY(x)	(CLASS(x) == C_ARRAY)
 
-#define BASE_TYPE(x)	((x) & 0xF8)
-#define IS_ARITH(x)	(!PTR(x) && BASE_TYPE(x) < VOID)
-#define IS_INTARITH(x)	(!PTR(x) && BASE_TYPE(x) < FLOAT)
+#define BASE_TYPE(x)	((x) & ~7)
+#define IS_ARITH(x)	(!PTR(x) && (x) < VOID)
+#define IS_INTARITH(x)	(!PTR(x) && (x) < FLOAT)
 
 #define C_SIMPLE	0x0000
 #define C_STRUCT	0x4000
