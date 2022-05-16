@@ -137,8 +137,8 @@ static unsigned base_type(void)
 	return type;
 }
 
-
-unsigned get_type(void) {
+unsigned get_type(void)
+{
 	unsigned sflag = 0;
 	struct symbol *sym;
 	unsigned type;
@@ -177,7 +177,8 @@ unsigned get_type(void) {
  */
 
 
-static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsigned type, unsigned ptr) {
+static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsigned type, unsigned ptr)
+{
 	/* Function returning the type accumulated so far */
 	/* We need an anonymous symbol entry to hang the function description onto */
 	struct symbol *sym;
