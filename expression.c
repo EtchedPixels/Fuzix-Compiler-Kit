@@ -160,7 +160,7 @@ static struct node *hier11(void)
 	l = primary();
 	lt = l->type;
 
-	ptr = PTR(lt) || IS_ARRAY(lt);
+	ptr = PTR(lt);
 	if (token == T_LSQUARE || token == T_LPAREN || token == T_DOT
 	    || token == T_POINTSTO) {
 		for (;;) {

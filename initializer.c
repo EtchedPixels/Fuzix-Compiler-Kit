@@ -131,11 +131,11 @@ static void initializer_array(struct symbol *sym, unsigned type, unsigned depth,
 void initializers(struct symbol *sym, unsigned type, unsigned storage)
 {
     /* FIXME: review pointer rule */
-    if (PTR(type)) {
+    if (PTR(type) && !IS_ARRAY(type)) {
         initializer_single(sym, type, storage);
         return;
     }
-    if (IS_SIMPLE(type) && IS_ARITH(type)) {
+    if (IS_ARITH(type)) {
         initializer_single(sym, type, storage);
         return;
     }

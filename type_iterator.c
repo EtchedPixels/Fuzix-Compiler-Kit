@@ -271,15 +271,11 @@ static unsigned type_parse_array(unsigned storage, unsigned type, unsigned ptr)
 		error("bad size");
 		n = 1;
 	}
-	/* Pointer cases and arguments */
-	if (storage == S_ARGUMENT || ptr)
-		type = type_ptr(type);
-	else {
-		if (!IS_ARRAY(type))
-			type = make_array(type);
-		array_add_dimension(type, n);
-	}
-	return type;
+	if (!IS_ARRAY(type))
+		type = make_array(type);
+	array_add_dimension(type, n);
+	/* TODO: handle the nptr case correctly */
+	return type + 1;
 }
 
 /* Recursively walk any *(*(*(*x))) bits

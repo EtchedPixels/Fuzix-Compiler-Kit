@@ -6,11 +6,9 @@ unsigned type_deref(unsigned t)
 {
 	if (PTR(t))
 		return --t;
-	/* Arrays complicate matters because you can do
-		*x on an array object */
-	t = type_canonical(t);
-	if (PTR(t))
-		return --t;
+	/* An array decays to the element type */
+	if (IS_ARRAY(t))
+		return symbol_ref(t)->type;
 	error("cannot dereference");
 	return CINT;
 }
@@ -29,36 +27,49 @@ unsigned type_ptr(unsigned t)
  */
 unsigned type_canonical(unsigned t)
 {
+	/* An array is pointer to the base type of the array */
 	if (IS_ARRAY(t)) {
 		struct symbol *s = symbol_ref(t);
-		unsigned *p = s->idx;
-		/* FIXME: array depths or 1 ?? */
-		if (*p + PTR(t) > 7)
+		/* Shouldn't be possible */
+		if (PTR(s->type) + PTR(t) > 7)
 			indirections();
-		else
-			t = s->type | (*p + PTR(t));
+		t = s->type + PTR(t);
 	}
 	return t;
 }
 
+/*
+ *	It is possible to have more depths of pointer than the
+ *	array, because an array may itself be of pointer types. In that
+ *	case we behave like a conventional object for the extra depths.
+ */
 unsigned type_arraysize(unsigned t)
 {
 	struct symbol *sym = symbol_ref(t);
 	unsigned *p = sym->idx;
-	unsigned n = *p++;
+	unsigned n = *p;
+	unsigned d = PTR(t);
 	unsigned s = type_sizeof(sym->type);
-	while (n--)
-		s *= *p++;
-	return s;
+
+	p += n;
+	while(n--) {
+		s *= *p--;
+		if (--d == 0)
+			return s;
+	}
+	/* We are some depth of pointer to an array object so our size
+	   goes back to the size of the pointer */
+	return type_sizeof(sym->type + d);
 }
 
 unsigned type_sizeof(unsigned t)
 {
+	/* Handle array first, because it is also pointer but doesn't
+	   behave like a normal pointer */
+	if (IS_ARRAY(t))
+		return type_arraysize(t);
 	if (PTR(t) || IS_SIMPLE(t))
 		return target_sizeof(t);
-	if (IS_ARRAY(t)) {
-		return type_arraysize(t);
-	}
 	if (IS_STRUCT(t)) {
 		struct symbol *s = symbol_ref(t);
 		unsigned *p = s->idx;
@@ -72,8 +83,6 @@ unsigned type_sizeof(unsigned t)
 }
 
 unsigned type_ptrscale(unsigned t) {
-	/* FIXME arrays - scaling rule ? */
-	t = type_canonical(t);
 	if (!PTR(t)) {
 		error("not a pointer");
 		return 1;
@@ -84,14 +93,14 @@ unsigned type_ptrscale(unsigned t) {
 	return type_sizeof(type_deref(t));
 }
 
+/* TODO: review as this is an lval */
 unsigned type_scale(unsigned t) {
-	t = type_canonical(t);
-	if (!IS_SIMPLE(t)) {
+	if (!IS_SIMPLE(t) && !IS_ARRAY(t)) {
 		badtype();
 		return 1;
 	}
 	if (!PTR(t))
-		return 1;
+		return type_sizeof(t);
 	return type_ptrscale(t);
 }
 
