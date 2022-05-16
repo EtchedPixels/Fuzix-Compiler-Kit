@@ -53,7 +53,13 @@ void struct_declaration(struct symbol *sym)
 
     require(T_LCURLY);
     while(token != T_RCURLY) {
-        t = type_and_name(S_NONE, &name, 1, CINT);
+        t = get_type();
+        if (t == UNKNOWN) {
+            badtype();
+            junk();
+            continue;
+        }
+        t = type_name_parse(S_NONE, t, &name);
         if (nfield == NUM_STRUCT_FIELD) {
             if (err == 0)
                 error("too many struct/union fields");
