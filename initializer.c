@@ -23,17 +23,19 @@ static void initializer_single(struct symbol *sym, unsigned type, unsigned stora
 
 /*
  *	Array bottom level initializer: repeated runs of the same type
+ *
+ *	TODO: In theory we could have a platform that needs padding
+ *	and we don't deal with that aspect of alignment yet
  */
 static void initializer_group(struct symbol *sym, unsigned type, unsigned n, unsigned storage)
 {
-    unsigned s;
     /* C has a funky special case rule that you can write
        char x[16] = "foo"; which creates a copy of the string in that
        array not a literal reference */
     if (token == T_STRING) {
         if ((type & ~UNSIGNED) != CCHAR)
             typemismatch();
-        s = copy_string(0, n, 1);
+        copy_string(0, n, 1);
         return;
     }
     require(T_LCURLY);
@@ -78,6 +80,7 @@ static void initializer_struct(struct symbol *psym, unsigned type, unsigned stor
     if (sym->storage == S_UNION)
         n = 1;
     require(T_LCURLY);
+    /* FIXME: we need to watch the offsets and add internal padding */
     while(n-- && token != T_RCURLY) {
         type = p[1];
         p += 3;
