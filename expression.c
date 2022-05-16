@@ -81,7 +81,6 @@ struct node *call_args(unsigned *narg, unsigned *argt, unsigned *argsize)
 		if (*narg) {
 			n = typeconv(n, *argt++, 1);
 			(*narg)--;
-			fprintf(stderr, "n->type %x\n", n->type);
 		} else
 			unexarg();
 	}
@@ -177,6 +176,7 @@ static struct node *hier11(void)
 				l->flags |= LVAL;
 				/* Force the type back correct as tree()
 				   defaults to the RH type */
+				lt = type_deref(lt);
 				l->type = lt;
 			} else if (match(T_LPAREN)) {
 				l = function_call(l);
