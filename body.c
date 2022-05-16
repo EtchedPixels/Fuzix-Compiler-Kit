@@ -341,7 +341,7 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	if (st == S_AUTO || st == S_EXTERN)
 		error("invalid storage class");
 	func_tag = next_tag++;
-	header(H_FUNCTION, st, name);
+	header(H_FUNCTION, func_tag, name);
 	hrw = mark_header();
 	header(H_FRAME, 0, name);
 
@@ -349,10 +349,8 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	init_labels();
 
 	statement_block(1);
-	footer(H_FUNCTION, st, name);
+	footer(H_FUNCTION, func_tag, name);
 
 	rewrite_header(hrw, H_FRAME, frame_size(), name);
 	check_labels();
-
-	func_tag = 0;
 }
