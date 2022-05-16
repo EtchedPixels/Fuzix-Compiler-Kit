@@ -786,6 +786,7 @@ static unsigned tokenize_string(void)
 		c = get_nb();
 	} while (c == '"');
 	unget(c);
+	outbyte_quoted(0);
 	outbyte(0);
 	return T_STRING_END;
 }

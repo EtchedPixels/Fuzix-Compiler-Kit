@@ -12,3 +12,4 @@ extern void junk(void);
 extern unsigned symname(void);
 
 extern unsigned quoted_string(int *len);
+extern unsigned copy_string(unsigned label, unsigned maxlen, unsigned pad);

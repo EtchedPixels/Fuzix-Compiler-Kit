@@ -31,7 +31,7 @@ static unsigned get_size(unsigned t)
 	if (t == VOID)
 		return 0;
 	fprintf(stderr, "type %x\n", t);
-	error("gs");
+//	error("gs");
 	return 0;
 }
 
@@ -113,6 +113,14 @@ struct node *gen_rewrite_node(struct node *n)
 			}
 		}
 	}
+	/* Eliminate casts for sign, pointer conversion or same */
+	if (n->op == T_CAST) {
+		if (n->type == r->type || (n->type ^ r->type) == UNSIGNED ||
+		 (PTR(n->type) && PTR(r->type))) {
+			free_node(n);
+			return r;
+		}
+	}
 	/* Rewrite function call of a name into a new node so we can
 	   turn it easily into call xyz */
 	if (n->op == T_FUNCCALL && r->op == T_NAME) {
@@ -129,6 +137,24 @@ struct node *gen_rewrite_node(struct node *n)
 void gen_export(const char *name)
 {
 	printf("	.export _%s\n", name);
+}
+
+void gen_segment(unsigned segment)
+{
+	switch(segment) {
+	case A_CODE:
+		printf("\t.code\n");
+		break;
+	case A_DATA:
+	case A_LITERAL:
+		printf("\t.data\n");
+		break;
+	case A_BSS:
+		printf("\t.bss\n");
+		break;
+	default:
+		error("gseg");
+	}
 }
 
 /* Generate the function prologue - may want to defer this until
@@ -273,7 +299,6 @@ void gen_switch(unsigned n, unsigned type)
 
 void gen_switchdata(unsigned n, unsigned size)
 {
-	printf("\t.data\nSw%d:\n", n);
 	printf("\t.word %d\n", size);
 }
 
@@ -287,23 +312,9 @@ void gen_case_label(unsigned tag, unsigned entry)
 	printf("\t.word Sw%d_%d\n", tag, entry);
 }
 
-/* TODO: Need to pass alignment */
-void gen_data(const char *name)
+void gen_data_label(const char *name, unsigned align)
 {
-	printf("\t.data\n");
 	printf("_%s:\n", name);
-}
-
-/* TODO: Need to pass alignment */
-void gen_bss(const char *name)
-{
-	printf("\t.data\n");
-	printf("_%s:\n", name);
-}
-
-void gen_code(void)
-{
-	printf("\t.code\n");
 }
 
 void gen_space(unsigned value)
@@ -321,8 +332,8 @@ void gen_text_label(unsigned n)
 
 void gen_literal(unsigned n)
 {
-	printf("\t.data\n");
-	printf("T%d:\n", n);
+	if (n)
+		printf("T%d:\n", n);
 }
 
 void gen_name(struct node *n)
@@ -361,7 +372,6 @@ void gen_value(unsigned type, unsigned long value)
 void gen_start(void)
 {
 	printf("\t.setcpu %d\n", cpu);
-	printf("\t.code\n");
 }
 
 void gen_end(void)
@@ -372,6 +382,7 @@ void gen_tree(struct node *n)
 {
 	codegen_lr(n);
 	printf(";\n");
+	printf(";SP=%d\n", sp);
 }
 
 /*
@@ -667,7 +678,7 @@ unsigned gen_node(struct node *n)
 	   The exception to this is comma and the function call nodes
 	   as we leave the arguments pushed for the function call */
 
-	if (n->left && n->op != T_COMMA && n->op != T_CALLNAME && n->op != T_FUNCCALL)
+	if (n->left && n->op != T_ARGCOMMA && n->op != T_CALLNAME && n->op != T_FUNCCALL)
 		sp -= get_stack_size(n->left->type);
 
 	switch (n->op) {

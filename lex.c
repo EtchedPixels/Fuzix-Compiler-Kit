@@ -148,34 +148,54 @@ unsigned symname(void)
  *	This is ugly and we need to review how we handle it
  */
 
-static unsigned string_tag;
+static unsigned char pad_zero[2] = { 0xFF, 0xFE };
 
-unsigned quoted_string(int *len)
+unsigned copy_string(unsigned label, unsigned maxlen, unsigned pad)
 {
 	unsigned c;
 	unsigned l = 0;
-	unsigned label = ++string_tag;
-
-	if (token != T_STRING)
-		return 0;
 
 	header(H_STRING, label, 0);
 
-	while ((c = tokbyte()) != 0) {
-		write(1, &c, 1);
-		l++;
-	}
-	l++;
-	write(1, &c, 1);
+	/* Copy the encoding string as is */
+	while((c = tokbyte()) != 0) {
+		if (l < maxlen) {
+			write(1, &c, 1);
+			l++;
+		}
+	} while(c);
 
+	/* No write any padding bytes */
+	if (pad) {
+		while(l++ < maxlen)
+			write(1, &pad_zero, 2);
+	}
+	/* Write the end marker */
+	write(1, &c, 1);
 	footer(H_STRING, label, l);
 
 	next_token();
 	if (token != T_STRING_END)
 		error("bad token stream");
 	next_token();
+	return l;
+}
+
+
+static unsigned string_tag;
+
+unsigned quoted_string(int *len)
+{
+	unsigned l = 0;
+	unsigned label = ++string_tag;
+
+	if (token != T_STRING)
+		return 0;
+
+	l = copy_string(label, ~0, 0);
 
 	if (len)
 		*len = l;
+
 	return label;
 }

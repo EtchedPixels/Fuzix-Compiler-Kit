@@ -26,6 +26,16 @@ static void initializer_single(struct symbol *sym, unsigned type, unsigned stora
  */
 static void initializer_group(struct symbol *sym, unsigned type, unsigned n, unsigned storage)
 {
+    unsigned s;
+    /* C has a funky special case rule that you can write
+       char x[16] = "foo"; which creates a copy of the string in that
+       array not a literal reference */
+    if (token == T_STRING) {
+        if ((type & ~UNSIGNED) != CCHAR)
+            typemismatch();
+        s = copy_string(0, n, 1);
+        return;
+    }
     require(T_LCURLY);
     while(n && token != T_RCURLY) {
         if (token == T_ELLIPSIS)
@@ -37,6 +47,7 @@ static void initializer_group(struct symbol *sym, unsigned type, unsigned n, uns
     }
     if (n) {
         unsigned s = type_sizeof(type) * n;
+        header(H_DATA, 0, 0);
         put_padding_data(s);
     }
     /* Catches any excess elements */

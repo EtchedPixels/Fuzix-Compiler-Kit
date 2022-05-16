@@ -145,6 +145,24 @@ void gen_export(const char *name)
 	printf("	.export _%s\n", name);
 }
 
+void gen_segment(unsigned segment)
+{
+	switch(segment) {
+	case A_CODE:
+		printf("\t.code\n");
+		break;
+	case A_DATA:
+	case A_LITERAL:
+		printf("\t.data\n");
+		break;
+	case A_BSS:
+		printf("\t.bss\n");
+		break;
+	default:
+		error("gseg");
+	}
+}
+
 void gen_prologue(const char *name)
 {
 	printf("_%s:\n", name);
@@ -225,7 +243,6 @@ void gen_switch(unsigned n, unsigned type)
 
 void gen_switchdata(unsigned n, unsigned size)
 {
-	printf("\t.data\nSw%d:\n", n);
 	printf("\t.word %d\n", size);
 }
 
@@ -248,23 +265,9 @@ void gen_helpclean(struct node *n)
 {
 }
 
-/* TODO: Need to pass alignment */
-void gen_data(const char *name)
+void gen_data_label(const char *name, unsigned align)
 {
-	printf("\t.data\n");
 	printf("_%s:\n", name);
-}
-
-/* TODO: Need to pass alignment */
-void gen_bss(const char *name)
-{
-	printf("\t.data\n");
-	printf("_%s:\n", name);
-}
-
-void gen_code(void)
-{
-	printf("\t.code\n");
 }
 
 void gen_space(unsigned value)
@@ -279,8 +282,8 @@ void gen_text_label(unsigned n)
 
 void gen_literal(unsigned n)
 {
-	printf("\t.data\n");
-	printf("T%d:\n", n);
+	if (n)
+		printf("T%d:\n", n);
 }
 
 void gen_name(struct node *n)
@@ -768,7 +771,7 @@ unsigned gen_node(struct node *n)
 	unsigned nv = n->value;
 	/* Function call arguments are special - they are removed by the
 	   act of call/return and reported via T_CLEANUP */
-	if (n->left && n->op != T_COMMA && n->op != T_FUNCCALL && n->op != T_CALLNAME)
+	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL && n->op != T_CALLNAME)
 		sp -= get_stack_size(n->left->type);
 
 	s = get_size(n->type);

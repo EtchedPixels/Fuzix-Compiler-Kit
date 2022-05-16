@@ -92,6 +92,35 @@ void free_tree(struct node *n)
 	free_node(n);
 }
 
+/* Small stack of segments so we can untangle literals etc */
+
+static unsigned segs[MAX_SEG];
+static unsigned *segp = segs;
+static unsigned last_seg;
+
+static void push_area(unsigned s)
+{
+	if (segp == &segs[MAX_SEG])
+		error("pua");
+	*segp++ = last_seg;
+	if (last_seg != s) {
+		gen_segment(s);
+		last_seg = s;
+	}
+}
+
+static void pop_area(void)
+{
+	if (segp == segs)
+		error("poa");
+	segp--;
+	/* Last pop is to "nothing" so we don't need to act */
+	if (segp > segs && last_seg != *segp) {
+		gen_segment(*segp);
+		last_seg = *segp;
+	}
+}
+
 /* I/O buffering stuff can wait - as can switching to a block write method */
 static struct node *load_tree(void)
 {
@@ -116,6 +145,9 @@ static struct node *rewrite_tree(struct node *n)
 	/* Convert LVAL flag into pointer type */
 	if (n->flags & LVAL)
 		n->type++;
+	if (!PTR(n->type) && n->type >= 0x4000)
+		fprintf(stderr, "bad node type %x for node of %x\n",
+			n->type, n->op);
 	/* Turn any remaining object references (functions) into pointer type */
 	/* Need to review how we do this with name of function versus function vars etc */
 	/* FIXME */
@@ -164,10 +196,7 @@ static void process_literal(unsigned id)
 	while(1) {
 		if (read(0, &c, 1) != 1)
 			error("unexpected EOF");
-		/* If we move from string only we'll need to encode the
-		   final 0 too */
 		if (c == 0) {
-			gen_value(UCHAR, 0);
 			break;
 		}
 		if (c == 255 && !shifted) {
@@ -191,6 +220,7 @@ static void process_header(void)
 		gen_export(namestr(h.h_name));
 		break;
 	case H_FUNCTION:
+		push_area(A_CODE);
 		gen_prologue(namestr(h.h_data));
 		func_ret = h.h_name;
 		func_ret_used = 0;
@@ -203,6 +233,7 @@ static void process_header(void)
 		if (func_ret_used)
 			gen_label("_r", h.h_name);
 		gen_epilogue(frame_len);
+		pop_area();
 		break;
 	case H_FOR:
 		compile_expression();
@@ -282,28 +313,32 @@ static void process_header(void)
 		gen_label("_b", h.h_name);
 		break;
 	case H_SWITCHTAB:
+		push_area(A_LITERAL);
 		gen_switchdata(h.h_name, h.h_data);
 		break;
 	case H_SWITCHTAB | H_FOOTER:
-		gen_code();
+		pop_area();
 		break;
 	case H_DATA:
-		gen_data(namestr(h.h_name));
+		push_area(A_DATA);
+		gen_data_label(namestr(h.h_name), h.h_data);
 		break;
 	case H_DATA | H_FOOTER:
-		gen_code();
+		pop_area();
 		break;
 	case H_BSS:
-		gen_bss(namestr(h.h_name));
+		push_area(A_BSS);
+		gen_data_label(namestr(h.h_name), h.h_data);
 		break;
 	case H_BSS | H_FOOTER:
-		gen_code();
+		pop_area();
 		break;
 	case H_STRING:
+		push_area(A_LITERAL);
 		process_literal(h.h_name);
 		break;
 	case H_STRING| H_FOOTER:
-		gen_code();
+		pop_area();
 		break;
 	default:
 		error("bad hdr");
@@ -541,6 +576,11 @@ void make_node(struct node *n)
 		gen_value(n->type, n->value);
 		break;
 	case T_COMMA:
+		/* foo, bar - we evaulated foo and stacked it, now throw it away */
+		/* Targets will normally shortcut this push/pop or peephole it */
+		helper(n, "pop");
+		break;
+	case T_ARGCOMMA:
 		/* Used for function arg chaining - just ignore */
 		return;
 	case T_BOOL:
@@ -664,6 +704,7 @@ void codegen_lr(struct node *n)
 			make_node(n);
 			return;
 		}
+		/* TODO ? shortcut && and || if one side is constant */
 		codegen_lr(n->left);
 		if (o == 1)
 			gen_jtrue("L", lab);
