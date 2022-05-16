@@ -61,7 +61,7 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 	if (IS_FUNCTION(type) && !PTR(type))
 		return 0;
 
-	if ((PTR(type) || !IS_FUNCTION(type)) && match(T_EQ)) {
+	if (s != S_EXTERN && (PTR(type) || !IS_FUNCTION(type)) && match(T_EQ)) {
 		if (sym->flags & INITIALIZED)
 			error("duplicate initializer");
 		sym->flags |= INITIALIZED;
