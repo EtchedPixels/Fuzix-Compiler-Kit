@@ -610,6 +610,14 @@ unsigned gen_shortcut(struct node *n)
 {
 	struct node *l = n->left;
 	switch(n->op) {
+	case T_COMMA:
+		/* The comma operator discards the result of the left side, then
+		   evaluates the right. Avoid pushing/popping and generating stuff
+		   that is surplus */
+		n->left->flags |= NORETURN;
+		codegen_lr(n->left);
+		codegen_lr(n->right);
+		return 1;
 	case T_PLUS:
 		printf(";plus direct access l says %d\n", access_direct(l));
 		if (access_direct(l)) {

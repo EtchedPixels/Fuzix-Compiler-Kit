@@ -576,6 +576,15 @@ unsigned gen_direct(struct node *n)
 		}
 		return 1;
 	}
+	/* The comma operator discards the result of the left side, then
+	   evaluates the right. Avoid pushing/popping and generating stuff
+	   that is surplus */
+	if (n->op == T_COMMA) {
+		n->left->flags |= NORETURN;
+		codegen_lr(n->left);
+		codegen_lr(n->right);
+		return 1;
+	}
 
 	if (r == NULL)
 		return 0;
