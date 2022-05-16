@@ -146,30 +146,29 @@ int type_pointermatch(struct node *l, struct node *r)
 }
 
 unsigned type_ptrscale_binop(unsigned op, struct node *l, struct node *r,
-			     unsigned *div) {
+			     unsigned *type) {
 	unsigned lt = l->type;
 	unsigned rt = r->type;
-	*div = 1;
+
+	/* Assume ptrdiff_t is CINT : TODO */
+	*type = CINT;
 
 	if (type_pointermatch(l, r)) {
 		if (op == T_MINUS)
-			return type_ptrscale(r->type);
+			return -type_ptrscale(rt);
 		else {
 			error("invalid pointer difference");
 			return 1;
 		}
 	}
-	*div = 0;
-	if (PTR(lt) && IS_ARITH(rt))
+	if (PTR(lt) && IS_ARITH(rt)) {
+		*type = lt;
 		return type_ptrscale(lt);
-	if (PTR(rt) && IS_ARITH(lt))
-		return type_ptrscale(rt);
-	if (PTR(lt) || PTR(rt)) {
-		error("incompatible pointers");
-		return 1;
 	}
-	if (IS_ARITH(lt) && IS_ARITH(rt))
-		return 1;
+	if (PTR(rt) && IS_ARITH(lt)) {
+		*type = rt;
+		return type_ptrscale(rt);
+	}
 	invalidtype();
 	return 1;
 }

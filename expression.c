@@ -23,6 +23,7 @@ struct node *typeconv(struct node *n, unsigned type, unsigned warn)
 	if (!PTR(nt)) {
 		/* You can cast pointers to things but not actual block
 		   classes */
+		fprintf(stderr, "Have %x want %x\n", nt, type);
 		if (!IS_SIMPLE(nt) || !IS_ARITH(nt) ||
 			!IS_SIMPLE(type) || !IS_ARITH(type)) {
 			error("invalid type conversion");
@@ -175,8 +176,7 @@ static struct node *hier11(void)
 					 tree(T_STAR, r,
 					      make_constant(scale, UINT)));
 				l->flags |= LVAL;
-				/* Force the type back correct as tree()
-				   defaults to the RH type */
+				/* Force the type back correct */
 				lt = type_deref(lt);
 				l->type = lt;
 			} else if (match(T_LPAREN)) {
@@ -265,8 +265,6 @@ static struct node *hier10(void)
 			next_token();
 			/* Put the constant on the right for convenience */
 			r = tree(op, l, make_constant(s, UINT));
-			/* Fix up the type */
-			r->type = l->type;
 			return r;
 		}
 		return l;
@@ -359,42 +357,41 @@ static struct node *hier9(void)
  *	Addition and subtraction. Messy because of the pointer scaling
  *	rules.
  */
+
 static struct node *hier8(void)
 {
 	struct node *l, *r;
 	unsigned op;
-	unsigned scale = 1;
-	unsigned scalediv;
+	int scale = 1;
+	unsigned rt;
+
 	l = hier9();
 	if (token != T_PLUS && token != T_MINUS)
 		return l;
+
 	op = token;
 	next_token();
 	l = make_rval(l);
 	r = make_rval(hier8());
-	/* This can currently do silly things but the typechecks when added
-	   will stop them from mattering */
-	if (op == T_PLUS) {
-		/* if left is pointer and right is int, scale right */
-		scale =
-		    type_ptrscale_binop(op, l, r, &scalediv);
-	} else if (op == T_MINUS) {
-		/* if dbl, can only be: pointer - int, or
-		   pointer - pointer, thus,
-		   in first case, int is scaled up,
-		   in second, result is scaled down. */
-		scale =
-		    type_ptrscale_binop(op, l, r, &scalediv);
-	}
+
+	/* Deal with the non pointer case firt */
+	if (IS_ARITH(l->type) && IS_ARITH(r->type))
+		return arith_tree(op, l, r);
+
+	scale = type_ptrscale_binop(op, l, r, &rt);
+
 	/* The type checking was done in type_ptrscale_binop */
-	if (scale == 1)
-		return tree(op, l, r);
-	if (scalediv)
-		return tree(T_SLASH, tree(op, l, r), make_constant(scale, UINT));
-	if (PTR(l->type))
-		return tree(op, l, tree(T_STAR, r, make_constant(scale, UINT)));
-	else
-		return tree(op, tree(T_STAR, l, make_constant(scale, UINT)), r);
+	/* TODO: sort out types ( int + ptr -> ptr   ptr + int -> ptr */
+	if (scale == 1) {
+		r = tree(op, l, r);
+	} else if (scale < 0)
+		r = tree(T_SLASH, tree(op, l, r), make_constant(-scale, UINT));
+	else if (PTR(l->type)) {
+		r = tree(op, l, tree(T_STAR, r, make_constant(scale, UINT)));
+	} else
+		r = tree(op, tree(T_STAR, l, make_constant(scale, UINT)), r);
+	r->type = rt;
+	return r;
 }
 
 
@@ -541,7 +538,10 @@ static struct node *hier1a(void)
 	/* Check the two sides of colon are compatible */
 	if (!(type_pointermatch(a1, a2) || (IS_ARITH(a1->type) && IS_ARITH(a2->type))))
 		badtype();
-	return tree(T_QUESTION, tree(T_BOOL, NULL, l), tree(T_COLON, a1, typeconv(a2, a1->type, 1)));
+	a2 = tree(T_QUESTION, tree(T_BOOL, NULL, l), tree(T_COLON, a1, typeconv(a2, a1->type, 1)));
+	/* Takes the type of the : arguments not the ? */
+	a2->type = a1->type;
+	return a2;
 }
 
 
