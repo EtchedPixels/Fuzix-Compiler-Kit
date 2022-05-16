@@ -21,6 +21,12 @@ struct node *typeconv(struct node *n, unsigned type, unsigned warn)
 {
 	unsigned nt = type_canonical(n->type);
 	if (!PTR(nt)) {
+		/* Casting an arithmetic type to pointer */
+		if (PTR(type) && IS_INTARITH(nt)) {
+			if (warn && !is_constant_zero(n))
+				typemismatch();
+			return make_cast(n, type);
+		}
 		/* You can cast pointers to things but not actual block
 		   classes */
 		if (!IS_SIMPLE(nt) || !IS_ARITH(nt) ||
@@ -352,7 +358,7 @@ static struct node *hier9(void)
 
 /*
  *	Addition and subtraction. Messy because of the pointer scaling
- *	rules.
+ *	rules and even more so because of arrays.
  */
 
 static struct node *hier8(void)
