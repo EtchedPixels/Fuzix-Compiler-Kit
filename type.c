@@ -106,6 +106,8 @@ unsigned type_addrof(unsigned t) {
 /*
  *	Can we turn the right hand object into the left hand type
  *	for pointers.
+ *
+ *	TODO: Array
  */
 int type_pointerconv(struct node *r, unsigned lt)
 {
@@ -137,8 +139,8 @@ int type_pointerconv(struct node *r, unsigned lt)
  */
 int type_pointermatch(struct node *l, struct node *r)
 {
-    unsigned lt = l->type;
-    unsigned rt = r->type;
+    unsigned lt = type_canonical(l->type);
+    unsigned rt = type_canonical(r->type);
     /* The C zero case */
     if (is_constant_zero(l) && PTR(rt))
         return 1;
@@ -147,8 +149,9 @@ int type_pointermatch(struct node *l, struct node *r)
 
 unsigned type_ptrscale_binop(unsigned op, struct node *l, struct node *r,
 			     unsigned *type) {
-	unsigned lt = l->type;
-	unsigned rt = r->type;
+	/* FIXME: when we rework arrays this can go */
+	unsigned lt = type_canonical(l->type);
+	unsigned rt = type_canonical(r->type);
 
 	/* Assume ptrdiff_t is CINT : TODO */
 	*type = CINT;

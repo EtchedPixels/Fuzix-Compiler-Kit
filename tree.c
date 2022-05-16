@@ -251,8 +251,8 @@ struct node *arith_promotion_tree(unsigned op, struct node *l,
 				  struct node *r)
 {
 	/* We know both sides are arithmetic */
-	unsigned lt = l->type;
-	unsigned rt = r->type;
+	unsigned lt = type_canonical(l->type);
+	unsigned rt = type_canonical(r->type);
 	struct node *n;
 
 	if (PTR(lt))
@@ -444,7 +444,6 @@ struct node *constify(struct node *n)
 				l->value += r->value;
 				free_node(r);
 				free_node(n);
-				fprintf(stderr, "folded name + type now %x\n", l->type);
 				return l;
 			}
 			r->value += l->value;
