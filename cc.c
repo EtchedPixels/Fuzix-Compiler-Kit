@@ -301,7 +301,7 @@ static void redirect_in(const char *p)
 
 static void redirect_out(const char *p)
 {
-	argoutfd = open(p, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+	argoutfd = open(p, O_RDWR | O_CREAT | O_TRUNC, 0666);
 	if (argoutfd == -1) {
 		perror(p);
 		fatal();
