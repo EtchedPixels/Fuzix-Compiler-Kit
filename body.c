@@ -85,7 +85,7 @@ static void for_statement(void)
 	require(T_SEMICOLON);
 	expression_or_null(0, 1);
 	require(T_RPAREN);
-	statement();
+	statement_block(0);
 	footer(H_FOR, cont_tag, break_tag);
 
 	break_tag = oldbrk;
@@ -209,6 +209,10 @@ static void goto_statement(void)
  */
 static void statement(void)
 {
+	/* It's valid to have a {} block */
+	if (token == T_RCURLY)
+		return;
+
 #if 0	/* C99 for later if we want it */
 	declaration_block();
 #endif
@@ -313,9 +317,9 @@ void statement_block(unsigned need_brack)
 	}
 	next_token();
 	ltop = mark_local_symbols();
+	/* declarations */
+	declaration_block();
 	while (token != T_RCURLY) {
-		/* declarations */
-		declaration_block();
 		/* statements */
 		statement_block(0);
 	}
