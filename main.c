@@ -27,6 +27,7 @@ int main(int argc, char *argv[])
 {
 	next_token();
 	init_nodes();
+#ifdef DEBUG
 	if (argv[1]) {
 		debug = fopen(argv[1], "w");
 		if (debug == NULL) {
@@ -34,6 +35,7 @@ int main(int argc, char *argv[])
 			return 255;
 		}
 	}
+#endif
 	while (token != T_EOF)
 		toplevel();
 	/* No write out any uninitialized variables */
