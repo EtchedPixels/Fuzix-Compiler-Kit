@@ -37,10 +37,10 @@ unsigned get_storage(unsigned dflt)
 
 void put_typed_data(struct node *n)
 {
-	write(1, "%[", 2);
+	out_block("%[", 2);
 	if (n->op != T_PAD && !is_constname(n))
 		error("not constant");
-	write(1, n, sizeof(struct node));
+	out_block(n, sizeof(struct node));
 }
 
 void put_padding_data(unsigned space)

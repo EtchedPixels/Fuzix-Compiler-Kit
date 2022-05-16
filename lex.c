@@ -1,6 +1,6 @@
 #include <unistd.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "compiler.h"
 
 /*
@@ -9,6 +9,113 @@
  */
 
 #define NO_TOKEN	0xFFFF		/* An unused value */
+
+
+/*
+ *	Simple block buffer read. We use 128 byte records so we can make
+ *	this work in CP/M. For CP/M we'll also need to write some kind of
+ *	'end of file' token
+ */
+
+static unsigned char inbuf[128];
+static unsigned char *inptr;
+static int inlen;
+
+/* Read the next block. Hopefully this is the only routine we need to
+   swap for CP/M etc */
+static int in_record(void)
+{
+	inptr = inbuf;
+	return read(0, inbuf, 128);
+}
+
+static int in_byte(void)
+{
+	if (inlen == 0)
+		inlen = in_record();
+	if (inlen--)
+		return *inptr++;
+	inlen = 0;
+	return EOF;
+}
+
+static unsigned char outbuf[128];
+static unsigned char *outptr = outbuf;
+static unsigned int outlen;
+static unsigned int outrecord = 0;
+
+void out_write(void)
+{
+	if (lseek(1, outrecord * 128L, SEEK_SET) < 0)
+		fatal("seek error");
+	if (outlen && write(1, outbuf, outlen) != outlen)
+		fatal("write error");
+	outlen = 0;
+	outptr = outbuf;
+}
+
+/* Again try and isolate the block I/O into two tiny routines */
+void out_flush(void)
+{
+	out_write();
+	outrecord++;
+}
+
+/* Read a record. We use this in situations where we need to rewind and
+   update headers */
+static void out_record_read(unsigned record)
+{
+	if (lseek(1, record * 128L, SEEK_SET) < 0)
+		fatal("seek error");
+	if (read(1, outbuf, 128) < 0)
+		fatal("read error");
+	outrecord = record;
+}
+
+/* Report the current record/offset */
+unsigned long out_tell(void)
+{
+	return (outrecord << 8) | outlen;
+}
+
+/* Go to a given record/offset from before */
+void out_seek(unsigned long pos)
+{
+	out_write();
+	out_record_read(pos >> 8);
+	outlen = pos & 0xFF;
+	outptr = outbuf + outlen;
+}
+
+/* Add bytes at the current position */
+void out_byte(unsigned char c)
+{
+	if (outlen == 128)
+		out_flush();
+	*outptr++ = c;
+	outlen++;
+}
+
+void out_block(void *pv, unsigned len)
+{
+	unsigned char *p = pv;
+	while(len) {
+		unsigned n;
+
+		/* Flush any full record */
+		if (outlen == 128)
+			out_flush();
+		/* Fill up what we can */
+		n = 128 - outlen;
+		if (n > len)
+			n = len;
+		memcpy(outptr, p, n);
+		outptr += n;
+		outlen += n;
+		p += n;
+		len -= n;
+	}
+}
 
 char filename[16];
 
@@ -20,7 +127,7 @@ unsigned last_token = NO_TOKEN;
 
 unsigned tokbyte(void)
 {
-	unsigned c = getchar();
+	unsigned c = in_byte();
 	if (c == EOF) {
 		error("corrupt stream");
 		exit(1);
@@ -39,14 +146,14 @@ void next_token(void)
 		return;
 	}
 
-	c = getchar();
+	c = in_byte();
 	if (c == EOF) {
 		token = T_EOF;
 //        printf("*** EOF\n");
 		return;
 	}
 	token = c;
-	c = getchar();
+	c = in_byte();
 	if (c == EOF) {
 		token = T_EOF;
 		return;
@@ -160,7 +267,7 @@ unsigned copy_string(unsigned label, unsigned maxlen, unsigned pad)
 	/* Copy the encoding string as is */
 	while((c = tokbyte()) != 0) {
 		if (l < maxlen) {
-			write(1, &c, 1);
+			out_byte(c);
 			l++;
 		}
 	} while(c);
@@ -168,10 +275,10 @@ unsigned copy_string(unsigned label, unsigned maxlen, unsigned pad)
 	/* No write any padding bytes */
 	if (pad) {
 		while(l++ < maxlen)
-			write(1, &pad_zero, 2);
+			out_block(&pad_zero, 2);
 	}
 	/* Write the end marker */
-	write(1, &c, 1);
+	out_byte(0);
 	footer(H_STRING, label, l);
 
 	next_token();

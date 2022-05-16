@@ -228,7 +228,7 @@ void free_tree(struct node *n)
 
 static void write_subtree(struct node *n)
 {
-	write(1, n, sizeof(struct node));
+	out_block(n, sizeof(struct node));
 	if (n->left)
 		write_subtree(n->left);
 	if (n->right)
@@ -238,7 +238,7 @@ static void write_subtree(struct node *n)
 
 void write_tree(struct node *n)
 {
-	write(1, "%^", 2);
+	out_block("%^", 2);
 	write_subtree(n);
 }
 

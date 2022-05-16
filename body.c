@@ -336,7 +336,7 @@ void function_body(unsigned st, unsigned name, unsigned type)
 {
 	/* This makes me sad, but there isn't a nice way to work out
 	   the frame size ahead of time */
-	off_t hrw;
+	unsigned long hrw;
 
 	if (st == S_AUTO || st == S_EXTERN)
 		error("invalid storage class");

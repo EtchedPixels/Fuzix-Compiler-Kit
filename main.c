@@ -38,5 +38,6 @@ int main(int argc, char *argv[])
 		toplevel();
 	/* No write out any uninitialized variables */
 	write_bss();
+	out_write();
 	return 0;
 }

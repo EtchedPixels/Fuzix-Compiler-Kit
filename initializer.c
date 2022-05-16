@@ -49,7 +49,6 @@ static void initializer_group(struct symbol *sym, unsigned type, unsigned n, uns
     }
     if (n) {
         unsigned s = type_sizeof(type) * n;
-        header(H_DATA, 0, 0);
         put_padding_data(s);
     }
     /* Catches any excess elements */

@@ -41,5 +41,5 @@ struct header {
 
 extern void header(unsigned htype, unsigned name, unsigned data);
 extern void footer(unsigned htype, unsigned name, unsigned data);
-extern void rewrite_header(off_t off, unsigned htype, unsigned name, unsigned data);
-extern off_t mark_header(void);
+extern void rewrite_header(unsigned long off, unsigned htype, unsigned name, unsigned data);
+extern unsigned long mark_header(void);

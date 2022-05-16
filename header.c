@@ -15,8 +15,8 @@ void header(unsigned htype, unsigned name, unsigned data)
 	h.h_name = name;
 	h.h_data = data;
 
-	write(1, "%H", 2);	/* For now until it's all headers/expr */
-	write(1, &h, sizeof(h));
+	out_block("%H", 2);	/* For now until it's all headers/expr */
+	out_block(&h, sizeof(h));
 }
 
 void footer(unsigned htype, unsigned name, unsigned data)
@@ -24,20 +24,15 @@ void footer(unsigned htype, unsigned name, unsigned data)
 	header(htype | H_FOOTER, name, data);
 }
 
-void rewrite_header(off_t pos, unsigned htype, unsigned name, unsigned data)
+void rewrite_header(unsigned long pos, unsigned htype, unsigned name, unsigned data)
 {
-	if (lseek(1, pos, SEEK_SET) == -1) {
-		perror("hseek");
-		exit(1);
-	}
+	unsigned long curr = out_tell();
+	out_seek(pos);
 	header(htype, name, data);
-	if (lseek(1, 0L, SEEK_END) == -1) {
-		perror("hseek");
-		exit(1);
-	}
+	out_seek(curr);
 }
 
-off_t mark_header(void)
+unsigned long mark_header(void)
 {
-	return lseek(1, 0L, SEEK_CUR);
+	return out_tell();
 }

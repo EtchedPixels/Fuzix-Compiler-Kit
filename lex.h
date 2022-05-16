@@ -13,3 +13,10 @@ extern unsigned symname(void);
 
 extern unsigned quoted_string(int *len);
 extern unsigned copy_string(unsigned label, unsigned maxlen, unsigned pad);
+
+extern void out_write(void);
+extern void out_flush(void);
+extern unsigned long out_tell(void);
+extern void out_seek(unsigned long pos);
+extern void out_byte(unsigned char c);
+extern void out_block(void *pv, unsigned len);
