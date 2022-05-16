@@ -281,7 +281,11 @@ static unsigned type_parse_array(unsigned storage, unsigned type, unsigned ptr)
 	return type;
 }
 
-/* Recursively walk any *(*(*(*x))) bits */
+/* Recursively walk any *(*(*(*x))) bits
+
+	char *x()	function returning char
+	char (*x)()	pointer to function returning char
+ */
 
 static unsigned declarator(unsigned *name)
 {
@@ -309,10 +313,23 @@ static unsigned declarator(unsigned *name)
 
 unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
 {
-	unsigned ptr = declarator(name);
+	unsigned ptr = 0, nptr;
 	struct symbol *sym = NULL, *ltop;
-	if (ptr > 7)
+
+	/* Finish the type */
+	skip_modifiers();
+	while(match(T_STAR)) {
+		skip_modifiers();
+		ptr++;
+	}
+
+	/* Check if the name is a pointer */
+	nptr = declarator(name);
+	if (nptr + ptr > 7)
 		indirections();
+
+	/* Add the pointer depth to the base type */
+	type += ptr;
 
 	/* Reserve a symbol slot if needed */
 	if (*name && storage != S_NONE)
@@ -326,18 +343,22 @@ unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
 	while (token == T_LSQUARE || token == T_LPAREN) {
 		if (token == T_LSQUARE) {
 			next_token();
-			type = type_parse_array(storage, type, ptr);
+			type = type_parse_array(storage, type, nptr);
 			require(T_RSQUARE);
 		} else if (token == T_LPAREN) {
 			next_token();
 			/* It's a function description  */
-			type = type_parse_function(sym, storage, type, ptr);
+			type = type_parse_function(sym, storage, type, nptr);
 			/* Can be an array of functions .. */
 		}
 		/* FIXME: stop nonsense like func()[]() */
 	}
 	pop_local_symbols(ltop);
-	type += ptr;
+	/* Add any pointer element attached to the name */
+	if (PTR(type) + nptr > 7)
+		indirections();
+	else
+		type += nptr;
 	if (sym)
 		update_symbol(sym, *name, storage, type);
 	return type;
