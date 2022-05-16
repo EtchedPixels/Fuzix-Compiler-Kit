@@ -23,21 +23,20 @@ struct node *typeconv(struct node *n, unsigned type, unsigned warn)
 	if (!PTR(nt)) {
 		/* You can cast pointers to things but not actual block
 		   classes */
-		fprintf(stderr, "Have %x want %x\n", nt, type);
 		if (!IS_SIMPLE(nt) || !IS_ARITH(nt) ||
 			!IS_SIMPLE(type) || !IS_ARITH(type)) {
 			error("invalid type conversion");
 			return n;
 		}
 	} else {
-		if (type_pointerconv(n, nt))
-			return make_cast(n, nt);
+		if (type_pointerconv(n, type))
+			return make_cast(n, type);
 	}
 	if (nt == type || (IS_ARITH(nt) && IS_ARITH(type)))
-		return make_cast(n, nt);
+		return make_cast(n, type);
 	if ((IS_ARITH(nt) && PTR(type)) || (IS_ARITH(type) && PTR(nt))) {
 		if (!warn)
-			return make_cast(n, nt);
+			return make_cast(n, type);
 	}
 	typemismatch();
 	n->type = nt;
@@ -183,7 +182,6 @@ static struct node *hier11(void)
 				l = function_call(l);
 			} else if ((direct = match(T_DOT))
 				   || match(T_POINTSTO)) {
-				fprintf(stderr, "%d type before %x/%x\n", direct, l->type, l->flags);
 				if (direct == 0) {
 					/* The pointer we have holds the address of the
 					   struct which is thus an lval */
@@ -191,7 +189,6 @@ static struct node *hier11(void)
 					l->flags |= LVAL;
 					lt = type_deref(lt);
 				}
-				fprintf(stderr, "type after %x\n", lt);
 				if (PTR(lt)
 				    || !IS_STRUCT(lt)) {
 					error("can't take member");
