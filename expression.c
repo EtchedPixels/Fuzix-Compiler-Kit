@@ -325,7 +325,7 @@ static struct node *hier10(void)
 		return r;
 	case T_LPAREN:
 		/* Should be a type without a name */
-		t = type_and_name(S_AUTO, &name, 0, UNKNOWN);
+		t = type_name_parse(S_AUTO, get_type(), &name);
 		require(T_RPAREN);
 		if (t == UNKNOWN || name)
 			badtype();

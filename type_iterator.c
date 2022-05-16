@@ -360,18 +360,3 @@ unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
 		update_symbol(sym, *name, storage, type);
 	return type;
 }
-
-unsigned type_and_name(unsigned storage, unsigned *name, unsigned nn, unsigned deftype)
-{
-	unsigned type = get_type();
-	if (type == UNKNOWN)
-		type = deftype;
-	if (type == UNKNOWN)
-		return type;
-	type = type_name_parse(storage, type, name);
-	if (nn && *name == 0) {
-		error("name required");
-		junk();
-	}
-	return type;
-}
