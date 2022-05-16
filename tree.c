@@ -57,8 +57,10 @@ struct node *tree(unsigned op, struct node *l, struct node *r)
 	n->left = l;
 	n->right = r;
 	n->op = op;
-	/* Default inherit from right */
-	if (r)
+	/* Inherit from left if present, right if not */
+	if (l)
+		n->type = l->type;
+	else if (r)
 		n->type = r->type;
 	c = constify(n);
 	if (c)
@@ -187,8 +189,12 @@ void canonicalize(struct node *n)
 
 struct node *make_rval(struct node *n)
 {
-	if (n->flags & LVAL)
-		return tree(T_DEREF, NULL, n);
+	if (n->flags & LVAL) {
+		if (!IS_ARRAY(n->type))
+			return tree(T_DEREF, NULL, n);
+		else
+			n->flags &= ~LVAL;
+	}
 	return n;
 }
 
@@ -438,6 +444,7 @@ struct node *constify(struct node *n)
 				l->value += r->value;
 				free_node(r);
 				free_node(n);
+				fprintf(stderr, "folded name + type now %x\n", l->type);
 				return l;
 			}
 			r->value += l->value;
