@@ -121,21 +121,22 @@
 
 /* Encodings that are used internally for nodes but have no actual equivalent
    token */
-#define T_CAST		0x1200
-#define T_CONSTANT	0x1201
-#define T_NAME		0x1202
-#define T_LOCAL		0x1203
-#define T_LABEL		0x1204
-#define T_ARGUMENT	0x1205
-#define T_DEREF		0x1206
-#define T_ADDROF	0x1207
-#define T_NULL		0x1208
-#define T_NEGATE	0x1209
-#define T_FUNCCALL	0x120A
-#define T_BOOL		0x120B
-#define T_PAD		0x120C
-#define T_CLEANUP	0x120D
-#define T_CASELABEL	0x120E
+#define T_CAST		0x1200		/* (int *) etc */
+#define T_CONSTANT	0x1201		/* A numeric value */
+#define T_NAME		0x1202		/* name/offset for global or static */
+#define T_LOCAL		0x1203		/* name/offset for auto */
+#define T_LABEL		0x1204		/* address of a literal */
+#define T_ARGUMENT	0x1205		/* name/offset for argument */
+#define T_DEREF		0x1206		/* *foo (as T_STAR is multiply) */
+#define T_ADDROF	0x1207		/* &lval (as T_AND is boolean and) */
+#define T_NULL		0x1208		/* An empty expression */
+#define T_NEGATE	0x1209		/* Unary negation (T_MINUS is binary) */
+#define T_FUNCCALL	0x120A		/* Function call */
+#define T_BOOL		0x120B		/* Convert working reg to 0/1 */
+#define T_PAD		0x120C		/* Reserve memory in data/bss */
+#define T_CLEANUP	0x120D		/* Function call post stack clean */
+#define T_CASELABEL	0x120E		/* A case label */
+#define T_ARGCOMMA	0x120F		/* Links arguments to a call */
 
 #define T_USER		0x2000		/* Tokens for code generators */
 
