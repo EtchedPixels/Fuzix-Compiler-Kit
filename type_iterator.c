@@ -187,6 +187,10 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 	unsigned t;
 	unsigned tplt[33];	/* max 32 typed arguments */
 	unsigned *tn = tplt + 1;
+	unsigned argsave, locsave;
+
+	mark_storage(&argsave, &locsave);
+	init_storage();
 
 	/* Parse the bracketed arguments if any and nail them to the
 	   symbol. */
@@ -233,7 +237,6 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 		/* Must do this first as a function may reference itself */
 		update_symbol(fsym, fsym->name, storage, ftype);
 		if (token == T_LCURLY) {
-			unsigned argsave, locsave;
 			struct symbol *ltop;
 
 			if (fsym->infonext & INITIALIZED)
@@ -243,13 +246,12 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 			if (storage == S_EXTDEF)
 				header(H_EXPORT, fsym->name, 0);
 			ltop = mark_local_symbols();
-			mark_storage(&argsave, &locsave);
 			function_body(storage, fsym->name, type);
 			pop_local_symbols(ltop);
-			pop_storage(&argsave, &locsave);
 			fsym->infonext |= INITIALIZED;
 		}
 	}
+	pop_storage(&argsave, &locsave);
 	return ftype;
 }
 

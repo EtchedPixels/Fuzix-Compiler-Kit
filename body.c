@@ -345,7 +345,6 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	hrw = mark_header();
 	header(H_FRAME, 0, name);
 
-	init_storage();
 	init_labels();
 
 	statement_block(1);
