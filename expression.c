@@ -85,7 +85,7 @@ struct node *call_args(unsigned *narg, unsigned *argt, unsigned *argsize)
 	else {
 		/* Explicit prototyped argument */
 		if (*narg) {
-			n = typeconv(n, *argt++, 1);
+			n = typeconv(n, type_canonical(*argt++), 1);
 			(*narg)--;
 		} else
 			unexarg();

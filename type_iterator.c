@@ -206,8 +206,6 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 			*tn++ = VOID;
 			break;
 		}
-		/* Arrays pass the pointer */
-		t = type_canonical(t);
 		if (!PTR(t) && (IS_STRUCT(t) || IS_FUNCTION(t))) {
 			error("cannot pass objects");
 			t = CINT;
