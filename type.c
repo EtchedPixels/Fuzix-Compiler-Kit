@@ -52,6 +52,7 @@ unsigned type_arraysize(unsigned t)
 	unsigned s = type_sizeof(sym->type);
 
 	p += n;
+
 	while(n--) {
 		s *= *p--;
 		if (--d == 0)
@@ -59,7 +60,7 @@ unsigned type_arraysize(unsigned t)
 	}
 	/* We are some depth of pointer to an array object so our size
 	   goes back to the size of the pointer */
-	return type_sizeof(sym->type + d);
+	return type_sizeof(sym->type + d + 1);
 }
 
 unsigned type_sizeof(unsigned t)
@@ -90,7 +91,7 @@ unsigned type_ptrscale(unsigned t) {
 	/* void * is special */
 	if (t == PTRTO + VOID)
 		return 1;
-	return type_sizeof(type_deref(t));
+	return target_scale_ptr(t, type_sizeof(type_deref(t)));
 }
 
 /* TODO: review as this is an lval */
@@ -158,12 +159,12 @@ int type_pointermatch(struct node *l, struct node *r)
 
 unsigned type_ptrscale_binop(unsigned op, struct node *l, struct node *r,
 			     unsigned *type) {
-	/* FIXME: when we rework arrays this can go */
-	unsigned lt = type_canonical(l->type);
-	unsigned rt = type_canonical(r->type);
+	unsigned lt = l->type;
+	unsigned rt = r->type;
 
-	/* Assume ptrdiff_t is CINT : TODO */
-	*type = CINT;
+	/* Get the target type required to hold this kind of pointer
+	   difference */
+	*type = target_ptr_arith(lt);
 
 	if (type_pointermatch(l, r)) {
 		if (op == T_MINUS)
