@@ -33,7 +33,7 @@ static void initializer_group(struct symbol *sym, unsigned type, unsigned n, uns
        char x[16] = "foo"; which creates a copy of the string in that
        array not a literal reference */
     if (token == T_STRING) {
-        if ((type & ~UNSIGNED) != CCHAR)
+        if ((type_canonical(type) & ~UNSIGNED) != CCHAR)
             typemismatch();
         copy_string(0, n, 1);
         return;
