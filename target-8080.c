@@ -40,3 +40,18 @@ unsigned target_argsize(unsigned t)
 		return 2;
 	return s;
 }
+
+/* integer type for a pointer of type t. For most platforms this is trivial
+   but strange boxes with word addressing and byte pointers may need help */
+unsigned target_ptr_arith(unsigned t)
+{
+	return CINT;
+}
+
+/* Adjust scaling for a pointer of type t. For most systems this is a no-op
+   but on machines with things like word addressing it isn't.*/
+
+unsigned target_scale_ptr(unsigned t, unsigned scale)
+{
+	return scale;
+}
