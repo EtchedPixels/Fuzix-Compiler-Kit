@@ -11,6 +11,7 @@ static unsigned cont_tag;
 static unsigned switch_tag;
 static unsigned switch_count;
 static unsigned switch_type;
+static unsigned func_type;
 
 /* C keyword statements */
 static void if_statement(void)
@@ -96,7 +97,7 @@ static void return_statement(void)
 {
 	next_token();
 	header(H_RETURN, func_tag, 0);
-	expression_or_null(0, 0);
+	expression_typed(func_type);
 	footer(H_RETURN, func_tag, 0);
 	need_semicolon();
 }
@@ -341,6 +342,7 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	if (st == S_AUTO || st == S_EXTERN)
 		error("invalid storage class");
 	func_tag = next_tag++;
+	func_type = type;
 	header(H_FUNCTION, func_tag, name);
 	hrw = mark_header();
 	header(H_FRAME, 0, name);

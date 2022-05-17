@@ -624,9 +624,11 @@ unsigned expression(unsigned comma, unsigned mkbool, unsigned noret)
 	if (token == T_SEMICOLON)
 		return VOID;
 	n = expression_tree(comma);
-	/* FIXME: type check for the boolify */
-	if (mkbool)
+	if (mkbool) {
+		if (!IS_INTARITH(n->type) && !PTR(n->type))
+			typemismatch();
 		n = tree(T_BOOL, NULL, n);
+	}
 	if (noret)
 		n->flags |= NORETURN;
 	t = n->type;
@@ -666,4 +668,13 @@ void expression_or_null(unsigned mkbool, unsigned noret)
 		/* null */
 	} else
 		expression(1, mkbool, noret);
+}
+
+void expression_typed(unsigned type)
+{
+	if (type == VOID && token == T_SEMICOLON) {
+		write_tree(tree(T_NULL, NULL, NULL));
+		return;
+	}
+	write_tree(typeconv(expression_tree(0), type, 0));
 }

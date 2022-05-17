@@ -182,6 +182,7 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 	/* Function returning the type accumulated so far */
 	/* We need an anonymous symbol entry to hang the function description onto */
 	struct symbol *sym;
+	unsigned ftype;
 	unsigned an;
 	unsigned t;
 	unsigned tplt[33];	/* max 32 typed arguments */
@@ -227,10 +228,10 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 	if (tn == tplt + 1)
 		*tn++ = ELLIPSIS;
 	*tplt = tn - tplt - 1;
-	type = func_symbol_type(type, tplt);
+	ftype = func_symbol_type(type, tplt);
 	if (!ptr) {
 		/* Must do this first as a function may reference itself */
-		update_symbol(fsym, fsym->name, storage, type);
+		update_symbol(fsym, fsym->name, storage, ftype);
 		if (token == T_LCURLY) {
 			unsigned argsave, locsave;
 			struct symbol *ltop;
@@ -249,7 +250,7 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 			fsym->flags |= INITIALIZED;
 		}
 	}
-	return type;
+	return ftype;
 }
 
 static unsigned type_parse_array(unsigned storage, unsigned type, unsigned ptr)
