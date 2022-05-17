@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include "compiler.h"
 #include "backend.h"
 
@@ -459,6 +460,31 @@ static unsigned load_a_with(struct node *n)
 	return 1;
 }
 
+static unsigned gen_compc(const char *op, struct node *n, struct node *r)
+{
+	unsigned s = get_size(n->type);
+	if (r->op == T_CONSTANT && r->value == 0) {
+		char buf[10];
+		strcpy(buf, op);
+		strcat(buf, "0");
+		helper(n, buf);
+		return 1;
+	}
+	if (s == 2) {
+		if (load_de_with(r) == 0)
+			return 0;
+		helper(n, op);
+		return 1;
+	}
+	if (s == 1) {
+		if (load_a_with(r) == 0)
+			return 0;
+		helper(n, op);
+		return 1;
+	}
+	return 0;
+}
+
 /*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
@@ -588,6 +614,18 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		return 0;
+	case T_EQEQ:
+		return gen_compc("cmpeq", n, r);
+	case T_GTEQ:
+		return gen_compc("cmpgteq", n, r);
+	case T_GT:
+		return gen_compc("cmpgt", n, r);
+	case T_LTEQ:
+		return gen_compc("cmplteq", n, r);
+	case T_LT:
+		return gen_compc("cmplt", n, r);
+	case T_BANGEQ:
+		return gen_compc("cmpne", n, r);
 	}
 	return 0;
 }

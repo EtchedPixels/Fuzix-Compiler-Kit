@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include "compiler.h"
 #include "backend.h"
 
@@ -429,9 +430,10 @@ static unsigned load_r_with(const char r, struct node *n)
 		name = namestr(n->snum);
 		if (r == 'b')
 			return 0;
-		else if (r == 'h')
+		else if (r == 'h') {
 			printf("\tlhld (_%s+%d)\n", name, v);
-		else if (r == 'd') {
+			return 1;
+		} else if (r == 'd') {
 			/* We know it is int or pointer */
 			printf("\txchg\n");
 			printf("\tlhld (_%s+%d)\n", name, v);
@@ -480,6 +482,31 @@ static void repeated_op(const char *o, unsigned n)
 {
 	while(n--)
 		printf("\t%s\n", o);
+}
+
+static unsigned gen_compc(const char *op, struct node *n, struct node *r)
+{
+	unsigned s = get_size(n->type);
+	if (r->op == T_CONSTANT && r->value == 0) {
+		char buf[10];
+		strcpy(buf, op);
+		strcat(buf, "0");
+		helper(n, buf);
+		return 1;
+	}
+	if (s == 2) {
+		if (load_de_with(r) == 0)
+			return 0;
+		helper(n, op);
+		return 1;
+	}
+	if (s == 1) {
+		if (load_a_with(r) == 0)
+			return 0;
+		helper(n, op);
+		return 1;
+	}
+	return 0;
 }
 
 /*
@@ -577,6 +604,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
+		/* TODO - do we care about saving BC ? */
 		if (cpu == 8085 && s <= 2) {
 			/* LHS is in HL at the moment, end up with the result in HL */
 			if (s == 1) {
@@ -590,6 +618,18 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		return 0;
+	case T_EQEQ:
+		return gen_compc("cmpeq", n, r);
+	case T_GTEQ:
+		return gen_compc("cmpgteq", n, r);
+	case T_GT:
+		return gen_compc("cmpgt", n, r);
+	case T_LTEQ:
+		return gen_compc("cmplteq", n, r);
+	case T_LT:
+		return gen_compc("cmplt", n, r);
+	case T_BANGEQ:
+		return gen_compc("cmpne", n, r);
 	}
 	return 0;
 }
