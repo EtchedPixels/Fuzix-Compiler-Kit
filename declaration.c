@@ -72,7 +72,7 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 		        footer(H_DATA, sym->name, 0);
 	}
 	if (s == S_AUTO)
-		sym->offset = assign_storage(type, S_AUTO);
+		sym->data.offset = assign_storage(type, S_AUTO);
 	return 1;
 }
 

@@ -46,7 +46,7 @@ unsigned type_canonical(unsigned t)
 unsigned type_arraysize(unsigned t)
 {
 	struct symbol *sym = symbol_ref(t);
-	unsigned *p = sym->idx;
+	unsigned *p = sym->data.idx;
 	unsigned n = *p;
 	unsigned d = PTR(t);
 	unsigned s = type_sizeof(sym->type);
@@ -72,7 +72,7 @@ unsigned type_sizeof(unsigned t)
 		return target_sizeof(t);
 	if (IS_STRUCT(t)) {
 		struct symbol *s = symbol_ref(t);
-		unsigned *p = s->idx;
+		unsigned *p = s->data.idx;
 		if (s->flags & INITIALIZED)
 			return p[1];
 		error("struct/union not declared");

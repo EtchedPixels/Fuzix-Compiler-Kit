@@ -92,7 +92,7 @@ struct node *make_symbol(struct symbol *s)
 	default:
 		n->op = T_NAME;
 	}
-	n->value = s->offset;
+	n->value = s->data.offset;
 	n->snum = s->name;
 	n->flags = LVAL;
 	n->type = s->type;

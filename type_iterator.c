@@ -213,7 +213,7 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 		}
 		if (an) {
 			sym = update_symbol_by_name(an, S_ARGUMENT, t);
-			sym->offset = assign_storage(t, S_ARGUMENT);
+			sym->data.offset = assign_storage(t, S_ARGUMENT);
 			*tn++ = t;
 		} else {
 			assign_storage(t, S_ARGUMENT);

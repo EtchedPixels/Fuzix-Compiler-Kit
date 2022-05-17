@@ -70,7 +70,7 @@ static void initializer_group(struct symbol *sym, unsigned type, unsigned n, uns
 static void initializer_struct(struct symbol *psym, unsigned type, unsigned storage)
 {
     struct symbol *sym = symbol_ref(type);
-    unsigned *p = sym->idx;
+    unsigned *p = sym->data.idx;
     unsigned n = *p;
     unsigned s = p[1];	/* Size of object (needed for union) */
 

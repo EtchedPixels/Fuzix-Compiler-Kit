@@ -6,7 +6,7 @@
 
 static void struct_add_field(struct symbol *sym, unsigned name, unsigned type)
 {
-    unsigned *p = sym->idx;
+    unsigned *p = sym->data.idx;
     unsigned n = 0;
     unsigned *t = p + 2;
 
@@ -46,7 +46,7 @@ void struct_declaration(struct symbol *sym)
     sym->flags |= INITIALIZED;
 
     /* Temporarily, as this can recurse */
-    sym->idx = tags;
+    sym->data.idx = tags;
 
     *tags = 0;		/* No elements */
     tags[1] = 0;	/* Zero space */
@@ -72,5 +72,5 @@ void struct_declaration(struct symbol *sym)
     }
     require(T_RCURLY);
 
-    sym->idx = idx_copy(tags, 2 + 3 * *tags);
+    sym->data.idx = idx_copy(tags, 2 + 3 * *tags);
 }

@@ -88,8 +88,7 @@ struct symbol *alloc_symbol(unsigned name, unsigned local)
 			if (last_sym < s)
 				last_sym = s;
 			s->name = name;
-			s->offset = 0;
-			s->idx = 0;
+			s->data.idx = 0;
 			s->flags = 0;
 			return s;
 		}
@@ -140,8 +139,7 @@ struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage
 	sym->type = type;
 	sym->storage = storage;
 	sym->flags = 0;
-	sym->idx = 0;
-	sym->offset = 0;
+	sym->data.idx = 0;
 	return sym;
 }
 
@@ -170,14 +168,14 @@ static struct symbol *do_func_match(unsigned rtype, unsigned *template)
 	struct symbol *sym = symtab;
 	unsigned len = sizeof(unsigned) * (*template + 1);
 	while(sym <= last_sym) {
-		if (sym->storage == S_FUNCDEF && sym->type == rtype && memcmp(sym->idx, template, len) == 0) {
+		if (sym->storage == S_FUNCDEF && sym->type == rtype && memcmp(sym->data.idx, template, len) == 0) {
 			return sym;
 		}
 		sym++;
 	}
 	sym = alloc_symbol(0xFFFF, 0);
 	sym->storage = S_FUNCDEF;
-	sym->idx = idx_copy(template, len);
+	sym->data.idx = idx_copy(template, len);
 	sym->type = rtype;
 	return sym;
 }
@@ -199,7 +197,7 @@ unsigned *func_args(unsigned n)
 {
 	if (!IS_FUNCTION(n))
 		return NULL;
-	return symtab[INFO(n)].idx;	/* Type of function is its return type */
+	return symtab[INFO(n)].data.idx;	/* Type of function is its return type */
 }
 
 /*
@@ -209,13 +207,13 @@ unsigned *func_args(unsigned n)
 unsigned array_num_dimensions(unsigned type)
 {
 	struct symbol *sym = symbol_ref(type);
-	return *sym->idx;
+	return *sym->data.idx;
 }
 
 unsigned array_dimension(unsigned type, unsigned depth)
 {
 	struct symbol *sym = symbol_ref(type);
-	return sym->idx[depth];
+	return sym->data.idx[depth];
 }
 
 unsigned make_array(unsigned type)
@@ -224,15 +222,15 @@ unsigned make_array(unsigned type)
 	sym->storage = S_ARRAY;
 	sym->type = type;
 	sym->flags = 0;
-	sym->idx = idx_get(9);
-	*sym->idx = 0;
+	sym->data.idx = idx_get(9);
+	*sym->data.idx = 0;
 	return C_ARRAY | ((sym - symtab) << 3);
 }
 
 void array_add_dimension(unsigned type, unsigned num)
 {
 	struct symbol *sym = symbol_ref(type);
-	unsigned *idx = sym->idx;
+	unsigned *idx = sym->data.idx;
 	if (*idx == 8)
 		error("too many dimensions");
 	else {
@@ -271,7 +269,7 @@ struct symbol *update_struct(unsigned name, unsigned t)
 		sym = alloc_symbol(name, 0);	/* TODO scoping */
 		sym->storage = t;
 		sym->flags = 0;
-		sym->idx = NULL;	/* Not yet known */
+		sym->data.idx = NULL;	/* Not yet known */
 	} else {
 		if (sym->storage != t)
 			error("declared both union and struct");
@@ -284,10 +282,10 @@ unsigned *struct_find_member(unsigned name, unsigned fname)
 	struct symbol *s = symtab + INFO(name);
 	unsigned *ptr, idx;
 	/* May be a known type but not one with fields yet declared */
-	if (s->idx == NULL)
+	if (s->data.idx == NULL)
 		return NULL;
-	idx = *s->idx;	/* Number of fields */
-	ptr = s->idx + 2;	/* num fields, sizeof */
+	idx = *s->data.idx;	/* Number of fields */
+	ptr = s->data.idx + 2;	/* num fields, sizeof */
 	while(idx--) {
 		/* name, type, offset tuples */
 		if (*ptr == fname)

@@ -5,8 +5,10 @@ struct symbol
     unsigned char storage;	/* Storage class */
     unsigned char flags;
 #define INITIALIZED	1
-    unsigned *idx;		/* Index into object specific data */
-    int offset;			/* Offset for locals */
+    union {
+        unsigned *idx;		/* Index into object specific data */
+        int offset;		/* Offset for locals */
+    } data;
 };
 
 #define S_FREE		0	/* Unused */
