@@ -564,6 +564,9 @@ struct node *hier1(void)
 		if ((l->flags & LVAL) == 0)
 			needlval();
 		r = make_rval(hier1());
+		/* You can't assign to an array/offset, you assign to
+		   the underlying type */
+		l->type = type_canonical(l->type);
 		return assign_tree(l, r);	/* Assignment */
 	} else {
 		fc = token;
