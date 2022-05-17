@@ -1,18 +1,21 @@
-- (int *) casting syntax
 - for word stacking machines add target hooks to specify that arguments
   take 2 bytes even if char, and alloc space correctly both in the func
   declaration/argument side and in the arg stacking (arg passing side done)
 - rewrite x = x + .. and x = x -... etc as += -=
-- char a[8] = { "foo" } needs to be handled - right now we'll try and stuff
-  the pointer into it which is wrong
 - Turn the frame the other way up ?
 - Track register state on backend
+- Some way to hash the symbol lookup without blowing up all the memory usage
+- Struct field alignment in initializers is not done
+- Type mapper in target, double and longlong handling
 
 Broken 
 -	constify needs a hard stare or two
 -	default: for the switch tables
+-	scoping for symbols - create new local when appropriate even if
+	global found.  (eg int x(int x) { })
 
 Longer term
+- variable length array syntax
 - z80 6809 style helpers for catching simpler ops and doing them via pairs
   of (ix) ops
 - backend hooks for building stack frame via initializers
@@ -37,4 +40,6 @@ Longer term
   subtrees with && || so should deal with those
 - cc0 and the -32768 funny (understand a little of previous token is needed)
 - target 'ptr_arith_type_of(x)' and cast ptr/ptr hooks. Need these so we can
-  word machines and charptrs etc
+  word machines and charptrs etc also mapper for ptrdiff_t
+- native compile support for machines where a pointer is a native long type. Cross
+  is going to be fine usually
