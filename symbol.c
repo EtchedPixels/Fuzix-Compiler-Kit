@@ -146,7 +146,11 @@ struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage
 }
 
 /* Update a symbol by name. In the case of things like typedefs we need
-   to do an explicit search, otherwise we look for conventional names */
+   to do an explicit search, otherwise we look for conventional names.
+
+   Not strictly correct at this point - each block is a new context and
+   block locals can hide the previous block. TODO sort this once we have
+   the chains/hashing in */
 struct symbol *update_symbol_by_name(unsigned name, unsigned storage,
 			     unsigned type)
 {
@@ -155,6 +159,10 @@ struct symbol *update_symbol_by_name(unsigned name, unsigned storage,
 		sym = find_symbol_by_class(name, storage);
 	else
 		sym = find_symbol(name);
+	/* Is it local ? if the one we found is global then we don't update
+	   it - we create a local one masking it */
+	if (sym && storage < S_STATIC && sym->infonext >= S_STATIC)
+		sym = NULL;
 	return update_symbol(sym, name, storage, type);
 }
 
