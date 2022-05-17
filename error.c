@@ -47,7 +47,7 @@ void format_error(unsigned line, const char *p, const unsigned c)
 	writes(" - ");
 	writes(p);
 	if (c) {
-		writec('"');
+		writes(" \"");
 		writec(c);
 		writec('"');
 	}
