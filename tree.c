@@ -82,7 +82,7 @@ struct node *make_constant(unsigned long value, unsigned type)
 struct node *make_symbol(struct symbol *s)
 {
 	struct node *n = new_node();
-	switch(s->storage) {
+	switch(S_STORAGE(s->infonext)) {
 	case S_AUTO:
 		n->op = T_LOCAL;
 		break;

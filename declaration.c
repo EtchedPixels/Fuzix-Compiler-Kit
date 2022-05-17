@@ -62,9 +62,9 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 		return 0;
 
 	if (s != S_EXTERN && (PTR(type) || !IS_FUNCTION(type)) && match(T_EQ)) {
-		if (sym->flags & INITIALIZED)
+		if (sym->infonext & INITIALIZED)
 			error("duplicate initializer");
-		sym->flags |= INITIALIZED;
+		sym->infonext |= INITIALIZED;
 		if (s >= S_LSTATIC)
 		        header(H_DATA, sym->name, target_alignof(type));
 		initializers(sym, type, s);

@@ -19,7 +19,7 @@ static void struct_add_field(struct symbol *sym, unsigned name, unsigned type)
     *t++ = name;
     *t++ = type;
     (*p)++;
-    if (sym->storage == S_UNION) {
+    if (S_STORAGE(sym->infonext) == S_UNION) {
         /* For a union track the largest element size */
         unsigned s = type_sizeof(type);
         *t = 0;
@@ -41,9 +41,9 @@ void struct_declaration(struct symbol *sym)
     unsigned nfield = 0;
     unsigned err = 0;
 
-    if (sym->flags & INITIALIZED)
+    if (sym->infonext & INITIALIZED)
         error("struct declared twice");
-    sym->flags |= INITIALIZED;
+    sym->infonext |= INITIALIZED;
 
     /* Temporarily, as this can recurse */
     sym->data.idx = tags;

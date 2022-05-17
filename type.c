@@ -73,7 +73,7 @@ unsigned type_sizeof(unsigned t)
 	if (IS_STRUCT(t)) {
 		struct symbol *s = symbol_ref(t);
 		unsigned *p = s->data.idx;
-		if (s->flags & INITIALIZED)
+		if (s->infonext & INITIALIZED)
 			return p[1];
 		error("struct/union not declared");
 		return 1;

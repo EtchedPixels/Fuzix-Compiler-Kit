@@ -236,7 +236,7 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 			unsigned argsave, locsave;
 			struct symbol *ltop;
 
-			if (fsym->flags & INITIALIZED)
+			if (fsym->infonext & INITIALIZED)
 				error("duplicate function");
 			if (storage == S_AUTO || storage == S_NONE)
 				error("function not allowed");
@@ -247,7 +247,7 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 			function_body(storage, fsym->name, type);
 			pop_local_symbols(ltop);
 			pop_storage(&argsave, &locsave);
-			fsym->flags |= INITIALIZED;
+			fsym->infonext |= INITIALIZED;
 		}
 	}
 	return ftype;

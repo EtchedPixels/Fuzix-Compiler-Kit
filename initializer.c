@@ -76,14 +76,14 @@ static void initializer_struct(struct symbol *psym, unsigned type, unsigned stor
 
     p += 2;
     /* We only initialize the first object */
-    if (sym->storage == S_UNION)
+    if (S_STORAGE(sym->infonext) == S_UNION)
         n = 1;
     require(T_LCURLY);
     /* FIXME: we need to watch the offsets and add internal padding */
     while(n-- && token != T_RCURLY) {
         type = p[1];
         p += 3;
-        if (sym->storage == S_STRUCT)
+        if (S_STORAGE(sym->infonext) == S_STRUCT)
             s -= type_sizeof(type);
         initializers(psym, type, storage);
         if (!match(T_COMMA))
@@ -95,7 +95,7 @@ static void initializer_struct(struct symbol *psym, unsigned type, unsigned stor
     /* For a union zerofill the slack if other elements are bigger */
     /* For a struct fill from the offset of the next field to the size of
        the base object */
-    if (sym->storage == S_UNION)
+    if (S_STORAGE(sym->infonext) == S_UNION)
         put_padding_data(s - type_sizeof(type));
     else if (n)
         put_padding_data(s - p[2]);	/* From offset of field to end */

@@ -4,4 +4,4 @@ extern unsigned const_int_expression(void);
 extern unsigned expression(unsigned comma, unsigned mkbool, unsigned noret);
 extern struct node *expression_tree(unsigned comma);
 extern struct node *hier1(void);	/* needed for primary bracketed */
-extern void expression_type(unsigned type);
+extern void expression_typed(unsigned type);

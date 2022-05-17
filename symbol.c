@@ -28,8 +28,8 @@ struct symbol *find_symbol(unsigned name)
 	/* Walk backwards so that the first local we find is highest priority
 	   by scope */
 	while (s >= symtab) {
-		if (s->name == name && s->storage < S_TYPEDEF) {
-			if (s->storage <= S_LSTATIC)
+		if (s->name == name && s->infonext < S_TYPEDEF) {
+			if (s->infonext < S_STATIC)
 				return s;
 			else	/* Still need to look for a local */
 				gmatch = s;
@@ -46,8 +46,8 @@ struct symbol *find_symbol_by_class(unsigned name, unsigned class)
 	/* Walk backwards so that the first local we find is highest priority
 	   by scope */
 	while (s >= symtab) {
-		if (s->name == name && s->storage == class) {
-			if (s->storage <= S_LSTATIC)
+		if (s->name == name && S_STORAGE(s->infonext) == class) {
+			if (s->infonext < S_STATIC)
 				return s;
 			else	/* Still need to look for a local */
 				gmatch = s;
@@ -61,8 +61,8 @@ void pop_local_symbols(struct symbol *top)
 {
 	struct symbol *s = top + 1;
 	while (s <= last_sym) {
-		if (s->storage <= S_LSTATIC) {
-			s->storage = S_FREE;
+		if (S_STORAGE(s->infonext) < S_STATIC) {
+			s->infonext = S_FREE;
 			s->name = 0;
 		}
 		s++;
@@ -82,14 +82,13 @@ struct symbol *alloc_symbol(unsigned name, unsigned local)
 {
 	struct symbol *s = local_top;
 	while (s <= &symtab[MAXSYM]) {
-		if (s->storage == S_FREE) {
+		if (s->infonext == S_FREE) {
 			if (local && local_top < s)
 				local_top = s;
 			if (last_sym < s)
 				last_sym = s;
 			s->name = name;
 			s->data.idx = 0;
-			s->flags = 0;
 			return s;
 		}
 		s++;
@@ -107,26 +106,30 @@ struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage
 			     unsigned type)
 {
 	unsigned local = 0;
-	if (storage <= S_LSTATIC)
+	unsigned symst;
+
+	if (storage < S_STATIC)
 		local = 1;
 	if (sym != NULL && sym->type != C_ANY) {
 		if (type == C_ANY)
 			return sym;
-		if (sym->storage > S_TYPEDEF)
+		symst = S_STORAGE(sym->infonext);
+		if (symst > S_TYPEDEF)
 			error("invalid name");
-		else if (sym->storage <= S_LSTATIC || !local) {
+		else if (symst < S_STATIC || !local) {
 			/* Type matching is going to be a good deal more complex FIXME */
 			if (sym->type != type)
 				typemismatch();
-			if (sym->storage == storage)
+			if (symst == storage)
 				return sym;
 			/* extern foo and now found foo */
-			if (sym->storage == S_EXTERN && storage == S_EXTDEF) {
-				sym->storage = S_EXTDEF;
+			if (symst == S_EXTERN && storage == S_EXTDEF) {
+				sym->infonext = S_INDEX(sym->infonext);
+				sym->infonext |= S_EXTDEF;
 				return sym;
 			}
 			/* foo and now found extern foo */
-			if (sym->storage == S_EXTDEF && storage == S_EXTERN)
+			if (symst == S_EXTDEF && storage == S_EXTERN)
 					return sym;
 			error("storage class mismatch");
 			return sym;
@@ -137,8 +140,7 @@ struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage
 		sym = alloc_symbol(name, local);
 	/* Fill in the new or reserved symbol */
 	sym->type = type;
-	sym->storage = storage;
-	sym->flags = 0;
+	sym->infonext = storage;
 	sym->data.idx = 0;
 	return sym;
 }
@@ -162,19 +164,22 @@ struct symbol *update_symbol_by_name(unsigned name, unsigned storage,
  *
  *	Although it has a cost we really need to fold all the equivalently
  *	typed argument sets into a single instance to save memory.
+ *
+ *	TODO: we need to hash this, but differently to the usual symbol
+ *	indexing as we care about the template pattern most
  */
 static struct symbol *do_func_match(unsigned rtype, unsigned *template)
 {
 	struct symbol *sym = symtab;
 	unsigned len = sizeof(unsigned) * (*template + 1);
 	while(sym <= last_sym) {
-		if (sym->storage == S_FUNCDEF && sym->type == rtype && memcmp(sym->data.idx, template, len) == 0) {
+		if (S_STORAGE(sym->infonext) == S_FUNCDEF && sym->type == rtype && memcmp(sym->data.idx, template, len) == 0) {
 			return sym;
 		}
 		sym++;
 	}
 	sym = alloc_symbol(0xFFFF, 0);
-	sym->storage = S_FUNCDEF;
+	sym->infonext = S_FUNCDEF;
 	sym->data.idx = idx_copy(template, len);
 	sym->type = rtype;
 	return sym;
@@ -219,9 +224,8 @@ unsigned array_dimension(unsigned type, unsigned depth)
 unsigned make_array(unsigned type)
 {
 	struct symbol *sym = alloc_symbol(0xFFFF, 0);
-	sym->storage = S_ARRAY;
+	sym->infonext = S_ARRAY;
 	sym->type = type;
-	sym->flags = 0;
 	sym->data.idx = idx_get(9);
 	*sym->data.idx = 0;
 	return C_ARRAY | ((sym - symtab) << 3);
@@ -250,8 +254,11 @@ static struct symbol *find_struct(unsigned name)
 	if (name == 0)
 		return 0;
 	while(sym <= last_sym) {
-		if (sym->name == name && (sym->storage == S_STRUCT || sym->storage == S_UNION))
-			return sym;
+		if (sym->name == name) {
+			unsigned st = S_STORAGE(sym->infonext);
+			if (st == S_STRUCT || st == S_UNION)
+				return sym;
+		}
 		sym++;
 	}
 	return NULL;
@@ -267,11 +274,10 @@ struct symbol *update_struct(unsigned name, unsigned t)
 	sym = find_struct(name);
 	if (sym == NULL) {
 		sym = alloc_symbol(name, 0);	/* TODO scoping */
-		sym->storage = t;
-		sym->flags = 0;
+		sym->infonext = t;
 		sym->data.idx = NULL;	/* Not yet known */
 	} else {
-		if (sym->storage != t)
+		if (S_STORAGE(sym->infonext) != t)
 			error("declared both union and struct");
 	}
 	return sym;
@@ -307,15 +313,18 @@ unsigned type_of_struct(struct symbol *sym)
 void write_bss(void)
 {
 	struct symbol *s = symtab;
+	unsigned st;
+
 	while(s <= last_sym) {
 #ifdef DEBUG
 		if (debug)
 			fprintf(debug, "sym %x %x %x %d\n", s->name, s->type, s->flags, s->storage);
 #endif
-		if (!IS_FUNCTION(s->type) && s->storage >= S_LSTATIC && s->storage <= S_EXTDEF) {
-			if (s->storage == S_EXTDEF)
+		st = S_STORAGE(s->infonext);
+		if (!IS_FUNCTION(s->type) && st >= S_LSTATIC && st <= S_EXTDEF) {
+			if (st == S_EXTDEF)
 				header(H_EXPORT, s->name, 0);
-			if (!(s->flags & INITIALIZED)) {
+			if (!(s->infonext & INITIALIZED)) {
 				unsigned n = type_sizeof(s->type);
 				header(H_BSS, s->name, target_alignof(s->type));
 				put_padding_data(n);

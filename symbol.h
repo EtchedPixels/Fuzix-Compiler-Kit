@@ -1,33 +1,35 @@
 struct symbol
 {
     unsigned name;		/* The name of the symbol */
+    unsigned infonext;		/* Info and next */
     unsigned type;		/* Type of the symbol */
-    unsigned char storage;	/* Storage class */
-    unsigned char flags;
-#define INITIALIZED	1
     union {
         unsigned *idx;		/* Index into object specific data */
         int offset;		/* Offset for locals */
     } data;
 };
 
-#define S_FREE		0	/* Unused */
-#define S_AUTO		1	/* Auto */
-#define S_REGISTER	2	/* Register */
-#define S_ARGUMENT	3	/* Argument */
-#define S_LSTATIC	4	/* Static in local scope */
-#define S_STATIC	5	/* Static in public scope */
-#define S_EXTERN	6	/* External reference */
-#define S_EXTDEF	7	/* Exported global */
-#define S_TYPEDEF	8	/* A typedef */
-#define S_STRUCT	9	/* The name of a struct type */
-#define S_UNION		10	/* The name of a union type */
-#define S_ARRAY		11	/* An array description slot (unnamed) */
-#define S_FUNCDEF	12	/* A function definition */
-#define S_BSS		13	/* Only used to pass info to code generator */
-#define S_ENUM		14	/* An enumeration name */
+#define INITIALIZED	0x0800
+#define S_FREE		0x0000	/* Unused */
+#define S_AUTO		0x1000	/* Auto */
+#define S_REGISTER	0x2000	/* Register */
+#define S_ARGUMENT	0x3000	/* Argument */
+#define S_LSTATIC	0x4000	/* Static in local scope */
+#define S_STATIC	0x5000	/* Static in public scope */
+#define S_EXTERN	0x6000	/* External reference */
+#define S_EXTDEF	0x7000	/* Exported global */
+#define S_TYPEDEF	0x8000	/* A typedef */
+#define S_STRUCT	0x9000	/* The name of a struct type */
+#define S_UNION		0xA000	/* The name of a union type */
+#define S_ARRAY		0xB000	/* An array description slot (unnamed) */
+#define S_FUNCDEF	0xC000	/* A function definition */
+#define S_BSS		0xD000	/* Only used to pass info to code generator */
+#define S_ENUM		0xE000	/* An enumeration name */
 
-#define S_NONE		255	/* Used to tell internal code not to add symbols */
+#define	S_STORAGE(x)	((x) & 0xF000)
+#define S_INDEX(x)	((x) & 0x07FF)
+
+#define S_NONE		0x0000	/* Used to tell internal code not to add symbols */
 
 /* For types idx always points to the symbol entry holding the complex type.
    In turn the idx for it points to the desciption blocks.

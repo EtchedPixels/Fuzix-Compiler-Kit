@@ -290,8 +290,6 @@ static void statement(void)
 
 static void declaration_block(void)
 {
-	struct symbol *sym;
-
 	while (is_modifier() || is_storage_word() || is_type_word() ||
 			is_typedef()) {
 		declaration(S_AUTO);
