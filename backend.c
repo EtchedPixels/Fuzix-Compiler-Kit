@@ -15,6 +15,8 @@
 #include "compiler.h"
 #include "backend.h"
 
+static unsigned process_one_block(uint8_t *h);
+
 static const char *argv0;
 
 void error(const char *p)
@@ -169,10 +171,15 @@ static unsigned process_expression(void)
 static unsigned compile_expression(void)
 {
 	uint8_t h[2];
-	xread(0, h, 2);
-	if (h[0] != '%' || h[1] != '^')
-		error("expression sync");
-	return process_expression();
+	unsigned t;
+	/* We can end up with literal headers before the expression if the
+	   expression is something like if (x = "eep"). Process up to and
+	   including our expression */
+	do {
+		xread(0, h, 2);
+		t = process_one_block(h);
+	} while(h[1] != '^');
+	return t;
 }
 
 /*
@@ -625,6 +632,24 @@ static void load_symbols(const char *path)
 	close(fd);
 }
 
+static unsigned process_one_block(uint8_t *h)
+{
+	if (h[0] != '%')
+		error("sync");
+	/* We write a sequence of records starting %^ for an expression
+	   %[ for data blocks and %H for a header. This helps us track any
+	   errors and sync screwups when parsing */
+	if (h[1] == '^')
+		return process_expression();
+	else if (h[1] == 'H')
+		process_header();
+	else if (h[1] == '[')
+		process_data();
+	else
+		error("unknown block");
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	uint8_t h[2];
@@ -639,19 +664,7 @@ int main(int argc, char *argv[])
 
 	gen_start();
 	while (read(0, &h, 2) > 0) {
-		if (h[0] != '%')
-			error("sync");
-		/* We write a sequence of records starting %^ for an expression
-		   %[ for data blocks and %H for a header. This helps us track any
-		   errors and sync screwups when parsing */
-		if (h[1] == '^')
-			process_expression();
-		else if (h[1] == 'H')
-			process_header();
-		else if (h[1] == '[')
-			process_data();
-		else
-			error("unknown block");
+		process_one_block(h);
 	}
 	gen_end();
 }
