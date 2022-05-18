@@ -20,4 +20,4 @@ lib8085.a: $(OBJ)
 	ar qc lib8085.a $(OBJ)
 
 clean:
-	rm *.o *.a
+	rm -f *.o *.a
