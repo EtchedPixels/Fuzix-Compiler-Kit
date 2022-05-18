@@ -30,21 +30,34 @@ static void new_label(unsigned n)
     labelp++;
 }
 
-void use_label(unsigned n)
+static struct label *find_label(unsigned n)
 {
     struct label *p = labels;
     n &= 0x7FFF;
     while(p < labelp) {
-        if (n == (p->name & 0x7FFF))
-            return;
+        if (n == p->name)
+            return p;
         p++;
     }
-    new_label(n);
+    return NULL;
+}
+
+void use_label(unsigned n)
+{
+    if (find_label(n))
+        return;
+    new_label(n & 0x7FFF);
 }
 
 void add_label(unsigned n)
 {
-    new_label(n | L_DECLARED);
+    struct label *l = find_label(n);
+    if (l && (l->name & L_DECLARED))
+        error("duplicate label");
+    if (l == NULL)
+        new_label(n | L_DECLARED);
+    else
+        l->name |= L_DECLARED;
 }
 
 void check_labels(void)
