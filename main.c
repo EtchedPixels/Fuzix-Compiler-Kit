@@ -41,5 +41,5 @@ int main(int argc, char *argv[])
 	/* No write out any uninitialized variables */
 	write_bss();
 	out_write();
-	return 0;
+	return errors;
 }
