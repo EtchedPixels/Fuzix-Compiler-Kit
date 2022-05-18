@@ -89,10 +89,8 @@ unsigned get(void)
 		return c;
 	}
 	c = getchar();
-	while(c == '#') {
-		if (c == '#' && isnl) {
-			directive();
-		}
+	while(c == '#' && isnl) {
+		directive();
 		c = getchar();
 	}
 	isnl = 0;
