@@ -9,11 +9,8 @@ unsigned type_deref(unsigned t)
 		error("cannot dereference");
 		return CINT;
 	}
-	if (p == 1 && IS_ARRAY(t)) {
-		fprintf(stderr, "array decay to %x\n",
-			symbol_ref(t)->type);
+	if (p == 1 && IS_ARRAY(t))
 		return symbol_ref(t)->type;
-	}
 	return --t;
 }
 
