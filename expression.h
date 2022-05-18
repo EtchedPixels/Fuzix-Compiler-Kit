@@ -1,3 +1,4 @@
+extern struct node *typeconv(struct node *n, unsigned type, unsigned warn);
 extern unsigned bracketed_expression(unsigned mkbool);
 extern void expression_or_null(unsigned mkbool, unsigned noret);
 extern unsigned const_int_expression(void);
