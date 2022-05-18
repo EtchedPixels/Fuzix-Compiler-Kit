@@ -123,7 +123,7 @@ unsigned type_addrof(unsigned t) {
  *
  *	TODO: Array
  */
-int type_pointerconv(struct node *r, unsigned lt)
+int type_pointerconv(struct node *r, unsigned lt, unsigned warn)
 {
     unsigned rt = type_canonical(r->type);
     /* The C zero case */
@@ -142,10 +142,11 @@ int type_pointerconv(struct node *r, unsigned lt)
         return 1;
     /* sign errors */
     if (BASE_TYPE(lt) < FLOAT && (lt ^ rt) == UNSIGNED) {
-        warning("sign mismatch");
+        if (warn)
+	    warning("sign mismatch");
         return 1;
     }
-    return 0;
+    return !warn;
 }
 
 /*
@@ -158,7 +159,7 @@ int type_pointermatch(struct node *l, struct node *r)
     /* The C zero case */
     if (is_constant_zero(l) && PTR(rt))
         return 1;
-    return type_pointerconv(r, lt);
+    return type_pointerconv(r, lt, 1);
 }
 
 unsigned type_ptrscale_binop(unsigned op, struct node *l, struct node *r,

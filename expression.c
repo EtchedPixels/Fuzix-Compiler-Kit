@@ -35,7 +35,7 @@ struct node *typeconv(struct node *n, unsigned type, unsigned warn)
 			return n;
 		}
 	} else {
-		if (type_pointerconv(n, type))
+		if (type_pointerconv(n, type, warn))
 			return make_cast(n, type);
 	}
 	if (nt == type || (IS_ARITH(nt) && IS_ARITH(type)))
