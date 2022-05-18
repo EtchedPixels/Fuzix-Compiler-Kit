@@ -39,7 +39,7 @@ cc0:	$(OBJS0)
 	fcc $(OBJS0) -o cc0
 
 cc1:	$(OBJS1)
-	fcc $(OBJS1) -o cc1
+	fcc --nostdio $(OBJS1) -o cc1
 
 cc2:	$(OBJS2)
 	fcc $(OBJS2) -o cc2
