@@ -437,12 +437,12 @@ static unsigned load_r_with(const char r, struct node *n)
 		if (r == 'b')
 			return 0;
 		else if (r == 'h') {
-			printf("\tlhld (_%s+%d)\n", name, v);
+			printf("\tlhld _%s+%d\n", name, v);
 			return 1;
 		} else if (r == 'd') {
 			/* We know it is int or pointer */
 			printf("\txchg\n");
-			printf("\tlhld (_%s+%d)\n", name, v);
+			printf("\tlhld _%s+%d\n", name, v);
 			printf("\txchg\n");
 			return 1;
 		}
