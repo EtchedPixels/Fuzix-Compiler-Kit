@@ -33,6 +33,10 @@ static void xread(int fd, void *buf, int len)
 
 /*
  *	Name symbol table.
+ *
+ *	We can just cache bits of this in cc2 if we actually get tight on
+ *	space. It's not a big deal as we only use names for global and static
+ *	objects.
  */
 #define NAMELEN 16
 struct name {
