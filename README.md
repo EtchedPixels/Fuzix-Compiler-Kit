@@ -61,7 +61,6 @@ auto, static, extern, probably not register for now.
 * statements and expressions
 * declarations
 * ANSI C function declarations
-* C99 style mixed declarations/statements. It's bad style but actually easier to support than the old way.
 
 ## Intentionally Omitted
 

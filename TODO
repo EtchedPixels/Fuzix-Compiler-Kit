@@ -5,14 +5,11 @@
 - Turn the frame the other way up ?
 - Track register state on backend
 - Some way to hash the symbol lookup without blowing up all the memory usage
-- Struct field alignment in initializers is not done
 - Type mapper in target, double and longlong handling
 
 Broken 
 -	constify needs a hard stare or two
--	default: for the switch tables
--	scoping for symbols - create new local when appropriate even if
-	global found.  (eg int x(int x) { })
+-	array of struct initializer seems to fail (sprintf case)
 
 Longer term
 - variable length array syntax
@@ -43,3 +40,8 @@ Longer term
   word machines and charptrs etc also mapper for ptrdiff_t
 - native compile support for machines where a pointer is a native long type. Cross
   is going to be fine usually
+- Write tree size before each expr and load and chain multiple trees if room
+  Does need care handling any extra header stuff in the way.
+- Can we walk the subtrees looking for the most repeated left/right expensive
+  refs (ie locals on 8080 or Z80) and rewrite the tree so the most common is
+  in BC, then work up the tree to decide what to use BC for ?
