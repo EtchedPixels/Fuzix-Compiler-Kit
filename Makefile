@@ -1,4 +1,4 @@
-all: cc cc0 cc1 cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 support8085
+all: cc cc0 cc1 cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 copt support8085
 
 .PHONY: support8085
 
@@ -59,7 +59,7 @@ support8085:
 	(cd support8085; make)
 
 clean:
-	rm -f cc cc0 cc1 cc2 cc2.8080 cc2.6809
+	rm -f cc cc0 cc1 cc2 cc2.8080 cc2.6809 copt
 	rm -f *~ *.o
 	(cd support8085; make clean)
 
@@ -72,6 +72,8 @@ install: all
 	cp cc /opt/cc85/bin/cc85
 	cp cc[01] /opt/cc85/lib
 	cp cc2.8080 /opt/cc85/lib
+	cp copt /opt/cc85/lib
+	cp rules.8085 /opt/cc85/lib
 	cp support8085/crt0.o /opt/cc85/lib
 	cp support8085/lib8085.a /opt/cc85/lib/lib8085.a
 	ar cq /opt/cc85/lib/libc.a

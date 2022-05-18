@@ -136,3 +136,6 @@ small C subset compilers and also ANSI pcc.
 ## Licence
 
 Compiler (not any runtime)	:	GPLv3
+
+copt is from Z88DK. Z88DK is under the Clarified Artistic License
+
