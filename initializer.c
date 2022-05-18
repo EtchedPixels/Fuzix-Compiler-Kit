@@ -72,6 +72,7 @@ static void initializer_struct(struct symbol *psym, unsigned type, unsigned stor
     unsigned *p = sym->data.idx;
     unsigned n = *p;
     unsigned s = p[1];	/* Size of object (needed for union) */
+    unsigned pos = 0;
 
     p += 2;
     /* We only initialize the first object */
@@ -80,11 +81,21 @@ static void initializer_struct(struct symbol *psym, unsigned type, unsigned stor
     require(T_LCURLY);
     /* FIXME: we need to watch the offsets and add internal padding */
     while(n-- && token != T_RCURLY) {
+        /* Name, type, offset tuples */
         type = p[1];
-        p += 3;
-        if (S_STORAGE(sym->infonext) == S_STRUCT)
-            s -= type_sizeof(type);
+
+        /* Align */
+        if (pos != p[2]) {
+            put_padding_data(p[2] - pos);
+            pos = p[2];
+        }
+        /* Write out field */
         initializers(psym, type, storage);
+        pos += type_sizeof(type);
+
+        /* Next field */
+        p += 3;
+
         if (!match(T_COMMA))
             break;
     }
@@ -94,10 +105,8 @@ static void initializer_struct(struct symbol *psym, unsigned type, unsigned stor
     /* For a union zerofill the slack if other elements are bigger */
     /* For a struct fill from the offset of the next field to the size of
        the base object */
-    if (S_STORAGE(sym->infonext) == S_UNION)
-        put_padding_data(s - type_sizeof(type));
-    else if (n)
-        put_padding_data(s - p[2]);	/* From offset of field to end */
+    if (pos != s)
+        put_padding_data(s - pos);	/* Fill remaining space */
 }
 
 /*
