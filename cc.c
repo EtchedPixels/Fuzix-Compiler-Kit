@@ -64,11 +64,13 @@
 #define CMD_CC0		LIBPATH"cc0"
 #define CMD_CC1		LIBPATH"cc1"
 #define CMD_CC2		LIBPATH"cc2.8080"
+#define CMD_COPT	LIBPATH"copt"
 #define CMD_CPP		LIBPATH"cpp"
 #define CMD_LD		BINPATH"ld85"
 #define CRT0		LIBPATH"crt0.o"
 #define LIBC		LIBPATH"libc.a"
 #define LIBCPU		LIBPATH"lib8085.a"
+#define COPTRULES	LIBPATH"rules.8085"
 
 struct obj {
 	struct obj *next;
@@ -108,6 +110,7 @@ int targetos;
 #define OS_NONE		0
 #define OS_FUZIX	1
 int fuzixsub;
+int optimize;
 
 #define MAXARG	512
 
@@ -347,6 +350,18 @@ void convert_c_to_s(char *path)
 	build_arglist(CMD_CC2);
 	/* The sym stuff is a bit hackish right now */
 	add_argument(".symtmp");
+	redirect_in(tmp);
+	if (optimize == 0) {
+		redirect_out(pathmod(path, ".#", ".s", 2));
+		run_command();
+		free(t);
+		return;
+	}
+	tmp = pathmod(path, ".#", ".^", 0);
+	redirect_out(tmp);
+	run_command();
+	build_arglist(CMD_COPT);
+	add_argument(COPTRULES);
 	redirect_in(tmp);
 	redirect_out(pathmod(path, ".#", ".s", 2));
 	run_command();
@@ -642,6 +657,9 @@ int main(int argc, char *argv[]) {
 				fprintf(stderr, "cc: no target given.\n");
 				fatal();
 			}
+			break;
+		case 'O':
+			optimize = 1;
 			break;
 		case 's':	/* FIXME: for now - switch to getopt */
 			standalone = 1;
