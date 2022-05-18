@@ -4,13 +4,17 @@
 
 unsigned type_deref(unsigned t)
 {
-	if (PTR(t))
-		return --t;
-	/* An array decays to the element type */
-	if (IS_ARRAY(t))
+	unsigned p = PTR(t);
+	if (p == 0) {
+		error("cannot dereference");
+		return CINT;
+	}
+	if (p == 1 && IS_ARRAY(t)) {
+		fprintf(stderr, "array decay to %x\n",
+			symbol_ref(t)->type);
 		return symbol_ref(t)->type;
-	error("cannot dereference");
-	return CINT;
+	}
+	return --t;
 }
 
 unsigned type_ptr(unsigned t)
