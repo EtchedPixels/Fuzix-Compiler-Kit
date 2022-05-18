@@ -147,11 +147,13 @@ void gen_segment(unsigned segment)
 		printf("\t.code\n");
 		break;
 	case A_DATA:
-	case A_LITERAL:
 		printf("\t.data\n");
 		break;
 	case A_BSS:
 		printf("\t.bss\n");
+		break;
+	case A_LITERAL:
+		printf("\t.literal\n");
 		break;
 	default:
 		error("gseg");
