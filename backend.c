@@ -302,12 +302,14 @@ static void process_header(void)
 		gen_jump("", h.h_name);
 		break;
 	case H_SWITCH:
-		/* Will need to stack switch case tables somehow */
-		/* FIXME */
+		/* Generate the switch header, expression and table run */
 		gen_switch(h.h_name, compile_expression());	/* need the type of it back */
 		break;
 	case H_CASE:
 		gen_case_label(h.h_name, h.h_data);
+		break;
+	case H_DEFAULT:
+		gen_case_label(h.h_name, 0);
 		break;
 	case H_SWITCH | H_FOOTER:
 		gen_label("_b", h.h_name);
@@ -357,13 +359,13 @@ void process_data(void)
 		gen_space(n->value);
 		break;
 	case T_LABEL:
-		gen_text_label(n->value);
+		gen_text_data(n->value);
 		break;
 	case T_NAME:
 		gen_name(n);
 		break;
 	case T_CASELABEL:
-		gen_case_label(n->value, n->val2);
+		gen_case_data(n->value, n->val2);
 		break;
 	default:
 		gen_value(n->type, n->value);
@@ -566,7 +568,7 @@ void make_node(struct node *n)
 	case T_LABEL:
 		helper(n, "const");
 		/* Used for const strings */
-		gen_text_label(n->value);
+		gen_text_data(n->value);
 		break;
 	case T_CAST:
 		helper(n, "cast");

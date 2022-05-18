@@ -170,6 +170,7 @@ void gen_prologue(const char *name)
 void gen_frame(unsigned size)
 {
 	frame_len = size;
+	sp = 0;
 	if (size > 10) {
 		printf("\tlxi h,%d\n", -size);
 		printf("\tdad sp\n");
@@ -184,7 +185,6 @@ void gen_frame(unsigned size)
 		printf("\tpush h\n");
 		size -= 2;
 	}
-	sp = 0;
 }
 
 void gen_epilogue(unsigned size)
@@ -300,6 +300,7 @@ void gen_switch(unsigned n, unsigned type)
 
 void gen_switchdata(unsigned n, unsigned size)
 {
+	printf("Sw%d:\n", n);
 	printf("\t.word %d\n", size);
 }
 
@@ -309,6 +310,11 @@ void gen_case(unsigned tag, unsigned entry)
 }
 
 void gen_case_label(unsigned tag, unsigned entry)
+{
+	printf("Sw%d_%d:\n", tag, entry);
+}
+
+void gen_case_data(unsigned tag, unsigned entry)
 {
 	printf("\t.word Sw%d_%d\n", tag, entry);
 }
@@ -323,7 +329,7 @@ void gen_space(unsigned value)
 	printf("\t.ds %d\n", value);
 }
 
-void gen_text_label(unsigned n)
+void gen_text_data(unsigned n)
 {
 	printf("\t.word T%d\n", n);
 }
@@ -847,8 +853,8 @@ unsigned gen_node(struct node *n)
 	case T_CONSTANT:
 		switch(size) {
 		case 4:
-			printf("lxi h,%u\n", ((v >> 16) & 0xFFFF));
-			printf("shld hireg\n");
+			printf("\tlxi h,%u\n", ((v >> 16) & 0xFFFF));
+			printf("\tshld hireg\n");
 		case 2:
 			printf("\tlxi h,%d\n", (v & 0xFFFF));
 			return 1;

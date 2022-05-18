@@ -38,8 +38,8 @@ unsigned get_storage(unsigned dflt)
 void put_typed_data(struct node *n)
 {
 	out_block("%[", 2);
-	if (n->op != T_PAD && !is_constname(n))
-		error("not constant");
+	if (n->op != T_CASELABEL && n->op != T_PAD && !is_constname(n))
+		notconst();
 	out_block(n, sizeof(struct node));
 }
 
@@ -58,10 +58,11 @@ void put_typed_constant(unsigned type, unsigned long value)
 	free_node(n);
 }
 
-void put_typed_case(unsigned tag)
+void put_typed_case(unsigned tag, unsigned entry)
 {
 	struct node *n = make_constant(tag, PTRTO|VOID);
 	n->op = T_CASELABEL;
+	n->val2 = entry;
 	put_typed_data(n);
 	free_node(n);
 }

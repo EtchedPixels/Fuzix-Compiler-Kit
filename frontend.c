@@ -17,7 +17,7 @@
 #include "token.h"
 #include "target.h"
 
-#define MAXSYM		512
+#define MAXSYM		1024
 #define	NAMELEN		16	/* Matches linker */
 
 static unsigned char filename[16] = { "<stdin>" };

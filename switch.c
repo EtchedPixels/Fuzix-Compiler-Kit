@@ -16,10 +16,13 @@ void switch_done(unsigned tag, unsigned long *oldptr, unsigned type)
     unsigned long *p = oldptr;
 
     header(H_SWITCHTAB, tag, switch_next - oldptr);
+    /* Table */
     while(p < switch_next) {
         put_typed_constant(type, *p++);
-        put_typed_case(count++);
+        put_typed_case(tag, ++count);
     }
+    /* Default */
+    put_typed_case(tag, 0);
     footer(H_SWITCHTAB, tag, 0);
     switch_next = oldptr;
 }

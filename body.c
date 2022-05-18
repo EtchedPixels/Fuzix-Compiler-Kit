@@ -11,6 +11,7 @@ static unsigned cont_tag;
 static unsigned switch_tag;
 static unsigned switch_count;
 static unsigned switch_type;
+static unsigned switch_default;
 static unsigned func_type;
 
 /* C keyword statements */
@@ -126,6 +127,7 @@ static void switch_statement(void)
 	unsigned oldswt = switch_tag;
 	unsigned oldswc = switch_count;
 	unsigned oldswtype = switch_type;
+	unsigned olddefault = switch_default;
 	unsigned long *swptr;
 
 	switch_tag = next_tag++;
@@ -146,6 +148,9 @@ static void switch_statement(void)
 
 	statement_block(0);
 	footer(H_SWITCH, switch_tag, break_tag);
+	/* No default means non matched cases fall through to the end */
+	if (!switch_default)
+		header(H_DEFAULT, switch_tag, 0);
 
 	switch_done(switch_tag, swptr, switch_type);
 
@@ -153,6 +158,7 @@ static void switch_statement(void)
 	break_tag = oldbrk;
 	switch_tag = oldswt;
 	switch_count = oldswc;
+	switch_default = olddefault;
 }
 
 static void case_statement(void)
@@ -161,16 +167,15 @@ static void case_statement(void)
 	if (switch_tag == 0)
 		error("case outside of switch");
 	next_token();
+	/* FIXME: type check range... */
 	n = expression_tree(0);
 	if (!is_constant(n))
-		error("not constant");
-	else {
+		notconst();
+	else
 		switch_add_node(n->value);
-	}
 	free_tree(n);
-	header(H_CASE, switch_tag, switch_count);
+	header(H_CASE, switch_tag, ++switch_count);
 	require(T_COLON);
-	switch_count++;
 	statement_block(0);
 }
 
@@ -178,6 +183,9 @@ static void default_statement(void)
 {
 	if (switch_tag == 0)
 		error("default outside of switch");
+	if (switch_default)
+		error("two default cases");
+	switch_default = 1;
 	header(H_DEFAULT, switch_tag, 0);
 	next_token();
 	require(T_COLON);

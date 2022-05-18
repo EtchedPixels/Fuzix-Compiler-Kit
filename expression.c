@@ -650,7 +650,7 @@ unsigned const_int_expression(void)
 	if (n->op == T_CONSTANT)
 		v = n->value;
 	else
-		error("not constant");
+		notconst();
 	free_tree(n);
 	return v;
 }

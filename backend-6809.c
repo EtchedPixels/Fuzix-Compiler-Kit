@@ -226,6 +226,11 @@ void gen_case(unsigned tag, unsigned entry)
 
 void gen_case_label(unsigned tag, unsigned entry)
 {
+	printf("Sw%d_%d:\n", tag, entry);
+}
+
+void gen_case_data(unsigned tag, unsigned entry)
+{
 	printf("\t.word Sw%d_%d\n", tag, entry);
 }
 
@@ -249,7 +254,7 @@ void gen_space(unsigned value)
 	printf("\t.ds %d\n", value);
 }
 
-void gen_text_label(unsigned n)
+void gen_text_data(unsigned n)
 {
 	printf("\t.word T%d\n", n);
 }

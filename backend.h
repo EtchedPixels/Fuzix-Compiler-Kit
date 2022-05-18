@@ -25,12 +25,13 @@ extern void gen_jtrue(const char *t, unsigned n);
 extern void gen_switch(unsigned n, unsigned type);
 extern void gen_switchdata(unsigned n, unsigned size);
 extern void gen_case(unsigned tag, unsigned entry);
+extern void gen_case_data(unsigned tag, unsigned entry);
 extern void gen_case_label(unsigned tag, unsigned entry);
 
 extern void gen_data_label(const char *t, unsigned align);
 
 extern void gen_space(unsigned value);
-extern void gen_text_label(unsigned value);
+extern void gen_text_data(unsigned value);
 extern void gen_value(unsigned type, unsigned long value);
 extern void gen_name(struct node *n);
 extern void gen_literal(unsigned value);
