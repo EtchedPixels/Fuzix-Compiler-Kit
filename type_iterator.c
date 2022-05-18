@@ -263,7 +263,7 @@ static unsigned type_parse_array(unsigned storage, unsigned type, unsigned ptr)
 	   a syntactic quirk. We need to handle it here because of the
 	   way our type matching is handled and to allow [] */
 	if (token == T_RSQUARE) {
-		if (storage == S_ARGUMENT || ptr)
+		if (storage == S_ARGUMENT || storage == S_EXTERN || ptr)
 			return type + 1;
 		error("size required");
 	}
