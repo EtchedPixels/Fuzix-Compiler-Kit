@@ -61,7 +61,7 @@ static void do_statement(void)
 	header(H_DO, cont_tag, break_tag);
 	statement_block(0);
 	require(T_WHILE);
-	header(H_WHILE, cont_tag, break_tag);
+	header(H_DOWHILE, cont_tag, break_tag);
 	bracketed_expression(1);
 	require(T_SEMICOLON);
 	footer(H_DO, cont_tag, break_tag);
