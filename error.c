@@ -118,3 +118,8 @@ void divzero(void)
 {
 	warning("division by zero");
 }
+
+void notconst(void)
+{
+	error("must evaluate to a constant");
+}

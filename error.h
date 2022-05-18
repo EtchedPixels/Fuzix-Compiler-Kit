@@ -11,3 +11,4 @@ extern void indirections(void);
 extern void typemismatch(void);
 extern void invalidtype(void);
 extern void divzero(void);
+extern void notconst(void);
