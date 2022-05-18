@@ -75,6 +75,7 @@ struct node *typeconv_implicit(struct node *n)
 struct node *call_args(unsigned *narg, unsigned *argt, unsigned *argsize)
 {
 	struct node *n = expression_tree(0);
+	unsigned t;
 
 	/* See what argument type handling is needed */
 	if (*argt == VOID)
@@ -87,13 +88,21 @@ struct node *call_args(unsigned *narg, unsigned *argt, unsigned *argsize)
 		if (*narg) {
 			n = typeconv(n, type_canonical(*argt++), 1);
 			(*narg)--;
+			/* Once we hit ellipsis we can accept any number
+			   of arguments including none */
+			if (*argt == ELLIPSIS)
+				*narg = 0;
 		} else
 			unexarg();
 	}
 	*argsize += target_argsize(n->type);
-	if (match(T_COMMA))
+	t = n->type;
+	if (match(T_COMMA)) {
 		/* Switch around for calling order */
-		return tree(T_ARGCOMMA, call_args(narg, argt, argsize), n);
+		n = tree(T_ARGCOMMA, call_args(narg, argt, argsize), n);
+		n->type = t;
+		return n;
+	}
 	require(T_RPAREN);
 	return n;
 }
@@ -304,12 +313,10 @@ static struct node *hier10(void)
 		return tree(op, NULL, r);
 	case T_STAR:
 		r = make_rval(hier10());
-		/* TODO: To review - array */
-		if (!PTR(type_canonical(r->type)))
+		if (!PTR(r->type))
 			badtype();
 		r->flags |= LVAL;
-//		r = tree(T_DEREF, NULL, r);
-		r->type = r->right->type - 1;
+		r->type--;
 		return r;
 	case T_AND:
 		r = hier10();
