@@ -78,6 +78,10 @@ struct node *constant_node(void)
 	case T_FLOATVAL:
 		t = FLOAT;
 		break;
+	default:
+		error("invalid value");
+		t = CINT;
+		break;
 	}
 	n = make_constant(token_value, t);
 	next_token();
