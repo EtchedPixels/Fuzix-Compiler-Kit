@@ -134,7 +134,7 @@ static unsigned base_type(void)
 	/* We don't deal with default unsigned char yet .. */
 	if (once_flags & 8)
 		type &= ~UNSIGNED;
-	return type;
+	return target_type_remap(type);
 }
 
 unsigned get_type(void)
@@ -203,6 +203,8 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 			*tn++ = ELLIPSIS;
 			break;
 		}
+		/* Throw away register hint on arguments */
+		match(T_REGISTER);
 		t = get_type();
 		if (t == UNKNOWN)
 			t = CINT;
