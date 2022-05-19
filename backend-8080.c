@@ -44,7 +44,6 @@ static unsigned get_stack_size(unsigned t)
 	return n;
 }
 
-
 #define T_NREF		(T_USER)
 #define T_CALLNAME	(T_USER+1)
 #define T_NSTORE	(T_USER+2)
@@ -75,6 +74,30 @@ static void squash_right(struct node *n, unsigned op)
 }
 
 /*
+ *	Heuristic for guessing what to put on the right. This is very
+ *	processor dependent. For 8080 we are quite limited especially
+ *	with locals. In theory we could extend some things to 8bit
+ *	locals on 8085 (ldsi, ldax d, mov e,a)
+ */
+
+static unsigned is_simple(struct node *n)
+{
+	unsigned op = n->op;
+
+	/* Multi-word objects are never simple */
+	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
+		return 0;
+
+	/* We can load these directly into a register */
+	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME)
+		return 10;
+	/* We can load this directly into a register but may need xchg pairs */
+	if (op == T_NREF)
+		return 1;
+	return 0;
+}
+
+/*
  *	Our chance to do tree rewriting. We don't do much for the 8080
  *	at this point, but we do rewrite name references and function calls
  *	to make them easier to process.
@@ -83,9 +106,12 @@ struct node *gen_rewrite_node(struct node *n)
 {
 	struct node *l = n->left;
 	struct node *r = n->right;
+	unsigned op = n->op;
+	unsigned nt = n->type;
+
 	/* Rewrite references into a load operation */
-	if (n->type == CSHORT || n->type == USHORT || PTR(n->type)) {
-		if (n->op == T_DEREF) {
+	if (nt == CSHORT || nt == USHORT || PTR(nt)) {
+		if (op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
 				if (r->op == T_ARGUMENT)
 					r->value += 2 + frame_len;
@@ -97,7 +123,7 @@ struct node *gen_rewrite_node(struct node *n)
 				return n;
 			}
 		}
-		if (n->op == T_EQ) {
+		if (op == T_EQ) {
 			if (l->op == T_NAME) {
 				/* Lose a pointer level as it's an LVAL */
 				n->type--;
@@ -115,21 +141,29 @@ struct node *gen_rewrite_node(struct node *n)
 		}
 	}
 	/* Eliminate casts for sign, pointer conversion or same */
-	if (n->op == T_CAST) {
-		if (n->type == r->type || (n->type ^ r->type) == UNSIGNED ||
-		 (PTR(n->type) && PTR(r->type))) {
+	if (op == T_CAST) {
+		if (nt == r->type || (nt ^ r->type) == UNSIGNED ||
+		 (PTR(nt) && PTR(r->type))) {
 			free_node(n);
 			return r;
 		}
 	}
 	/* Rewrite function call of a name into a new node so we can
 	   turn it easily into call xyz */
-	if (n->op == T_FUNCCALL && r->op == T_NAME) {
+	if (op == T_FUNCCALL && r->op == T_NAME) {
 		n->op = T_CALLNAME;
 		n->snum = r->snum;
 		n->value = r->value;
 		free_node(r);
 		n->right = NULL;
+	}
+	/* Commutive operations. We can swap the sides over on these */
+	if (op == T_AND || op == T_OR || op == T_HAT || op == T_STAR || op == T_PLUS) {
+		printf(";left %d right %d\n", is_simple(n->left), is_simple(n->right));
+		if (is_simple(n->left) > is_simple(n->right)) {
+			n->right = l;
+			n->left = r;
+		}
 	}
 	return n;
 }
