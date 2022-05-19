@@ -16,6 +16,8 @@
 #include "compiler.h"
 #include "backend.h"
 
+int sym_fd = -1;
+
 static unsigned process_one_block(uint8_t *h);
 
 static const char *argv0;
@@ -40,14 +42,45 @@ static void xread(int fd, void *buf, int len)
  *	objects.
  */
 
-static struct name names[MAXNAME];
+#define NCACHE_SIZE	32
+static struct name names[NCACHE_SIZE];
+static struct name *nhead;
+static unsigned max_name;
 
 char *namestr(unsigned n)
 {
-	if (n < 0x8000)
-		error("bad name");
-	/* FIXME: may not be 0 terminated if full length */
-	return names[n - 0x8000].name;
+	struct name *np = nhead;
+	struct name *prev = NULL;
+	while(np) {
+		if (np->id == n) {
+			if (prev) {
+				prev->next = np->next;
+				np->next = nhead;
+				nhead = np;
+			}
+			return np->name;
+		}
+		prev = np;
+		np = np->next;
+	}
+	/* Hack for now we need to pick a better node */
+	if (lseek(sym_fd, 2 + sizeof(struct name) * (n & 0x7FFF), 0) < 0)
+		error("seeksym");
+	xread(sym_fd, prev, sizeof(struct name));
+	prev->next = NULL;
+	return prev->name;
+}
+
+static void init_name_cache(void)
+{
+	unsigned i;
+	struct name *np = names;
+	for (i = 0; i < NCACHE_SIZE - 1; i++) {
+		np->next = np + 1;
+		np++;
+	}
+	np->next = NULL;
+	nhead = names;
 }
 
 /*
@@ -319,7 +352,7 @@ static void process_header(void)
 		gen_case_label(h.h_name, 0);
 		break;
 	case H_SWITCH | H_FOOTER:
-		gen_label("_b", h.h_name);
+		gen_label("_b", h.h_data);
 		break;
 	case H_SWITCHTAB:
 		push_area(A_LITERAL);
@@ -621,15 +654,14 @@ void make_node(struct node *n)
 
 static void load_symbols(const char *path)
 {
-	int fd = open(path, O_RDONLY);
+	sym_fd = open(path, O_RDONLY);
 	uint8_t n[2];
-	if (fd == -1) {
+	if (sym_fd == -1) {
 		perror(path);
 		exit(1);
 	}
-	xread(fd, n, 2);
-	xread(fd, names, n[0] | (n[1] << 8));
-	close(fd);
+	xread(sym_fd, n, 2);
+	max_name = n[0] | (n[1] << 8);
 }
 
 static unsigned process_one_block(uint8_t *h)
@@ -659,6 +691,7 @@ int main(int argc, char *argv[])
 	/* We can make this better later */
 	if (argc != 2)
 		error("arguments");
+	init_name_cache();
 	load_symbols(argv[1]);
 	init_nodes();
 
