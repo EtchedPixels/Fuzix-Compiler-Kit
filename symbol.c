@@ -117,7 +117,11 @@ struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage
 		if (symst > S_TYPEDEF)
 			error("invalid name");
 		else if (symst < S_STATIC || !local) {
-			/* Type matching is going to be a good deal more complex FIXME */
+			/* We have discovered an array declaration that was
+			   previously externally declared without a size. Bad
+			   practice but acceptable C */
+			if (IS_ARRAY(type) && type_canonical(type) == sym->type)
+				sym->type = type;
 			if (sym->type != type)
 				typemismatch();
 			if (symst == storage)
@@ -233,6 +237,13 @@ unsigned make_array(unsigned type, unsigned *template)
 {
 	struct symbol *sym = do_type_match(S_ARRAY, type, template);
 	return C_ARRAY | ((sym - symtab) << 3);
+}
+
+unsigned array_type(unsigned n)
+{
+	if (!IS_ARRAY(n))
+		return CINT;
+	return symtab[INFO(n)].type;	/* Type of function is its return type */
 }
 
 /*
