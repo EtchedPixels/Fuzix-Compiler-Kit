@@ -100,7 +100,6 @@ static void return_statement(void)
 	header(H_RETURN, func_tag, 0);
 	expression_typed(func_type);
 	footer(H_RETURN, func_tag, 0);
-	need_semicolon();
 }
 
 static void break_statement(void)
@@ -109,7 +108,6 @@ static void break_statement(void)
 	if (break_tag == 0)
 		error("break outside of block");
 	header(H_BREAK, break_tag, 0);
-	need_semicolon();
 }
 
 static void continue_statement(void)
@@ -118,7 +116,6 @@ static void continue_statement(void)
 	if (cont_tag == 0)
 		error("continue outside of block");
 	header(H_CONTINUE, cont_tag, 0);
-	need_semicolon();
 }
 
 static void switch_statement(void)
@@ -176,7 +173,6 @@ static void case_statement(void)
 	free_tree(n);
 	header(H_CASE, switch_tag, ++switch_count);
 	require(T_COLON);
-	statement_block(0);
 }
 
 static void default_statement(void)
@@ -189,7 +185,6 @@ static void default_statement(void)
 	header(H_DEFAULT, switch_tag, 0);
 	next_token();
 	require(T_COLON);
-	statement_block(0);
 }
 
 static void typedef_statement(void)
@@ -206,7 +201,6 @@ static void goto_statement(void)
 	/* We will work out if the label existed later */
 	use_label(n);
 	header(H_GOTO, n, 0);
-	need_semicolon();
 }
 
 /*
@@ -225,23 +219,39 @@ static void statement(void)
 #if 0	/* C99 for later if we want it */
 	declaration_block();
 #endif
+
+	/* We could write this not to push back a token but it's
+	   actually much cleaner to push back */
+	while (token >= T_SYMBOL) {
+		unsigned name = token;
+		next_token();
+		if (token == T_COLON) {
+			next_token();
+			/* We found a label */
+			add_label(name);
+			header(H_LABEL, name, 0);
+		} else {
+			push_token(name);
+			break;
+		}
+	}
 	/* Check for keywords */
 	switch (token) {
 	case T_IF:
 		if_statement();
-		break;
+		return;
 	case T_WHILE:
 		while_statement();
-		break;
+		return;
 	case T_SWITCH:
 		switch_statement();
-		break;
+		return;
 	case T_DO:
 		do_statement();
-		break;
+		return;
 	case T_FOR:
 		for_statement();
-		break;
+		return;
 	case T_RETURN:
 		return_statement();
 		break;
@@ -256,36 +266,19 @@ static void statement(void)
 		break;
 	case T_CASE:
 		case_statement();
-		break;
+		return;
 	case T_DEFAULT:
 		default_statement();
-		break;
+		return;
 	case T_TYPEDEF:
 		typedef_statement();
 		break;
 	case T_SEMICOLON:
 		next_token();
-		break;
+		return;
 	default:
-		/* We could write this not to push back a token but it's
-		   actually much cleaner to push back */
-		while (token >= T_SYMBOL) {
-			unsigned name = token;
-			next_token();
-			if (token == T_COLON) {
-				next_token();
-				/* We found a label */
-				add_label(name);
-				header(H_LABEL, name, 0);
-			} else {
-				push_token(name);
-				break;
-			}
-		}
 		/* It is valid to follow a label with just ; */
-		if (token == T_SEMICOLON)
-			next_token();
-		else {
+		if (token != T_SEMICOLON) {
 			struct node *n = expression_tree(1);
 			/* A statement top node need not worry about
 			   generating the correct result */
@@ -294,6 +287,7 @@ static void statement(void)
 		}
 		break;
 	}
+	require(T_SEMICOLON);
 }
 
 static void declaration_block(void)
