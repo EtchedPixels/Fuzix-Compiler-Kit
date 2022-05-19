@@ -269,7 +269,7 @@ static struct node *hier10(void)
 	op = token;
 	if (op == T_LPAREN) {
 		next_token();
-		if (is_type_word() || is_typedef())
+		if (is_modifier() || is_type_word() || is_typedef())
 			is_tcast = 1;
 		push_token(T_LPAREN);
 	}
