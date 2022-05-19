@@ -336,7 +336,7 @@ static struct node *hier10(void)
 		require(T_RPAREN);
 		if (t == UNKNOWN || name)
 			badtype();
-		return typeconv(hier10(), t, 0);
+		return typeconv(make_rval(hier10()), t, 0);
 	}
 	fatal("h10");
 }
