@@ -33,7 +33,8 @@ $(OBJS2): $(INC1) $(INC2)
 $(OBJS3): $(INC1) $(INC2)
 
 cc:	cc.c
-	fcc cc.c -o cc
+	fcc cc.c -c
+	fcc cc.o -o cc
 
 copt:	copt.rel
 	fcc copt.rel -o copt
