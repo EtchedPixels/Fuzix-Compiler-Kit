@@ -35,7 +35,7 @@ static struct label *find_label(unsigned n)
     struct label *p = labels;
     n &= 0x7FFF;
     while(p < labelp) {
-        if (n == p->name)
+        if (n == (p->name & 0x7FFF))
             return p;
         p++;
     }
@@ -64,6 +64,7 @@ void check_labels(void)
 {
     struct label *p = labels;
     while(p < labelp) {
+        fprintf(stderr, "L%x (%d)\n", p->name, p->line);
         if (!(p->name & L_DECLARED))
             errorline(p->line, "unknown label");
         p++;
