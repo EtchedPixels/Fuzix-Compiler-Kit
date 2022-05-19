@@ -42,7 +42,7 @@ static void initializer_group(struct symbol *sym, unsigned type, unsigned n, uns
         if (token == T_ELLIPSIS)
             break;
         n--;
-        initializer_single(sym, type, storage);
+        initializers(sym, type, storage);
         if (!match(T_COMMA))
             break;
     }
@@ -122,17 +122,16 @@ static void initializer_array(struct symbol *sym, unsigned type, unsigned depth,
 
     if (depth < array_num_dimensions(type)) {
         require(T_LCURLY);
-        while(n--)
+        while(n--) {
             initializer_array(sym, type_deref(type), depth + 1, storage);
+            if (match(T_COMMA))
+                continue;
+            break;
+        }
         require(T_RCURLY);
     } else {
         type = type_deref(type);
-        if (IS_STRUCT(type) && !PTR(type)) {
-            require(T_LCURLY);
-            initializer_struct(sym, type, storage);
-            require(T_RCURLY);
-        } else
-            initializer_group(sym, type, n, storage);
+        initializer_group(sym, type, n, storage);
     }
 }
 
