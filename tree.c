@@ -212,8 +212,10 @@ struct node *make_cast(struct node *n, unsigned t)
 {
 	unsigned nt = type_canonical(n->type);
 	n->type = nt;
-	n = tree(T_CAST, NULL, n);
-	n->type = t;
+	if (nt != t) {
+		n = tree(T_CAST, NULL, n);
+		n->type = t;
+	}
 	return n;
 }
 
@@ -401,6 +403,19 @@ struct node *constify(struct node *n)
 	struct node *l = n->left;
 	struct node *r = n->right;
 
+	/* Casting of constant form objects */
+	/* We block casting of structures and arrays to each other higher up
+	   so all we have to worry about is truncating constants and just
+	   relabelling the type on a name or label */
+	if (n->op == T_CAST) {
+		if (r->op == T_CONSTANT)
+			return replace_constant(n, n->type, r->value);
+		if (r->op == T_NAME || r->op == T_LABEL) {
+			r->type = n->type;
+			free_node(n);
+			return r;
+		}
+	}
 	/* Remove multiply by 1 or 0 */
 	if (n->op == T_STAR && r->op == T_CONSTANT) {
 		if (r->value == 1) {
