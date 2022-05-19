@@ -193,11 +193,16 @@ void canonicalize(struct node *n)
 
 struct node *make_rval(struct node *n)
 {
+	unsigned nt = n->type;
 	if (n->flags & LVAL) {
-		if (!IS_ARRAY(n->type))
+		if (!IS_ARRAY(nt))
 			return tree(T_DEREF, NULL, n);
-		else
+		else {
 			n->flags &= ~LVAL;
+			/* Decay to base type of array */
+			if (!PTR(nt))
+				n->type = type_canonical(nt);
+		}
 	}
 	return n;
 }
