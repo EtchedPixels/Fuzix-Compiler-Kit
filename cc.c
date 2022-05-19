@@ -286,10 +286,16 @@ static void run_command(void)
 			fatal();
 		}
 	}
-	if (WIFSIGNALED(status) || WEXITSTATUS(status)) {
-		printf("cc: %s failed.\n", arglist[0]);
+	if (WIFSIGNALED(status)) {
+		/* Scream loudly if it exploded */
+		fprintf(stderr, "cc: %s failed with signal %d.\n", arglist[0],
+			WTERMSIG(status));
 		fatal();
 	}
+	/* Quietly exit if the stage errors. That means it has reported
+	   things to the user */
+	if (WEXITSTATUS(status))
+		fatal();
 }
 
 static void redirect_in(const char *p)
