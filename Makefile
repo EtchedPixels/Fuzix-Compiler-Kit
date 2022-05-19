@@ -73,6 +73,7 @@ install: all
 	cp cc[01] /opt/cc85/lib
 	cp cc2.8080 /opt/cc85/lib
 	cp copt /opt/cc85/lib
+	cp rules.8080 /opt/cc85/lib
 	cp rules.8085 /opt/cc85/lib
 	cp support8085/crt0.o /opt/cc85/lib
 	cp support8085/lib8085.a /opt/cc85/lib/lib8085.a
