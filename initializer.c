@@ -119,16 +119,20 @@ static void initializer_struct(struct symbol *psym, unsigned type, unsigned stor
 static void initializer_array(struct symbol *sym, unsigned type, unsigned depth, unsigned storage)
 {
     unsigned n = array_dimension(type, depth);
+
     if (depth < array_num_dimensions(type)) {
         require(T_LCURLY);
         while(n--)
             initializer_array(sym, type_deref(type), depth + 1, storage);
         require(T_RCURLY);
     } else {
-        if (IS_STRUCT(type) && !PTR(type))
-            initializer_struct(sym, type_deref(type), storage);
-        else
-            initializer_group(sym, type_deref(type), n, storage);
+        type = type_deref(type);
+        if (IS_STRUCT(type) && !PTR(type)) {
+            require(T_LCURLY);
+            initializer_struct(sym, type, storage);
+            require(T_RCURLY);
+        } else
+            initializer_group(sym, type, n, storage);
     }
 }
 
