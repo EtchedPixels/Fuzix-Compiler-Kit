@@ -37,8 +37,10 @@ unsigned get_storage(unsigned dflt)
 
 void put_typed_data(struct node *n)
 {
+	unsigned op = n->op;
 	out_block("%[", 2);
-	if (n->op != T_CASELABEL && n->op != T_PAD && !is_constname(n))
+	if (op != T_CASELABEL && op != T_PAD && op != T_LABEL &&
+		op != T_NAME && op != T_CONSTANT)
 		notconst();
 	out_block(n, sizeof(struct node));
 }
