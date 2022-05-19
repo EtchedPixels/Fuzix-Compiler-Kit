@@ -323,7 +323,7 @@ static struct node *hier10(void)
 	case T_BANG:
 		/* Floating point allowed */
 		r = make_rval(hier10());
-		if (!IS_ARITH(r->type))
+		if (!IS_ARITH(r->type) && !PTR(r->type))
 			badtype();
 		return tree(op, NULL, r);
 	case T_STAR:
