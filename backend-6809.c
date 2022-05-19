@@ -72,6 +72,22 @@ static void squash_right(struct node *n, unsigned op)
 	n->right = NULL;
 }
 
+static unsigned is_simple(struct node *n)
+{
+	unsigned op = n->op;
+
+	/* Multi-word objects are never simple */
+	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
+		return 0;
+
+	/* We can load these directly into a register */
+	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME)
+		return 10;
+	if (op == T_NREF || op == T_LREF)
+		return 5;
+	return 0;
+}
+
 /*
  *	Our chance to do tree rewriting. We don't do much for the 6809
  *	at this point, but we do rewrite name references and function calls
@@ -82,9 +98,10 @@ struct node *gen_rewrite_node(struct node *n)
 	struct node *r = n->right;
 	struct node *l = n->left;
 	unsigned s = get_size(n->type);
+	unsigned op = n->op;
 	/* Rewrite references into a load or store operation */
 	if (s <= 2) {
-		if (n->op == T_DEREF) {
+		if (op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
 				if (r->op == T_ARGUMENT)
 					r->value += 2 + frame_len;
@@ -96,7 +113,7 @@ struct node *gen_rewrite_node(struct node *n)
 				return n;
 			}
 		}
-		if (n->op == T_EQ) {
+		if (op == T_EQ) {
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
 				if (l->op == T_ARGUMENT)
 					l->value += 2 + frame_len;
@@ -114,7 +131,7 @@ struct node *gen_rewrite_node(struct node *n)
 		}
 		/* We can turn some operators into simpler nodes for
 		   code generation */
-		if (n->op == T_PLUSPLUS || n->op == T_MINUSMINUS) {
+		if (op == T_PLUSPLUS || op == T_MINUSMINUS) {
 			/* right is a constant scaled value, left is
 			   the lval */
 			n->val2 = r->value;
@@ -126,12 +143,20 @@ struct node *gen_rewrite_node(struct node *n)
 	}
 	/* Rewrite function call of a name into a new node so we can
 	   turn it easily into call xyz */
-	if (n->op == T_FUNCCALL && r->op == T_NAME) {
+	if (op == T_FUNCCALL && r->op == T_NAME) {
 		n->op = T_CALLNAME;
 		n->snum = r->snum;
 		n->value = r->value;
 		free_node(r);
 		n->right = NULL;
+	}
+	/* Commutive operations. We can swap the sides over on these */
+	if (op == T_AND || op == T_OR || op == T_HAT || op == T_STAR || op == T_PLUS) {
+/*		printf(";left %d right %d\n", is_simple(n->left), is_simple(n->right)); */
+		if (is_simple(n->left) > is_simple(n->right)) {
+			n->right = l;
+			n->left = r;
+		}
 	}
 	return n;
 }
