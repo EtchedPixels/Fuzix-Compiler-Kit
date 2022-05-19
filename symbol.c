@@ -329,7 +329,7 @@ void write_bss(void)
 				header(H_EXPORT, s->name, 0);
 			if (!(s->infonext & INITIALIZED)) {
 				unsigned n = type_sizeof(s->type);
-				header(H_BSS, s->name, target_alignof(s->type));
+				header(H_BSS, s->name, target_alignof(s->type, st));
 				put_padding_data(n);
 				footer(H_BSS, s->name, 0);
 			}

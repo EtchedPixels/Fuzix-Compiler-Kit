@@ -13,10 +13,10 @@ static unsigned local_max;
  *	We will need to deal with alignment rules later
  */
 
-unsigned alloc_room(unsigned *p, unsigned type)
+unsigned alloc_room(unsigned *p, unsigned type, unsigned storage)
 {
     unsigned s = type_sizeof(type);
-    unsigned a = target_alignof(type);
+    unsigned a = target_alignof(type, storage);
 
     *p = (*p + a - 1) & ~(a - 1);
     a = *p;
@@ -30,7 +30,7 @@ unsigned assign_storage(unsigned type, unsigned storage)
     unsigned n;
     if (storage == S_AUTO)
         p = &local_frame;
-    n = alloc_room(p, type);
+    n = alloc_room(p, type, storage);
     if (storage == S_AUTO) {
         if (local_frame > local_max)
             local_max = local_frame;

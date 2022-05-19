@@ -66,7 +66,7 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 			error("duplicate initializer");
 		sym->infonext |= INITIALIZED;
 		if (s >= S_LSTATIC)
-		        header(H_DATA, sym->name, target_alignof(type));
+		        header(H_DATA, sym->name, target_alignof(type, s));
 		initializers(sym, type, s);
 		if (s >= S_LSTATIC)
 		        footer(H_DATA, sym->name, 0);

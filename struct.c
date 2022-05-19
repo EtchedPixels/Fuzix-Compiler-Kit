@@ -27,7 +27,7 @@ static void struct_add_field(struct symbol *sym, unsigned name, unsigned type)
             p[1] = s;
     } else {
         /* For a struct allocate fields and track offset */
-        *t = alloc_room(p + 1, type);
+        *t = alloc_room(p + 1, type, S_STRUCT);
     }
 }
 

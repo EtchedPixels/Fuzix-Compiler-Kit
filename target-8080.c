@@ -5,8 +5,11 @@
 #include "compiler.h"
 
 
-unsigned target_alignof(unsigned t)
+unsigned target_alignof(unsigned t, unsigned storage)
 {
+    /* Arguments are stacked as words on 8080 */
+    if (storage == S_ARGUMENT)
+	return 2;
     return 1;
 }
 

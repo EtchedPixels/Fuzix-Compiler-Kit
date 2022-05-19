@@ -3,7 +3,7 @@
 #define TARGET_MAX_UINT		65535UL
 
 extern unsigned target_sizeof(unsigned t);
-extern unsigned target_alignof(unsigned t);
+extern unsigned target_alignof(unsigned t, unsigned storage);
 extern unsigned target_argsize(unsigned t);
 extern unsigned target_ptr_arith(unsigned t);
 extern unsigned target_scale_ptr(unsigned t, unsigned scale);

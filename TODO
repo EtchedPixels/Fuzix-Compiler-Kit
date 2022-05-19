@@ -10,8 +10,6 @@
 
 Broken 
 -	constify needs a hard stare or two
--	partial array initialization
--	array element alignment if padding needed
 -	some complex types such as int (*x[512])(void)
 
 Longer term
