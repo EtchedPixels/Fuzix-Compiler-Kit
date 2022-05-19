@@ -69,8 +69,16 @@
 #define CMD_LD		BINPATH"ld85"
 #define CRT0		LIBPATH"crt0.o"
 #define LIBC		LIBPATH"libc.a"
-#define LIBCPU		LIBPATH"lib8085.a"
-#define COPTRULES	LIBPATH"rules.8085"
+#define LIBCPU_8080	LIBPATH"lib8080.a"
+#define LIBCPU_8085	LIBPATH"lib8085.a"
+#define COPTRULES_8080	LIBPATH"rules.8080"
+#define COPTRULES_8085	LIBPATH"rules.8085"
+
+static char *cputab[] = {
+	"8080",
+	"8085",
+	NULL
+};
 
 struct obj {
 	struct obj *next;
@@ -104,13 +112,13 @@ char *target;
 int strip;
 int c_files;
 int standalone;
-int cpu = 8085;
+char *cpu = "8080";
 int mapfile;
 int targetos;
 #define OS_NONE		0
 #define OS_FUZIX	1
 int fuzixsub;
-int optimize;
+char optimize;
 
 #define MAXARG	512
 
@@ -337,6 +345,7 @@ void convert_s_to_o(char *path)
 void convert_c_to_s(char *path)
 {
 	char *tmp, *t;
+	char optstr[2];
 
 	build_arglist(CMD_CC0);
 	t = xstrdup(path, 0);
@@ -356,6 +365,10 @@ void convert_c_to_s(char *path)
 	build_arglist(CMD_CC2);
 	/* The sym stuff is a bit hackish right now */
 	add_argument(".symtmp");
+	add_argument(cpu);
+	optstr[0] = optimize;
+	optstr[1] = '\0';
+	add_argument(optstr);
 	redirect_in(tmp);
 	if (optimize == 0) {
 		redirect_out(pathmod(path, ".#", ".s", 2));
@@ -367,7 +380,10 @@ void convert_c_to_s(char *path)
 	redirect_out(tmp);
 	run_command();
 	build_arglist(CMD_COPT);
-	add_argument(COPTRULES);
+	if (strcmp(cpu, "8085") == 0)
+		add_argument(COPTRULES_8085);
+	else
+		add_argument(COPTRULES_8080);
 	redirect_in(tmp);
 	redirect_out(pathmod(path, ".#", ".s", 2));
 	run_command();
@@ -448,7 +464,10 @@ void link_phase(void)
 		append_obj(&libpathlist, LIBPATH, 0);
 		append_obj(&liblist, LIBC, TYPE_A);
 	}
-	append_obj(&liblist, LIBCPU, TYPE_A);
+	if (strcmp(cpu, "8085") == 0)
+		append_obj(&liblist, LIBCPU_8085, TYPE_A);
+	else
+		append_obj(&liblist, LIBCPU_8080, TYPE_A);
 	add_argument_list(NULL, &objlist);
 	resolve_libraries();
 	run_command();
@@ -606,6 +625,17 @@ void uniopt(char *p)
 		usage();
 }
 
+static unsigned valid_cpu(char *name)
+{
+	char **p = cputab;
+	while(*p) {
+		if (strcmp(name, *p) == 0)
+			return 1;
+		p++;
+	}
+	return 0;
+}
+
 int main(int argc, char *argv[]) {
 	char **p = argv;
 	signal(SIGCHLD, SIG_DFL);
@@ -665,7 +695,18 @@ int main(int argc, char *argv[]) {
 			}
 			break;
 		case 'O':
-			optimize = 1;
+			if ((*p)[2]) {
+				char o = (*p)[2];
+				if (o >= '0' && o <= '3')
+					optimize = o;
+				else if (o == 's')
+					optimize = 's';
+				else {
+					fprintf(stderr, "cc: unknown optimixation level.\n");
+					fatal();
+				}
+			} else
+				optimize = '1';
 			break;
 		case 's':	/* FIXME: for now - switch to getopt */
 			standalone = 1;
@@ -675,11 +716,11 @@ int main(int argc, char *argv[]) {
 			keep_temp = 1;
 			break;
 		case 'm':
-			cpu = atoi(*p + 2);
-			if (cpu != 6800 && cpu != 6803 && cpu != 6303) {
-				fprintf(stderr, "cc: only 6800, 6803 or 6303 supported.\n");
+			if (!valid_cpu(*p + 2)) {
+				fprintf(stderr, "cc: unknown CPU type.n");
 				fatal();
 			}
+			cpu = *p + 2;
 			break;	
 		case 'M':
 			mapfile = 1;

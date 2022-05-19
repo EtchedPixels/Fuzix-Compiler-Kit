@@ -7,9 +7,6 @@
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
 
-/* FIXME: wire options in backend to this */
-static int cpu = 80;
-
 /*
  *	State for the current function
  */

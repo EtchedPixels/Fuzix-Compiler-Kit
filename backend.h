@@ -1,4 +1,7 @@
 
+extern unsigned cpu;
+extern char opt;
+
 extern void error(const char *p);
 
 extern char *namestr(unsigned n);

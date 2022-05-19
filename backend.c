@@ -18,6 +18,9 @@
 
 int sym_fd = -1;
 
+unsigned cpu;
+char opt;
+
 static unsigned process_one_block(uint8_t *h);
 
 static const char *argv0;
@@ -682,26 +685,6 @@ static unsigned process_one_block(uint8_t *h)
 	return 0;
 }
 
-int main(int argc, char *argv[])
-{
-	uint8_t h[2];
-
-	argv0 = argv[0];
-
-	/* We can make this better later */
-	if (argc != 2)
-		error("arguments");
-	init_name_cache();
-	load_symbols(argv[1]);
-	init_nodes();
-
-	gen_start();
-	while (read(0, &h, 2) > 0) {
-		process_one_block(h);
-	}
-	gen_end();
-}
-
 /*
  *	Helpers for the targets
  */
@@ -785,4 +768,30 @@ void codegen_lr(struct node *n)
 	if (n->right)
 		codegen_lr(n->right);
 	make_node(n);
+}
+
+/*
+ *	Entry point
+ */
+
+int main(int argc, char *argv[])
+{
+	uint8_t h[2];
+
+	argv0 = argv[0];
+
+	/* We can make this better later */
+	if (argc != 4)
+		error("arguments");
+	cpu = atoi(argv[2]);
+	opt = *argv[3];
+	init_name_cache();
+	load_symbols(argv[1]);
+	init_nodes();
+
+	gen_start();
+	while (read(0, &h, 2) > 0) {
+		process_one_block(h);
+	}
+	gen_end();
 }

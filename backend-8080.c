@@ -8,9 +8,6 @@
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
 
-/* FIXME: wire options in backend to this */
-static int cpu = 8085;
-
 /*
  *	State for the current function
  */
@@ -425,7 +422,7 @@ void gen_tree(struct node *n)
 {
 	codegen_lr(n);
 	printf(";\n");
-	printf(";SP=%d\n", sp);
+/*	printf(";SP=%d\n", sp); */
 }
 
 /*
