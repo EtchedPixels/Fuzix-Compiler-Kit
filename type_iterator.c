@@ -258,7 +258,7 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 static unsigned type_parse_array(unsigned storage, unsigned type, unsigned ptr)
 {
 	unsigned dim[9];
-	unsigned ndim;
+	unsigned ndim = 0;
 	int n;
 
 	while(token == T_LSQUARE) {
@@ -269,7 +269,7 @@ static unsigned type_parse_array(unsigned storage, unsigned type, unsigned ptr)
 		if (token == T_RSQUARE) {
 			next_token();
 			if (storage == S_ARGUMENT || storage == S_EXTERN || ptr)
-				return type + ndim;
+				return type + ndim + 1;
 			error("size required");
 		}
 		n = const_int_expression();
