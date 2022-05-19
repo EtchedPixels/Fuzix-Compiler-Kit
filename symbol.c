@@ -176,18 +176,18 @@ struct symbol *update_symbol_by_name(unsigned name, unsigned storage,
  *	TODO: we need to hash this, but differently to the usual symbol
  *	indexing as we care about the template pattern most
  */
-static struct symbol *do_func_match(unsigned rtype, unsigned *template)
+static struct symbol *do_type_match(unsigned st, unsigned rtype, unsigned *template)
 {
 	struct symbol *sym = symtab;
 	unsigned len = sizeof(unsigned) * (*template + 1);
 	while(sym <= last_sym) {
-		if (S_STORAGE(sym->infonext) == S_FUNCDEF && sym->type == rtype && memcmp(sym->data.idx, template, len) == 0) {
+		if (S_STORAGE(sym->infonext) == st && sym->type == rtype && memcmp(sym->data.idx, template, len) == 0) {
 			return sym;
 		}
 		sym++;
 	}
 	sym = alloc_symbol(0xFFFF, 0);
-	sym->infonext = S_FUNCDEF;
+	sym->infonext = st;
 	sym->data.idx = idx_copy(template, len);
 	sym->type = rtype;
 	return sym;
@@ -195,7 +195,7 @@ static struct symbol *do_func_match(unsigned rtype, unsigned *template)
 
 unsigned func_symbol_type(unsigned rtype, unsigned *template)
 {
-	struct symbol *s = do_func_match(rtype, template);
+	struct symbol *s = do_type_match(S_FUNCDEF, rtype, template);
 	return C_FUNCTION | ((s - symtab) << 3);
 }
 
@@ -229,26 +229,10 @@ unsigned array_dimension(unsigned type, unsigned depth)
 	return sym->data.idx[depth];
 }
 
-unsigned make_array(unsigned type)
+unsigned make_array(unsigned type, unsigned *template)
 {
-	struct symbol *sym = alloc_symbol(0xFFFF, 0);
-	sym->infonext = S_ARRAY;
-	sym->type = type;
-	sym->data.idx = idx_get(9);
-	*sym->data.idx = 0;
+	struct symbol *sym = do_type_match(S_ARRAY, type, template);
 	return C_ARRAY | ((sym - symtab) << 3);
-}
-
-void array_add_dimension(unsigned type, unsigned num)
-{
-	struct symbol *sym = symbol_ref(type);
-	unsigned *idx = sym->data.idx;
-	if (*idx == 8)
-		error("too many dimensions");
-	else {
-		(*idx)++;
-		idx[*idx] = num;
-	}
 }
 
 /*

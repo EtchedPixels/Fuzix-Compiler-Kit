@@ -257,32 +257,50 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 
 static unsigned type_parse_array(unsigned storage, unsigned type, unsigned ptr)
 {
+	unsigned dim[9];
+	unsigned ndim;
 	int n;
 
-	/* Arguments can have [] form but it's just an alias of * and
-	   a syntactic quirk. We need to handle it here because of the
-	   way our type matching is handled and to allow [] */
-	if (token == T_RSQUARE) {
-		if (storage == S_ARGUMENT || storage == S_EXTERN || ptr)
-			return type + 1;
-		error("size required");
+	while(token == T_LSQUARE) {
+		next_token();
+		/* Arguments can have a final [] form but it's just an alias of * and
+		   a syntactic quirk. We need to handle it here because of the
+		   way our type matching is handled and to allow [] */
+		if (token == T_RSQUARE) {
+			next_token();
+			if (storage == S_ARGUMENT || storage == S_EXTERN || ptr)
+				return type + ndim;
+			error("size required");
+		}
+		n = const_int_expression();
+		require(T_RSQUARE);
+		if (n < 1) {
+			error("bad size");
+			n = 1;
+		}
+		if (ndim == 8) {
+			error("too many dimensions");
+			break;
+		}
+		dim[++ndim] = n;
 	}
-	n = const_int_expression();
-	if (n < 1) {
-		error("bad size");
-		n = 1;
-	}
-	if (!IS_ARRAY(type))
-		type = make_array(type);
-	array_add_dimension(type, n);
-	/* TODO: handle the nptr case correctly */
-	return type + 1;
+	dim[0] = ndim;
+	type = make_array(type, dim);
+	return type + ndim;
 }
 
 /* Recursively walk any *(*(*(*x))) bits
 
 	char *x()	function returning char
 	char (*x)()	pointer to function returning char
+
+	This is incomplete because in C it's actually valid to do stuff
+	like
+
+	int (*x[512])(void *p);
+
+	supporting that will require some work with recursive parsing
+	in type_name_parse instead.
  */
 
 static unsigned declarator(unsigned *name)
@@ -338,18 +356,13 @@ unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
 	ltop = mark_local_symbols();
 	/* We may be a function specification or an array or both. The other
 	   post forms (-> and .) are not valid in a declaration */
-	while (token == T_LSQUARE || token == T_LPAREN) {
-		if (token == T_LSQUARE) {
-			next_token();
-			type = type_parse_array(storage, type, nptr);
-			require(T_RSQUARE);
-		} else if (token == T_LPAREN) {
-			next_token();
-			/* It's a function description  */
-			type = type_parse_function(sym, storage, type, nptr);
-			/* Can be an array of functions .. */
-		}
-		/* FIXME: stop nonsense like func()[]() */
+	if (token == T_LSQUARE) {
+		type = type_parse_array(storage, type, nptr);
+	} else if (token == T_LPAREN) {
+		next_token();
+		/* It's a function description  */
+		type = type_parse_function(sym, storage, type, nptr);
+		/* Can be an array of functions .. */
 	}
 	pop_local_symbols(ltop);
 	/* Add any pointer element attached to the name */
