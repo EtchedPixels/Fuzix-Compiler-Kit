@@ -10,6 +10,7 @@ extern void free_node(struct node *n);
 extern void init_nodes(void);
 
 extern void helper(struct node *n, const char *h);
+extern void helper_s(struct node *n, const char *h);
 extern void helper_type(unsigned t);
 extern void codegen_lr(struct node *n);
 

@@ -458,7 +458,7 @@ void helper_type(unsigned t)
  *
  *	Would be nice to have an option to build C like helper calls
  */
-void helper(struct node *n, const char *h)
+void do_helper(struct node *n, const char *h, unsigned t)
 {
 	/* A function call has a type that depends upon the call, but the
 	   type we want is a pointer */
@@ -470,9 +470,20 @@ void helper(struct node *n, const char *h)
 		helper_type(n->right->type);
 		putchar('_');
 	}
-	helper_type(n->type);
+	helper_type(t);
 	putchar('\n');
 	gen_helpclean(n);
+}
+
+void helper(struct node *n, const char *h)
+{
+	do_helper(n, h, n->type & ~UNSIGNED);
+}
+
+/* Sign of types matters */
+void helper_s(struct node *n, const char *h)
+{
+	do_helper(n, h, n->type);
 }
 
 void make_node(struct node *n)
@@ -489,7 +500,7 @@ void make_node(struct node *n)
 		helper(n, "shleq");
 		break;
 	case T_SHREQ:
-		helper(n, "shreq");
+		helper_s(n, "shreq");
 		break;
 	case T_PLUSPLUS:
 		helper(n, "postinc");
@@ -505,7 +516,7 @@ void make_node(struct node *n)
 		helper(n, "shl");
 		break;
 	case T_GTGT:
-		helper(n, "shr");
+		helper_s(n, "shr");
 		break;
 	case T_OROR:
 		/* Handled with branches in the tree walk */
@@ -520,7 +531,7 @@ void make_node(struct node *n)
 		helper(n, "minuseq");
 		break;
 	case T_SLASHEQ:
-		helper(n, "diveq");
+		helper_s(n, "diveq");
 		break;
 	case T_STAREQ:
 		helper(n, "muleq");
@@ -538,7 +549,7 @@ void make_node(struct node *n)
 		helper(n, "andeq");
 		break;
 	case T_PERCENTEQ:
-		helper(n, "modeq");
+		helper_s(n, "modeq");
 		break;
 	case T_AND:
 		helper(n, "band");
@@ -547,10 +558,10 @@ void make_node(struct node *n)
 		helper(n, "mul");
 		break;
 	case T_SLASH:
-		helper(n, "div");
+		helper_s(n, "div");
 		break;
 	case T_PERCENT:
-		helper(n, "mod");
+		helper_s(n, "mod");
 		break;
 	case T_PLUS:
 		helper(n, "plus");
@@ -567,19 +578,19 @@ void make_node(struct node *n)
 		helper(n, "xor");
 		break;
 	case T_LT:
-		helper(n, "cclt");
+		helper_s(n, "cclt");
 		n->flags |= ISBOOL;
 		break;
 	case T_GT:
-		helper(n, "ccgt");
+		helper_s(n, "ccgt");
 		n->flags |= ISBOOL;
 		break;
 	case T_LTEQ:
-		helper(n, "cclteq");
+		helper_s(n, "cclteq");
 		n->flags |= ISBOOL;
 		break;
 	case T_GTEQ:
-		helper(n, "ccgteq");
+		helper_s(n, "ccgteq");
 		n->flags |= ISBOOL;
 		break;
 	case T_OR:
@@ -614,7 +625,7 @@ void make_node(struct node *n)
 		gen_text_data(n->value);
 		break;
 	case T_CAST:
-		helper(n, "cast");
+		helper_s(n, "cast");
 		break;
 	case T_CONSTANT:
 		helper(n, "const");
