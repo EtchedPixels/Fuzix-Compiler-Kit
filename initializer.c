@@ -121,13 +121,17 @@ static void initializer_array(struct symbol *sym, unsigned type, unsigned depth,
     unsigned n = array_dimension(type, depth);
 
     if (depth < array_num_dimensions(type)) {
+        type = type_deref(type);
         require(T_LCURLY);
         while(n--) {
-            initializer_array(sym, type_deref(type), depth + 1, storage);
+            initializer_array(sym, type, depth + 1, storage);
             if (match(T_COMMA))
                 continue;
             break;
         }
+        /* Pad the remaining pieces */
+        while(n--)
+            put_padding_data(type_sizeof(type));
         require(T_RCURLY);
     } else {
         type = type_deref(type);
