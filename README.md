@@ -1,7 +1,5 @@
 # Working Development Tree For the Fuzix Compiler Kit
 
-Nothing useful to see
-
 ## Design
 
 cc0 is a tool that tokenizes a C file and handles all the messy
@@ -11,7 +9,7 @@ them, before writing them out in a table.
 
 cc1 takes the tokenized stream and generates an output stream that consists
 of descriptors of program structure (function/do while/statement etc) with
-expression trees embedded within
+expression trees embedded within.
 
 cc2 will then turn this into code.
 
@@ -20,7 +18,10 @@ trees from cc1.
 
 ## Status
 
-Early development. Not usable for anything
+At this point the compiler can parse my fairly basic test collection of code
+without dumping, or erroring it wrongly. Code generation work is really just
+beginning and there is some output from the core backend that is definitely
+wrong and needs pinning down further.
 
 ## Installation
 
@@ -52,7 +53,9 @@ but the code generator end is not funny.
 
 ### Storage classes
 
-auto, static, extern, probably not register for now.
+auto, static, extern
+
+register is accepted but currently ignored.
 
 ### C Syntax
 
@@ -62,7 +65,7 @@ auto, static, extern, probably not register for now.
 * declarations
 * ANSI C function declarations
 
-## Intentionally Omitted
+### Intentionally Omitted
 
 Things that add size and complexity or are just pointless.
 
@@ -72,7 +75,16 @@ Things that add size and complexity or are just pointless.
 * C11 bloat by committee
 * struct/union passing, struct/union returns and other related badness
 * bitfields
-* const and volatile. To do these makes type handling really really tricky
+* const and volatile. To do these makes type handling really really tricky. They are accepted so that code with them can build.
+
+###
+
+Known incompatibilities (some to be fixed)
+
+* The constant value -32768 does not always get typed correctly. The reason for this is a complicated story about how cc0/cc1 interact.
+* Many C compilers permit (void) to 'cast' the result of a call away, we do not.
+* The type iteration isn't quite full. Some complex types such as int (*x[512])(void) are not supported yet.
+* Arrays must currently be fully initialized or not at all, and do not auto-size
 
 ## Internals
 
