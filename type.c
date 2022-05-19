@@ -95,15 +95,17 @@ unsigned type_ptrscale(unsigned t) {
 	return target_scale_ptr(t, type_sizeof(type_deref(t)));
 }
 
-/* TODO: review as this is an lval */
 unsigned type_scale(unsigned t) {
+	/* We can scale pointers to complex objects */
+	if (PTR(t))
+		return type_ptrscale(t);
+	/* But you can't do maths on array struct and function objects */
 	if (!IS_SIMPLE(t) && !IS_ARRAY(t)) {
 		badtype();
 		return 1;
 	}
-	if (!PTR(t))
-		return type_sizeof(t);
-	return type_ptrscale(t);
+	/* FIXME: should this not be 1 */
+	return type_sizeof(t);
 }
 
 /* lvalue conversion is handled by caller */
