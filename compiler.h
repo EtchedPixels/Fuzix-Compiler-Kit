@@ -4,12 +4,12 @@
 /* This controls the number of symbols (including complex types, arrays and
    unique function prototypes. Cost is 10 bytes per node on a small box. We
    can probably make symbols the self expanding one eventually */
-#define MAXSYM			512
+#define MAXSYM			768
 /* Expression nodes. Currently 16 bytes on a small box will be about 24 once
    we have everything in */
 #define NUM_NODES		100
 /* Number of bytees of index data used for tagging structs, prototypes etc */
-#define IDX_SIZE		2048
+#define IDX_SIZE		2560
 /* Maximum number of goto labels per function (not switches), 4 bytes each */
 #define MAXLABEL		16
 /* Maximum number of fields per structure, 4 bytes per entry on stack, per
