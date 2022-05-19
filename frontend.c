@@ -447,6 +447,7 @@ static float float_exp(float val)
 			error("overflow");
 		c = get();
 	}
+
 	unget(c);
 	while(exp--) {
 		if (eneg == 1)
@@ -479,6 +480,7 @@ unsigned long floatify(unsigned long val)
 	}
 	if (c == 'e')
 		return float_convert(float_exp(val + frac));
+	unget(c);
 	return float_convert(val + frac);
 }
 
