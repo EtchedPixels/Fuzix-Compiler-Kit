@@ -1,15 +1,15 @@
+- hash array and function type lookup
+- hash name lookup
+
 - for word stacking machines add target hooks to specify that arguments
   take 2 bytes even if char, and alloc space correctly both in the func
   declaration/argument side and in the arg stacking (arg passing side done)
 - rewrite x = x + .. and x = x -... etc as += -=
 - Turn the frame the other way up ?
 - Track register state on backend
-- Some way to hash the symbol lookup without blowing up all the memory usage
-- Type mapper in target, double and longlong handling
 
 Broken 
 -	constify needs a hard stare or two
--	array of struct initializer seems to fail (sprintf case)
 
 Longer term
 - variable length array syntax
@@ -36,8 +36,6 @@ Longer term
 - Whilst we need to be careful for side effects on * 0, we don't for and/or
   subtrees with && || so should deal with those
 - cc0 and the -32768 funny (understand a little of previous token is needed)
-- target 'ptr_arith_type_of(x)' and cast ptr/ptr hooks. Need these so we can
-  word machines and charptrs etc also mapper for ptrdiff_t
 - native compile support for machines where a pointer is a native long type. Cross
   is going to be fine usually
 - Write tree size before each expr and load and chain multiple trees if room
@@ -45,3 +43,6 @@ Longer term
 - Can we walk the subtrees looking for the most repeated left/right expensive
   refs (ie locals on 8080 or Z80) and rewrite the tree so the most common is
   in BC, then work up the tree to decide what to use BC for ?
+- 8080 pass first argument in HL, so defer final push before func call. Then
+  can xthl push hl to get stack in order, and do cleanup of all args on
+  the return path instead of caller - would need vararg help for cleanup ?
