@@ -5,5 +5,5 @@
 struct name {
 	char name[NAMELEN];
 	uint16_t id;
-	struct symbol *next;
+	struct name *next;
 };
