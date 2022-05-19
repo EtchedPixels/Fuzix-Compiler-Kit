@@ -156,7 +156,7 @@ struct node *gen_rewrite_node(struct node *n)
 	}
 	/* Commutive operations. We can swap the sides over on these */
 	if (op == T_AND || op == T_OR || op == T_HAT || op == T_STAR || op == T_PLUS) {
-		printf(";left %d right %d\n", is_simple(n->left), is_simple(n->right));
+/*		printf(";left %d right %d\n", is_simple(n->left), is_simple(n->right)); */
 		if (is_simple(n->left) > is_simple(n->right)) {
 			n->right = l;
 			n->left = r;
@@ -922,6 +922,12 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_CAST:
 		return gen_cast(n);
+	case T_PLUS:
+		if (size <= 2) {
+			printf("\tpop d\n\tdad d\n");
+			return 1;
+		}
+		break;
 	}
 	return 0;
 }
