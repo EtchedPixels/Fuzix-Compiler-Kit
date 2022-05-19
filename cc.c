@@ -717,7 +717,7 @@ int main(int argc, char *argv[]) {
 			break;
 		case 'm':
 			if (!valid_cpu(*p + 2)) {
-				fprintf(stderr, "cc: unknown CPU type.n");
+				fprintf(stderr, "cc: unknown CPU type.\n");
 				fatal();
 			}
 			cpu = *p + 2;
