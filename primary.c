@@ -26,7 +26,7 @@ struct node *get_sizeof(void)
 	require(T_LPAREN);
 
 	/* We wille eventually need to count typedefs as type_word */
-	if (is_type_word()) {
+	if (is_type_word() || is_typedef()) {
 		type = type_name_parse(S_AUTO, get_type(), &name);
 		if (type == UNKNOWN || name)
 			return badsizeof();
