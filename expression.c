@@ -20,6 +20,21 @@ static void missedarg(unsigned narg, unsigned ti)
 struct node *typeconv(struct node *n, unsigned type, unsigned warn)
 {
 	unsigned nt = type_canonical(n->type);
+	/* Handle the various cases where we are working with complex types
+	   and they already match */
+	if (n->type == type)
+		return n;
+
+	/* Weirdness with functions. Properly you should write
+	         funcptr = &func,
+	   but compilers allow funcptr = func even though this is
+	   by strict interpretation nonsense */
+	if (PTR(type) && IS_FUNCTION(n->type)) {
+		/* A function type can only be a name, you can't do maths
+		   on them or dereference them */
+		nt++;
+		n->type++;
+	}
 	if (!PTR(nt)) {
 		/* Casting an arithmetic type to pointer */
 		if (PTR(type) && IS_INTARITH(nt)) {
