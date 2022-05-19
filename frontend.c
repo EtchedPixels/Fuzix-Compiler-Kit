@@ -14,11 +14,10 @@
 #include <fcntl.h>
 #include <ctype.h>
 
+#include "symtab.h"
 #include "token.h"
 #include "target.h"
 
-#define MAXSYM		1024
-#define	NAMELEN		16	/* Matches linker */
 
 static unsigned char filename[16] = { "<stdin>" };
 static unsigned filechange = 1;
@@ -182,16 +181,10 @@ static void directive(void)
 
 /* We could infer the symbol number from the table position in theory */
 
-struct symbol {
-	char name[NAMELEN];
-	uint16_t id;
-	struct symbol *next;
-};
-
-static struct symbol symbols[MAXSYM];
-static struct symbol *nextsym = symbols;
-static struct symbol *symbase;	/* Base of post keyword symbols */
-static struct symbol *symhash[NHASH];
+static struct name symbols[MAXNAME];
+static struct name *nextsym = symbols;
+static struct name *symbase;	/* Base of post keyword symbols */
+static struct name *symhash[NHASH];
 /* Start of symbol range */
 static unsigned symnum = T_SYMBOL;
 
@@ -199,11 +192,11 @@ static unsigned symnum = T_SYMBOL;
  *	Add a symbol to our symbol tables as we discover it. Log the
  *	fact if tracing.
  */
-static struct symbol *new_symbol(const char *name, unsigned hash,
+static struct name *new_symbol(const char *name, unsigned hash,
 				 unsigned id)
 {
-	struct symbol *s;
-	if (nextsym == symbols + MAXSYM)
+	struct name *s;
+	if (nextsym == symbols + MAXNAME)
 		fatal("too many sybmols");
 	s = nextsym++;
 	strncpy(s->name, name, NAMELEN);
@@ -216,9 +209,9 @@ static struct symbol *new_symbol(const char *name, unsigned hash,
 /*
  *	Find a symbol in a given has table	
  */
-static struct symbol *find_symbol(const char *name, unsigned hash)
+static struct name *find_symbol(const char *name, unsigned hash)
 {
-	struct symbol *s = symhash[hash];
+	struct name *s = symhash[hash];
 	while (s) {
 		if (strncmp(s->name, name, NAMELEN) == 0)
 			return s;
@@ -394,7 +387,7 @@ static unsigned tokenize_symbol(unsigned c)
 {
 	char symstr[16];
 	unsigned h;
-	struct symbol *s;
+	struct name *s;
 	*symstr = c;
 	get_symbol_tail(symstr + 1);
 	/* We can't do cunning tricks to spot labels in this pass because

@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include "symtab.h"
 #include "compiler.h"
 #include "backend.h"
 
@@ -38,19 +39,14 @@ static void xread(int fd, void *buf, int len)
  *	space. It's not a big deal as we only use names for global and static
  *	objects.
  */
-#define NAMELEN 16
-struct name {
-	char name[NAMELEN];
-	uint16_t id;
-	struct symbol *next;
-};
 
-static struct name names[MAXSYM];
+static struct name names[MAXNAME];
 
 char *namestr(unsigned n)
 {
 	if (n < 0x8000)
 		error("bad name");
+	/* FIXME: may not be 0 terminated if full length */
 	return names[n - 0x8000].name;
 }
 
