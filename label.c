@@ -64,7 +64,6 @@ void check_labels(void)
 {
     struct label *p = labels;
     while(p < labelp) {
-        fprintf(stderr, "L%x (%d)\n", p->name, p->line);
         if (!(p->name & L_DECLARED))
             errorline(p->line, "unknown label");
         p++;
