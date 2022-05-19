@@ -55,3 +55,13 @@ unsigned target_scale_ptr(unsigned t, unsigned scale)
 {
 	return scale;
 }
+
+/* Remap any base types for simplicity on the platform */
+
+unsigned target_type_remap(unsigned type)
+{
+	/* Our double is float */
+	if (type == DOUBLE)
+		return FLOAT;
+	return type;
+}
