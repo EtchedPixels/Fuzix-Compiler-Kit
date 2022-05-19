@@ -34,7 +34,7 @@ $(OBJS3): $(INC1) $(INC2)
 
 cc:	cc.c
 	fcc cc.c -c
-	fcc cc.o -o cc
+	fcc cc.rel -o cc
 
 copt:	copt.rel
 	fcc copt.rel -o copt
