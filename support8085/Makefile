@@ -6,11 +6,13 @@ OBJ = workspace.o \
       __bool.o __cpl.o __not.o \
       __boolc.o __cplc.o __notc.o \
       __minus.o __plus.o \
+      __postinc.o __postdec.o \
       __cclt.o __ccltu.o __ccgteq.o __ccgtequ.o \
-      __ccgt.o __ccgtu.o __cclteq.o __ccltequ.o \
+      __ccgt.o __ccgtu.o __cclteq.o __ccltequ.o __cmpeq0.o \
       __andc.o __orc.o __xorc.o \
       __minuseqc.o __pluseqc.o \
-      __castc.o __castcl.o
+      __castc.o __castcl.o \
+      __postincc.o __postdecc.o
 
 .s.o:
 	cc85 -c $<
