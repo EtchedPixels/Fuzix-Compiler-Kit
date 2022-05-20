@@ -59,15 +59,17 @@ void struct_declaration(struct symbol *sym)
             junk();
             continue;
         }
-        t = type_name_parse(S_NONE, t, &name);
-        if (nfield == NUM_STRUCT_FIELD) {
-            if (err == 0)
-                error("too many struct/union fields");
-            err = 1;
-        } else {
-            struct_add_field(sym, name, t);
-            nfield++;
-        }
+        do {
+            t = type_name_parse(S_NONE, t, &name);
+            if (nfield == NUM_STRUCT_FIELD) {
+                if (err == 0)
+                    error("too many struct/union fields");
+                err = 1;
+            } else {
+                struct_add_field(sym, name, t);
+                nfield++;
+            }
+        } while (match(T_COMMA));
         require(T_SEMICOLON);
     }
     require(T_RCURLY);
