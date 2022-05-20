@@ -523,16 +523,10 @@ static void repeated_op(const char *o, unsigned n)
 		printf("\t%s\n", o);
 }
 
-static unsigned gen_compc(const char *op, struct node *n, struct node *r)
+
+static unsigned gen_deop(const char *op, struct node *n, struct node *r)
 {
 	unsigned s = get_size(n->type);
-	if (r->op == T_CONSTANT && r->value == 0) {
-		char buf[10];
-		strcpy(buf, op);
-		strcat(buf, "0");
-		helper(n, buf);
-		return 1;
-	}
 	if (s == 2) {
 		if (load_de_with(r) == 0)
 			return 0;
@@ -543,6 +537,138 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r)
 		if (load_a_with(r) == 0)
 			return 0;
 		helper(n, op);
+		return 1;
+	}
+	return 0;
+}
+
+static unsigned gen_compc(const char *op, struct node *n, struct node *r)
+{
+	if (r->op == T_CONSTANT && r->value == 0) {
+		char buf[10];
+		strcpy(buf, op);
+		strcat(buf, "0");
+		helper(n, buf);
+		return 1;
+	}
+	return gen_deop(op, n, r);
+}
+
+static const char dad_h[8] = "\tdad h\n";
+
+static unsigned gen_fast_mul(unsigned n, unsigned s)
+{
+	if (s != 2)
+		return 0;
+
+	switch(n) {
+		case 0:
+			printf("\tlxi h,0\n");
+			return 1;
+		case 1:	/* Should have been removed already */
+			return 1;
+		case 256:
+			printf("\tmov h,l\n");
+			printf("\tmvi l,0\n");
+			return 1;
+		case 32:
+			printf(dad_h);
+		case 16:
+			printf(dad_h);
+		case 8:
+			printf(dad_h);
+		case 4:
+			printf(dad_h);
+		case 2:
+			printf(dad_h);
+			return 1;
+		case 12:
+			printf(dad_h);
+		case 6:
+			printf(dad_h);
+		case 3:
+			printf("\tpush h\ndad h\npop d\ndad d\n");
+			return 1;
+		case 10:
+			printf(dad_h);
+		case 5:
+			printf("\tpush h\ndad h\ndad h\npop d\ndad d\n");
+			return 1;
+	}
+	return 0;
+}
+
+static unsigned gen_fast_div(unsigned n, unsigned s)
+{
+	if (s != 2)
+		return 0;
+	if (n == 1)
+		return 1;
+	if (n == 256) {
+		printf("\tmov l,h\n\tmvi h,0\n");
+		return 1;
+	}
+	if (cpu != 8085)
+		return 0;
+
+	if (n & (n - 1))
+		return 0;
+
+	while(n > 1) {
+		printf("\tarhl\n");
+		n >>= 1;
+	}
+	return 1;
+}
+
+
+/* TODO : we could in theory optimize xor 255 with cpl ? */
+static unsigned gen_logicc(unsigned s, const char *op, unsigned v, unsigned code)
+{
+	unsigned h = v >> 8;
+	unsigned l = v & 0xFF;
+
+	if (s == 2) {
+		if (h == 0) {
+			if (code == 1)
+				printf("\tmvi h, 0\n");
+		}
+		else if (h == 255 && code != 3) {
+			if (code == 2)
+				printf("\tmvi h, 255\n");
+		} else {
+			printf("\tmov a,h\n\t%s %d\n\tmov h,a\n", op, h);
+		}
+	}
+	if (l == 0) {
+		if (code == 1)
+			printf("\tmvi l, 0\n");
+	} else if (l == 255 && code != 3) {
+		if (code == 2)
+			printf("\tmvi l, 255\n");
+	} else {
+		printf("\tmov a,l\n\t%s %d\n\tmov l,a\n", op, l);
+	}
+}
+
+static unsigned gen_fast_remainder(unsigned n, unsigned s)
+{
+	unsigned mask;
+	if (s != 2)
+		return 0;
+	if (n == 1) {
+		printf("\tlxi h,0\n");
+		return 1;
+	}
+	if (n == 256) {
+		printf("\tmvi h,0\n");
+		return 1;
+	}
+	if (n & (n - 1))
+		return 0;
+	if (opt != 's') {
+		mask = n - 1;
+		gen_logicc(s, "ani", mask, 1);
 		return 1;
 	}
 	return 0;
@@ -657,6 +783,36 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		return 0;
+	case T_STAR:
+		if (r->op == T_CONSTANT) {
+			if (s <= 2 && gen_fast_mul(s, r->value))
+				return 1;
+		}
+		return gen_deop("mulde", n, r);
+	case T_SLASH:
+		if (r->op == T_CONSTANT && (n->type & UNSIGNED)) {
+			if (s <= 2 && gen_fast_div(s, r->value))
+				return 1;
+		}
+		return gen_deop("divde", n, r);
+	case T_PERCENT:
+		if (r->op == T_CONSTANT && (n->type & UNSIGNED)) {
+			if (s <= 2 && gen_fast_remainder(s, r->value))
+				return 1;
+		}
+		return gen_deop("remde", n, r);
+	case T_AND:
+		if (r->op == T_CONSTANT)
+			return gen_logicc(s, "ani", r->value, 1);
+		return gen_deop("bandde", n, r);
+	case T_OR:
+		if (r->op == T_CONSTANT)
+			return gen_logicc(s, "ori", r->value, 2);
+		return gen_deop("borde", n, r);
+	case T_HAT:
+		if (r->op == T_CONSTANT)
+			return gen_logicc(s, "xri", r->value, 3);
+		return gen_deop("xorde", n, r);
 	case T_EQEQ:
 		return gen_compc("cmpeq", n, r);
 	case T_GTEQ:
@@ -669,6 +825,15 @@ unsigned gen_direct(struct node *n)
 		return gen_compc("cmplt", n, r);
 	case T_BANGEQ:
 		return gen_compc("cmpne", n, r);
+	case T_LTLT:
+		if (s <= 2 && r->op == T_CONSTANT && r->value <= 8) {
+			if (r->value < 8)
+				repeated_op("dad h", r->value);
+			else
+				printf("\tmov h,l\n\tmvi l,0\n");
+			return 1;
+		}
+		break;
 	}
 	return 0;
 }
@@ -714,7 +879,7 @@ unsigned gen_push(struct node *n)
 		printf("\tpush h\n");
 		return 1;
 	case 4:
-		printf("\txchg\n\tlhld hireg\n\tpush h\n\tpush d\n");
+		printf("\txchg\n\tlhld __hireg\n\tpush h\n\tpush d\n");
 		return 1;
 	default:
 		return 0;
@@ -726,7 +891,6 @@ static unsigned gen_cast(struct node *n)
 	unsigned lt = n->type;
 	unsigned rt = n->right->type;
 	unsigned rs;
-	unsigned ls;
 
 	if (PTR(rt))
 		rt = CSHORT;
@@ -738,13 +902,12 @@ static unsigned gen_cast(struct node *n)
 		return 0;
 
 	rs = get_size(rt);
-	ls = get_size(lt);
 
 	/* Size shrink is free */
-	if ((ls & ~UNSIGNED) <= (rs & ~UNSIGNED))
+	if ((lt & ~UNSIGNED) <= (rt & ~UNSIGNED))
 		return 1;
 	/* Don't do the harder ones */
-	if (!(rs & UNSIGNED) || rs > 2)
+	if (!(rt & UNSIGNED) || rs > 2)
 		return 0;
 	printf("\tmvi h,0\n");
 	return 1;
@@ -875,6 +1038,10 @@ unsigned gen_node(struct node *n)
 			printf("\tmov l,m\n");
 			return 1;
 		}
+		if (size == 4 && cpu == 8085) {
+			printf("\txchg\n\tinx d\n\tinx d\n\tlhlx\nshld __hireg\t\ndcx d\n\tdcx d\n\tlhlx\n");
+			return 1;
+		}
 		break;
 	case T_FUNCCALL:
 		printf("\tcall callhl\n");
@@ -887,7 +1054,7 @@ unsigned gen_node(struct node *n)
 		switch(size) {
 		case 4:
 			printf("\tlxi h,%u\n", ((v >> 16) & 0xFFFF));
-			printf("\tshld hireg\n");
+			printf("\tshld __hireg\n");
 		case 2:
 			printf("\tlxi h,%d\n", (v & 0xFFFF));
 			return 1;
