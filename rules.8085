@@ -12,3 +12,21 @@
 ;
 	xchg
 =
+
+# Clean up trivial multiple loads - often from assignments
+	lxi h,%1
+	shld %2
+	lxi h,%1
+=
+	lxi h,%1
+	shld %2
+
+# Simple stack optimize for pushes of same
+	lxi h,%1
+	push h
+	lxi h,%1
+	push h
+=
+	lxi h,%1
+	push h
+	push h
