@@ -17,7 +17,8 @@ OBJ = workspace.o __true.o __switchc.o \
       __andc.o __orc.o __xorc.o \
       __minuseqc.o __pluseqc.o \
       __castc.o __castcl.o \
-      __postincc.o __postdecc.o
+      __postincc.o __postdecc.o \
+      __assignl.o
 
 .s.o:
 	cc85 -c $<
