@@ -280,15 +280,24 @@ static void process_header(void)
 		break;
 	case H_FOR:
 		compile_expression();
+		/* We will loop back to the conditional */
+		gen_label("_l", h.h_data);
+		compile_expression();
+		/* Exit the loop if false */
+		gen_jfalse("_b", h.h_data);
+		/* Jump top the main body if not */
+		gen_jump("_n", h.h_data);
+		/* We continue with the final clause of the for */
 		gen_label("_c", h.h_data);
 		compile_expression();
-		gen_jfalse("_b", h.h_data);
-		gen_jump("_n", h.h_data);
-		compile_expression();
+		/* Then jump to the condition */
+		gen_jump("_l", h.h_data);
+		/* Body starts here */
+		gen_label("_n", h.h_data);
 		break;
 	case H_FOR | H_FOOTER:
-		gen_label("_b", h.h_data);
 		gen_jump("_c", h.h_data);
+		gen_label("_b", h.h_data);
 		break;
 	case H_WHILE:
 		gen_label("_c", h.h_data);
@@ -503,10 +512,18 @@ void make_node(struct node *n)
 		helper_s(n, "shreq");
 		break;
 	case T_PLUSPLUS:
-		helper(n, "postinc");
+		/* Avoid the post op cost if the result isn't used, as is
+		   commonly the case */
+		if (n->flags & NORETURN)
+			helper(n, "pluseq");
+		else
+			helper(n, "postinc");
 		break;
 	case T_MINUSMINUS:
-		helper(n, "postdec");
+		if (n->flags & NORETURN)
+			helper(n, "minuseq");
+		else
+			helper(n, "postdec");
 		break;
 	case T_EQEQ:
 		helper(n, "cceq");
@@ -540,7 +557,7 @@ void make_node(struct node *n)
 		helper(n, "xoreq");
 		break;
 	case T_BANGEQ:
-		helper(n, "noteq");
+		helper(n, "ccne");
 		break;
 	case T_OREQ:
 		helper(n, "oreq");
