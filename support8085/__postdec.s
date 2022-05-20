@@ -17,7 +17,7 @@ __postdec:
 		inx	h
 		mov	a,m
 		sta	__tmp+1
-		sbc	d
+		sbb	d
 		mov	m,a
                 lhld	__tmp
 		jmp	__ret

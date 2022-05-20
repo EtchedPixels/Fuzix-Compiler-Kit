@@ -3,7 +3,7 @@
 ;
 		.export __cclt
 
-		.setcpu 8085
+		.setcpu 8080
 
 		.code
 ;
@@ -20,16 +20,12 @@ __cclt:
 		xra	d
 		jp	sign_same
 		xra	d		; A is now H
-		lxi	h,1
-		jm	ret0
-ret1:		inr	l
-ret0:		dcr	l		; flags as well
-		jmp	__ret
+		jm	__rfalse
+		jmp	__rtrue
 sign_same:
 		mov	a,e
 		sub	l
 		mov	a,d
 		sbb	h
-		lxi	h,1
-		jnc	ret0
-		jmp	ret1
+		jnc	__rfalse
+		jmp	__rtrue

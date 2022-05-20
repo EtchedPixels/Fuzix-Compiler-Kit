@@ -1,9 +1,9 @@
 ;
-;		True if TOS < HL
+;		True if TOS <= HL
 ;
-		.export __ccgteq
+		.export __cmplteq
 
-		.setcpu 8085
+		.setcpu 8080
 
 		.code
 ;
@@ -11,22 +11,19 @@
 ;
 ;	The 8085 has K which might be worth using TODO
 ;
-__ccgteq:
-		xchg
-		pop	h
-		shld	__retaddr
-		pop	h
+__cmplteq:
 		mov	a,h
 		xra	d
 		jp	sign_same
 		xra	d		; A is now H
-		jp	__rfalse
+		jm	__rfalse
 		jmp	__rtrue
 sign_same:
 		mov	a,e
 		sub	l
 		mov	a,d
 		sbb	h
-		jc	__rfalse
-		jmp	__rtrue
-
+		lxi	h,2
+		jz	__rtrue
+		jc	__rtrue
+		jmp	__rfalse

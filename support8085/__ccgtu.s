@@ -6,9 +6,7 @@
 		.setcpu 8085
 
 		.code
-;
-;	FIXME: flags as well as HL should be set up
-;
+
 __ccgtu:
 		xchg
 		pop	h
@@ -19,7 +17,9 @@ __ccgtu:
 		mov	a,h
 		sbb	d
 		lxi	h,0
-		rc
-		rz
-		inr	l
+		; if C or Z then true
+		jnz	retf
+		inr	l	; return 1 set NZ
+		ret
+retf:		xra	a
 		ret

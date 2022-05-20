@@ -4,11 +4,11 @@
 		.setcpu 8085
 		.code
 
-__cmpne0:
+__cmpne0:	; a compare to non zero is a bool op
 __bool:
 		mov	a,h
 		ora	l
 		lxi	h,0
 		rz
-		inx	h
+		inr	l		; NZ
 		ret

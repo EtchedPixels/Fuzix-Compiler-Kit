@@ -1,13 +1,11 @@
 ;
 ;	Compute HL = TOS & HL
 ;
-		.export __and
-		.export __andu
+		.export __band
 
 		.setcpu 8085
 		.code
-__and:
-__andu:
+__band:
 		xchg			; working register into DE
 		pop	h		; return address
 		shld	__retaddr

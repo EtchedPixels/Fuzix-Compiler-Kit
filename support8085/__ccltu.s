@@ -6,9 +6,7 @@
 		.setcpu 8085
 
 		.code
-;
-;	FIXME: flags as well as hl should be set up
-;
+
 __ccltu:
 		xchg
 		pop	h
@@ -18,7 +16,8 @@ __ccltu:
 		sub	e
 		mov	a,h
 		sbb	d
-		lxi	h,0
-		rnc
-		inr	l
+		mvi	h,0
+		mov	a,h
+		adc	a		; 1 if original carried, 0 if not
+		mov	l,a
 		ret
