@@ -538,6 +538,9 @@ static struct node *hier1b(void)
  *	bramches/
  *
  *	Type rules are bool for ? and both sides matching for :
+ *
+ *	: is very unrestricted, you can do things like
+ *	(a?b:c).x  or (a?b:c)(foo);
  */
 static struct node *hier1a(void)
 {
@@ -556,21 +559,22 @@ static struct node *hier1a(void)
 	if (!PTR(lt) && !IS_ARITH(lt))
 		badtype();
 	/* Now do the left of the colon */
-	a1 = make_rval(hier1a());
+	a1 = hier1a();
 	if (!match(T_COLON)) {
 		error("missing colon");
 		return l;
 	}
-	a2 = make_rval(hier1b());
+	a2 = hier1b();
 	/* Check the two sides of colon are compatible */
-	if (!(type_pointermatch(a1, a2) || (IS_ARITH(a1->type) && IS_ARITH(a2->type))))
+	if (a1->type == a2->type || type_pointermatch(a1, a2) || (IS_ARITH(a1->type) && IS_ARITH(a2->type))) {
+		a2 = tree(T_QUESTION, tree(T_BOOL, NULL, l), tree(T_COLON, a1, typeconv(a2, a1->type, 1)));
+		/* Takes the type of the : arguments not the ? */
+		a2->type = a1->type;
+	}
+	else
 		badtype();
-	a2 = tree(T_QUESTION, tree(T_BOOL, NULL, l), tree(T_COLON, a1, typeconv(a2, a1->type, 1)));
-	/* Takes the type of the : arguments not the ? */
-	a2->type = a1->type;
 	return a2;
 }
-
 
 /*
  *	Assignment between an lval on the left and an rval on the right
