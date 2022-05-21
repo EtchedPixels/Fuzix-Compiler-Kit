@@ -372,9 +372,14 @@ static unsigned do_type_name_parse(unsigned type, unsigned *name)
 	return type;
 }
 
+static unsigned parse_depth = 0;
+
 unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
 {
 	struct symbol *ltop = mark_local_symbols();
+	parse_depth++;
+	if (parse_depth == 8)
+		fatal("too complex");
 	type = do_type_name_parse(type, name);
 	if (IS_FUNCTION(type) && !PTR(type) && token == T_LCURLY) {
 		struct symbol *sym = update_symbol_by_name(*name, storage, type);
@@ -394,5 +399,6 @@ unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
 		funcbody = 1;
 	}
 	pop_local_symbols(ltop);
+	parse_depth--;
 	return type;
 }
