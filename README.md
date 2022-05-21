@@ -34,7 +34,7 @@ assembler/linker toolchain currently in the CC6303 repository. In the
 as68 directory of that git do a make clean; make -f Makefile.8085 and then
 copy the various xx85 tools it produces into the /opt/cc85 space.
 
-At the moment there is no C library, no support code and no crt0.
+At the moment there is no C library, not much support code and no crt0.
 
 ## Intended C Subset
 
@@ -48,12 +48,16 @@ The goal is to support the following
 * enum
 * typedef
 
-Maybe long long. The long long handling is actually quite easy in the compiler,
-but the code generator end is not funny.
+Currently the compiler requires that the target types all fit into the host
+unsigned long type.
+
+Currently the compiler hardcodes assumptions that a char is 8bits, short
+16bit and long 32bits (see tree.c:constify and helpers). This needs to be
+addressed.
 
 ### Storage classes
 
-auto, static, extern
+auto, static, extern, typedef
 
 register is accepted but currently ignored.
 
@@ -83,8 +87,7 @@ Known incompatibilities (some to be fixed)
 
 * The constant value -32768 does not always get typed correctly. The reason for this is a complicated story about how cc0/cc1 interact.
 * Many C compilers permit (void) to 'cast' the result of a call away, we do not.
-* The type iteration isn't quite full. Some complex types such as int (*x[512])(void) are not supported yet.
-* Arrays must currently be fully initialized or not at all, and do not auto-size
+* Array auto-sizing is not yet supported.
 
 ## Internals
 
