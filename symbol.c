@@ -117,11 +117,8 @@ struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage
 		if (symst > S_TYPEDEF)
 			error("invalid name");
 		else if (symst < S_STATIC || !local) {
-			/* We have discovered an array declaration that was
-			   previously externally declared without a size. Bad
-			   practice but acceptable C */
-			if (IS_ARRAY(type) && type_canonical(type) == sym->type)
-				sym->type = type;
+			if (IS_ARRAY(type) && IS_ARRAY(sym->type))
+				sym->type = array_compatible(type, sym->type);
 			if (sym->type != type)
 				typemismatch();
 			if (symst == storage)
@@ -264,6 +261,22 @@ unsigned array_type(unsigned n)
 	if (!IS_ARRAY(n))
 		return CINT;
 	return symtab[INFO(n)].type;	/* Type of function is its return type */
+}
+
+/*
+ *	Check if two arrays are compatible. If so return the type of the
+ *	one with the actual dimensions, if not 0xFFFF
+ */
+unsigned array_compatible(unsigned t1, unsigned t2)
+{
+	unsigned *i1 = symtab[INFO(t1)].data.idx;
+	unsigned *i2 = symtab[INFO(t2)].data.idx;
+	/* Check the depth and dimensions beyond the first */
+	if (*i1 != *i2 || (*i1 > 1 && memcmp(i1 + 2, i2 + 2, ((*i1) * sizeof(unsigned)) - 1)))
+		typemismatch();
+	if (i1[1] == 0)
+		return t2;
+	return t1;
 }
 
 /*
