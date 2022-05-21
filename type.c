@@ -179,7 +179,9 @@ unsigned type_ptrscale_binop(unsigned op, struct node *l, struct node *r,
 	   difference */
 	*type = target_ptr_arith(lt);
 
-	if (type_pointermatch(l, r)) {
+	/* Pointermatch rules apply, but for pointer, arithmetic cases we
+	   want to do arithmetic, so don't treat 0 as a pointer type */
+	if (PTR(lt) && PTR(rt) && type_pointermatch(l, r)) {
 		if (op == T_MINUS)
 			return -type_ptrscale(rt);
 		else {
