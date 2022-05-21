@@ -117,14 +117,10 @@ struct node *gen_rewrite_node(struct node *n)
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
 				if (l->op == T_ARGUMENT)
 					l->value += 2 + frame_len;
-				/* Lose a pointer level as it's an LVAL */
-				n->type--;
 				squash_left(n, T_LSTORE);
 				return n;
 			}
 			if (l->op == T_NAME) {
-				/* Lose a pointer level as it's an LVAL */
-				n->type--;
 				squash_left(n, T_NSTORE);
 				return n;
 			}
