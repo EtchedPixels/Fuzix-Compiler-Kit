@@ -116,8 +116,11 @@ struct node *make_label(unsigned label)
 	n->op = T_LABEL;
 	n->value = label;
 	n->flags = 0;
-	/* FIXME: we need a general setting for default char type */
+#ifdef TARGET_CHAR_UNSIGNED
 	n->type = PTRTO|UCHAR;
+#else
+	n->type = PTRTO|CHAR;
+#endif
 	return n;
 }
 
@@ -369,7 +372,40 @@ struct node *logic_tree(unsigned op, struct node *l, struct node *r)
 	return n;
 }
 
-/* Constant conversion */
+/* Constant conversion
+
+   Needs review and to be a bit more precise
+ */
+unsigned long trim_constant(unsigned t, unsigned long value, unsigned warn)
+{
+	int sign = 1;
+	unsigned long ov = value;
+
+	/* Signed is more fun */
+	if (!(t & UNSIGNED)) {
+		if ((signed long)value < 0) {
+			sign = -1;
+			value = -value;
+		}
+	}
+	/* Now trim the unsigned bit pattern */
+	switch(t & 0xF0) {
+	case UCHAR:
+		value &= TARGET_CHAR_MASK;
+		break;
+	case USHORT:
+		value &= TARGET_SHORT_MASK;
+		break;
+	case ULONG:
+		value &= TARGET_LONG_MASK;
+		break;
+	}
+	/* And do the range check */
+	if (warn && ov != value)
+		warning("out of range");
+	/* Then put the sign back so we sign extend into the upper bits */
+	return ((signed long)value) * sign;
+}
 
 /* FIXME: will need to use the right types for n->value etc eventually
    and maybe union a float/double */
@@ -382,18 +418,7 @@ static struct node *replace_constant(struct node *n, unsigned t, unsigned long v
 	if (n->right)
 		free_node(n->right);
 	free_node(n);
-	/* Mask the bits by type */
-	switch(t & 0xF0) {
-	case CCHAR:
-		value &= 0xFF;
-		break;
-	case CSHORT:
-		value &= 0xFFFF;
-		break;
-	case CLONG:
-		value &= 0xFFFFFFFFUL;
-		break;
-	}
+	value = trim_constant(t, value, 0);
 	return make_constant(value, t);
 }
 
@@ -504,15 +529,19 @@ struct node *constify(struct node *n)
 			if (r->value == 0) {
 				divzero();
 				return NULL;
-			} else
+			} else if (l->type & UNSIGNED)
 				value /= r->value;
+			else
+				value = (signed long)value / r->value;
 			break;
 		case T_PERCENT:
 			if (r->value == 0) {
 				divzero();
 				return NULL;
-			} else
+			} else if (l->type & UNSIGNED)
 				value %= r->value;
+			else
+				value = (signed long)value % r->value;
 			break;
 		case T_ANDAND:
 			value = value && r->value;
