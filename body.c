@@ -187,11 +187,6 @@ static void default_statement(void)
 	require(T_COLON);
 }
 
-static void typedef_statement(void)
-{
-	/* TODO */
-}
-
 static void goto_statement(void)
 {
 	unsigned n;
@@ -270,9 +265,6 @@ static void statement(void)
 	case T_DEFAULT:
 		default_statement();
 		return;
-	case T_TYPEDEF:
-		typedef_statement();
-		break;
 	case T_SEMICOLON:
 		next_token();
 		return;
