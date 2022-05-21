@@ -31,8 +31,8 @@ static void struct_add_field(struct symbol *sym, unsigned name, unsigned type)
     }
 }
 
-/* As with the other type/name handlers we need to unify them and also deal
-   with the int x,y case */
+static unsigned structdepth;
+
 void struct_declaration(struct symbol *sym)
 {
     unsigned name;
@@ -50,6 +50,11 @@ void struct_declaration(struct symbol *sym)
 
     *tags = 0;		/* No elements */
     tags[1] = 0;	/* Zero space */
+
+    structdepth++;
+
+    if (structdepth == 4)	/* Avoid stack overflows */
+        fatal("struct too complex");
 
     require(T_LCURLY);
     while(token != T_RCURLY) {
@@ -75,4 +80,6 @@ void struct_declaration(struct symbol *sym)
     require(T_RCURLY);
 
     sym->data.idx = idx_copy(tags, 2 + 3 * *tags);
+
+    structdepth--;
 }
