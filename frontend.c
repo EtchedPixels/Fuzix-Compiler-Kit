@@ -673,7 +673,7 @@ static unsigned hexpair(void)
 static unsigned octalset(unsigned c)
 {
 	unsigned int n = c - '0';
-	int ct = 0;
+	int ct = 1;
 	while (ct++ < 3) {
 		c = get();
 		if (!isoctal(c)) {
@@ -742,8 +742,8 @@ static unsigned tokenize_char(void)
 		return T_INTVAL;
 	}
 	c2 = get();
-	required('\'');
 	c = escaped(c2);
+	required('\'');
 	if (c == T_INVALID)
 		/* Not a valid escape */
 		encode_byte(c2);
