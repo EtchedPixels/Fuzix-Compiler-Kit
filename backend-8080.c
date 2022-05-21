@@ -29,7 +29,7 @@ static unsigned get_size(unsigned t)
 	if (t == VOID)
 		return 0;
 	fprintf(stderr, "type %x\n", t);
-//	error("gs");
+	error("gs");
 	return 0;
 }
 
@@ -122,16 +122,12 @@ struct node *gen_rewrite_node(struct node *n)
 		}
 		if (op == T_EQ) {
 			if (l->op == T_NAME) {
-				/* Lose a pointer level as it's an LVAL */
-				n->type--;
 				squash_left(n, T_NSTORE);
 				return n;
 			}
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
 				if (l->op == T_ARGUMENT)
 					l->value += 2 + frame_len;
-				/* Lose a pointer level as it's an LVAL */
-				n->type--;
 				squash_left(n, T_LSTORE);
 				return n;
 			}
@@ -549,9 +545,14 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r)
 		strcpy(buf, op);
 		strcat(buf, "0");
 		helper(n, buf);
+		n->flags |= ISBOOL;
 		return 1;
 	}
-	return gen_deop(op, n, r);
+	if (gen_deop(op, n, r)) {
+		n->flags |= ISBOOL;
+		return 1;
+	}
+	return 0;
 }
 
 static const char dad_h[8] = "\tdad h\n";
