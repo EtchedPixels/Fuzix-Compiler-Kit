@@ -113,8 +113,8 @@ unsigned type_scale(unsigned t) {
 		badtype();
 		return 1;
 	}
-	/* FIXME: should this not be 1 */
-	return type_sizeof(t);
+	/* Numeric objects don't scale */
+	return 1;
 }
 
 /* lvalue conversion is handled by caller */
