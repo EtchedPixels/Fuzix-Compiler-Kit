@@ -195,7 +195,7 @@ static void goto_statement(void)
 		error("label required");
 	/* We will work out if the label existed later */
 	use_label(n);
-	header(H_GOTO, n, 0);
+	header(H_GOTO, func_tag, n);
 }
 
 /*
@@ -224,7 +224,7 @@ static void statement(void)
 			next_token();
 			/* We found a label */
 			add_label(name);
-			header(H_LABEL, name, 0);
+			header(H_LABEL, func_tag, name);
 		} else {
 			push_token(name);
 			break;

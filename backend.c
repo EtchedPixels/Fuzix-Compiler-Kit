@@ -256,6 +256,8 @@ static void process_literal(unsigned id)
 static void process_header(void)
 {
 	struct header h;
+	static char tbuf[16];
+
 	xread(0, &h, sizeof(struct header));
 
 	switch (h.h_type) {
@@ -347,11 +349,12 @@ static void process_header(void)
 		gen_jump("_r", func_ret);
 		break;
 	case H_LABEL:
-		gen_label("", h.h_name);
+		sprintf(tbuf, "_g%d", h.h_data);
+		gen_label(tbuf, h.h_name);
 		break;
 	case H_GOTO:
-		/* TODO - goto might be special ? */
-		gen_jump("", h.h_name);
+		sprintf(tbuf, "_g%d", h.h_data);
+		gen_jump(tbuf, h.h_name);
 		break;
 	case H_SWITCH:
 		/* Generate the switch header, expression and table run */
