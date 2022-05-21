@@ -37,7 +37,7 @@ void struct_declaration(struct symbol *sym)
 {
     unsigned name;
     unsigned t;
-    unsigned tags[2 * NUM_STRUCT_FIELD + 3];	/* max 30 fields per struct for the moment */
+    unsigned tags[3 * NUM_STRUCT_FIELD + 2];	/* max 30 fields per struct for the moment */
     unsigned nfield = 0;
     unsigned err = 0;
 
