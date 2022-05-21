@@ -341,7 +341,7 @@ static void declarator(unsigned *name, unsigned depth)
 /*
  *	Given a base type find the full type and name
  */
-unsigned do_type_name_parse(unsigned type, unsigned *name)
+static unsigned do_type_name_parse(unsigned type, unsigned *name)
 {
 	struct declstack *dp = decp;
 
@@ -388,6 +388,7 @@ unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
 		function_body(storage, *name, func_return(type));
 		pop_storage(&argsave, &locsave);
 		sym->infonext |= INITIALIZED;
+		funcbody = 1;
 	}
 	pop_local_symbols(ltop);
 	return type;

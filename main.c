@@ -10,7 +10,8 @@
 
 FILE *debug;
 
-unsigned deffunctype;
+unsigned deffunctype;		/* The type of an undeclared function */
+unsigned funcbody;		/* Parser global for function body */
 
 /*
  *	A C program consists of a series of declarations that by default
@@ -21,8 +22,10 @@ static void toplevel(void)
 	if (token == T_TYPEDEF) {
 		next_token();
 		dotypedef();
-	} else
+	} else {
+		funcbody = 0;
 		declaration(S_EXTDEF);
+	}
 }
 
 /* A function defined by use is taken to be int f(); */

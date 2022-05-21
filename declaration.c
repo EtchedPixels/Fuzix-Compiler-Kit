@@ -58,12 +58,9 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 	/* Do we already have this symbol */
 	sym = update_symbol_by_name(name, s, type);
 
-	/* FIXME: review correctness versus
-		extern int foo(), int bar(); - might need to check if
-		we initialized it and pass info up
-		*/
-	if (IS_FUNCTION(type) && !PTR(type))
+	if (funcbody)
 		return 0;
+
 	if (s != S_EXTERN && (PTR(type) || !IS_FUNCTION(type)) && match(T_EQ)) {
 		if (sym->infonext & INITIALIZED)
 			error("duplicate initializer");
