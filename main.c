@@ -10,6 +10,8 @@
 
 FILE *debug;
 
+unsigned deffunctype;
+
 /*
  *	A C program consists of a series of declarations that by default
  *	are external definitions.
@@ -23,10 +25,17 @@ static void toplevel(void)
 		declaration(S_EXTDEF);
 }
 
+/* A function defined by use is taken to be int f(); */
+static unsigned functype[2] = {
+	1, ELLIPSIS
+};
+
 int main(int argc, char *argv[])
 {
 	next_token();
 	init_nodes();
+	/* A function with no type info returning INT */
+	deffunctype = make_function(CINT, functype);
 #ifdef DEBUG
 	if (argv[1]) {
 		debug = fopen(argv[1], "w");

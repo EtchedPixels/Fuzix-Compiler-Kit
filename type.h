@@ -45,6 +45,7 @@
 
 extern unsigned type_deref(unsigned t);
 extern unsigned type_ptr(unsigned t);
+extern unsigned type_addpointer(unsigned t, unsigned ptr);
 extern unsigned type_canonical(unsigned t);
 extern unsigned type_sizeof(unsigned t);
 extern unsigned type_alignof(unsigned t);
@@ -54,3 +55,5 @@ extern unsigned type_addrof(unsigned t);
 extern unsigned type_ptrscale_binop(unsigned op, struct node *l, struct node *r, unsigned *rtype);
 extern int type_pointermatch(struct node *l, struct node *r);
 extern int type_pointerconv(struct node *r, unsigned lt, unsigned warn);
+
+extern unsigned deffunctype;	/* Type number for int foo(); */

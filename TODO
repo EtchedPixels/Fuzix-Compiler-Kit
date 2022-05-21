@@ -1,16 +1,15 @@
 - hash array and function type lookup
 - hash name lookup
-
-- for word stacking machines add target hooks to specify that arguments
-  take 2 bytes even if char, and alloc space correctly both in the func
-  declaration/argument side and in the arg stacking (arg passing side done)
 - rewrite x = x + .. and x = x -... etc as += -=
 - Turn the frame the other way up ?
 - Track register state on backend
 
 Broken 
 -	constify needs a hard stare or two
--	some complex types such as int (*x[512])(void)
+-	Debug new type code further
+-	Correct handling of function body detection in declaration.c
+-	Unsized arrays, type check errors
+
 
 Longer term
 - variable length array syntax

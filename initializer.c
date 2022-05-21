@@ -7,7 +7,8 @@
  */
 static void initializer_single(struct symbol *sym, unsigned type, unsigned storage)
 {
-    struct node *n = typeconv(expression_tree(0), type, 1);
+    struct node *n = expression_tree(0);
+    n = typeconv(n, type, 1);
     if (storage == S_AUTO) {
         n = tree(T_EQ, make_symbol(sym), n);
         write_tree(n);

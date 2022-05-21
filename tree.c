@@ -195,14 +195,15 @@ struct node *make_rval(struct node *n)
 {
 	unsigned nt = n->type;
 	if (n->flags & LVAL) {
-		if (!IS_ARRAY(nt))
-			return tree(T_DEREF, NULL, n);
-		else {
+		if (IS_ARRAY(nt)) {
 			n->flags &= ~LVAL;
 			/* Decay to base type of array */
 			if (!PTR(nt))
 				n->type = type_canonical(nt);
-		}
+		} else if (IS_FUNCTION(nt)) {
+			n->flags &= ~LVAL;
+		} else
+			return tree(T_DEREF, NULL, n);
 	}
 	return n;
 }

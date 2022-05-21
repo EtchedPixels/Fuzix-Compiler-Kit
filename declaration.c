@@ -29,7 +29,7 @@ void dotypedef(void)
 
 //	while (is_modifier() || is_type_word() || token >= T_SYMBOL || token == T_STAR) {
 	while (token != T_SEMICOLON) {
-		unsigned utype = type_name_parse(S_TYPEDEF, type, &name);
+		unsigned utype = type_name_parse(S_NONE, type, &name);
 		if (one_typedef(utype, name) == 0)
 			return;
 		if (!match(T_COMMA))
@@ -58,9 +58,12 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 	/* Do we already have this symbol */
 	sym = update_symbol_by_name(name, s, type);
 
+	/* FIXME: review correctness versus
+		extern int foo(), int bar(); - might need to check if
+		we initialized it and pass info up
+		*/
 	if (IS_FUNCTION(type) && !PTR(type))
 		return 0;
-
 	if (s != S_EXTERN && (PTR(type) || !IS_FUNCTION(type)) && match(T_EQ)) {
 		if (sym->infonext & INITIALIZED)
 			error("duplicate initializer");

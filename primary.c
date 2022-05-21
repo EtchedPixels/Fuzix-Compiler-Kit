@@ -25,9 +25,9 @@ struct node *get_sizeof(void)
 	/* Bracketing is required for sizeof unlike return */
 	require(T_LPAREN);
 
-	/* We wille eventually need to count typedefs as type_word */
+	/* We will eventually need to count typedefs as type_word */
 	if (is_type_word() || is_typedef()) {
-		type = type_name_parse(S_AUTO, get_type(), &name);
+		type = type_name_parse(S_NONE, get_type(), &name);
 		if (type == UNKNOWN || name)
 			return badsizeof();
 		require(T_RPAREN);
@@ -120,10 +120,8 @@ struct node *primary(void)
 		struct symbol *sym = find_symbol(name);
 		/* Weird case you can call a function you've not declared. This
 		   makes it int f() */
-		if (func && sym == NULL) {
-			unsigned tf = func_symbol_type(CINT, &p);
-			sym = update_symbol_by_name(name, S_EXTERN, tf);
-		}
+		if (func && sym == NULL)
+			sym = update_symbol_by_name(name, S_EXTERN, deffunctype);
 		/* You can't size fields and structs by field/struct name without 
 		   the type specifier */
 		if (sym == NULL) {

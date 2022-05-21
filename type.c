@@ -23,6 +23,15 @@ unsigned type_ptr(unsigned t)
 	return t;
 }
 
+unsigned type_addpointer(unsigned t, unsigned ptr)
+{
+	if (PTR(t) + ptr > 7)
+		indirections();
+	else
+		t += ptr;
+	return t;
+}
+
 /*
  *	Handle array v type pointers.
  */

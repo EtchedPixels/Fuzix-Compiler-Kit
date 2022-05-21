@@ -3,6 +3,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 #include "compiler.h"
 
 unsigned is_modifier(void)
@@ -163,6 +164,28 @@ unsigned get_type(void)
 	return type;
 }
 
+#define MAX_DECL	16
+#define MAX_TMPIDX	64
+
+struct declstack {
+	unsigned ptr;
+	unsigned form;
+	unsigned *idx;
+};
+
+struct declstack decls[MAX_DECL];
+struct declstack *decp = decls;
+
+static void declarator_add(unsigned form, unsigned ptr, unsigned *idx)
+{
+	if (decp == &decls[MAX_DECL])
+		fatal("type too complex");
+	decp->idx = idx;
+	decp->ptr = ptr;
+	decp->form = form;
+	decp++;
+}
+
 /*
  *	Parse an ANSI C style function (we don't do K&R at all)
  *
@@ -177,20 +200,12 @@ unsigned get_type(void)
  */
 
 
-static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsigned type, unsigned ptr)
+static void parse_function_arguments(unsigned *tplt)
 {
-	/* Function returning the type accumulated so far */
-	/* We need an anonymous symbol entry to hang the function description onto */
-	struct symbol *sym;
-	unsigned ftype;
-	unsigned an;
-	unsigned t;
-	unsigned tplt[33];	/* max 32 typed arguments */
 	unsigned *tn = tplt + 1;
-	unsigned argsave, locsave;
-
-	mark_storage(&argsave, &locsave);
-	init_storage();
+	unsigned t;
+	unsigned an;
+	struct symbol *sym;
 
 	/* Parse the bracketed arguments if any and nail them to the
 	   symbol. */
@@ -208,7 +223,7 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 		t = get_type();
 		if (t == UNKNOWN)
 			t = CINT;
-		t = type_name_parse(S_ARGUMENT, t, &an);
+		t = type_name_parse(S_NONE, t, &an);
 		if (t == VOID) {
 			*tn++ = VOID;
 			break;
@@ -234,52 +249,45 @@ static unsigned type_parse_function(struct symbol *fsym, unsigned storage, unsig
 	if (tn == tplt + 1)
 		*tn++ = ELLIPSIS;
 	*tplt = tn - tplt - 1;
-	ftype = func_symbol_type(type, tplt);
-	if (!ptr) {
-		/* Must do this first as a function may reference itself */
-		update_symbol(fsym, fsym->name, storage, ftype);
-		if (token == T_LCURLY) {
-			struct symbol *ltop;
-
-			if (fsym->infonext & INITIALIZED)
-				error("duplicate function");
-			if (storage == S_AUTO || storage == S_NONE)
-				error("function not allowed");
-			if (storage == S_EXTDEF)
-				header(H_EXPORT, fsym->name, 0);
-			ltop = mark_local_symbols();
-			function_body(storage, fsym->name, type);
-			pop_local_symbols(ltop);
-			fsym->infonext |= INITIALIZED;
-		}
-	}
-	pop_storage(&argsave, &locsave);
-	return ftype;
 }
 
-static unsigned type_parse_array(unsigned storage, unsigned type, unsigned ptr)
+void type_parse_function(unsigned ptr)
+{
+	/* Function returning the type accumulated so far */
+	unsigned tplt[33];	/* max 32 typed arguments */
+	unsigned argsave, locsave;
+	unsigned *idx;
+
+	mark_storage(&argsave, &locsave);
+	parse_function_arguments(tplt);
+	pop_storage(&argsave, &locsave);
+
+	idx = sym_find_idx(S_FUNCDEF, tplt, *tplt + 1);
+	declarator_add(T_LPAREN, ptr, idx);
+}
+
+void type_parse_array(unsigned ptr)
 {
 	unsigned dim[9];
 	unsigned ndim = 0;
 	int n;
+	unsigned *idx;
 
 	while(token == T_LSQUARE) {
 		next_token();
-		/* Arguments can have a final [] form but it's just an alias of * and
-		   a syntactic quirk. We need to handle it here because of the
-		   way our type matching is handled and to allow [] */
 		if (token == T_RSQUARE) {
-			next_token();
-			if (storage == S_ARGUMENT || storage == S_EXTERN || ptr)
-				return type + ndim + 1;
-			error("size required");
+			if (ndim)
+				error("size required");
+			else
+				n = 0;
+		} else {
+			n = const_int_expression();
+			if (n < 1 ) {
+				error("bad size");
+				n = 1;
+			}
 		}
-		n = const_int_expression();
 		require(T_RSQUARE);
-		if (n < 1) {
-			error("bad size");
-			n = 1;
-		}
 		if (ndim == 8) {
 			error("too many dimensions");
 			break;
@@ -287,92 +295,100 @@ static unsigned type_parse_array(unsigned storage, unsigned type, unsigned ptr)
 		dim[++ndim] = n;
 	}
 	dim[0] = ndim;
-	type = make_array(type, dim);
-	return type + ndim;
+	idx = sym_find_idx(S_ARRAY, dim, *dim + 1);
+	declarator_add(T_LSQUARE, ptr, idx);
 }
 
-/* Recursively walk any *(*(*(*x))) bits
 
-	char *x()	function returning char
-	char (*x)()	pointer to function returning char
-
-	This is incomplete because in C it's actually valid to do stuff
-	like
-
-	int (*x[512])(void *p);
-
-	supporting that will require some work with recursive parsing
-	in type_name_parse instead.
- */
-
-static unsigned declarator(unsigned *name)
+static void declarator(unsigned *name, unsigned depth)
 {
 	unsigned ptr = 0;
-	*name = 0;
 
+	/* Count the number of indirections at this level */
 	skip_modifiers();
 	while (match(T_STAR)) {
 		skip_modifiers();
 		ptr++;
 	}
 	skip_modifiers();
-	if (token >= T_SYMBOL) {	/* It's a name */
-		*name = token;
-		next_token();
-		return ptr;
-	}
+
+	/* Process any bracketed declarations */
 	if (token == T_LPAREN) {
 		next_token();
-		ptr += declarator(name);
+		declarator(name, depth + 1);
 		require(T_RPAREN);
 	}
-	return ptr;
+
+	/* Have we found our name. If so we know the base type and the name */
+	else if (token >= T_SYMBOL) {	/* It's a name */
+		*name = token;
+		next_token();
+	}
+	/* Now work rightwards and outwards */
+	/* Do we have array declarations to the right */
+	if (token == T_LSQUARE) {
+		/* Get the dimensions */
+		type_parse_array(ptr);
+	}
+	else if (token == T_LPAREN) {
+		next_token();
+		type_parse_function(ptr);
+	} else
+		/* A simple object */
+		declarator_add(0, ptr, NULL);
+}
+
+/*
+ *	Given a base type find the full type and name
+ */
+unsigned do_type_name_parse(unsigned type, unsigned *name)
+{
+	struct declstack *dp = decp;
+
+	*name = 0;
+
+	/* Walk the declaration building a type stack.*/
+	declarator(name, 0);
+
+	/* Now work back down the stack from outside inwards so we can
+	   create our types cleanly */
+	/* SORT OUT OFF BY ONES */
+	while (--decp >= dp) {
+		type = type_addpointer(type, decp->ptr);
+		switch(decp->form) {
+		case T_LSQUARE:
+			type = make_array(type, decp->idx);
+			break;
+		case T_LPAREN:
+			type = make_function(type, decp->idx);
+			break;
+		}
+	}
+	decp++;
+	/* And return the final resulting type */
+	return type;
 }
 
 unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
 {
-	unsigned ptr = 0, nptr;
-	struct symbol *sym = NULL, *ltop;
-
-	/* Finish the type */
-	skip_modifiers();
-	while(match(T_STAR)) {
-		skip_modifiers();
-		ptr++;
-	}
-
-	/* Check if the name is a pointer */
-	nptr = declarator(name);
-	if (nptr + ptr > 7)
-		indirections();
-
-	/* Add the pointer depth to the base type */
-	type += ptr;
-
-	/* Reserve a symbol slot if needed */
-	if (*name && storage != S_NONE)
-		sym = update_symbol_by_name(*name, storage, C_ANY);
-
-	/* All the symbols within the declaration below are local to the
-	   declaration if not static/global */
-	ltop = mark_local_symbols();
-	/* We may be a function specification or an array or both. The other
-	   post forms (-> and .) are not valid in a declaration */
-	if (token == T_LSQUARE) {
-		type = type_parse_array(storage, type, nptr);
-	} else if (token == T_LPAREN) {
-		next_token();
-		/* It's a function description  */
-		type = type_parse_function(sym, storage, type, nptr);
-		/* Can be an array of functions .. */
+	struct symbol *ltop = mark_local_symbols();
+	type = do_type_name_parse(type, name);
+	if (IS_FUNCTION(type) && !PTR(type) && token == T_LCURLY) {
+		struct symbol *sym = update_symbol_by_name(*name, storage, type);
+		unsigned argsave, locsave;
+		/* Handle the function body */
+		if (sym->infonext & INITIALIZED)
+			error("duplicate function");
+		if (storage == S_AUTO || storage == S_NONE)
+			error("function not allowed");
+		if (storage == S_EXTDEF)
+			header(H_EXPORT, *name, 0);
+		mark_storage(&argsave, &locsave);
+		init_storage();
+		function_body(storage, *name, func_return(type));
+		pop_storage(&argsave, &locsave);
+		sym->infonext |= INITIALIZED;
 	}
 	pop_local_symbols(ltop);
-	/* Add any pointer element attached to the name */
-	if (PTR(type) + nptr > 7)
-		indirections();
-	else
-		type += nptr;
-	if (sym)
-		update_symbol(sym, *name, storage, type);
 	return type;
 }

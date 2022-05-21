@@ -180,27 +180,32 @@ struct symbol *update_symbol_by_name(unsigned name, unsigned storage,
  *	TODO: we need to hash this, but differently to the usual symbol
  *	indexing as we care about the template pattern most
  */
-static struct symbol *do_type_match(unsigned st, unsigned rtype, unsigned *template)
+static struct symbol *do_type_match(unsigned st, unsigned rtype, unsigned *idx)
 {
 	struct symbol *sym = symtab;
-	unsigned len = sizeof(unsigned) * (*template + 1);
 	while(sym <= last_sym) {
-		if (S_STORAGE(sym->infonext) == st && sym->type == rtype && memcmp(sym->data.idx, template, len) == 0) {
+		if (S_STORAGE(sym->infonext) == st && sym->type == rtype && sym->data.idx == idx) {
 			return sym;
 		}
 		sym++;
 	}
 	sym = alloc_symbol(0xFFFF, 0);
 	sym->infonext = st;
-	sym->data.idx = idx_copy(template, len);
+	sym->data.idx = idx;
 	sym->type = rtype;
 	return sym;
 }
 
-unsigned func_symbol_type(unsigned rtype, unsigned *template)
+unsigned *sym_find_idx(unsigned storage, unsigned *idx, unsigned len)
 {
-	struct symbol *s = do_type_match(S_FUNCDEF, rtype, template);
-	return C_FUNCTION | ((s - symtab) << 3);
+	struct symbol *sym = symtab;
+	unsigned blen = len * sizeof(unsigned);
+	while (sym <= last_sym) {
+		if (S_STORAGE(sym->infonext) == storage && memcmp(sym->data.idx, idx, blen) == 0)
+			return sym->data.idx;
+		sym++;
+	}
+	return idx_copy(idx, len);
 }
 
 unsigned func_return(unsigned n)
@@ -215,6 +220,21 @@ unsigned *func_args(unsigned n)
 	if (!IS_FUNCTION(n))
 		return NULL;
 	return symtab[INFO(n)].data.idx;	/* Type of function is its return type */
+}
+
+unsigned make_function(unsigned type, unsigned *idx)
+{
+	/* Can we use the one we found (if we did) */
+	struct symbol *sym = do_type_match(S_FUNCDEF, type, idx);
+	return C_FUNCTION | ((sym - symtab) << 3);
+}
+
+unsigned func_symbol_type(unsigned type, unsigned *idx)
+{
+	struct symbol *sym;
+	idx = sym_find_idx(S_FUNCDEF, idx, *idx + 1);
+	sym = do_type_match(S_FUNCDEF, type, idx);
+	return C_FUNCTION | ((sym - symtab) << 3);
 }
 
 /*
@@ -233,10 +253,10 @@ unsigned array_dimension(unsigned type, unsigned depth)
 	return sym->data.idx[depth];
 }
 
-unsigned make_array(unsigned type, unsigned *template)
+unsigned make_array(unsigned type, unsigned *idx)
 {
-	struct symbol *sym = do_type_match(S_ARRAY, type, template);
-	return C_ARRAY | ((sym - symtab) << 3);
+	struct symbol *sym = do_type_match(S_ARRAY, type, idx);
+	return C_ARRAY | ((sym - symtab) << 3) | *idx;
 }
 
 unsigned array_type(unsigned n)
