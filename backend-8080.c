@@ -625,7 +625,7 @@ static unsigned gen_fast_div(unsigned n, unsigned s)
 /* TODO : we could in theory optimize xor 255 with cpl ? */
 static unsigned gen_logicc(unsigned s, const char *op, unsigned v, unsigned code)
 {
-	unsigned h = v >> 8;
+	unsigned h = (v >> 8) & 0xFF;
 	unsigned l = v & 0xFF;
 
 	if (s > 2)
