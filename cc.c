@@ -392,11 +392,14 @@ void convert_c_to_s(char *path)
 
 void convert_S_to_s(char *path)
 {
+	char *tmp;
 	build_arglist(CMD_CPP);
 	add_argument("-E");
 	add_argument(path);
-	redirect_out(pathmod(path, ".S", ".s", 1));
+	tmp = xstrdup(path, 0);
+	redirect_out(pathmod(tmp, ".S", ".s", 1));
 	run_command();
+	pathmod(path, ".S", ".s", 5);
 }
 
 void preprocess_c(char *path)
