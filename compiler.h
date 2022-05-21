@@ -12,9 +12,9 @@
 #define IDX_SIZE		2560
 /* Maximum number of goto labels per function (not switches), 4 bytes each */
 #define MAXLABEL		16
-/* Maximum number of fields per structure, 4 bytes per entry on stack, per
+/* Maximum number of fields per structure, 6 bytes per entry on stack, per
    recursive struct definition */
-#define NUM_STRUCT_FIELD	30
+#define NUM_STRUCT_FIELD	50
 /* Number of switch entries within the current scope. 4 bytes per entry */
 #define NUM_SWITCH		100
 /* Number of constants from enum. 4 bytes per entry */
