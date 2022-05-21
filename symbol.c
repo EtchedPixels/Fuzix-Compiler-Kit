@@ -117,10 +117,12 @@ struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage
 		if (symst > S_TYPEDEF)
 			error("invalid name");
 		else if (symst < S_STATIC || !local) {
-			if (IS_ARRAY(type) && IS_ARRAY(sym->type))
-				sym->type = array_compatible(type, sym->type);
-			if (sym->type != type)
-				typemismatch();
+			if (sym->type != type) {
+				if (IS_ARRAY(type) && IS_ARRAY(sym->type))
+					sym->type = array_compatible(type, sym->type);
+				else
+					typemismatch();
+			}
 			if (symst == storage)
 				return sym;
 			/* extern foo and now found foo */
