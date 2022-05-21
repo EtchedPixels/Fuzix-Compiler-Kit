@@ -58,7 +58,11 @@ struct node *constant_node(void)
 	if (label) {
 		/* We have a temporary name */
 		n = make_label(label);
-		n->type = PTRTO + CCHAR;	/* PTR to CHAR */
+#ifdef TARGET_CHAR_UNSIGNED
+		n->type = PTRTO | UCHAR;	/* PTR to UCHAR */
+#else
+		n->type = PTRTO | CCHAR;	/* PTR to CHAR */
+#endif
 		return n;
 	}
 	/* Numeric */
