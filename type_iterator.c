@@ -126,10 +126,13 @@ static unsigned base_type(void)
 	if (type == FLOAT && (once_flags & 2))
 		type = DOUBLE;
 	/* short */
-	/* FIXME: allow for int being long/short later */
 	if (type == CINT && (once_flags & 1))
-		type = CINT;
+		type = CSHORT;
 	/* signed/unsigned */
+#ifdef TARGET_CHAR_UNSIGNED
+	if (type == CCHAR)
+		type |= UNSIGNED;
+#endif
 	if (once_flags & 4)
 		type |= UNSIGNED;
 	/* We don't deal with default unsigned char yet .. */
