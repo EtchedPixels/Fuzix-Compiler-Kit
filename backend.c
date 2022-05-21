@@ -183,9 +183,6 @@ static struct node *rewrite_tree(struct node *n)
 	/* Convert LVAL flag into pointer type */
 	if (n->flags & LVAL)
 		n->type++;
-	if (!PTR(n->type) && n->type >= 0x4000)
-		fprintf(stderr, "bad node type %x for node of %x\n",
-			n->type, n->op);
 	/* Turn any remaining object references (functions) into pointer type */
 	/* Need to review how we do this with name of function versus function vars etc */
 	/* FIXME */
@@ -754,8 +751,11 @@ void codegen_lr(struct node *n)
 		/*  foo ? a : b is a strange beast. At this point we have
 		    foo in the work register so need do nothing, and let the
 		    ? subtree resolve it */
-		if (o == 4)
+		if (o == 4) {
+			codegen_lr(n->left);
+			codegen_lr(n->right);
 			return;
+		}
 		if (o == 3) {
 			gen_jfalse("L", lab);
 			codegen_lr(n->left);
@@ -763,7 +763,6 @@ void codegen_lr(struct node *n)
 			gen_label("L", lab);
 			codegen_lr(n->right);
 			gen_label("LC", lab);
-			make_node(n);
 			return;
 		}
 		/* TODO ? shortcut && and || if one side is constant */
