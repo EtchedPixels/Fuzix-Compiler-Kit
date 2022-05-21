@@ -578,7 +578,7 @@ static struct node *hier1a(void)
  *	Handle pointer scaling on += and -= by emitting the maths into the
  *	tree.
  */
-struct node *hier1(void)
+static struct node *hier1(void)
 {
 	struct node *l, *r;
 	unsigned fc;
@@ -625,21 +625,24 @@ struct node *hier1(void)
 	return NULL;
 }
 
+struct node *hier0(unsigned comma)
+{
+	struct node *n = hier1();
+	if (!comma || !match(T_COMMA))
+		return n;
+	n = tree(T_COMMA, n, hier0(comma));
+	return n;
+}
 /*
  *	Top level of the expression tree. Make the tree an rval in case
  *	we need the result. Allow for both the expr,expr,expr format and
  *	the cases where C doesnt allow it (expr, expr in function calls
  *	or initializers is not the same
  */
+
 struct node *expression_tree(unsigned comma)
 {
-	struct node *n;
-	/* Build a tree of comma operations */
-	n = make_rval(hier1());
-	if (!comma || !match(T_COMMA))
-		return n;
-	n = tree(T_COMMA, n, expression_tree(comma));
-	return n;
+	return make_rval(hier0(comma));
 }
 
 

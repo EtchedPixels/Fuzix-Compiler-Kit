@@ -109,7 +109,7 @@ struct node *primary(void)
 
 	/* Expression case first.. a bracketed expression is a primary */
 	if (match(T_LPAREN)) {
-		l = hier1();
+		l = hier0(1);
 		require(T_RPAREN);
 		return l;
 	}
