@@ -80,7 +80,6 @@ static void initializer_struct(struct symbol *psym, unsigned type, unsigned stor
     if (S_STORAGE(sym->infonext) == S_UNION)
         n = 1;
     require(T_LCURLY);
-    /* FIXME: we need to watch the offsets and add internal padding */
     while(n-- && token != T_RCURLY) {
         /* Name, type, offset tuples */
         type = p[1];
@@ -145,7 +144,6 @@ static void initializer_array(struct symbol *sym, unsigned type, unsigned depth,
  */
 void initializers(struct symbol *sym, unsigned type, unsigned storage)
 {
-    /* FIXME: review pointer rule */
     if (PTR(type) && !IS_ARRAY(type)) {
         initializer_single(sym, type, storage);
         return;
