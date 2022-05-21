@@ -359,7 +359,7 @@ void write_bss(void)
 			fprintf(debug, "sym %x %x %x %d\n", s->name, s->type, s->flags, s->storage);
 #endif
 		st = S_STORAGE(s->infonext);
-		if (!IS_FUNCTION(s->type) && st >= S_LSTATIC && st <= S_EXTDEF) {
+		if (!IS_FUNCTION(s->type) && st != S_EXTERN && st >= S_LSTATIC && st <= S_EXTDEF) {
 			if (st == S_EXTDEF)
 				header(H_EXPORT, s->name, 0);
 			if (!(s->infonext & INITIALIZED)) {
