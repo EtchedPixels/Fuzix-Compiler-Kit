@@ -126,7 +126,7 @@ static void initializer_array(struct symbol *sym, unsigned type, unsigned depth,
         require(T_LCURLY);
         while(n--) {
             initializer_array(sym, type, depth + 1, storage);
-            if (match(T_COMMA))
+            if (n && match(T_COMMA))
                 continue;
             break;
         }
