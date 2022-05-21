@@ -628,6 +628,9 @@ static unsigned gen_logicc(unsigned s, const char *op, unsigned v, unsigned code
 	unsigned h = v >> 8;
 	unsigned l = v & 0xFF;
 
+	if (s > 2)
+		return 0;
+
 	if (s == 2) {
 		if (h == 0) {
 			if (code == 1)
@@ -649,6 +652,7 @@ static unsigned gen_logicc(unsigned s, const char *op, unsigned v, unsigned code
 	} else {
 		printf("\tmov a,l\n\t%s %d\n\tmov l,a\n", op, l);
 	}
+	return 1;
 }
 
 static unsigned gen_fast_remainder(unsigned n, unsigned s)
