@@ -37,7 +37,7 @@ static void while_statement(void)
 	unsigned oldcont = cont_tag;
 
 	break_tag = next_tag++;
-	cont_tag = next_tag++;
+	cont_tag = break_tag;
 
 	next_token();
 	header(H_WHILE, cont_tag, break_tag);
@@ -55,7 +55,7 @@ static void do_statement(void)
 	unsigned oldcont = cont_tag;
 
 	break_tag = next_tag++;
-	cont_tag = next_tag++;
+	cont_tag = break_tag;
 
 	next_token();
 	header(H_DO, cont_tag, break_tag);
@@ -76,7 +76,7 @@ static void for_statement(void)
 	unsigned oldcont = cont_tag;
 
 	break_tag = next_tag++;
-	cont_tag = next_tag++;
+	cont_tag = break_tag;
 
 	next_token();
 	header(H_FOR, cont_tag, break_tag);
