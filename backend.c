@@ -313,12 +313,15 @@ static void process_header(void)
 	case H_DO:
 		gen_label("_c", h.h_data);
 		break;
+	case H_DO | H_FOOTER:
+		gen_jump("_c", h.h_data);
+		gen_label("_b", h.h_data);
+		break;
 	case H_DOWHILE:
 		compile_expression();
 		gen_jtrue("_c", h.h_data);
 		break;
-	case H_DO | H_FOOTER:
-		gen_jump("_c", h.h_data);
+	case H_DOWHILE | H_FOOTER:
 		gen_label("_b", h.h_data);
 		break;
 	case H_BREAK:
