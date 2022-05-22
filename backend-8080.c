@@ -274,7 +274,7 @@ static void gen_cleanup(unsigned v)
 	/* CLEANUP is special and needs to be handled directly */
 	sp -= v;
 	if (v > 10) {
-		printf("\tlxi h, %d\n", -v);
+		printf("\tlxi h,%d\n", -v);
 		printf("\tdad sp\n");
 		printf("\tsphl\n");
 	} else {
@@ -321,7 +321,7 @@ void gen_helpclean(struct node *n)
 
 void gen_switch(unsigned n, unsigned type)
 {
-	printf("\tlxi d, Sw%d\n", n);
+	printf("\tlxi d,Sw%d\n", n);
 	printf("\tcall __switch");
 	/* Signed doesn't matter for this */
 	helper_type(type & ~UNSIGNED);
@@ -453,14 +453,14 @@ static unsigned load_r_with(const char r, struct node *n)
 
 	switch(n->op) {
 	case T_NAME:
-		printf("\tlxi %c, _%s+%d\n", r, namestr(n->snum), v);
+		printf("\tlxi %c,_%s+%d\n", r, namestr(n->snum), v);
 		return 1;
 	case T_LABEL:
-		printf("\tlxi %c, T%d\n", r, v);
+		printf("\tlxi %c,T%d\n", r, v);
 		return 1;
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
-		printf("\tlxi %c, %d\n", r, v);
+		printf("\tlxi %c,%d\n", r, v);
 		return 1;
 	case T_NREF:
 		name = namestr(n->snum);
@@ -637,21 +637,21 @@ static unsigned gen_logicc(unsigned s, const char *op, unsigned v, unsigned code
 	if (s == 2) {
 		if (h == 0) {
 			if (code == 1)
-				printf("\tmvi h, 0\n");
+				printf("\tmvi h,0\n");
 		}
 		else if (h == 255 && code != 3) {
 			if (code == 2)
-				printf("\tmvi h, 255\n");
+				printf("\tmvi h,255\n");
 		} else {
 			printf("\tmov a,h\n\t%s %d\n\tmov h,a\n", op, h);
 		}
 	}
 	if (l == 0) {
 		if (code == 1)
-			printf("\tmvi l, 0\n");
+			printf("\tmvi l,0\n");
 	} else if (l == 255 && code != 3) {
 		if (code == 2)
-			printf("\tmvi l, 255\n");
+			printf("\tmvi l,255\n");
 	} else {
 		printf("\tmov a,l\n\t%s %d\n\tmov l,a\n", op, l);
 	}
