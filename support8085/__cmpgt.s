@@ -2,6 +2,7 @@
 ;		True if TOS > HL
 ;
 		.export __cmpgt
+		.export __cmpgtb
 
 		.setcpu 8080
 
@@ -13,6 +14,8 @@
 ;
 ;		HL > DE
 ;
+__cmpgtb:
+                mvi	h,0
 __cmpgt:
 		mov	a,h
 		xra	d

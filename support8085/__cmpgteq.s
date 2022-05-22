@@ -2,6 +2,7 @@
 ;		True if HL >= DE
 ;
 		.export __cmpgteq
+		.export __cmpgteqb
 
 		.setcpu 8080
 
@@ -11,6 +12,8 @@
 ;
 ;	The 8085 has K which might be worth using TODO
 ;
+__cmpgteqb:
+		mvi	h,0
 __cmpgteq:
 		mov	a,h
 		xra	d

@@ -2,6 +2,7 @@
 ;		True if TOS < HL
 ;
 		.export __cmplt
+		.export __cmpltb
 
 		.setcpu 8080
 
@@ -11,6 +12,8 @@
 ;
 ;	The 8085 has K which might be worth using TODO
 ;
+__cmpltb:
+		mvi	h,0
 __cmplt:
 		mov	a,h
 		xra	d

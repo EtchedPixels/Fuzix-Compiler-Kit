@@ -1,9 +1,11 @@
 		.export __cmpltu
+		.export __cmpltub
 		.setcpu 8080
 		.code
 
 		; true if HL < DE
-
+__cmpltub:
+		mvi	h,0
 __cmpltu:
 		mov	a,h
 		cmp	d

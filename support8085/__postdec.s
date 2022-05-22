@@ -3,13 +3,13 @@
 ;
 		.export __postdec
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
+
 __postdec:
 		xchg
 		pop	h
-		shld	__retaddr	; save return
-		pop	h
+		xthl
 		mov	a,m
 		sta	__tmp
 		sub	e
@@ -20,4 +20,4 @@ __postdec:
 		sbb	d
 		mov	m,a
                 lhld	__tmp
-		jmp	__ret
+		ret

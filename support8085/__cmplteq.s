@@ -2,6 +2,7 @@
 ;		True if TOS <= HL
 ;
 		.export __cmplteq
+		.export __cmplteqb
 
 		.setcpu 8080
 
@@ -10,7 +11,8 @@
 ;	The 8080 doesn't have signed comparisons directly
 ;
 ;	The 8085 has K which might be worth using TODO
-;
+__cmplteqb:
+		mvi	h,0
 __cmplteq:
 		mov	a,h
 		xra	d

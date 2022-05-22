@@ -2,21 +2,20 @@
 ;		TOS = lval of object HL = amount
 ;
 		.export __pluseq
-		.export __plusequ
 
 		.setcpu 8085
 		.code
 __pluseq:
-__plusequ:
-		shld	__tmp		; save add value
-		pop	h
-		shld	__retaddr	; save return
-		pop	d
-		push	d		; get a copy of the TOS address
+		xchg			; amount into D
+		pop	h		; return
+		xthl			; swap with lval
+		xchg			; get lval into D
+		push	d		; save lval
+		push	h		; save value to add
 		lhlx			; load it into HL
 		xchg
-		lhld	__tmp
+		pop	d		; get value back
 		dad	d		; add __tmp to it
 		pop	d		; get the TOS address
 		shlx			; store it back
-		jmp	__ret
+		ret

@@ -1,9 +1,12 @@
 		.export __cmpgtequ
+		.export __cmpgtequb
 		.setcpu 8080
 		.code
 
 		; true if HL >= DE
 
+__cmpgtequb:
+		mvi	h,0
 __cmpgtequ:
 		mov	a,h
 		cmp	d

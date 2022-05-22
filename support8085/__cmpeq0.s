@@ -1,6 +1,10 @@
 		.export __cmpeq0
+		.export __cmpeq0b
+		.setcpu	8080
 		.code
 
+__cmpeq0b:
+		mvi	h,0
 __cmpeq0:
 		mov	a,h
 		ora 	l

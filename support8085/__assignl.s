@@ -3,6 +3,7 @@
 ;	needs to end up in hireg/HL
 ;
 		.export __assignl
+		.export	__assign0l
 		.setcpu 8085
 		.code
 
@@ -20,3 +21,13 @@ __assignl:
 		shld	__hireg
 		lhld	__tmp
 		jmp	__ret
+
+__assign0l:
+		xchg		; address into d
+		lxi	h,0
+		shlx
+		shld	__hireg
+		inx	d
+		inx	d
+		shlx
+		ret

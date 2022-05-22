@@ -1,11 +1,14 @@
 		.export __cmpne
+		.export __cmpneb
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 
 ;
 ;	Tighter version with the other value in DE
 ;
+__cmpneb:
+		mvi	h,0
 __cmpne:
 		mov	a,l
 		cmp	e

@@ -1,5 +1,6 @@
 
 		.setcpu 8080
+		.export __muldeb
 		.export __mulde
 		.export __mul
 
@@ -46,3 +47,5 @@ noadd2:		xchg			; 8085 can ora rdel not really
 
 		pop	b
 		ret
+__muldeb:	mvi	h,0
+		jmp	__mulde
