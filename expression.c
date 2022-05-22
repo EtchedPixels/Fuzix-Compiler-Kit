@@ -138,6 +138,7 @@ struct node *function_call(struct node *n)
 	unsigned argsize = 0;
 	unsigned narg;
 
+	/* Must be a function or pointer to function */
 	if (!IS_FUNCTION(n->type)) {
 		error("not a function");
 		return n;
@@ -211,7 +212,7 @@ static struct node *hier11(void)
 				lt = type_deref(lt);
 				l->type = lt;
 			} else if (match(T_LPAREN)) {
-				l = function_call(l);
+				l = function_call(make_rval(l));
 			} else if ((direct = match(T_DOT))
 				   || match(T_POINTSTO)) {
 				if (direct == 0) {
