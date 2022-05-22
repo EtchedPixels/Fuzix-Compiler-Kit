@@ -143,8 +143,6 @@ struct node *gen_rewrite_node(struct node *n)
 	}
 	/* Rewrite function call of a name into a new node so we can
 	   turn it easily into call xyz */
-	if (op == T_FUNCCALL)
-		fprintf(stderr, "funccall %x %x\n", r->op, r->type);
 	if (op == T_FUNCCALL && r->op == T_NAME && PTR(r->type) == 1) {
 		n->op = T_CALLNAME;
 		n->snum = r->snum;
@@ -173,7 +171,7 @@ void gen_segment(unsigned segment)
 {
 	switch(segment) {
 	case A_CODE:
-		printf("\t.code\n");
+		printf("\t.%s\n", codeseg);
 		break;
 	case A_DATA:
 		printf("\t.data\n");

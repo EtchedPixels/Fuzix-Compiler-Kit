@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <ctype.h>
 
 #include "symtab.h"
 #include "compiler.h"
@@ -19,7 +20,9 @@
 int sym_fd = -1;
 
 unsigned cpu;
-char opt;
+unsigned opt;
+unsigned optsize;
+const char *codeseg = "code";
 
 static unsigned process_one_block(uint8_t *h);
 
@@ -811,10 +814,18 @@ int main(int argc, char *argv[])
 	argv0 = argv[0];
 
 	/* We can make this better later */
-	if (argc != 4)
+	if (argc != 4 && argc != 5)
 		error("arguments");
 	cpu = atoi(argv[2]);
 	opt = *argv[3];
+	if (isdigit(opt))
+		opt -= '0';
+	else if (opt == 's')
+		optsize = 1;
+	else
+		error("invalid optimizer level");
+	if (argv[4])
+		codeseg = argv[4];
 	init_name_cache();
 	load_symbols(argv[1]);
 	init_nodes();
