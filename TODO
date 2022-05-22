@@ -6,10 +6,6 @@
 
 Broken 
 -	constify needs a hard stare or two
--	Debug new type code further
--	Correct handling of function body detection in declaration.c
--	Unsized arrays, type check errors
-
 
 Longer term
 - variable length array syntax
@@ -46,3 +42,5 @@ Longer term
 - 8080 pass first argument in HL, so defer final push before func call. Then
   can xthl push hl to get stack in order, and do cleanup of all args on
   the return path instead of caller - would need vararg help for cleanup ?
+- 8080 rewrite  SHL(constant 1, by n) into a 1 << n node so we can gen a
+  fast 1 << n (lookup table ?)
