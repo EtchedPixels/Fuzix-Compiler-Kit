@@ -143,7 +143,9 @@ struct node *gen_rewrite_node(struct node *n)
 	}
 	/* Rewrite function call of a name into a new node so we can
 	   turn it easily into call xyz */
-	if (op == T_FUNCCALL && r->op == T_NAME && !PTR(r->type)) {
+	if (op == T_FUNCCALL)
+		fprintf(stderr, "funccall %x %x\n", r->op, r->type);
+	if (op == T_FUNCCALL && r->op == T_NAME && PTR(r->type) == 1) {
 		n->op = T_CALLNAME;
 		n->snum = r->snum;
 		n->value = r->value;
