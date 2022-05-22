@@ -38,10 +38,11 @@ __remdeu:
 	push	h
 
 div_loop:
-	inx	sp		; dec counter on stack
-	xthl			; ugly as we don't quite have enough
-	dcr	h		; registers
-	xthl
+	push	h		; ugly as we can't fit it into regs
+	lxi	h,4
+	dad	sp
+	dcr	m
+	pop	h
 	jz	done
 
 	xthl

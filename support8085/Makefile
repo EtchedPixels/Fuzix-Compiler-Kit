@@ -1,6 +1,6 @@
 all: lib8085.a crt0.o
 
-OBJ = workspace.o __true.o __switchc.o \
+OBJ = workspace.o __true.o __switchc.o __switch.o \
       __and.o __andeq.o __or.o __oreq.o __xor.o __xoreq.o \
       __minuseq.o __pluseq.o \
       __bool.o __cpl.o __not.o \
@@ -8,7 +8,8 @@ OBJ = workspace.o __true.o __switchc.o \
       __minus.o __plus.o \
       __postinc.o __postdec.o \
       __shl.o __shr.o \
-      __divdeu.o \
+      __shleq.o __shrequ.o __shreq.o \
+      __divdeu.o __divde.o \
       __cclt.o __ccltu.o __ccgteq.o __ccgtequ.o \
       __cceq.o __ccne.o __cmpeq.o __cmpne.o \
       __ccgt.o __ccgtu.o __cclteq.o __ccltequ.o __cmpeq0.o \
@@ -19,7 +20,9 @@ OBJ = workspace.o __true.o __switchc.o \
       __minuseqc.o __pluseqc.o \
       __castc.o __castcl.o __cast_l.o __cast_ul.o \
       __postincc.o __postdecc.o \
+      __shrdeuc.o __shrequc.o \
       __bandl.o __borl.o __bxorl.o \
+      __pluseql.o __minuseql.o \
       __booll.o __notl.o \
       __assignl.o \
       __minusl.o __plusl.o \
