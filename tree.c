@@ -593,9 +593,7 @@ struct node *constify(struct node *n)
 		case T_BANG:
 			value = !value;
 			break;
-		case T_BOOL:
-			value = !!value;
-			break;
+		/* We can't do T_BOOL because it's used to set flags */
 		case T_CAST:
 			/* We are working with integer constant types so this is ok */
 			return replace_constant(n, n->type, value);
