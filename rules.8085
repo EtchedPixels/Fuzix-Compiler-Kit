@@ -1,9 +1,22 @@
-# Test rule
+# Branches
 	jmp %1
 %1:
 =
 %1:
 
+	jmp %2
+%1:
+%2:
+=
+%1:
+%2:
+
+	jmp %1
+	jmp %2
+=
+
+
+# Trivial
 	xchg
 	xchg
 =
@@ -12,6 +25,38 @@
 ;
 	xchg
 =
+
+	push h
+	pop h
+=
+
+	push h
+;
+	pop h
+=
+
+
+	shld _%1
+;
+	lhld _%1
+=
+	shld _%1
+
+	lhld _%1
+	shld _%2
+;
+	lhld _%1
+=
+	lhld _%1
+	shld _%2
+
+	lxi h,%1
+	shld
+;
+	lxi h,%1
+=
+	lxi h,%1
+	shld
 
 # Clean up trivial multiple loads - often from assignments
 	lxi h,%1
@@ -30,3 +75,159 @@
 	lxi h,%1
 	push h
 	push h
+
+# Compare 0 cast from char
+	mvi h,0
+	call __cmpeq0
+=
+	call __cmpeq0b
+
+# Compare 0 cast from char
+	mvi h,0
+	call __cmpne0
+=
+	call __cmpne0b
+
+# Assign 0L
+	push h
+	lxi h,0
+	shld __hireg
+	call __assignl
+=
+	call __assign0l
+
+# Remove do {} while (0);
+%1:
+	lxi h,0
+	call __bool
+;
+	jnz %1
+=
+	lxi h,0
+
+# Optimize repeated call pattern (the ; matters here)
+	pop d
+;
+	mvi l,%1
+	push h
+=
+	mvi l,%1
+	xthl
+
+	pop d
+;
+	lxi h,%1
+	push h
+=
+	lxi h,%1
+	xthl
+
+# comparisons with a cast when not to zero
+	mvi h,0
+	lxi d,%1
+	call __cmp%2
+=
+	lxi d,%1
+	call __cmp%2b
+
+# the same pattern occurs a lot for small multiplication
+	mvi h,0
+	lxi d,%1
+	call __mulde%2
+=
+	lxi d,%1
+	call __mulde%2b
+
+# we may rework this if we build args as we go, but in the mean time
+	push h
+	lxi h,%1
+	pop a
+	push h
+=
+	lxi h,%1
+	push h
+
+	push h
+	lhld %1
+	pop a
+	push h
+=
+	lhld %1
+	push h
+
+# Argument is object address - not a totally safe pattern but should be fine
+# for all the compiler generates - if not will need to add a ;npush tag
+# or similar to match
+	ldsi %1
+	xchg
+	push h
+	lxi h,%2
+=
+	ldsi %1
+	push d
+	lxi h,%2
+
+# Common postinc/dec
+	push h
+	lxi h,1
+	call __postinc
+=
+	call __postinc1
+
+	push h
+	lxi h,2
+	call __postinc
+=
+	call __postinc2
+
+	push h
+	lxi h,1
+	call __postdec
+=
+	call __postdec1
+
+	push h
+	lxi h,2
+	call __postdec
+=
+	call __postdec2
+
+# Common pre inc/dec
+	push h
+	lxi h,1
+	call __pluseq
+=
+	call __pluseq1
+
+	push h
+	lxi h,2
+	call __pluseq
+=
+	call __pluseq2
+
+	push h
+	lxi h,1
+	call __minuseq
+=
+	call __minuseq1
+
+	push h
+	lxi h,2
+	call __minuseq
+=
+	call __minuseq2
+
+# Common pattern in C	 if (x & c) 
+	call __bandde
+	call __bool
+=
+	call __bbandde
+
+# Merge array/struct offdsetting (fixme - should be constify cleaned)
+	lxi d,%1
+	dad d
+	lxi d,%2
+	dad d
+=
+	lxi d,%1+%2
+	dad d
