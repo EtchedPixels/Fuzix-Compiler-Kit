@@ -143,7 +143,7 @@ struct node *gen_rewrite_node(struct node *n)
 	}
 	/* Rewrite function call of a name into a new node so we can
 	   turn it easily into call xyz */
-	if (op == T_FUNCCALL && r->op == T_NAME) {
+	if (op == T_FUNCCALL && r->op == T_NAME && !PTR(r->type)) {
 		n->op = T_CALLNAME;
 		n->snum = r->snum;
 		n->value = r->value;
@@ -323,7 +323,8 @@ void gen_switch(unsigned n, unsigned type)
 {
 	printf("\tlxi d, Sw%d\n", n);
 	printf("\tcall __switch");
-	helper_type(type);
+	/* Signed doesn't matter for this */
+	helper_type(type & ~UNSIGNED);
 	printf("\n");
 }
 
@@ -520,22 +521,23 @@ static void repeated_op(const char *o, unsigned n)
 }
 
 
-static unsigned gen_deop(const char *op, struct node *n, struct node *r)
+static unsigned gen_deop(const char *op, struct node *n, struct node *r, unsigned sign)
 {
 	unsigned s = get_size(n->type);
+	if (s > 2)
+		return 0;
 	if (s == 2) {
 		if (load_de_with(r) == 0)
 			return 0;
-		helper(n, op);
-		return 1;
-	}
-	if (s == 1) {
+	} else {
 		if (load_a_with(r) == 0)
 			return 0;
-		helper(n, op);
-		return 1;
 	}
-	return 0;
+	if (sign)
+		helper_s(n, op);
+	else
+		helper(n, op);
+	return 1;
 }
 
 static unsigned gen_compc(const char *op, struct node *n, struct node *r)
@@ -548,7 +550,7 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r)
 		n->flags |= ISBOOL;
 		return 1;
 	}
-	if (gen_deop(op, n, r)) {
+	if (gen_deop(op, n, r, 0)) {
 		n->flags |= ISBOOL;
 		return 1;
 	}
@@ -793,31 +795,31 @@ unsigned gen_direct(struct node *n)
 			if (s <= 2 && gen_fast_mul(s, r->value))
 				return 1;
 		}
-		return gen_deop("mulde", n, r);
+		return gen_deop("mulde", n, r, 0);
 	case T_SLASH:
 		if (r->op == T_CONSTANT && (n->type & UNSIGNED)) {
 			if (s <= 2 && gen_fast_div(s, r->value))
 				return 1;
 		}
-		return gen_deop("divde", n, r);
+		return gen_deop("divde", n, r, 1);
 	case T_PERCENT:
 		if (r->op == T_CONSTANT && (n->type & UNSIGNED)) {
 			if (s <= 2 && gen_fast_remainder(s, r->value))
 				return 1;
 		}
-		return gen_deop("remde", n, r);
+		return gen_deop("remde", n, r, 1);
 	case T_AND:
 		if (r->op == T_CONSTANT)
 			return gen_logicc(s, "ani", r->value, 1);
-		return gen_deop("bandde", n, r);
+		return gen_deop("bandde", n, r, 0);
 	case T_OR:
 		if (r->op == T_CONSTANT)
 			return gen_logicc(s, "ori", r->value, 2);
-		return gen_deop("borde", n, r);
+		return gen_deop("borde", n, r, 0);
 	case T_HAT:
 		if (r->op == T_CONSTANT)
 			return gen_logicc(s, "xri", r->value, 3);
-		return gen_deop("xorde", n, r);
+		return gen_deop("xorde", n, r, 0);
 	case T_EQEQ:
 		return gen_compc("cmpeq", n, r);
 	case T_GTEQ:
@@ -838,7 +840,21 @@ unsigned gen_direct(struct node *n)
 				printf("\tmov h,l\n\tmvi l,0\n");
 			return 1;
 		}
-		break;
+		return gen_deop("shlde", n, r, 0);
+	case T_GTGT:
+		/* >> by 8 unsigned */
+		if (s == 2 && (n->type & UNSIGNED) && r->op == T_CONSTANT && r->value == 8) {
+			printf("\tmov l,h\n\tmvi h,0\n");
+			return 1;
+		}
+		/* 8085 has a signed right shift 16bit */
+		if (cpu == 8085 && (!(n->type & UNSIGNED)) && s == 2) {
+			if (s <= 2 && r->op == T_CONSTANT && r->value < 8) {
+				repeated_op("arhl", r->value);
+				return 1;
+			}
+		}
+		return gen_deop("shrde", n, r, 1);
 	}
 	return 0;
 }
@@ -1049,7 +1065,7 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_FUNCCALL:
-		printf("\tcall callhl\n");
+		printf("\tcall __callhl\n");
 		return 1;
 	case T_LABEL:
 		/* Used for const strings */
