@@ -16,5 +16,5 @@ __castc_ul:
 	dcr	h
 	mov	a,h
 	sta	__hireg
-	sta	__hreg+1
+	sta	__hireg+1
 	ret

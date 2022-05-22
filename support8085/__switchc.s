@@ -3,9 +3,11 @@
 ;	binary searching yet
 ;
 			.export __switchc
+			.export __switchcu
 			.setcpu 8080
 			.code
 
+__switchcu:
 __switchc:
 		mov	a,l
 		; DE points to the table in the format

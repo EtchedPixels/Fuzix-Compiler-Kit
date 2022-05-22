@@ -7,11 +7,13 @@
 __shr:
 		xchg
 		pop	h
-		shld	__retaddr
-		pop	h
+		xthl
+		mov	a,e
+		ani	15
+		rz
 shift1:
 		arhl
 		dcr	e
 		jnz	shift1
-		jmp	__ret
+		ret
 
