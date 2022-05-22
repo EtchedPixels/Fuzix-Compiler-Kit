@@ -118,7 +118,8 @@ int targetos;
 #define OS_NONE		0
 #define OS_FUZIX	1
 int fuzixsub;
-char optimize;
+char optimize = '0';
+char *codeseg;
 
 #define MAXARG	512
 
@@ -369,6 +370,8 @@ void convert_c_to_s(char *path)
 	optstr[0] = optimize;
 	optstr[1] = '\0';
 	add_argument(optstr);
+	if (codeseg)
+		add_argument(codeseg);
 	redirect_in(tmp);
 	if (optimize == 0) {
 		redirect_out(pathmod(path, ".#", ".s", 2));
@@ -744,6 +747,9 @@ int main(int argc, char *argv[]) {
 				fprintf(stderr, "cc: only flex, fuzix and mc10 target types are known.\n");
 				fatal();
 			}
+			break;
+		case 'T':
+			codeseg = *p + 2;
 			break;
 		default:
 			usage();
