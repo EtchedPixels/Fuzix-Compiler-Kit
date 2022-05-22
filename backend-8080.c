@@ -220,21 +220,23 @@ void gen_epilogue(unsigned size)
 {
 	if (sp != 0)
 		error("sp");
-	/* Return in DE so we can adjust the stack more easily. The caller
-	   will xchg it back after cleanup */
+	/* Return in HL, does need care on stack. TOOD: flag void functions
+	   where we can burn the return */
 	sp -= size;
 	if (cpu == 8085 && size <= 255 && size > 4) {
 		printf("\tldsi %d\n", size);
 		printf("\txchg\n");
 		printf("\tsphl\n");
+		printf("\txchg\n");
 		printf("\tret\n");
 		return;
 	}
-	printf("\txchg\n");
 	if (size > 10) {
+		printf("\txchg\n");
 		printf("\tlxi h,0x%x\n", (uint16_t) - size);
 		printf("\tdad sp\n");
 		printf("\tsphl\n");
+		printf("\txchg\n");
 		printf("\tret\n");
 		return;
 	}
@@ -243,7 +245,7 @@ void gen_epilogue(unsigned size)
 		size--;
 	}
 	while (size) {
-		printf("\tpop b\n");
+		printf("\tpop d\n");
 		size -= 2;
 	}
 	printf("\tret\n");
@@ -274,20 +276,22 @@ static void gen_cleanup(unsigned v)
 	/* CLEANUP is special and needs to be handled directly */
 	sp -= v;
 	if (v > 10) {
+		/* This is more expensive, but we don't often pass that many
+		   arguments so it seems a win to stay in HL */
+		/* TODO: spot void function and skip xchg */
+		printf("\txchg\n");
 		printf("\tlxi h,%d\n", -v);
 		printf("\tdad sp\n");
 		printf("\tsphl\n");
+		printf("\txchg\n");
 	} else {
 		while(v >= 2) {
-			printf("\tpop h\n");
+			printf("\tpop d\n");
 			v -= 2;
 		}
 		if (v)
 			printf("\tdcr sp\n");
 	}
-	/* The call return is in DE at this point due to stack juggles
-	   so put it into HL */
-	printf("\txchg\n");
 }
 
 /*
@@ -626,12 +630,16 @@ static unsigned gen_fast_div(unsigned n, unsigned s)
 
 
 /* TODO : we could in theory optimize xor 255 with cpl ? */
-static unsigned gen_logicc(unsigned s, const char *op, unsigned v, unsigned code)
+static unsigned gen_logicc(struct node *n, unsigned s, const char *op, unsigned v, unsigned code)
 {
 	unsigned h = (v >> 8) & 0xFF;
 	unsigned l = v & 0xFF;
 
-	if (s > 2)
+	if (s > 2 || (n && n->op != T_CONSTANT))
+		return 0;
+
+	/* If we are trying to be compact only inline the short ones */
+	if (optsize && (h != 0 || h != 255 || l != 0 || l != 255))
 		return 0;
 
 	if (s == 2) {
@@ -673,9 +681,9 @@ static unsigned gen_fast_remainder(unsigned n, unsigned s)
 	}
 	if (n & (n - 1))
 		return 0;
-	if (opt != 's') {
+	if (!optsize) {
 		mask = n - 1;
-		gen_logicc(s, "ani", mask, 1);
+		gen_logicc(NULL, s, "ani", mask, 1);
 		return 1;
 	}
 	return 0;
@@ -732,9 +740,17 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		if (s == 1) {
-			if (load_a_with(r) == 0)
-				return 0;
-			printf("\tmov m,a\n");
+			/* We need to end up with the value in l if this is not NORETURN, also
+			   we can optimize constant a step more */
+			if (r->op == T_CONSTANT && (n->flags & NORETURN))
+				printf("\tmvi m,%d\n", ((unsigned)r->value) & 0xFF);
+			else {
+				if (load_a_with(r) == 0)
+					return 0;
+				printf("\tmov m,a\n");
+				if (!(n->flags & NORETURN))
+					printf("\tmov l,a\n");
+			}
 			return 1;
 		}
 		return 0;
@@ -809,16 +825,16 @@ unsigned gen_direct(struct node *n)
 		}
 		return gen_deop("remde", n, r, 1);
 	case T_AND:
-		if (r->op == T_CONSTANT)
-			return gen_logicc(s, "ani", r->value, 1);
+		if (gen_logicc(r, s, "ani", r->value, 1))
+			return 1;
 		return gen_deop("bandde", n, r, 0);
 	case T_OR:
-		if (r->op == T_CONSTANT)
-			return gen_logicc(s, "ori", r->value, 2);
+		if (gen_logicc(r, s, "ori", r->value, 2))
+			return 1;
 		return gen_deop("borde", n, r, 0);
 	case T_HAT:
-		if (r->op == T_CONSTANT)
-			return gen_logicc(s, "xri", r->value, 3);
+		if (gen_logicc(r, s, "xri", r->value, 3))
+			return 1;
 		return gen_deop("xorde", n, r, 0);
 	case T_EQEQ:
 		return gen_compc("cmpeq", n, r);
@@ -900,7 +916,10 @@ unsigned gen_push(struct node *n)
 		printf("\tpush h\n");
 		return 1;
 	case 4:
-		printf("\txchg\n\tlhld __hireg\n\tpush h\n\tpush d\n");
+		if (optsize)
+			printf("\tcall __pushl\n");
+		else
+			printf("\txchg\n\tlhld __hireg\n\tpush h\n\tpush d\n");
 		return 1;
 	default:
 		return 0;
@@ -965,6 +984,10 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_LREF:
+		/* We are loading something then not using it, and it's local
+		   so can go away */
+		if (n->flags & NORETURN)
+			return 1;
 		if (v + spval == 0 && size == 2) {
 			printf("\tpop h\n\tpush h\n");
 			return 1;
@@ -1059,8 +1082,8 @@ unsigned gen_node(struct node *n)
 			printf("\tmov l,m\n");
 			return 1;
 		}
-		if (size == 4 && cpu == 8085) {
-			printf("\txchg\n\tinx d\n\tinx d\n\tlhlx\nshld __hireg\t\ndcx d\n\tdcx d\n\tlhlx\n");
+		if (size == 4 && cpu == 8085 && !optsize) {
+			printf("\txchg\n\tinx d\n\tinx d\n\tlhlx\n\tshld __hireg\t\n\tdcx d\n\tdcx d\n\tlhlx\n");
 			return 1;
 		}
 		break;
