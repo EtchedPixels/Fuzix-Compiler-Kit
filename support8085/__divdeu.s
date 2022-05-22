@@ -18,7 +18,7 @@ __divu:
 	ret
 
 __divdeu:
-	call	_remdeu
+	call	__remdeu
 	xchg
 	ret
 

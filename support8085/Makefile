@@ -20,10 +20,13 @@ OBJ = workspace.o __true.o __switchc.o \
       __castc.o __castcl.o __cast_l.o __cast_ul.o \
       __postincc.o __postdecc.o \
       __bandl.o __borl.o __bxorl.o \
-      __booll.o \
+      __booll.o __notl.o \
       __assignl.o \
+      __minusl.o __plusl.o \
+      __shll.o __shrl.o __shrul.o \
       __bandde.o __borde.o __bxorde.o __mulde.o __shrdeu.o \
-      __muldec.o
+      __muldec.o \
+      _memcpy.o _memset.o _strlen.o
 
 .s.o:
 	cc85 -c $<
