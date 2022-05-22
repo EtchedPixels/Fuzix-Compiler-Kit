@@ -1,6 +1,8 @@
 
 extern unsigned cpu;
-extern char opt;
+extern unsigned opt;
+extern unsigned optsize;
+extern const char *codeseg;
 
 extern void error(const char *p);
 
