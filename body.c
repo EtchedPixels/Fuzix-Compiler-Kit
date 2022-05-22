@@ -64,7 +64,7 @@ static void do_statement(void)
 	header(H_DOWHILE, cont_tag, break_tag);
 	bracketed_expression(1);
 	require(T_SEMICOLON);
-	footer(H_DO, cont_tag, break_tag);
+	footer(H_DOWHILE, cont_tag, break_tag);
 
 	break_tag = oldbrk;
 	cont_tag = oldcont;
