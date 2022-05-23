@@ -8,6 +8,8 @@
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
 
+#define ARGBASE	2	/* Bytes between arguments and locals */
+
 /*
  *	State for the current function
  */
@@ -111,7 +113,7 @@ struct node *gen_rewrite_node(struct node *n)
 		if (op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
 				if (r->op == T_ARGUMENT)
-					r->value += 2 + frame_len;
+					r->value += ARGBASE + frame_len;
 				squash_right(n, T_LREF);
 				return n;
 			}
@@ -127,7 +129,7 @@ struct node *gen_rewrite_node(struct node *n)
 			}
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
 				if (l->op == T_ARGUMENT)
-					l->value += 2 + frame_len;
+					l->value += ARGBASE + frame_len;
 				squash_left(n, T_LSTORE);
 				return n;
 			}
@@ -326,8 +328,7 @@ void gen_helpclean(struct node *n)
 void gen_switch(unsigned n, unsigned type)
 {
 	printf("\tlxi d,Sw%d\n", n);
-	printf("\tcall __switch");
-	/* Signed doesn't matter for this */
+	printf("\tjmp __switch");
 	helper_type(type & ~UNSIGNED);
 	printf("\n");
 }
@@ -544,7 +545,7 @@ static unsigned gen_deop(const char *op, struct node *n, struct node *r, unsigne
 	return 1;
 }
 
-static unsigned gen_compc(const char *op, struct node *n, struct node *r)
+static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsigned sign)
 {
 	if (r->op == T_CONSTANT && r->value == 0) {
 		char buf[10];
@@ -554,7 +555,7 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r)
 		n->flags |= ISBOOL;
 		return 1;
 	}
-	if (gen_deop(op, n, r, 0)) {
+	if (gen_deop(op, n, r, sign)) {
 		n->flags |= ISBOOL;
 		return 1;
 	}
@@ -639,7 +640,7 @@ static unsigned gen_logicc(struct node *n, unsigned s, const char *op, unsigned 
 		return 0;
 
 	/* If we are trying to be compact only inline the short ones */
-	if (optsize && (h != 0 || h != 255 || l != 0 || l != 255))
+	if (optsize && ((h != 0 && h != 255) || (l != 0 && l != 255)))
 		return 0;
 
 	if (s == 2) {
@@ -837,17 +838,17 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		return gen_deop("xorde", n, r, 0);
 	case T_EQEQ:
-		return gen_compc("cmpeq", n, r);
+		return gen_compc("cmpeq", n, r, 0);
 	case T_GTEQ:
-		return gen_compc("cmpgteq", n, r);
+		return gen_compc("cmpgteq", n, r, 1);
 	case T_GT:
-		return gen_compc("cmpgt", n, r);
+		return gen_compc("cmpgt", n, r, 1);
 	case T_LTEQ:
-		return gen_compc("cmplteq", n, r);
+		return gen_compc("cmplteq", n, r, 1);
 	case T_LT:
-		return gen_compc("cmplt", n, r);
+		return gen_compc("cmplt", n, r, 1);
 	case T_BANGEQ:
-		return gen_compc("cmpne", n, r);
+		return gen_compc("cmpne", n, r, 0);
 	case T_LTLT:
 		if (s <= 2 && r->op == T_CONSTANT && r->value <= 8) {
 			if (r->value < 8)
@@ -1114,22 +1115,24 @@ unsigned gen_node(struct node *n)
 		printf("_%s+%d\n", namestr(n->snum), v);
 		return 1;
 	case T_LOCAL:
+		v += sp;
 /*		printf(";LO sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
-		if (cpu == 8085 && v + sp <= 255) {
-			printf("\tldsi %d\n", v + sp);
+		if (cpu == 8085 && v <= 255) {
+			printf("\tldsi %d\n", v);
 			printf("\txchg\n");
 		} else {
-			printf("\tlxi h,%d\n", v + sp);
+			printf("\tlxi h,%d\n", v);
 			printf("\tdad sp\n");
 		}
 		return 1;
 	case T_ARGUMENT:
+		v += frame_len + ARGBASE + sp;
 /*		printf(";AR sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
-		if (cpu == 8085 && v + frame_len + sp <= 255) {
-			printf("\tldsi %d\n", v + sp);
+		if (cpu == 8085 && v <= 255) {
+			printf("\tldsi %d\n", v);
 			printf("\txchg\n");
 		} else {
-			printf("\tlxi h,%d\n", v + frame_len + sp);
+			printf("\tlxi h,%d\n", v);
 			printf("\tdad sp\n");
 		}
 		return 1;
