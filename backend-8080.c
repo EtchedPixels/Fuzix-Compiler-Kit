@@ -988,11 +988,12 @@ unsigned gen_node(struct node *n)
 		   so can go away */
 		if (n->flags & NORETURN)
 			return 1;
-		if (v + spval == 0 && size == 2) {
+/*		printf(";L sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
+		if (v + sp == 0 && size == 2) {
 			printf("\tpop h\n\tpush h\n");
 			return 1;
 		}
-		v += spval;
+		v += sp;
 		if (cpu == 8085 && v <= 255) {
 			printf("\tldsi %d\n", v);
 			if (size == 2)
@@ -1023,11 +1024,12 @@ unsigned gen_node(struct node *n)
 		printf(" _%s+%d\n", namestr(n->snum), v);
 		return 1;
 	case T_LSTORE:
-		if (v + spval == 0 && size == 2 ) {
+/*		printf(";L sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
+		if (v + sp == 0 && size == 2 ) {
 			printf("\tpop psw\n\tpush h\n");
 			return 1;
 		}
-		v += spval;
+		v += sp;
 		if (cpu == 8085 && v + sp <= 255) {
 			printf("\tldsi %d\n", v);
 			if (size == 2)
@@ -1112,22 +1114,22 @@ unsigned gen_node(struct node *n)
 		printf("_%s+%d\n", namestr(n->snum), v);
 		return 1;
 	case T_LOCAL:
-		/* We already adjusted sp so allow for this */
-		if (cpu == 8085 && v + spval + size <= 255) {
-			printf("\tldsi %d\n", v + spval + size);
+/*		printf(";LO sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
+		if (cpu == 8085 && v + sp <= 255) {
+			printf("\tldsi %d\n", v + sp);
 			printf("\txchg\n");
 		} else {
-			printf("\tlxi h,%d\n", v + spval + size);
+			printf("\tlxi h,%d\n", v + sp);
 			printf("\tdad sp\n");
 		}
 		return 1;
 	case T_ARGUMENT:
-		/* We already adjusted sp so allow for this */
-		if (cpu == 8085 && v + frame_len + spval + size <= 255) {
-			printf("\tldsi %d\n", v + spval + size);
+/*		printf(";AR sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
+		if (cpu == 8085 && v + frame_len + sp <= 255) {
+			printf("\tldsi %d\n", v + sp);
 			printf("\txchg\n");
 		} else {
-			printf("\tlxi h,%d\n", v + size + frame_len + spval);
+			printf("\tlxi h,%d\n", v + frame_len + sp);
 			printf("\tdad sp\n");
 		}
 		return 1;
