@@ -11,7 +11,7 @@
 __muldec:
 	push	b
 	mov	d,l		; now D * E
-	lxi	l,0		; into HL
+	lxi	h,0		; into HL
 	mvi	b,8
 next:
 	mov	a,d

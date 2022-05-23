@@ -1024,7 +1024,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LSTORE:
 		if (v + spval == 0 && size == 2 ) {
-			printf("\tpop a\n\tpush h\n");
+			printf("\tpop psw\n\tpush h\n");
 			return 1;
 		}
 		v += spval;

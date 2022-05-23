@@ -141,7 +141,7 @@
 # we may rework this if we build args as we go, but in the mean time
 	push h
 	lxi h,%1
-	pop a
+	pop psw
 	push h
 =
 	lxi h,%1
@@ -149,7 +149,7 @@
 
 	push h
 	lhld %1
-	pop a
+	pop psw
 	push h
 =
 	lhld %1
