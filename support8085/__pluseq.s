@@ -13,7 +13,6 @@ __pluseq:
 		push	d		; save lval
 		push	h		; save value to add
 		lhlx			; load it into HL
-		xchg
 		pop	d		; get value back
 		dad	d		; add __tmp to it
 		pop	d		; get the TOS address
