@@ -192,6 +192,31 @@
 =
 	call __postdec2
 
+# Common postinc/dec via d
+	push d
+	lxi h,1
+	call __postinc
+=
+	call __postinc1d
+
+	push d
+	lxi h,2
+	call __postinc
+=
+	call __postinc2d
+
+	push d
+	lxi h,1
+	call __postdec
+=
+	call __postdec1d
+
+	push d
+	lxi h,2
+	call __postdec
+=
+	call __postdec2d
+
 # Common pre inc/dec
 	push h
 	lxi h,1
@@ -216,6 +241,31 @@
 	call __minuseq
 =
 	call __minuseq2
+
+# Common pre inc/dec via d
+	push d
+	lxi h,1
+	call __pluseq
+=
+	call __pluseq1d
+
+	push d
+	lxi h,2
+	call __pluseq
+=
+	call __pluseq2d
+
+	push d
+	lxi h,1
+	call __minuseq
+=
+	call __minuseq1d
+
+	push d
+	lxi h,2
+	call __minuseq
+=
+	call __minuseq2d
 
 # Common pattern in C	 if (x & c) 
 	call __bandde
