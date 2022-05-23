@@ -41,7 +41,7 @@ noadd2:		xchg			; 8085 can ora rdel not really
 		dad	h		; worth the hassle ?
 		xchg
 		dcr	c
-		jnz	low
+		jnz	hi
 
 		; result is in HL
 

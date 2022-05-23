@@ -6,7 +6,5 @@
 __notc:
 		mov	a,l
 		ora	a
-		lxi	h,0
-		rnz
-		inx	h
-		ret
+		jz	__true
+		jmp	__false

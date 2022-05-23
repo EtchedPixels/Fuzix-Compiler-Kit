@@ -1,5 +1,5 @@
 ;
-;		True if HL > D
+;		True if HL > DE
 ;
 		.export __cmpgt
 		.export __cmpgtb
@@ -26,6 +26,5 @@ sign_same:
 		sub	l
 		mov	a,d
 		sbb	h
-		jnc	__false
-		jz	__false
-		jmp	__true
+		jc	__true
+		jmp	__false

@@ -6,7 +6,5 @@
 __not:
 		mov	a,h
 		ora	l
-		lxi	h,0
-		rnz
-		inx	h
-		ret
+		jz	__true
+		jmp	__false

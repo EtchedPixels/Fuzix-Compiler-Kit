@@ -23,8 +23,10 @@ __cmplteq:
 sign_same:
 		mov	a,e
 		sub	l
+		mov	l,a
 		mov	a,d
 		sbb	h
+		jnc	__true
+		ora	l
 		jz	__true
-		jc	__true
 		jmp	__false
