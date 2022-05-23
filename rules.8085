@@ -14,7 +14,7 @@
 	jmp %1
 	jmp %2
 =
-
+	jmp %1
 
 # Trivial
 	xchg
