@@ -61,6 +61,9 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 	if (funcbody)
 		return 0;
 
+	if (s == S_AUTO)
+		sym->data.offset = assign_storage(type, S_AUTO);
+
 	if (s != S_EXTERN && (PTR(type) || !IS_FUNCTION(type)) && match(T_EQ)) {
 		if (sym->infonext & INITIALIZED)
 			error("duplicate initializer");
@@ -71,8 +74,6 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 		if (s >= S_LSTATIC)
 		        footer(H_DATA, sym->name, 0);
 	}
-	if (s == S_AUTO)
-		sym->data.offset = assign_storage(type, S_AUTO);
 	return 1;
 }
 
