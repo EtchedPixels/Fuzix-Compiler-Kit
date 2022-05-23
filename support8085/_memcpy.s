@@ -6,7 +6,7 @@
 		.code
 _memcpy:
 	push	b
-	ldsi	8	; High byte of count
+	ldsi	9	; High byte of count
 	xchg
 	mov	b,m
 	dcx	h

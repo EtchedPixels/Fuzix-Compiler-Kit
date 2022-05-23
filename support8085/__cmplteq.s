@@ -1,5 +1,5 @@
 ;
-;		True if TOS <= HL
+;		True if HL <= DE
 ;
 		.export __cmplteq
 		.export __cmplteqb
@@ -18,14 +18,13 @@ __cmplteq:
 		xra	d
 		jp	sign_same
 		xra	d		; A is now H
-		jm	__rfalse
-		jmp	__rtrue
+		jm	__true
+		jmp	__false
 sign_same:
 		mov	a,e
 		sub	l
 		mov	a,d
 		sbb	h
-		lxi	h,2
-		jz	__rtrue
-		jc	__rtrue
-		jmp	__rfalse
+		jz	__true
+		jc	__true
+		jmp	__false

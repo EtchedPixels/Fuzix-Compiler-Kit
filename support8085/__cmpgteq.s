@@ -19,8 +19,8 @@ __cmpgteq:
 		xra	d
 		jp	sign_same
 		xra	d		; A is now H
-		jp	__false
-		jmp	__true
+		jp	__true
+		jmp	__false
 sign_same:
 		mov	a,e
 		sub	l

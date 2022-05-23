@@ -1,5 +1,5 @@
 ;
-;		True if TOS > HL
+;		True if HL > D
 ;
 		.export __cmpgt
 		.export __cmpgtb
@@ -11,8 +11,6 @@
 ;	The 8080 doesn't have signed comparisons directly
 ;
 ;	The 8085 has K which might be worth using TODO
-;
-;		HL > DE
 ;
 __cmpgtb:
                 mvi	h,0
@@ -29,4 +27,5 @@ sign_same:
 		mov	a,d
 		sbb	h
 		jnc	__false
+		jz	__false
 		jmp	__true

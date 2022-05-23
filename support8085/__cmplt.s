@@ -1,5 +1,5 @@
 ;
-;		True if TOS < HL
+;		True if HL < DE
 ;
 		.export __cmplt
 		.export __cmpltb
@@ -19,8 +19,8 @@ __cmplt:
 		xra	d
 		jp	sign_same
 		xra	d		; A is now H
-		jm	__false
-		jmp	__true
+		jm	__true
+		jmp	__false
 sign_same:
 		mov	a,e
 		sub	l
