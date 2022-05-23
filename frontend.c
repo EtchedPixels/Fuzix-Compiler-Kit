@@ -520,7 +520,7 @@ static unsigned long hexadecimal(void)
 			break;
 		}
 		prev = val;
-		val *= 10;
+		val <<= 4;
 		val += unhex(c);
 		if (val < prev) {
 			error("overflow");
