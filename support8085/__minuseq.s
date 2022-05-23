@@ -2,14 +2,9 @@
 ;		TOS = lval of object HL = amount
 ;
 		.export __minuseq
-		.export __minuseq1
-		.export __minuseq2
 
 		.setcpu 8085
 		.code
-__minuseq1:
-		lxi	h,1
-; FIXME clean up with xthl
 __minuseq:
 		shld	__tmp		; save add value
 		pop	h
@@ -29,6 +24,3 @@ __minuseq:
 		pop	d		; get the TOS address
 		shlx			; store it back
 		jmp	__ret
-__minuseq2:
-		lxi	h,2
-		jmp	__minuseq
