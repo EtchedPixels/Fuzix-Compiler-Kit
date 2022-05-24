@@ -6,15 +6,15 @@
 		.code
 
 _strlen:
-	pop	d
 	pop	h
-	push	h
+	pop	d
 	push	d
-	lxi	d,0
+	push	h
+	lxi	h,0
 loop:
-	mov	a,m
-	inx	h
+	ldax	d
+	inx	d
 	ora	a
 	rz
-	inx	d
+	inx	h
 	jmp	loop

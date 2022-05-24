@@ -33,7 +33,7 @@ loop:
 	inx	h
 	dcx	b
 	jnk	loop
-	pop	d
+	pop	h
 
 done:
 	pop	b
