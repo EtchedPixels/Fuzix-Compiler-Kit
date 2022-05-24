@@ -35,6 +35,7 @@ extern unsigned is_constant(struct node *n);
 extern unsigned is_constname(struct node *n);
 extern unsigned is_constant_zero(struct node *n);
 
+extern struct node *bool_tree(struct node *n);
 extern struct node *arith_promotion_tree(unsigned op, struct node *l, struct node *r);
 extern struct node *arith_tree(unsigned op, struct node *l, struct node *r);
 extern struct node *intarith_tree(unsigned op, struct node *l, struct node *r);

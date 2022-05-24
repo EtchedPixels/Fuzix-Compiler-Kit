@@ -262,6 +262,15 @@ void write_null_tree(void)
  *	Trees with type rules
  */
 
+struct node *bool_tree(struct node *n)
+{
+	if (n->op == T_BOOL)
+		return n;
+	n = tree(T_BOOL, NULL, n);
+	n->type = CINT;
+	return n;
+}
+
 struct node *arith_promotion_tree(unsigned op, struct node *l,
 				  struct node *r)
 {
@@ -332,10 +341,7 @@ struct node *ordercomp_tree(unsigned op, struct node *l, struct node *r)
 		n = tree(op, l, r);
 	else
 		n = arith_tree(op, l, r);
-	/* But the final logic 0 or 1 is integer except for assign when it's
-	   right side */
-	n->type = CINT;
-	return n;
+	return bool_tree(n);
 }
 
 struct node *assign_tree(struct node *l, struct node *r)
@@ -367,7 +373,7 @@ struct node *logic_tree(unsigned op, struct node *l, struct node *r)
 		badtype();
 	if (!PTR(rt) && !IS_ARITH(rt))
 		badtype();
-	n = tree(op, tree(T_BOOL, NULL, l), tree(T_BOOL, NULL, r));
+	n = tree(op, bool_tree(l), bool_tree(r));
 	n->type = CINT;
 	return n;
 }

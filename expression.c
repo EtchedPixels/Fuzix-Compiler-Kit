@@ -568,7 +568,7 @@ static struct node *hier1a(void)
 	a2 = hier1b();
 	/* Check the two sides of colon are compatible */
 	if (a1->type == a2->type || type_pointermatch(a1, a2) || (IS_ARITH(a1->type) && IS_ARITH(a2->type))) {
-		a2 = tree(T_QUESTION, tree(T_BOOL, NULL, l), tree(T_COLON, a1, typeconv(a2, a1->type, 1)));
+		a2 = tree(T_QUESTION, bool_tree(l), tree(T_COLON, a1, typeconv(a2, a1->type, 1)));
 		/* Takes the type of the : arguments not the ? */
 		a2->type = a1->type;
 	}
@@ -662,7 +662,7 @@ unsigned expression(unsigned comma, unsigned mkbool, unsigned noret)
 	if (mkbool) {
 		if (!IS_INTARITH(n->type) && !PTR(n->type))
 			typemismatch();
-		n = tree(T_BOOL, NULL, n);
+		n = bool_tree(n);
 	}
 	if (noret)
 		n->flags |= NORETURN;
