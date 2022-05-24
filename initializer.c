@@ -35,7 +35,8 @@ static void initializer_group(struct symbol *sym, unsigned type, unsigned n, uns
     if (token == T_STRING) {
         if ((type_canonical(type) & ~UNSIGNED) != CCHAR)
             typemismatch();
-        copy_string(0, n, 1);
+        /* This one is weird because the string is not literal */
+        copy_string(0, n, 1, 0);
         return;
     }
     require(T_LCURLY);

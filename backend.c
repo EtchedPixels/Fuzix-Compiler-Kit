@@ -394,7 +394,10 @@ static void process_header(void)
 		pop_area();
 		break;
 	case H_STRING:
-		push_area(A_LITERAL);
+		if (h.h_data)
+			push_area(A_LITERAL);
+		else
+			push_area(A_DATA);
 		process_literal(h.h_name);
 		break;
 	case H_STRING| H_FOOTER:

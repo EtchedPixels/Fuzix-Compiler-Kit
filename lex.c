@@ -257,7 +257,7 @@ unsigned symname(void)
 
 static unsigned char pad_zero[2] = { 0xFF, 0xFE };
 
-unsigned copy_string(unsigned label, unsigned maxlen, unsigned pad)
+unsigned copy_string(unsigned label, unsigned maxlen, unsigned pad, unsigned lit)
 {
 	unsigned c;
 	unsigned l = 0;
@@ -299,7 +299,7 @@ unsigned quoted_string(int *len)
 	if (token != T_STRING)
 		return 0;
 
-	l = copy_string(label, ~0, 0);
+	l = copy_string(label, ~0, 0, 1);
 
 	if (len)
 		*len = l;

@@ -12,7 +12,8 @@ extern void junk(void);
 extern unsigned symname(void);
 
 extern unsigned quoted_string(int *len);
-extern unsigned copy_string(unsigned label, unsigned maxlen, unsigned pad);
+extern unsigned copy_string(unsigned label, unsigned maxlen, unsigned pad,
+                                unsigned literal);
 
 extern void out_write(void);
 extern void out_flush(void);
