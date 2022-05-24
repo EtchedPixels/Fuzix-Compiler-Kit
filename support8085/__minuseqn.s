@@ -13,7 +13,7 @@ __minuseq1:
 		xchg
 __minuseq1d:
 		lhlx
-		inx	h
+		dcx	h
 		shlx
 		ret
 
@@ -21,7 +21,7 @@ __minuseq2:
 		xchg
 __minuseq2d:
 		lhlx
-		inx	h
-		inx	h
+		dcx	h
+		dcx	h
 		shlx
 		ret
