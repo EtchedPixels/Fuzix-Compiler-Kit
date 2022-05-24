@@ -735,7 +735,8 @@ unsigned gen_direct(struct node *n)
 	case T_EQ:
 		/* The address is in HL at this point */
 		if (cpu == 8085 && s == 2 ) {
-			if (load_de_with(r) == 0)
+			printf("\txchg\n");
+			if (load_hl_with(r) == 0)
 				return 0;
 			printf("\tshlx\n");
 			return 1;
@@ -1059,15 +1060,16 @@ unsigned gen_node(struct node *n)
 	case T_EQ:
 		if (size == 2) {
 			if (cpu == 8085)
-				printf("\txchg\n\tpop h\n\tshlx\n");
-			else
+				printf("\tpop d\n\tshlx\n");
+			else {
 				printf("\txchg\n\tpop h\n\tmov m,e\n\tinx h\n\tmov m,d\n");
-			if (!(n->flags & NORETURN))
-				printf("\txchg\n");
+				if (!(n->flags & NORETURN))
+					printf("\txchg\n");
+			}
 			return 1;
 		}
 		if (size == 1) {
-			printf("\tpop d\n\tmov m,e\n");
+			printf("\tpop d\n\txchg\n\tmov m,e\n");
 			if (!(n->flags & NORETURN))
 				printf("\txchg\n");
 			return 1;
