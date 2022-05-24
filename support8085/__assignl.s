@@ -1,6 +1,5 @@
 ;
-;	Assign the value on top of stack to m. The assigned value also
-;	needs to end up in hireg/HL
+;	Assign the value in hireg:HL to lval at tos.
 ;
 		.export __assignl
 		.export	__assign0l
@@ -8,26 +7,26 @@
 		.code
 
 __assignl:
-		xchg
+		xchg			; hireg:de is our value
 		pop	h
-		shld	__retaddr
-		pop	h
-		shld	__tmp
-		shlx
+		xthl			; hl is now our pointer
+		xchg			; pointer into de, value into hl
+		shlx			; save low value
+		push	h		; for return
 		inx	d
 		inx	d
-		pop	h
+		lhld	__hireg
 		shlx
-		shld	__hireg
-		lhld	__tmp
-		jmp	__ret
+		pop	h
+		ret
+
 
 __assign0l:
-		xchg		; address into d
+		xchg			; address into d
 		lxi	h,0
-		shlx
-		shld	__hireg
+		shlx			; clear lval lower
+		shld	__hireg		; clear hireg
 		inx	d
-		inx	d
+		inx	d		; clear upper of lval
 		shlx
 		ret
