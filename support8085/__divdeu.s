@@ -6,7 +6,7 @@
 		.export __remu
 		.export __remdeu
 
-		.setcpu	8085
+		.setcpu	8080
 		.code
 
 __divu:
@@ -22,6 +22,7 @@ __divdeu:
 	xchg
 	ret
 
+
 __remu:
 	xchg
 	pop	h
@@ -29,56 +30,50 @@ __remu:
 __remdeu:
 	push	b
 
-	mov	b,h
-	mov	c,l
-
-	lxi	h,17
-	push	h
-	mov	l,h		; cheap lxi h,0
-	push	h
-
-div_loop:
-	push	h		; ugly as we can't fit it into regs
-	lxi	h,4
-	dad	sp
-	dcr	m
-	pop	h
-	jz	done
-
-	xthl
-	dad	h
-	xthl
-
-	dad	h
+	;	HL dividend, DE divisor
 	xchg
-	dad	h
-	xchg
-	jnc	set0
-	inx	h		; safe as we now bit 0 is clear right now
-set0:
-	; Now digure out if we are subtracting
 
-	mov	a,h
-	cmp	b
-	jc	div_loop
-	jnz	div_loop
+	;	DE is now the dividend
+	;	Negate HL into BC, so we can use dad to 16bit subtract
+
 	mov	a,l
-	cmp	c
-	jc	div_loop
+	cma
+	mov	c,a
+	mov	a,h
+	cma
+	mov	b,a
+	inx	b
 
-	; Ok we want to subtract
-	dsub			; for 8080 do it via A
+	;	16 iterations, clear working register
 
-	; Update quotient (on stack top)
-	xthl
-	inx	h
-	xthl
-	jmp	div_loop	
+	lxi	h,0
+	mvi	a,16
 
-done:
-	; BC holds division result, HL remainder
-	; put it into DE restore BC
-	mov	e,c
-	mov	d,b
+divloop:
+	push	psw
+
+	;	HLDE <<= 1
+	dad	h
+	xchg
+	dad	h
+	xchg
+	jnc	nocopy
+	inx	h		; safe to inr l ?
+nocopy:
+
+	push	h		; save remainder to stack
+	dad	b		; subtract
+	jnc	bigenough
+
+	xthl			; swap remainder with result
+	inx	d		; set the low bit (is it safe to inr e ?
+
+bigenough:
+	pop	h		; remove remainder/result from stack
+	pop	psw		; recover count
+	dcr	a		; iterate
+	jnz	divloop
+
+	;	DE = result, HL remainder
 	pop	b
 	ret
