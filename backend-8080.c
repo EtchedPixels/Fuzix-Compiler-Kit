@@ -932,7 +932,7 @@ static unsigned gen_cast(struct node *n)
 {
 	unsigned lt = n->type;
 	unsigned rt = n->right->type;
-	unsigned rs;
+	unsigned ls;
 
 	if (PTR(rt))
 		rt = CSHORT;
@@ -943,13 +943,13 @@ static unsigned gen_cast(struct node *n)
 	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
 		return 0;
 
-	rs = get_size(rt);
+	ls = get_size(lt);
 
 	/* Size shrink is free */
 	if ((lt & ~UNSIGNED) <= (rt & ~UNSIGNED))
 		return 1;
 	/* Don't do the harder ones */
-	if (!(rt & UNSIGNED) || rs > 2)
+	if (!(rt & UNSIGNED) || ls > 2)
 		return 0;
 	printf("\tmvi h,0\n");
 	return 1;
