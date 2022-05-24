@@ -8,6 +8,7 @@
 		.export __xchgret
 		.export	__callhl
 
+; __tmp must be the word before hireg
 __tmp:
 		.word	0
 __hireg:

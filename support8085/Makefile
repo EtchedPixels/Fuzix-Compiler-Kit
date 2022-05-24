@@ -24,6 +24,8 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __pushl.o \
       __bandl.o __borl.o __bxorl.o \
       __pluseql.o __minuseql.o \
       __booll.o __notl.o \
+      __cmpl.o \
+      __ccltul.o __ccgtequl.o __ccgtul.o __ccltequl.o __ccequl.o __ccneul.o \
       __derefl.o \
       __assignl.o \
       __minusl.o __plusl.o \
