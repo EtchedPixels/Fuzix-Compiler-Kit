@@ -628,14 +628,14 @@ static unsigned tokenize_numeric(unsigned c)
 			type = T_UINTVAL;
 #else
 		/* Will it fit in a uint ? */
-		if (!force_long && val < TARGET_MAX_UINT)
+		if (!force_long && val <= TARGET_MAX_UINT)
 			type = T_UINTVAL;
-		if (!force_unsigned) {
+		else if (!force_unsigned) {
 			/* Maybe a signed long then ? */
-			if (val < TARGET_MAX_LONG)
+			if (val <= TARGET_MAX_LONG)
 				type = T_LONGVAL;
 			/* Will it fit in a signed integer ? */
-			if (!force_long && val < TARGET_MAX_INT)
+			if (!force_long && val <= TARGET_MAX_INT)
 				type = T_INTVAL;
 		}
 #endif
