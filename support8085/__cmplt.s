@@ -22,9 +22,9 @@ __cmplt:
 		jm	__true
 		jmp	__false
 sign_same:
-		mov	a,e
-		sub	l
-		mov	a,d
-		sbb	h
-		jnc	__false
-		jmp	__true
+		mov	a,l
+		sub	e
+		mov	a,h
+		sbb	d
+		jc	__true
+		jmp	__false

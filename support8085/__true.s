@@ -24,4 +24,4 @@ __rtrue:
 __rfalse:	xra	a
 		mov	h,a
 		mov	l,a
-		ret
+		jmp	__ret
