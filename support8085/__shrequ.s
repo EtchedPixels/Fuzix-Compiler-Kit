@@ -19,7 +19,7 @@ __shrequ:
 	ani	15
 	rz
 
-	cp	8
+	cpi	8
 	jc	nobyte
 
 	mov	l,h

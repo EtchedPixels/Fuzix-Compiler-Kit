@@ -18,7 +18,7 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __pushl.o \
       __cmpgt0.o __cmplteq0.o __cmpgteq0.o __cmplt0.o \
       __andc.o __orc.o __xorc.o __andeqc.o __oreqc.o __xoreqc.o \
       __minuseqc.o __pluseqc.o \
-      __castc.o __castcl.o __cast_l.o __cast_ul.o \
+      __castc.o __castcl.o __castu_l.o __cast_l.o __cast_ul.o \
       __postincc.o __postdecc.o \
       __shrdeuc.o __shrequc.o \
       __bandl.o __borl.o __bxorl.o \

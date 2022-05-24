@@ -14,18 +14,17 @@
 __ccgt:
 		xchg
 		pop	h
-		shld	__retaddr
-		pop	h
+		xthl
 		mov	a,h
 		xra	d
 		jp	sign_same
 		xra	d		; A is now H
-		jm	__rfalse
-		jmp	__rtrue
+		jm	__false
+		jmp	__true
 sign_same:
 		mov	a,e
 		sub	l
 		mov	a,d
 		sbb	h
-		jnc	__rfalse
-		jmp	__rtrue
+		jnc	__false
+		jmp	__true

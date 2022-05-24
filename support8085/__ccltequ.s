@@ -10,16 +10,10 @@
 __ccltequ:
 		xchg
 		pop	h
-		shld	__retaddr
-		pop	h
+		xthl
 		mov	a,l
 		sub	e
 		mov	a,h
 		sbb	d
-		lxi	h,0
-		; if C or Z then false
-		jnz	rett
-		xra	a
-		ret
-rett:		inr	l
-		ret
+		jc	__true
+		jmp	__false

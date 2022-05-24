@@ -1,15 +1,15 @@
 		.export __cceq
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 
 __cceq:		xchg
 		pop	h
-		shld	__retaddr
+		xthl
 		mov	a,l
 		cmp	e
-		jnz	__rfalse
+		jnz	__false
 		mov	a,h
 		cmp	d
-		jnz	__rfalse
-		jmp	__rtrue
+		jnz	__false
+		jmp	__true

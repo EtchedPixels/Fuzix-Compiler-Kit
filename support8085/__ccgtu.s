@@ -10,16 +10,14 @@
 __ccgtu:
 		xchg
 		pop	h
-		shld	__retaddr
-		pop	h
+		xthl
 		mov	a,l
 		sub	e
+		mov	l,a
 		mov	a,h
 		sbb	d
-		lxi	h,0
-		; if C or Z then true
-		jnz	retf
-		inr	l	; return 1 set NZ
-		ret
-retf:		xra	a
-		ret
+		jc	__false
+		ora	l
+		; if C or Z then false
+		jz	__false
+		jmp	__true

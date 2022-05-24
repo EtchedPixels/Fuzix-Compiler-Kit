@@ -14,20 +14,19 @@
 __cclteq:
 		xchg
 		pop	h
-		shld	__retaddr
-		pop	h
+		xthl
 		mov	a,h
 		xra	d
 		jp	sign_same
 		xra	d		; A is now H
-		jm	__rfalse
-		jmp	__rtrue
+		jm	__false
+		jmp	__true
 sign_same:
 		mov	a,e
 		sub	l
 		mov	a,d
 		sbb	h
 		lxi	h,2
-		jz	__rtrue
-		jc	__rtrue
-		jmp	__rfalse
+		jz	__true
+		jc	__true
+		jmp	__false

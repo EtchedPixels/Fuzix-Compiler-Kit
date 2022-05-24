@@ -5,11 +5,11 @@
 
 __ccne:		xchg
 		pop	h
-		shld	__retaddr
+		xthl
 		mov	a,l
 		cmp	e
-		jnz	__rtrue
+		jnz	__true
 		mov	a,h
 		cmp	d
-		jnz	__rfalse
-		jmp	__rtrue
+		jnz	__false
+		jmp	__true

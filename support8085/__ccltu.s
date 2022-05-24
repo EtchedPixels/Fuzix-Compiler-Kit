@@ -10,8 +10,7 @@
 __ccltu:
 		xchg
 		pop	h
-		shld	__retaddr
-		pop	h
+		xthl
 		mov	a,l
 		sub	e
 		mov	a,h
