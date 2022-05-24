@@ -367,7 +367,7 @@ struct node *logic_tree(unsigned op, struct node *l, struct node *r)
 		badtype();
 	if (!PTR(rt) && !IS_ARITH(rt))
 		badtype();
-	n = arith_promotion_tree(op, l, r);
+	n = tree(op, tree(T_BOOL, NULL, l), tree(T_BOOL, NULL, r));
 	n->type = CINT;
 	return n;
 }
