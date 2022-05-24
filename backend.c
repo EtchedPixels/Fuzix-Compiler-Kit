@@ -484,11 +484,18 @@ void do_helper(struct node *n, const char *h, unsigned t)
 		n->type = PTRTO;
 	gen_helpcall(n);
 	fputs(h, stdout);
-	if (n->op == T_CAST) {
-		helper_type(n->right->type);
-		putchar('_');
+	/* Bool and cast are special as they type convert. In the case of
+	   bool we care about the type below the bool, and the result is
+	   always integer. In the case of a cast we care about everything */
+	if (n->op == T_BOOL)
+		helper_type(n->right->type & ~UNSIGNED);
+	else {
+		if (n->op == T_CAST) {
+			helper_type(n->right->type);
+			putchar('_');
+		}
+		helper_type(t);
 	}
-	helper_type(t);
 	putchar('\n');
 	gen_helpclean(n);
 }
