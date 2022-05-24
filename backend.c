@@ -567,6 +567,7 @@ void make_node(struct node *n)
 		break;
 	case T_BANGEQ:
 		helper(n, "ccne");
+		n->flags |= ISBOOL;
 		break;
 	case T_OREQ:
 		helper(n, "oreq");
@@ -670,6 +671,7 @@ void make_node(struct node *n)
 		if (n->right && (n->right->flags & ISBOOL))
 			break;
 		helper(n, "bool");
+		n->flags |= ISBOOL;
 		break;
 	case T_NAME:
 		helper(n, "loadn");
@@ -783,6 +785,7 @@ void codegen_lr(struct node *n)
 		codegen_lr(n->right);
 		gen_label("L", lab);
 		/* We don't build the node itself - it's not relevant */
+		n->flags |= ISBOOL;
 		return;
 	}
 
