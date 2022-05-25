@@ -30,7 +30,6 @@ struct node *typeconv(struct node *n, unsigned type, unsigned warn)
 		   on them or dereference them */
 		n->type++;
 	}
-
 	/* Handle the various cases where we are working with complex types
 	   and they already match */
 	if (n->type == type) {
@@ -204,7 +203,7 @@ static struct node *hier11(void)
 				/* Need a proper method for this stuff */
 				/* TODO arrays */
 				scale = type_ptrscale(lt);
-				l = tree(T_PLUS, l,
+				l = tree(T_PLUS, make_rval(l),
 					 tree(T_STAR, r,
 					      make_constant(scale, UINT)));
 				l->flags |= LVAL;
