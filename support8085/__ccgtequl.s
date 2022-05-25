@@ -2,7 +2,7 @@
 			.setcpu 8080
 			.code
 
-__ccltgtequl:
+__ccgtequl:
 	call	__cmpulws
 	pop	h		; return address
 	pop	d		; value

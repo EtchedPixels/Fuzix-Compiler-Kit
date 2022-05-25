@@ -57,6 +57,6 @@ __cmpl:
 	ret
 setnc:	xra	a
 	inr	a	; NZ
-	scf		; NZ and C
+	stc		; NZ and C
 	ret
 	
