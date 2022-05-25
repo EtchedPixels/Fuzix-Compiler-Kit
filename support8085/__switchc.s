@@ -9,7 +9,8 @@
 
 __switchcu:
 __switchc:
-		mov	a,l
+		push	b
+		mov	c,l
 		; DE points to the table in the format
 		; Length
 		; value, label
@@ -20,18 +21,21 @@ __switchc:
 		mov	d,m
 next:
 		inx	h		; Move on to value to check
+		mov	a,c
 		cmp	m
 		inx	h		; Move on to address
 		jz	match
 		inx	h		; Skip address low
-		dcr	e
+		dcx	d
+		mov	a,d
+		ora	e
 		jnz	next
-		dcr	d
-		jnz	next
+		inx 	h
 		; We are pointing at the address
 match:
 		mov	e,m
 		inx	h
 		mov	d,m
 		xchg
+		pop	b
 		pchl

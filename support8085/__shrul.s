@@ -2,10 +2,16 @@
 		.setcpu 8080
 		.code
 
+
 __shrul:
+		;	Shift top of stack by amount in HL
+
 		mov	a,l		; shift amount
-		pop	d
-		pop	h		; shifting HLDE by A
+		pop	h
+		shld	__retaddr
+
+		pop	d		; low work
+		pop	h		; high word - shifting HLDE by A
 		ani	31		; nothing to do ?
 		jz	done
 ;
@@ -40,7 +46,7 @@ not2byte:
 ;	Do any remaining work
 ;
 leftover:
-		rz
+		jz	done
 		push	b
 		mov	c,a		; count into C
 shloop:
@@ -63,5 +69,4 @@ shloop:
 done:
 		shld	__hireg
 		xchg
-		ret
-
+		jmp	__ret
