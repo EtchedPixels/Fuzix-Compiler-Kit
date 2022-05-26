@@ -235,6 +235,7 @@ static void parse_function_arguments(unsigned *tplt)
 			error("cannot pass objects");
 			t = CINT;
 		}
+		t = type_canonical(t);
 		if (an) {
 			sym = update_symbol_by_name(an, S_ARGUMENT, t);
 			sym->data.offset = assign_storage(t, S_ARGUMENT);
