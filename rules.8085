@@ -58,6 +58,19 @@
 	lxi h,%1
 	shld
 
+	lxi %1
+	ldsi %2
+	shlx
+	lxi %1
+	ldsi %3
+	shlx
+=
+	lxi %1
+	ldsi %2
+	shlx
+	ldsi %3
+	shlx
+
 # Clean up trivial multiple loads - often from assignments
 	lxi h,%1
 	shld %2
@@ -281,3 +294,16 @@
 =
 	lxi d,%1+%2
 	dad d
+
+# for loop cleanup
+L%1_l:
+;
+	jmp L%1_n
+L%1_c:
+;
+	jmp L%1_l
+L%1_n:
+=
+L%1_l:
+L%1_c:
+L%1_n:
