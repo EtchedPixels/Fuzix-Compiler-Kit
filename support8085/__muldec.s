@@ -4,12 +4,13 @@
 		.code
 
 ;
-;	L * E into HL
+;	L * A into HL
 ;
 
 
 __muldec:
 	push	b
+	mov	e,a
 	mov	d,l		; now D * E
 	lxi	h,0		; into HL
 	mvi	b,8
