@@ -564,7 +564,7 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 
 static const char dad_h[8] = "\tdad h\n";
 
-static unsigned gen_fast_mul(unsigned n, unsigned s)
+static unsigned gen_fast_mul(unsigned s, unsigned n)
 {
 	if (s != 2)
 		return 0;
@@ -595,12 +595,12 @@ static unsigned gen_fast_mul(unsigned n, unsigned s)
 		case 6:
 			printf(dad_h);
 		case 3:
-			printf("\tpush h\ndad h\npop d\ndad d\n");
+			printf("\tpush h\n\tdad h\n\tpop d\n\tdad d\n");
 			return 1;
 		case 10:
 			printf(dad_h);
 		case 5:
-			printf("\tpush h\ndad h\ndad h\npop d\ndad d\n");
+			printf("\tpush h\n\tdad h\n\tdad h\n\tpop d\n\tdad d\n");
 			return 1;
 	}
 	return 0;
