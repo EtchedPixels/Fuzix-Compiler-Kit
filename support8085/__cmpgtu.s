@@ -4,13 +4,12 @@
 		.code
 
 		; true if HL > DE
-__cmpgtub:
-		mvi	h,0
 __cmpgtu:
 		mov	a,h
 		cmp	d
 		jc	__false
 		jnz	__true
+__cmpgtub:
 		mov	a,l
 		cmp	e
 		jz	__false

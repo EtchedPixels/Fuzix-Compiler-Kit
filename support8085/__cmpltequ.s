@@ -5,13 +5,12 @@
 
 		; true if HL <= DE
 
-__cmpltequb:
-		mvi	h,0
 __cmpltequ:
 		mov	a,h
 		cmp	d
 		jc	__true
 		jnz	__false
+__cmpltequb:
 		mov	a,l
 		cmp	e
 		jz	__true
