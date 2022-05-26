@@ -697,9 +697,12 @@ unsigned bracketed_expression(unsigned mkbool)
 
 void expression_or_null(unsigned mkbool, unsigned noret)
 {
+	struct node *n;
 	if (token == T_SEMICOLON || token == T_RPAREN) {
-		write_tree(tree(T_NULL, NULL, NULL));
-		/* null */
+		/* A null tree - force the type to void so we can spot it in the backend */
+		n = tree(T_NULL, NULL, NULL);
+		n->type = VOID;
+		write_tree(n);
 	} else
 		expression(1, mkbool, noret);
 }

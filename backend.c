@@ -284,9 +284,11 @@ static void process_header(void)
 		compile_expression();
 		/* We will loop back to the conditional */
 		gen_label("_l", h.h_data);
-		compile_expression();
-		/* Exit the loop if false */
-		gen_jfalse("_b", h.h_data);
+		/* A blank conditional on the for is a C oddity and means 'always true' */
+		if (compile_expression() != VOID) {
+			/* Exit the loop if false */
+			gen_jfalse("_b", h.h_data);
+		}
 		/* Jump top the main body if not */
 		gen_jump("_n", h.h_data);
 		/* We continue with the final clause of the for */
