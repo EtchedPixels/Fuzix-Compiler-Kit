@@ -190,7 +190,7 @@ static struct node *hier11(void)
 	    || token == T_POINTSTO) {
 		for (;;) {
 			lt = l->type;;
-			ptr = PTR(lt);
+			ptr = PTR(type_canonical(lt));
 			if (match(T_LSQUARE)) {
 				if (ptr == 0) {
 					error("can't subscript");

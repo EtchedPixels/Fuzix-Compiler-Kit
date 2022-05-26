@@ -6,11 +6,17 @@ unsigned type_deref(unsigned t)
 {
 	unsigned p = PTR(t);
 	if (p == 0) {
-		error("cannot dereference");
-		return CINT;
+		/* If we have a dereference of the base of an array object it's a dereference
+		   of the type of the array - which may be a pointer type */
+		if (!IS_ARRAY(t) || !PTR(array_type(t))) {
+			error("cannot dereference");
+			return CINT;
+		}
+		return array_type(t) - 1;
 	}
+	/* Turns into the base type */
 	if (p == 1 && IS_ARRAY(t))
-		return symbol_ref(t)->type;
+		return array_type(t);
 	return --t;
 }
 
@@ -94,7 +100,7 @@ unsigned type_sizeof(unsigned t)
 }
 
 unsigned type_ptrscale(unsigned t) {
-	if (!PTR(t)) {
+	if (!PTR(t) && !PTR(type_canonical(t))) {
 		error("not a pointer");
 		return 1;
 	}
