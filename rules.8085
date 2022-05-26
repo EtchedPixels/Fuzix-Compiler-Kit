@@ -71,6 +71,20 @@
 	ldsi %3
 	shlx
 
+	lxi %1
+	ldsi %2
+	shlx
+;
+	lxi %1
+	ldsi %3
+	shlx
+=
+	lxi %1
+	ldsi %2
+	shlx
+	ldsi %3
+	shlx
+
 # Clean up trivial multiple loads - often from assignments
 	lxi h,%1
 	shld %2
@@ -231,26 +245,22 @@
 	call __postdec2d
 
 # Common pre inc/dec
-	push h
-	lxi h,1
-	call __pluseq
+	lxi d,1
+	call __pluseqde
 =
 	call __pluseq1
 
-	push h
-	lxi h,2
+	lxi d,2
 	call __pluseq
 =
 	call __pluseq2
 
-	push h
-	lxi h,1
+	lxi d,1
 	call __minuseq
 =
 	call __minuseq1
 
-	push h
-	lxi h,2
+	lxi d,2
 	call __minuseq
 =
 	call __minuseq2
@@ -277,6 +287,26 @@
 	push d
 	lxi h,2
 	call __minuseq
+=
+	call __minuseq2d
+
+	xchg
+	call __pluseq1
+=
+	call __pluseq1d
+
+	xchg
+	call __pluseq2
+=
+	call __pluseq2d
+
+	xchg
+	call __minuseq1
+=
+	call __minuseq1d
+
+	xchg
+	call __minuseq2
 =
 	call __minuseq2d
 
