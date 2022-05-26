@@ -195,13 +195,10 @@ static struct node *hier11(void)
 				if (ptr == 0) {
 					error("can't subscript");
 					junk();
-					require(T_RSQUARE);
-					return (0);
+					return l;
 				}
 				r = expression_tree(1);
 				require(T_RSQUARE);
-				/* Need a proper method for this stuff */
-				/* TODO arrays */
 				scale = type_ptrscale(lt);
 				l = tree(T_PLUS, make_rval(l),
 					 tree(T_STAR, r,
