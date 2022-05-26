@@ -13,6 +13,7 @@
 ;	The 8085 has K which might be worth using TODO
 __cmplteqb:
 		mvi	h,0
+		mov	d,h
 __cmplteq:
 		mov	a,h
 		xra	d

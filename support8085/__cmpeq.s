@@ -1,14 +1,11 @@
 		.export __cmpeq
-		.export __cmpeqb
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 
 ;
 ;	Tighter version with the other value in DE
 ;
-__cmpeqb:
-		mvi	h,0
 __cmpeq:
 		mov	a,l
 		cmp	e

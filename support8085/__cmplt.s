@@ -14,6 +14,7 @@
 ;
 __cmpltb:
 		mvi	h,0
+		mov	d,h
 __cmplt:
 		mov	a,h
 		xra	d

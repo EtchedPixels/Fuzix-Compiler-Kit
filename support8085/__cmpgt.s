@@ -14,6 +14,7 @@
 ;
 __cmpgtb:
                 mvi	h,0
+		mov	d,h
 __cmpgt:
 		mov	a,h
 		xra	d

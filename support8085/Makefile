@@ -11,7 +11,7 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __pushl.o \
       __shleq.o __shrequ.o __shreq.o \
       __divdeu.o __divde.o \
       __cclt.o __ccltu.o __ccgteq.o __ccgtequ.o \
-      __cceq.o __ccne.o __cmpeq.o __cmpne.o \
+      __cceq.o __ccne.o __cmpeq.o __cmpne.o __cmpeqb.o __cmpneb.o \
       __ccgt.o __ccgtu.o __cclteq.o __ccltequ.o __cmpeq0.o \
       __cmpgtu.o __cmpltu.o __cmpltequ.o __cmpgtequ.o \
       __cmpgt.o __cmplt.o __cmplteq.o __cmpgteq.o \

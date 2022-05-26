@@ -14,6 +14,7 @@
 ;
 __cmpgteqb:
 		mvi	h,0
+		mov	d,h
 __cmpgteq:
 		mov	a,h
 		xra	d

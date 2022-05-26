@@ -1,5 +1,5 @@
 ;
-;		True if TOS < HL
+;		True if TOS >= HL
 ;
 		.export __ccgteq
 
@@ -22,10 +22,11 @@ __ccgteq:
 		jp	__false
 		jmp	__true
 sign_same:
+		; TOS is in HL, old HL in DE. Test HL >= DE (ie DE <  HL)
 		mov	a,e
 		sub	l
 		mov	a,d
 		sbb	h
-		jc	__false
-		jmp	__true
+		jc	__true
+		jmp	__false
 

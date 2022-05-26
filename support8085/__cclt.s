@@ -22,9 +22,10 @@ __cclt:
 		jm	__false
 		jmp	__true
 sign_same:
-		mov	a,e
-		sub	l
-		mov	a,d
-		sbb	h
-		jnc	__false
-		jmp	__true
+		; TOS is now in HL, old HL in DE, test  HL < DE
+		mov	a,l
+		sub	e
+		mov	a,h
+		sbb	d
+		jc	__true
+		jmp	__false

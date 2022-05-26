@@ -3,14 +3,13 @@
 		.setcpu	8080
 		.code
 
-__cmpeq0b:
-		mvi	h,0
 __cmpeq0:
 		mov	a,h
 		ora 	l
-		lxi 	h,0
-		jnz	ret0
-		inr	l
-		ret	; nz
-ret0:		xra 	a
-		ret
+		jnz	__false
+		jmp	__true
+__cmpeq0b:
+		mov	a,l
+		ora	a
+		jnz	__false
+		jmp	__true

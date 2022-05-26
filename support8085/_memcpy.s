@@ -12,9 +12,9 @@ _memcpy:
 	dcx	h
 	mov	c,m
 	dcx	h
-	mov	e,m	; Source
+	mov	d,m	; Source
 	dcx	h
-	mov	d,m
+	mov	e,m
 	dcx	h
 	mov	a,m	; Destination
 	dcx	h

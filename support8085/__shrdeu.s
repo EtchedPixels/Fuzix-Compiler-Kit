@@ -16,7 +16,7 @@ __shrdeu:
 		jm	shrneg
 __shrde:
 		mov	a,e
-		ora	a
+		ani	15
 		rz		; no work to do
 shrpl:
 		arhl
@@ -30,10 +30,12 @@ shftr:		jnz	shrpl
 ; main loop
 shrneg:
 		mov	a,e
-		ora	a
+		ani	15
 		rz		; no work to do
 		arhl
+		mov	d,a	; save count
 		mov	a,h
 		ani	0x7F
 		mov	h,a
+		mov	a,d	; restore count
 		jmp	shnext
