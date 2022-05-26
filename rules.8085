@@ -140,7 +140,7 @@
 	lxi d,%1
 	call __cmp%2
 =
-	lxi d,%1
+	mvi e,<%1
 	call __cmp%2b
 
 # the same pattern occurs a lot for small multiplication
