@@ -525,7 +525,7 @@ static void repeated_op(const char *o, unsigned n)
 		printf("\t%s\n", o);
 }
 
-
+/* We use "DE" as a name but A as rgister for 8bit ops... probably ought to rework one day */
 static unsigned gen_deop(const char *op, struct node *n, struct node *r, unsigned sign)
 {
 	unsigned s = get_size(n->type);
@@ -873,6 +873,64 @@ unsigned gen_direct(struct node *n)
 			}
 		}
 		return gen_deop("shrde", n, r, 1);
+	/* Shorten post inc/dec if result not needed - in which case it's the same as
+	   pre inc/dec */
+	case T_PLUSPLUS:
+		if (!(n->flags & NORETURN))
+			return 0;
+	case T_PLUSEQ:
+		if (s == 1) {
+			if (load_a_with(r) == 0)
+				return 0;
+			printf("\tadd m\n\tmov m,a\n");
+			if (!(n->flags & NORETURN))
+				printf("\tmov l,a\n");
+			return 1;
+		}
+		return gen_deop("pluseqde", n, r, 0);
+	case T_MINUSMINUS:
+		if (!(n->flags & NORETURN))
+			return 0;
+	case T_MINUSEQ:
+		if (s == 1) {
+			if (load_a_with(r) == 0)
+				return 0;
+			printf("\tsub m\n\tmov m,a\n");
+			if (!(n->flags & NORETURN))
+				printf("\tmov l,a\n");
+			return 1;
+		}
+		return gen_deop("minuseqde", n, r, 0);
+	case T_ANDEQ:
+		if (s == 1) {
+			if (load_a_with(r) == 0)
+				return 0;
+			printf("\tana m\n\tmov m,a\n");
+			if (!(n->flags & NORETURN))
+				printf("\tmov l,a\n");
+			return 1;
+		}
+		return gen_deop("andeqde", n, r, 0);
+	case T_OREQ:
+		if (s == 1) {
+			if (load_a_with(r) == 0)
+				return 0;
+			printf("\tora m\n\tmov m,a\n");
+			if (!(n->flags & NORETURN))
+				printf("\tmov l,a\n");
+			return 1;
+		}
+		return gen_deop("oreqde", n, r, 0);
+	case T_HATEQ:
+		if (s == 1) {
+			if (load_a_with(r) == 0)
+				return 0;
+			printf("\tsub m\n\tmov m,a\n");
+			if (!(n->flags & NORETURN))
+				printf("\tmov l,a\n");
+			return 1;
+		}
+		return gen_deop("hateqde", n, r, 0);
 	}
 	return 0;
 }
