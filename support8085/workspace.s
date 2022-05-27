@@ -13,6 +13,12 @@ __tmp:
 		.word	0
 __hireg:
 		.word	0
+__tmp2:
+		.word	0
+		.word	0
+__tmp3:
+		.word	0
+		.word	0
 __xchgret:
 		xchg
 __ret:
