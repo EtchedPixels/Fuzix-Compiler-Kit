@@ -482,7 +482,7 @@ static struct node *hier5(void)
 	while (token == T_EQEQ || token == T_BANGEQ) {
 		op = token;
 		next_token();
-		l = ordercomp_tree(op, l, make_rval(hier6()));
+		l = ordercomp_tree(op, make_rval(l), make_rval(hier6()));
 	}
 	return l;
 }
