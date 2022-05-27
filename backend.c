@@ -383,14 +383,20 @@ static void process_header(void)
 		break;
 	case H_DATA:
 		push_area(A_DATA);
-		gen_data_label(namestr(h.h_name), h.h_data);
+		if (h.h_name >= 0x8000)
+			gen_data_label(namestr(h.h_name), h.h_data);
+		else
+			gen_literal(h.h_name);
 		break;
 	case H_DATA | H_FOOTER:
 		pop_area();
 		break;
 	case H_BSS:
 		push_area(A_BSS);
-		gen_data_label(namestr(h.h_name), h.h_data);
+		if (h.h_name >= 0x8000)
+			gen_data_label(namestr(h.h_name), h.h_data);
+		else
+			gen_literal(h.h_name);
 		break;
 	case H_BSS | H_FOOTER:
 		pop_area();
@@ -422,7 +428,7 @@ void process_data(void)
 		gen_space(n->value);
 		break;
 	case T_LABEL:
-		gen_text_data(n->value);
+		gen_text_data(n->val2);
 		break;
 	case T_NAME:
 		gen_name(n);
@@ -658,7 +664,7 @@ void make_node(struct node *n)
 	case T_LABEL:
 		helper(n, "const");
 		/* Used for const strings */
-		gen_text_data(n->value);
+		gen_text_data(n->val2);
 		break;
 	case T_CAST:
 		helper_s(n, "cast");

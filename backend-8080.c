@@ -461,7 +461,7 @@ static unsigned load_r_with(const char r, struct node *n)
 		printf("\tlxi %c,_%s+%d\n", r, namestr(n->snum), v);
 		return 1;
 	case T_LABEL:
-		printf("\tlxi %c,T%d\n", r, v);
+		printf("\tlxi %c,T%d+%d\n", r, n->val2, v);
 		return 1;
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
@@ -1154,8 +1154,8 @@ unsigned gen_node(struct node *n)
 		printf("\tcall __callhl\n");
 		return 1;
 	case T_LABEL:
-		/* Used for const strings */
-		printf("\tlxi h,T%d\n", v);
+		/* Used for const strings and local static */
+		printf("\tlxi h,T%d+%d\n", n->val2, v);
 		return 1;
 	case T_CONSTANT:
 		switch(size) {
