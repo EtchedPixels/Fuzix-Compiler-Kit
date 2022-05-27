@@ -11,7 +11,7 @@ struct node
 #define ISBOOL			8	/* Return value is boolean truth */
     unsigned long value;	/* Offset for a NAME fp offset for a LOCAL */
     unsigned snum;		/* Name of symbol (for code generator) */
-    unsigned val2;		/* For code generator */
+    unsigned val2;		/* Label for name, (also used for code gen) */
 };
 
 extern void init_nodes(void);
