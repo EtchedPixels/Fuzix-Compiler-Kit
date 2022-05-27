@@ -2,6 +2,8 @@
 		.setcpu 8085
 
 		.export __tmp
+		.export __tmp2
+		.export __tmp3
 		.export __hireg
 		.export __retaddr
 		.export __ret

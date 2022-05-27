@@ -9,7 +9,7 @@
 ;
 			.setcpu	8080
 			.export __mull
-			.export __mulleq
+			.export __muleql
 			.export __copy4
 			.code
 
@@ -84,7 +84,7 @@ shifted:
 	pop	b
 	ret
 
-__mulleq:
+__muleql:
 	shld	__tmp		; working into hireg:tmp
 	pop	h		; return address
 	xthl			; swap back in for lval pointer
@@ -93,7 +93,7 @@ __mulleq:
 	call	__copy4
 	call	__domull	; result is now in hireg;tmp
 	pop	d
-	lxi	h,___tmp
+	lxi	h,__tmp
 	call	__copy4		; stick it back in the register
 	lhld	__tmp		; set up HL correctly for return
 	ret
