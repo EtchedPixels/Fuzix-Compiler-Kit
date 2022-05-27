@@ -538,12 +538,16 @@ static struct node *hier1b(void)
  *
  *	: is very unrestricted, you can do things like
  *	(a?b:c).x  or (a?b:c)(foo);
+ *
+ *	FIXME: review types and canonicals, maybe we need to be more aggresive with canonical
+ *	handling elsewhere instead ?
  */
 static struct node *hier1a(void)
 {
 	struct node *l;
 	struct node *a1, *a2;
 	unsigned lt;
+	unsigned a1t, a2t;
 
 	l = hier1b();
 	if (!match(T_QUESTION))
@@ -561,12 +565,17 @@ static struct node *hier1a(void)
 		error("missing colon");
 		return l;
 	}
-	a2 = hier1b();
+	/* We can have a ? a ? b : c : d ? e : f .. */
+	a2 = hier1a();
+
+	a1t = type_canonical(a1->type);
+	a2t = type_canonical(a2->type);
+
 	/* Check the two sides of colon are compatible */
-	if (a1->type == a2->type || type_pointermatch(a1, a2) || (IS_ARITH(a1->type) && IS_ARITH(a2->type))) {
-		a2 = tree(T_QUESTION, bool_tree(l), tree(T_COLON, a1, typeconv(a2, a1->type, 1)));
+	if (a1t == a2t || type_pointermatch(a1, a2) || (IS_ARITH(a1t) && IS_ARITH(a2t))) {
+		a2 = tree(T_QUESTION, bool_tree(l), tree(T_COLON, a1, typeconv(a2, a1t, 1)));
 		/* Takes the type of the : arguments not the ? */
-		a2->type = a1->type;
+		a2->type = a1t;
 	}
 	else
 		badtype();
