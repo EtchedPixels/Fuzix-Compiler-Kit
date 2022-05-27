@@ -21,9 +21,10 @@ struct node *get_sizeof(void)
 	unsigned name;
 	unsigned type;
 	struct node *n, *r;
+	unsigned want_paren = 0;
 
-	/* Bracketing is required for sizeof unlike return */
-	require(T_LPAREN);
+	if (match(T_LPAREN))
+		want_paren = 1;
 
 	/* We will eventually need to count typedefs as type_word */
 	if (is_type_word() || is_typedef()) {
@@ -37,7 +38,8 @@ struct node *get_sizeof(void)
 	n = expression_tree(0);
 	r = make_constant(type_sizeof(n->type), UINT);
 	free_tree(n);
-	require(T_RPAREN);
+	if (want_paren)
+		require(T_RPAREN);
 	return r;
 }
 
