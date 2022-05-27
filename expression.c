@@ -200,7 +200,7 @@ struct node *get_sizeof(void)
 	}
 	/* Sizeof an expression. This is one case that does not degrade to a pointer
 	   if the result is an array */
-	n = hier0(1);
+	n = hier0(0);
 	r = make_constant(type_sizeof(n->type), UINT);
 	free_tree(n);
 	if (want_paren)
@@ -702,14 +702,18 @@ static struct node *hier1(void)
 	return NULL;
 }
 
-/*  Comma: left to right, review TODO */
+/*  Comma: left to right which means the final type is the right hand type of the final
+    expression */
 struct node *hier0(unsigned comma)
 {
-	struct node *n = hier1();
-	if (!comma || !match(T_COMMA))
-		return n;
-	n = tree(T_COMMA, n, hier0(comma));
-	return n;
+	struct node *l = hier1();
+	struct node *r;
+	while (comma && match(T_COMMA)) {
+		r = hier0(comma);
+		l = tree(T_COMMA, l, r);
+		l->type = r->type;
+	}
+	return l;
 }
 /*
  *	Top level of the expression tree. Make the tree an rval in case
