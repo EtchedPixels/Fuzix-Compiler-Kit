@@ -214,22 +214,6 @@ static void statement(void)
 #if 0	/* C99 for later if we want it */
 	declaration_block();
 #endif
-
-	/* We could write this not to push back a token but it's
-	   actually much cleaner to push back */
-	while (token >= T_SYMBOL) {
-		unsigned name = token;
-		next_token();
-		if (token == T_COLON) {
-			next_token();
-			/* We found a label */
-			add_label(name);
-			header(H_LABEL, func_tag, name);
-		} else {
-			push_token(name);
-			break;
-		}
-	}
 	/* Check for keywords */
 	switch (token) {
 	case T_IF:
@@ -302,6 +286,21 @@ void statement_block(unsigned need_brack)
 		fatal("unexpected EOF");
 		return;
 	}
+	/* We could write this not to push back a token but it's
+	   actually much cleaner to push back */
+	while (token >= T_SYMBOL) {
+		unsigned name = token;
+		next_token();
+		if (token == T_COLON) {
+			next_token();
+			/* We found a label */
+			add_label(name);
+			header(H_LABEL, func_tag, name);
+		} else {
+			push_token(name);
+			break;
+		}
+	}
 	if (token != T_LCURLY) {
 		if (need_brack)
 			require(T_LCURLY);
@@ -312,6 +311,7 @@ void statement_block(unsigned need_brack)
 	ltop = mark_local_symbols();
 	/* declarations */
 	declaration_block();
+
 	while (token != T_RCURLY) {
 		/* statements */
 		statement_block(0);
