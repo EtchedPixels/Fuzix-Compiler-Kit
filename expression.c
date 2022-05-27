@@ -173,6 +173,8 @@ struct node *function_call(struct node *n)
 /*
  *	Postfixed array and structure dereferences (basically the same but
  *	one is named and re-typed), and function calls.
+ *
+ *	left to right
  */
 static struct node *hier11(void)
 {
@@ -252,6 +254,10 @@ static struct node *hier11(void)
  *	Unary operators
  *
  *	type_scale() typechecks the increment/decrement operators
+ *
+ *	These all associate right to left
+ *
+ *	FIXME: sizeof() belongs here not primary
  */
 static struct node *hier10(void)
 {
@@ -333,7 +339,7 @@ static struct node *hier10(void)
 		if (!PTR(r->type))
 			badtype();
 		r->flags |= LVAL;
-		r->type--;
+		r->type = type_deref(r->type);
 		return r;
 	case T_AND:
 		r = hier10();
@@ -361,6 +367,8 @@ static struct node *hier10(void)
 /*
  *	Multiplication, division and remainder
  *	The '%' operator does not apply to floating point.
+ *
+ *	As usual left associative
  */
 static struct node *hier9(void)
 {
@@ -368,21 +376,24 @@ static struct node *hier9(void)
 	struct node *r;
 	unsigned op;
 	l = hier10();
-	if (token != T_STAR && token != T_PERCENT && token != T_SLASH)
-		return l;
-	l = make_rval(l);
-	op = token;
-	next_token();
-	r = make_rval(hier9());
-	if (op == T_PERCENT)
-		return intarith_tree(op, l, r);
-	else
-		return arith_tree(op, l, r);
+	while (token == T_STAR || token == T_PERCENT || token == T_SLASH) {
+		op = token;
+		next_token();
+		l = make_rval(l);
+		r = make_rval(hier10());
+		if (op == T_PERCENT)
+			l = intarith_tree(op, l, r);
+		else
+			l = arith_tree(op, l, r);
+	}
+	return l;
 }
 
 /*
  *	Addition and subtraction. Messy because of the pointer scaling
  *	rules and even more so because of arrays.
+ *
+ *	As usual left associative
  */
 
 static struct node *hier8(void)
@@ -393,32 +404,32 @@ static struct node *hier8(void)
 	unsigned rt;
 
 	l = hier9();
-	if (token != T_PLUS && token != T_MINUS)
-		return l;
 
-	op = token;
-	next_token();
-	l = make_rval(l);
-	r = make_rval(hier8());
+	while (token == T_PLUS || token == T_MINUS) {
+		op = token;
+		next_token();
 
-	/* Deal with the non pointer case firt */
-	if (IS_ARITH(l->type) && IS_ARITH(r->type))
-		return arith_tree(op, l, r);
+		l = make_rval(l);
+		r = make_rval(hier9());
 
-	scale = type_ptrscale_binop(op, l, r, &rt);
-
-	/* The type checking was done in type_ptrscale_binop */
-	/* TODO: sort out types ( int + ptr -> ptr   ptr + int -> ptr */
-	if (scale == 1) {
-		r = tree(op, l, r);
-	} else if (scale < 0)
-		r = tree(T_SLASH, tree(op, l, r), make_constant(-scale, UINT));
-	else if (PTR(l->type)) {
-		r = tree(op, l, tree(T_STAR, r, make_constant(scale, UINT)));
-	} else
-		r = tree(op, tree(T_STAR, l, make_constant(scale, UINT)), r);
-	r->type = rt;
-	return r;
+		/* Deal with the non pointer case firt */
+		if (IS_ARITH(l->type) && IS_ARITH(r->type))
+			l = arith_tree(op, l, r);
+		else {
+			scale = type_ptrscale_binop(op, l, r, &rt);
+			/* The type checking was done in type_ptrscale_binop */
+			if (scale == 1) {
+				l = tree(op, l, r);
+			} else if (scale < 0)
+				l = tree(T_SLASH, tree(op, l, r), make_constant(-scale, UINT));
+			else if (PTR(l->type)) {
+				l = tree(op, l, tree(T_STAR, r, make_constant(scale, UINT)));
+			} else
+				l = tree(op, tree(T_STAR, l, make_constant(scale, UINT)), r);
+			l->type = rt;
+		}
+	}
+	return l;
 }
 
 
@@ -430,43 +441,50 @@ static struct node *hier7(void)
 	struct node *l;
 	unsigned op;
 	l = hier8();
-	if (token != T_GTGT && token != T_LTLT)
-		return l;
-	op = token;
-	next_token();
-	/* The tree code knows about the shift rule being different for types */
-	return intarith_tree(op, make_rval(l), make_rval(hier7()));
+	while(token == T_GTGT || token == T_LTLT) {
+		op = token;
+		next_token();
+		/* The tree code knows about the shift rule being different for types */
+		l = intarith_tree(op, make_rval(l), make_rval(hier8()));
+	}
+	return l;
 }
 
 /*
- *	Ordered comparison operators
+ *	Relational comparison operators
+ *
+ *	Left to right
  */
 static struct node *hier6(void)
 {
 	struct node *l;
 	unsigned op;
 	l = hier7();
-	if (token != T_LT && token != T_GT
-	    && token != T_LTEQ && token != T_GTEQ)
-		return (l);
-	op = token;
-	next_token();
-	return ordercomp_tree(op, make_rval(l), make_rval(hier6()));
+	while(token == T_LT || token == T_GT
+	    || token == T_LTEQ || token == T_GTEQ) {
+		op = token;
+		next_token();
+		l = ordercomp_tree(op, make_rval(l), make_rval(hier7()));
+	}
+	return l;
 }
 
 /*
  *	Equality and not equal operators
+ *
+ *	Left to right
  */
 static struct node *hier5(void)
 {
 	struct node *l;
 	unsigned op;
 	l = hier6();
-	if (token != T_EQEQ && token != T_BANGEQ)
-		return (l);
-	op = token;
-	next_token();
-	return ordercomp_tree(op, make_rval(l), make_rval(hier5()));
+	while (token == T_EQEQ || token == T_BANGEQ) {
+		op = token;
+		next_token();
+		l = ordercomp_tree(op, l, make_rval(hier6()));
+	}
+	return l;
 }
 
 /*
@@ -476,9 +494,9 @@ static struct node *hier4(void)
 {
 	struct node *l;
 	l = hier5();
-	if (!match(T_AND))
-		return (l);
-	return intarith_tree(T_AND, make_rval(l), make_rval(hier4()));
+	while(match(T_AND))
+		l = intarith_tree(T_AND, make_rval(l), make_rval(hier5()));
+	return l;
 }
 
 /*
@@ -488,49 +506,51 @@ static struct node *hier3(void)
 {
 	struct node *l;
 	l = hier4();
-	if (!match(T_HAT))
-		return (l);
-	return intarith_tree(T_HAT, make_rval(l), make_rval(hier3()));
+	while(match(T_HAT))
+		l = intarith_tree(T_HAT, make_rval(l), make_rval(hier4()));
+	return l;
 }
 
 /*
  *	Bitwise or
+ *
+ *	Bitwise operators also associate left to right
  */
 static struct node *hier2(void)
 {
 	struct node *l;
 	l = hier3();
-	if (!match(T_OR))
-		return (l);
-	return intarith_tree(T_OR, make_rval(l), make_rval(hier2()));
+	while(match(T_OR))
+		l = intarith_tree(T_OR, make_rval(l), make_rval(hier3()));
+	return l;
 }
 
-/**
- * processes logical and &&
- * @param lval
- * @return 0 or 1, fetch or no fetch
+/*
+ *	logical and
+ *
+ *	Evaulates left to right, may shortcut evaulation
  */
 static struct node *hier1c(void)
 {
 	struct node *l;
 	l = hier2();
-	if (!match(T_ANDAND))
-		return (l);
-	return logic_tree(T_ANDAND, make_rval(l), make_rval(hier1c()));
+	while(match(T_ANDAND))
+		l = logic_tree(T_ANDAND, make_rval(l), make_rval(hier2()));
+	return l;
 }
 
-/**
- * processes logical or ||
- * @param lval
- * @return 0 or 1, fetch or no fetch
+/*
+ *	logical or
+ *
+ *	Evaulates left to right, may shortcut evaulation
  */
 static struct node *hier1b(void)
 {
 	struct node *l;
 	l = hier1c();
-	if (!match(T_OROR))
-		return (l);
-	return logic_tree(T_OROR, make_rval(l), make_rval(hier1b()));
+	while(match(T_OROR))
+		l = logic_tree(T_OROR, make_rval(l), make_rval(hier1c()));
+	return l;
 }
 
 /*
@@ -542,8 +562,7 @@ static struct node *hier1b(void)
  *	: is very unrestricted, you can do things like
  *	(a?b:c).x  or (a?b:c)(foo);
  *
- *	FIXME: review types and canonicals, maybe we need to be more aggresive with canonical
- *	handling elsewhere instead ?
+ *	?: associates right to left.
  */
 static struct node *hier1a(void)
 {
@@ -554,7 +573,8 @@ static struct node *hier1a(void)
 
 	l = hier1b();
 	if (!match(T_QUESTION))
-		return (l);
+		return l;
+
 	l = make_rval(l);
 	lt = l->type;
 
@@ -590,6 +610,8 @@ static struct node *hier1a(void)
  *
  *	Handle pointer scaling on += and -= by emitting the maths into the
  *	tree.
+ *
+ *	Assignment associates right to left
  */
 static struct node *hier1(void)
 {
@@ -638,6 +660,7 @@ static struct node *hier1(void)
 	return NULL;
 }
 
+/*  Comma: left to right, review TODO */
 struct node *hier0(unsigned comma)
 {
 	struct node *n = hier1();
