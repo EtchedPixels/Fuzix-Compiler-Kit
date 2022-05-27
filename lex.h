@@ -3,6 +3,8 @@ extern unsigned line_num;
 extern unsigned long token_value;
 extern char filename[16];
 
+extern unsigned label_tag;
+
 extern void next_token(void);
 extern void push_token(unsigned);
 extern unsigned match(unsigned);

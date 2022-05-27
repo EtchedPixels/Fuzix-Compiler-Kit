@@ -289,12 +289,12 @@ unsigned copy_string(unsigned label, unsigned maxlen, unsigned pad, unsigned lit
 }
 
 
-static unsigned string_tag;
+unsigned label_tag;
 
 unsigned quoted_string(int *len)
 {
 	unsigned l = 0;
-	unsigned label = ++string_tag;
+	unsigned label = ++label_tag;
 
 	if (token != T_STRING)
 		return 0;
