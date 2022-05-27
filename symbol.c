@@ -10,6 +10,8 @@
 #include <string.h>
 #include "compiler.h"
 
+static void symbol_bss(struct symbol *);
+
 struct symbol symtab[MAXSYM];
 struct symbol *last_sym = symtab - 1;
 struct symbol *local_top = symtab;
@@ -62,6 +64,8 @@ void pop_local_symbols(struct symbol *top)
 	struct symbol *s = top + 1;
 	while (s <= last_sym) {
 		if (S_STORAGE(s->infonext) < S_STATIC) {
+			/* Write out any storage if needed */
+			symbol_bss(s);
 			s->infonext = S_FREE;
 			s->name = 0;
 		}
@@ -157,11 +161,7 @@ struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage
 struct symbol *update_symbol_by_name(unsigned name, unsigned storage,
 			     unsigned type)
 {
-	struct symbol *sym;
-	if (storage >= S_TYPEDEF)
-		sym = find_symbol_by_class(name, storage);
-	else
-		sym = find_symbol(name);
+	struct symbol *sym = find_symbol_by_class(name, storage);
 	/* Is it local ? if the one we found is global then we don't update
 	   it - we create a local one masking it */
 	if (sym && storage < S_STATIC && sym->infonext >= S_STATIC)
@@ -361,30 +361,37 @@ unsigned type_of_struct(struct symbol *sym)
 }
 
 /*
- *	Generate the BSS at the end
+ *	Generate the BSS at the end (and at scope end for static local)
  */
+
+static void symbol_bss(struct symbol *s)
+{
+	unsigned st = S_STORAGE(s->infonext);
+	if ((PTR(s->type) || !IS_FUNCTION(s->type)) && st != S_EXTERN && st >= S_LSTATIC && st <= S_EXTDEF) {
+		if (st == S_EXTDEF)
+			header(H_EXPORT, s->name, 0);
+		if (!(s->infonext & INITIALIZED)) {
+			unsigned n = type_sizeof(s->type);
+			unsigned l = s->name;
+			if (st == S_LSTATIC)
+				l = s->data.offset;
+			header(H_BSS, l, target_alignof(s->type, st));
+			put_padding_data(n);
+			footer(H_BSS, l, 0);
+		}
+	}
+}
 
 void write_bss(void)
 {
 	struct symbol *s = symtab;
-	unsigned st;
 
 	while(s <= last_sym) {
 #ifdef DEBUG
 		if (debug)
 			fprintf(debug, "sym %x %x %x\n", s->name, s->type, s->infonext);
 #endif
-		st = S_STORAGE(s->infonext);
-		if ((PTR(s->type) || !IS_FUNCTION(s->type)) && st != S_EXTERN && st >= S_LSTATIC && st <= S_EXTDEF) {
-			if (st == S_EXTDEF)
-				header(H_EXPORT, s->name, 0);
-			if (!(s->infonext & INITIALIZED)) {
-				unsigned n = type_sizeof(s->type);
-				header(H_BSS, s->name, target_alignof(s->type, st));
-				put_padding_data(n);
-				footer(H_BSS, s->name, 0);
-			}
-		}
+		symbol_bss(s);
 		s++;
 	}
 }
