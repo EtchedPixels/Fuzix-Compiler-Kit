@@ -70,6 +70,7 @@ install: all
 	mkdir -p /opt/cc85/lib
 	mkdir -p /opt/cc85/include
 	cp cc /opt/cc85/bin/cc85
+	cp cpp /opt/cc85/lib/cpp
 	cp cc[01] /opt/cc85/lib
 	cp cc2.8080 /opt/cc85/lib
 	cp copt /opt/cc85/lib
