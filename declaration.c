@@ -41,6 +41,7 @@ void dotypedef(void)
 unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defstorage)
 {
 	struct symbol *sym;
+	static unsigned lstatic;	/* Number local statics for scope */
 
 	/* It's quite valid C to just write "int;" but usually dumb except
 	   that it's used for struct and union */
@@ -63,16 +64,21 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 
 	if (s == S_AUTO)
 		sym->data.offset = assign_storage(type, S_AUTO);
+	if (s == S_LSTATIC)
+		sym->data.offset = ++label_tag;;
 
 	if (s != S_EXTERN && (PTR(type) || !IS_FUNCTION(type)) && match(T_EQ)) {
+		unsigned label = sym->name;
+		if (s == S_LSTATIC)
+			label = sym->data.offset;
 		if (sym->infonext & INITIALIZED)
 			error("duplicate initializer");
 		sym->infonext |= INITIALIZED;
 		if (s >= S_LSTATIC)
-		        header(H_DATA, sym->name, target_alignof(type, s));
+		        header(H_DATA, label, target_alignof(type, s));
 		initializers(sym, type, s);
 		if (s >= S_LSTATIC)
-		        footer(H_DATA, sym->name, 0);
+		        footer(H_DATA, label, 0);
 	}
 	return 1;
 }
