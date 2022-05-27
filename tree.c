@@ -82,17 +82,24 @@ struct node *make_constant(unsigned long value, unsigned type)
 struct node *make_symbol(struct symbol *s)
 {
 	struct node *n = new_node();
+
+	n->value = 0;
 	switch(S_STORAGE(s->infonext)) {
+	case S_LSTATIC:
+		n->op = T_LABEL;
+		n->val2 = s->data.offset;
+		break;
 	case S_AUTO:
 		n->op = T_LOCAL;
+		n->value = s->data.offset;
 		break;
 	case S_ARGUMENT:
 		n->op = T_ARGUMENT;
+		n->value = s->data.offset;
 		break;
 	default:
 		n->op = T_NAME;
 	}
-	n->value = s->data.offset;
 	n->snum = s->name;
 	n->flags = LVAL;
 	n->type = s->type;
@@ -114,7 +121,8 @@ struct node *make_label(unsigned label)
 {
 	struct node *n = new_node();
 	n->op = T_LABEL;
-	n->value = label;
+	n->val2 = label;
+	n->value = 0;
 	n->flags = 0;
 #ifdef TARGET_CHAR_UNSIGNED
 	n->type = PTRTO|UCHAR;
