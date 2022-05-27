@@ -6,42 +6,6 @@
 #include <stdio.h>
 #include "compiler.h"
 
-static struct node *badsizeof(void)
-{
-	error("bad sizeof");
-	return make_constant(1, UINT);
-}
-
-/*
- *	sizeof() is a strange C thing that is sort of
- *	a function call but magic.
- */
-struct node *get_sizeof(void)
-{
-	unsigned name;
-	unsigned type;
-	struct node *n, *r;
-	unsigned want_paren = 0;
-
-	if (match(T_LPAREN))
-		want_paren = 1;
-
-	/* We will eventually need to count typedefs as type_word */
-	if (is_type_word() || is_typedef()) {
-		type = type_name_parse(S_NONE, get_type(), &name);
-		if (type == UNKNOWN || name)
-			return badsizeof();
-		require(T_RPAREN);
-		return make_constant(type_sizeof(type), UINT);
-	}
-	/* We can just allow sizeof on any expression */
-	n = expression_tree(0);
-	r = make_constant(type_sizeof(n->type), UINT);
-	free_tree(n);
-	if (want_paren)
-		require(T_RPAREN);
-	return r;
-}
 
 /*
  *	The tokenizer has already done the basic conversion work for us and
@@ -98,7 +62,6 @@ struct node *constant_node(void)
  *	A C language primary. This can be one of several things
  *
  *	1.	Another expression in brackets, in which case we recurse
- *	2.	sizeof() - basically a magic constant.
  *	3.	A name
  *	4.	A constant
  */
@@ -115,9 +78,6 @@ struct node *primary(void)
 		require(T_RPAREN);
 		return l;
 	}
-	/* C magic - sizeof */
-	if (match(T_SIZEOF))
-		return get_sizeof();
 	/* Names or types */
 	name = symname();
 	if (token == T_LPAREN)

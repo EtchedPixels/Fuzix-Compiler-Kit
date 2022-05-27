@@ -170,6 +170,44 @@ struct node *function_call(struct node *n)
 	return n;
 }
 
+static struct node *badsizeof(void)
+{
+	error("bad sizeof");
+	return make_constant(1, UINT);
+}
+
+/*
+ *	sizeof() is a strange C thing that is sort of
+ *	a function call but magic.
+ */
+struct node *get_sizeof(void)
+{
+	unsigned name;
+	unsigned type;
+	struct node *n, *r;
+	unsigned want_paren = 0;
+
+	if (match(T_LPAREN))
+		want_paren = 1;
+
+	/* We will eventually need to count typedefs as type_word */
+	if (is_type_word() || is_typedef()) {
+		type = type_name_parse(S_NONE, get_type(), &name);
+		if (type == UNKNOWN || name)
+			return badsizeof();
+		require(T_RPAREN);
+		return make_constant(type_sizeof(type), UINT);
+	}
+	/* Sizeof an expression. This is one case that does not degrade to a pointer
+	   if the result is an array */
+	n = hier0(1);
+	r = make_constant(type_sizeof(n->type), UINT);
+	free_tree(n);
+	if (want_paren)
+		require(T_RPAREN);
+	return r;
+}
+
 /*
  *	Postfixed array and structure dereferences (basically the same but
  *	one is named and re-typed), and function calls.
@@ -279,6 +317,7 @@ static struct node *hier10(void)
 		push_token(T_LPAREN);
 	}
 	if (token != T_PLUSPLUS
+	    && token != T_SIZEOF
 	    && token != T_MINUSMINUS
 	    && token != T_MINUS
 	    && token != T_TILDE
@@ -360,6 +399,9 @@ static struct node *hier10(void)
 		if (t == UNKNOWN || name)
 			badtype();
 		return typeconv(make_rval(hier10()), t, 0);
+	case T_SIZEOF:
+		return get_sizeof();
+
 	}
 	fatal("h10");
 }
