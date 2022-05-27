@@ -17,7 +17,7 @@ __modeq:
 	xthl	; swap address with stacked value
 	xchg	; swap them back as we modide by DE
 	; We are now doing HL / DE and the address we want is TOS
-	call __modde
+	call __remde
 	; Return is in HL
 	pop	d
 	shlx
