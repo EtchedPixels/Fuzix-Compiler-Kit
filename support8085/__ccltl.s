@@ -1,15 +1,14 @@
-			.export __ccequl
-			.export __cceql
+			.export __ccltl
 			.setcpu 8080
 			.code
 
-__cceql:
-__ccequl:
-	call	__cmpulws
+__ccltl:
+	call	__cmplws
 	pop	h		; return address
 	pop	d		; value
 	pop	d
 	push	h
-	jz	__true
+	jz	__false
+	jnc	__true
 	jmp	__false
 

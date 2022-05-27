@@ -4,6 +4,7 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __pushl.o \
       __and.o __andeq.o __or.o __oreq.o __xor.o __xoreq.o \
       __andeqde.o __oreqde.o __xoreqde.o \
       __minuseq.o __pluseq.o __pluseqn.o __minuseqn.o __pluseqde.o __minuseqde.o \
+      __diveq.o __divequ.o __modeq.o __modequ.o __muleq.o \
       __bool.o __cpl.o __not.o \
       __boolc.o __cplc.o __notc.o \
       __minus.o __plus.o \
@@ -24,8 +25,9 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __pushl.o \
       __shrdeuc.o __shrequc.o \
       __bandl.o __borl.o __bxorl.o \
       __pluseql.o __minuseql.o \
-      __booll.o __notl.o \
+      __booll.o __cpll.o __notl.o __negatel.o \
       __cmpl.o \
+      __ccltl.o __ccgteql.o __ccgtl.o __cclteql.o \
       __ccltul.o __ccgtequl.o __ccgtul.o __ccltequl.o __ccequl.o __ccneul.o \
       __derefl.o \
       __assignl.o \

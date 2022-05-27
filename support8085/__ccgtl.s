@@ -1,16 +1,12 @@
-			.export __ccneul
-			.export __ccnel
+			.export __ccgtl
 			.setcpu 8080
 			.code
 
-__ccnel:
-__ccneul:
-	call	__cmpulws
+__ccgtl:
+	call	__cmplws
 	pop	h		; return address
 	pop	d		; value
 	pop	d
 	push	h
-	jz	__false
+	jnc	__false
 	jmp	__true
-
-
