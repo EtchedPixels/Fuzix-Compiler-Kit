@@ -356,10 +356,10 @@ void write_bss(void)
 	while(s <= last_sym) {
 #ifdef DEBUG
 		if (debug)
-			fprintf(debug, "sym %x %x %x %d\n", s->name, s->type, s->flags, s->storage);
+			fprintf(debug, "sym %x %x %x\n", s->name, s->type, s->infonext);
 #endif
 		st = S_STORAGE(s->infonext);
-		if (!IS_FUNCTION(s->type) && st != S_EXTERN && st >= S_LSTATIC && st <= S_EXTDEF) {
+		if ((PTR(s->type) || !IS_FUNCTION(s->type)) && st != S_EXTERN && st >= S_LSTATIC && st <= S_EXTDEF) {
 			if (st == S_EXTDEF)
 				header(H_EXPORT, s->name, 0);
 			if (!(s->infonext & INITIALIZED)) {
