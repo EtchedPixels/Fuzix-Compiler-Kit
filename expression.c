@@ -324,7 +324,7 @@ static struct node *hier10(void)
 		r = make_rval(hier10());
 		if (!IS_ARITH(r->type) && !PTR(r->type))
 			badtype();
-		return tree(op, NULL, r);
+		return bool_tree(tree(op, NULL, r));
 	case T_STAR:
 		r = make_rval(hier10());
 		if (!PTR(r->type))
