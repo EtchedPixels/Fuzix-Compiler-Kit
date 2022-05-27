@@ -265,6 +265,22 @@ unsigned array_type(unsigned n)
 	return symtab[INFO(n)].type;	/* Type of function is its return type */
 }
 
+/* Make a sized version of the array type given */
+unsigned array_with_size(unsigned t, unsigned size)
+{
+	struct symbol *sym = symbol_ref(t);
+	unsigned x[9];	/* Max ptr depth of 8  + size */
+	unsigned *idx;
+
+	memcpy(x, sym->data.idx, 9 * sizeof(unsigned));
+	x[1] = size;
+
+	/* See if this type exists */
+	idx = sym_find_idx(S_ARRAY, x, *x + 1);
+	/* Make the new one, or find the reference */
+	return make_array(sym->type, idx);
+}
+
 /*
  *	Check if two arrays are compatible. If so return the type of the
  *	one with the actual dimensions, if not 0xFFFF

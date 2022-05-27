@@ -52,6 +52,7 @@ extern unsigned array_num_dimensions(unsigned type);
 extern unsigned array_dimension(unsigned type, unsigned depth);
 extern unsigned array_type(unsigned type);
 extern unsigned make_array(unsigned type, unsigned *id);
+extern unsigned array_with_size(unsigned type, unsigned size);
 extern unsigned array_compatible(unsigned t1, unsigned t2);
 extern struct symbol *update_struct(unsigned name, unsigned isstruct);
 extern unsigned type_of_struct(struct symbol *sym);
