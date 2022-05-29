@@ -40,6 +40,7 @@ void struct_declaration(struct symbol *sym)
     unsigned tags[3 * NUM_STRUCT_FIELD + 2];	/* max 30 fields per struct for the moment */
     unsigned nfield = 0;
     unsigned err = 0;
+    unsigned ut;
 
     if (sym->infonext & INITIALIZED)
         error("struct declared twice");
@@ -65,13 +66,13 @@ void struct_declaration(struct symbol *sym)
             continue;
         }
         do {
-            t = type_name_parse(S_NONE, t, &name);
+            ut = type_name_parse(S_NONE, t, &name);
             if (nfield == NUM_STRUCT_FIELD) {
                 if (err == 0)
                     error("too many struct/union fields");
                 err = 1;
             } else {
-                struct_add_field(sym, name, t);
+                struct_add_field(sym, name, ut);
                 nfield++;
             }
         } while (match(T_COMMA));
