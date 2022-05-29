@@ -3,12 +3,24 @@
 - rewrite x = x + .. and x = x -... etc as += -=
 - Turn the frame the other way up ?
 - Track register state on backend
+- Fix up the canonical and array decay - check decay to array type
+- setjmp/longjmp
+- Have O_ op table tight packed and rerite T_ into O_ entries, then have a property table
+  for them (memread, memwrite, modworking, sideffect, setcc, communtatitve)
+- Teach NSTORE etc to also do label forms for local statics
 
 Broken 
 -	constify needs a hard stare or two
+-	need to switch how we handle -ve numbers to fix -32768 problem but also
+	stuff like negative floats. In check for MINUS/PLUS we need to look for
+	-ve constant and if so invert it and re-insert a fake MINUS token
+-	Fix
+		{ int n; { long n; } } - need to know if we are creating new sym level
+-	Fix
+	void (*p)(void); void x(void);   if (p == x) - bad type (&x works)
+
 
 Longer term
-- variable length array syntax
 - z80 6809 style helpers for catching simpler ops and doing them via pairs
   of (ix) ops
 - backend hooks for building stack frame via initializers
@@ -44,3 +56,5 @@ Longer term
   the return path instead of caller - would need vararg help for cleanup ?
 - 8080 rewrite  SHL(constant 1, by n) into a 1 << n node so we can gen a
   fast 1 << n (lookup table ?)
+- Walk subtrees of logic ops to try and optimize bools if value not used and subnodes just
+  need cc
