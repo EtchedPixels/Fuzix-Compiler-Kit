@@ -226,7 +226,7 @@ static char *resolve_library(char *p)
 	while(o) {
 		snprintf(buf, 512, "%s/lib%s.a", o->name, p);
 		if (access(buf, 0) == 0)
-			return buf;
+			return xstrdup(buf, 0);
 		o = o->next;
 	}
 	return NULL;
