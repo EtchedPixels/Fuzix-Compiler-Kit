@@ -10,6 +10,8 @@
 
 #define ARGBASE	2	/* Bytes between arguments and locals */
 
+#define LWDIRECT 24	/* Number of __ldword1 __ldword2 etc forms for fastest access */
+
 /*
  *	State for the current function
  */
@@ -796,6 +798,7 @@ unsigned gen_direct(struct node *n)
 		}
 		/* TODO - do we care about saving BC ? */
 		if (cpu == 8085 && s <= 2) {
+			printf("\tpush b\n");
 			/* LHS is in HL at the moment, end up with the result in HL */
 			if (s == 1) {
 				if (load_a_with(r) == 0)
@@ -804,7 +807,7 @@ unsigned gen_direct(struct node *n)
 			}
 			if (s > 2 || load_bc_with(r) == 0)
 				return 0;
-			printf("\tdsub  ; b\n");
+			printf("\tdsub  ; b\n\tpop b\n");
 			return 1;
 		}
 		return 0;
@@ -837,7 +840,7 @@ unsigned gen_direct(struct node *n)
 	case T_HAT:
 		if (gen_logicc(r, s, "xri", r->value, 3))
 			return 1;
-		return gen_deop("xorde", n, r, 0);
+		return gen_deop("bxorde", n, r, 0);
 	case T_EQEQ:
 		return gen_compc("cmpeq", n, r, 0);
 	case T_GTEQ:
@@ -880,11 +883,15 @@ unsigned gen_direct(struct node *n)
 			return 0;
 	case T_PLUSEQ:
 		if (s == 1) {
-			if (load_a_with(r) == 0)
-				return 0;
-			printf("\tadd m\n\tmov m,a\n");
-			if (!(n->flags & NORETURN))
-				printf("\tmov l,a\n");
+			if (r->op == T_CONSTANT && r->value < 4 && (n->flags & NORETURN)) {
+				repeated_op("inr m", r->value);
+			} else {
+				if (load_a_with(r) == 0)
+					return 0;
+				printf("\tadd m\n\tmov m,a\n");
+				if (!(n->flags & NORETURN))
+					printf("\tmov l,a\n");
+			}
 			return 1;
 		}
 		return gen_deop("pluseqde", n, r, 0);
@@ -893,11 +900,16 @@ unsigned gen_direct(struct node *n)
 			return 0;
 	case T_MINUSEQ:
 		if (s == 1) {
-			if (load_a_with(r) == 0)
-				return 0;
-			printf("\tsub m\n\tmov m,a\n");
-			if (!(n->flags & NORETURN))
-				printf("\tmov l,a\n");
+			/* Shortcut for small 8bit values */
+			if (r->op == T_CONSTANT && r->value < 4 && (n->flags & NORETURN)) {
+				repeated_op("dcr m", r->value);
+			} else {
+				if (load_a_with(r) == 0)
+					return 0;
+				printf("\tsub m\n\tmov m,a\n");
+				if (!(n->flags & NORETURN))
+					printf("\tmov l,a\n");
+			}
 			return 1;
 		}
 		return gen_deop("minuseqde", n, r, 0);
@@ -930,7 +942,7 @@ unsigned gen_direct(struct node *n)
 				printf("\tmov l,a\n");
 			return 1;
 		}
-		return gen_deop("hateqde", n, r, 0);
+		return gen_deop("xoreqde", n, r, 0);
 	}
 	return 0;
 }
@@ -951,6 +963,8 @@ unsigned gen_uni_direct(struct node *n)
  */
 unsigned gen_shortcut(struct node *n)
 {
+	unsigned s = get_size(n->type);
+
 	/* The comma operator discards the result of the left side, then
 	   evaluates the right. Avoid pushing/popping and generating stuff
 	   that is surplus */
@@ -958,6 +972,28 @@ unsigned gen_shortcut(struct node *n)
 		n->left->flags |= NORETURN;
 		codegen_lr(n->left);
 		codegen_lr(n->right);
+		return 1;
+	}
+	/* Re-order assignments we can do the simple way */
+	if (n->op == T_NSTORE && s <= 2) {
+		codegen_lr(n->right);
+		/* Expression result is now in HL */
+		if (s == 2)
+			printf("\tshld");
+		else
+			printf("\tmov a,l\n\tsta");
+		printf(" _%s+%d\n", namestr(n->snum), WORD(n->value));
+		return 1;
+	}
+	/* Locals we can do on 8085, 8080 is doable but messy - so not worth it */
+	if (n->op == T_LSTORE && s <= 2 && cpu == 8085 && n->value + sp < 255) {
+		codegen_lr(n->right);
+		/* Expression result is now in HL */
+		printf("\tldsi %d\n", WORD(n->value + sp));
+		if (s == 2)
+			printf("\tshlx\n");
+		else
+			printf("\tmov a,l\n\tstax d\n");
 		return 1;
 	}
 	return 0;
@@ -1062,17 +1098,31 @@ unsigned gen_node(struct node *n)
 				printf("\tldax d\n\tmov d,a\n");
 			return 1;
 		}
+		/* Byte load is shorter inline for most cases */
+		if (size == 1 && (!optsize || v >= LWDIRECT)) {
+			printf("lxi h,%d\n\tdad sp\n\tmov l,m\n", v);
+			return 1;
+		}
+		/* Word load is long winded on 8080 */
+		if (size == 2 && (cpu == 8085 || opt > 2)) {
+			printf("\tlxi h,%d\n\tdad sp\n", WORD(v));
+			if (cpu == 8085)
+				printf("\txchg\nlhlx\n");
+			else
+				printf("\tmov a,m\n\tinx h\n\tmov d,m\n\tmov e,a\n");
+			return 1;
+		}
 		/* Via helper magic for compactness on 8080 */
 		if (size == 1)
 			name = "ldbyte";
 		else
 			name = "ldword";
-		if (v < 24)
-			printf("\tcall %s%d\n", name, v);
+		if (v < LWDIRECT)
+			printf("\tcall __%s%d\n", name, v);
 		else if (v < 255)
-			printf("\tcall %s\n\t.byte %d\n", name, v);
+			printf("\tcall __%s\n\t.byte %d\n", name, v);
 		else
-			printf("\tcall %sw\n\t.word %d\n", name, v);
+			printf("\tcall __%sw\n\t.word %d\n", name, v);
 		return 1;
 	case T_NSTORE:
 		if (size > 2)
@@ -1090,12 +1140,33 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		v += sp;
-		if (cpu == 8085 && v + sp <= 255) {
+		if (cpu == 8085 && v <= 255) {
 			printf("\tldsi %d\n", v);
 			if (size == 2)
 				printf("\tshlx\n");
 			else
 				printf("\tmov a,l\n\tstax d\n");
+			return 1;
+		}
+		/* Large offsets for word on 8085 are 7 bytes, a helper call is 5 (3 with rst hacks)
+		   and much slower. As these are fairly rare just inline it */
+		if (cpu == 8085 && size == 2) {
+			printf("\txchg\n\tlxi h,%d\n\tdad sp\n\txchg\n\tshlx\n", WORD(v));
+			return 1;
+		}
+		if (size == 1 && (!optsize || v >= LWDIRECT)) {
+			printf("\tmov a,l\n\tlxi h,%d\n\tdad sp\n\tmov m,a\n", WORD(v));
+			if (!(n->flags & NORETURN))
+				printf("\tmov l,a\n");
+			return 1;
+		}
+		/* For -O3 they asked for it so inline the lot */
+		/* We dealt with size one above */
+		if (opt > 2 && size == 2) {
+			printf("\txchg\n\tlxi h,%d\n\tdad sp\n\tmov m,e\n\tinx h\n", WORD(v));
+			printf("\tmov m,d\n");
+			if (!(n->flags & NORETURN))
+				printf("\txchg\n");
 			return 1;
 		}
 		/* Via helper magic for compactness on 8080 */
@@ -1105,11 +1176,11 @@ unsigned gen_node(struct node *n)
 		else
 			name = "stword";
 		if (v < 24)
-			printf("\tcall %s%d\n", name, v);
+			printf("\tcall __%s%d\n", name, v);
 		else if (v < 255)
-			printf("\tcall %s\n\t.byte %d\n", name, v);
+			printf("\tcall __%s\n\t.byte %d\n", name, v);
 		else
-			printf("\tcall %sw\n\t.word %d\n", name, v);
+			printf("\tcall __%sw\n\t.word %d\n", name, v);
 		return 1;
 		/* Call a function by name */
 	case T_CALLNAME:
