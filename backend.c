@@ -591,7 +591,7 @@ void make_node(struct node *n)
 		helper(n, "andeq");
 		break;
 	case T_PERCENTEQ:
-		helper_s(n, "modeq");
+		helper_s(n, "remeq");
 		break;
 	case T_AND:
 		helper(n, "band");
@@ -603,7 +603,7 @@ void make_node(struct node *n)
 		helper_s(n, "div");
 		break;
 	case T_PERCENT:
-		helper_s(n, "mod");
+		helper_s(n, "rem");
 		break;
 	case T_PLUS:
 		helper(n, "plus");
