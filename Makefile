@@ -20,10 +20,10 @@ INC0 = token.h
 INC1 = body.h compiler.h declaration.h enum.h error.h expression.h header.h \
        idxdata.h initializer.h label.h lex.h primary.h stackframe.h storage.h \
        struct.h symbol.h target.h token.h tree.h type.h type_iterator.h
-INC2 = backend.h
+INC2 = backend.h symtab.h
 
 
-$(OBJS0): $(INC0)
+$(OBJS0): $(INC0) symtab.h
 
 $(OBJS1): $(INC1)
 
