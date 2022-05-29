@@ -35,7 +35,6 @@
 	pop h
 =
 
-
 	shld _%1
 ;
 	lhld _%1
@@ -84,6 +83,14 @@
 	shlx
 	ldsi %3
 	shlx
+
+        lxi h,%1
+        shld %2
+;
+        lxi h,%1
+=
+	lxi h,%1
+	shld %2
 
 # Clean up trivial multiple loads - often from assignments
 	lxi h,%1
@@ -93,14 +100,44 @@
 	lxi h,%1
 	shld %2
 
+	lxi h,%1
+	shld %2
+;
+	lxi h,%1
+=
+	lxi h,%1
+	shld %2
+
+	lxi h,%1
+	shld %2
+	shld %3
+;
+	lxi h,%1
+=
+	lxi h,%1
+	shld %2
+	shld %3
+
+# Trivial byte cleanup
+	mvi a,%1
+	mov m,a
+	mov l,a
+=
+	mvi l,%1
+	mov m,l
+
+	mvi l,%1
+	mov m,l
+;
+=
+	mvi m,%1
+
 # Simple stack optimize for pushes of same
 	lxi h,%1
 	push h
 	lxi h,%1
-	push h
 =
 	lxi h,%1
-	push h
 	push h
 
 # Compare 0 cast from char
@@ -194,6 +231,15 @@
 	push d
 	lxi h,%2
 
+	ldsi %1
+	xchg
+	push h
+	call %2
+=
+	ldsi %1
+	push d
+	call %2
+
 # Common postinc/dec
 	push h
 	lxi h,1
@@ -251,17 +297,17 @@
 	call __pluseq1
 
 	lxi d,2
-	call __pluseq
+	call __pluseqde
 =
 	call __pluseq2
 
 	lxi d,1
-	call __minuseq
+	call __minuseqde
 =
 	call __minuseq1
 
 	lxi d,2
-	call __minuseq
+	call __minuseqde
 =
 	call __minuseq2
 
@@ -337,3 +383,31 @@ L%1_n:
 L%1_l:
 L%1_c:
 L%1_n:
+
+# Remove always false/true paths
+	lxi h,1
+	call __bool
+;
+	jz %1
+=
+;
+
+	lxi h,0
+	call __bool
+	jz %1
+=
+	jmp %1
+
+	lxi h,1
+	call __bool
+;
+	jnz %1
+=
+	jmp %1
+
+	lxi h,0
+	call __bool
+;
+	jnz %1
+=
+;
