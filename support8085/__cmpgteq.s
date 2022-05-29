@@ -23,9 +23,9 @@ __cmpgteq:
 		jp	__true
 		jmp	__false
 sign_same:
-		mov	a,e
-		sub	l
+		mov	a,l
+		sub	e
 		mov	a,d
-		sbb	h
+		sbb	d
 		jc	__false
 		jmp	__true

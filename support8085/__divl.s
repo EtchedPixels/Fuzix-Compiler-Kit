@@ -11,12 +11,12 @@
 
 			.export	__divl
 			.export	__divul
-			.export __modl
-			.export __modul
+			.export __reml
+			.export __remul
 			.export	__diveql
 			.export	__divequl
-			.export __modeql
-			.export __modequl
+			.export __remeql
+			.export __remequl
 
 			.setcpu 8080
 			.code
@@ -26,13 +26,13 @@
 __divl:
 	mvi	a,129
 	jmp	__divlop
-__modl:
+__reml:
 	mvi	a,128
 	jmp	__divlop
 __divul:
 	mvi	a,1
 	jmp	__divlop
-__modul:
+__remul:
 	xra	a		; remainder 32bit
 __divlop:
 	shld	__tmp		; 32bit divisor into hireg:tmp
@@ -221,9 +221,9 @@ dodiveq:
 __divequl:
 	mvi	a,1
 	jmp	dodiveq
-__modeql:
+__remeql:
 	mvi	a,128
 	jmp	dodiveq
-__modequl:
+__remequl:
 	xra	a
 	jmp	dodiveq

@@ -4,7 +4,7 @@
 		.setcpu 8080
 		.export __div
 		.export __divde
-		.export __mod
+		.export __rem
 		.export __remde
 
 __div:
@@ -35,7 +35,7 @@ noinvert:
 	pop	b
 	ret
 
-__mod:
+__rem:
 	xchg
 	pop	h
 	xthl

@@ -2,10 +2,10 @@
 ;		(TOS) /= HL
 ;
 
-			.export __modequ
+			.export __remequ
 			.setcpu 8085
 			.code
-__modequ:
+__remequ:
 	xchg
 	pop	h
 	xthl
@@ -15,9 +15,9 @@ __modequ:
 	lhlx	; get TOS into HL
 	xchg
 	xthl	; swap address with stacked value
-	xchg	; swap them back as we modide by DE
+	xchg	; swap them back as we divide by DE
 	; We are now doing HL / DE and the address we want is TOS
-	call __moddeu
+	call __remdeu
 	; Return is in HL
 	pop	d
 	shlx
