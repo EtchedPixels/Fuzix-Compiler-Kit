@@ -709,9 +709,13 @@ struct node *hier0(unsigned comma)
 	struct node *l = hier1();
 	struct node *r;
 	while (comma && match(T_COMMA)) {
+		l->flags |= NORETURN;
 		r = hier0(comma);
 		l = tree(T_COMMA, l, r);
+		/* If the comman operator final evaulation was an lval then pass the lval
+		   flag along */
 		l->type = r->type;
+		l->flags |= r->flags & LVAL;
 	}
 	return l;
 }
