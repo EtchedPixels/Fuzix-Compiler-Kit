@@ -45,15 +45,18 @@ static unsigned get_stack_size(unsigned t)
 	return n;
 }
 
-#define T_NREF		(T_USER)
-#define T_CALLNAME	(T_USER+1)
-#define T_NSTORE	(T_USER+2)
-#define T_LREF		(T_USER+3)
+#define T_NREF		(T_USER)		/* Load of C global/static */
+#define T_CALLNAME	(T_USER+1)		/* Function call by name */
+#define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
+#define T_LREF		(T_USER+3)		/* Ditto for local */
 #define T_LSTORE	(T_USER+4)
+#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
+#define T_LBSTORE	(T_USER+6)
 
 static void squash_node(struct node *n, struct node *o)
 {
 	n->value = o->value;
+	n->val2 = o->val2;
 	n->snum = o->snum;
 	free_node(o);
 }
@@ -93,7 +96,7 @@ static unsigned is_simple(struct node *n)
 	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME)
 		return 10;
 	/* We can load this directly into a register but may need xchg pairs */
-	if (op == T_NREF)
+	if (op == T_NREF || op == T_LBREF)
 		return 1;
 	return 0;
 }
@@ -123,10 +126,18 @@ struct node *gen_rewrite_node(struct node *n)
 				squash_right(n, T_NREF);
 				return n;
 			}
+			if (r->op == T_LABEL) {
+				squash_right(n, T_LBREF);
+				return n;
+			}
 		}
 		if (op == T_EQ) {
 			if (l->op == T_NAME) {
 				squash_left(n, T_NSTORE);
+				return n;
+			}
+			if (l->op == T_LABEL) {
+				squash_left(n, T_LBSTORE);
 				return n;
 			}
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
@@ -441,7 +452,7 @@ static unsigned access_direct(struct node *n)
 {
 	/* We can direct access integer or smaller types that are constants
 	   global/static or string labels */
-	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_LABEL && n->op != T_NREF)
+	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_LABEL && n->op != T_NREF && n->op != T_LBREF)
 		return 0;
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
@@ -484,6 +495,21 @@ static unsigned load_r_with(const char r, struct node *n)
 			return 1;
 		}
 		break;
+	/* TODO: fold together cleanly with NREF */
+	case T_LBREF:
+		if (r == 'b')
+			return 0;
+		else if (r == 'h') {
+			printf("\tlhld T%d+%d\n", n->val2, v);
+			return 1;
+		} else if (r == 'd') {
+			/* We know it is int or pointer */
+			printf("\txchg\n");
+			printf("\tlhld T%d+%d\n", n->val2, v);
+			printf("\txchg\n");
+			return 1;
+		}
+		break;
 	default:
 		return 0;
 	}
@@ -514,6 +540,9 @@ static unsigned load_a_with(struct node *n)
 		break;
 	case T_NREF:
 		printf("\tlda _%s+%d\n", namestr(n->snum), WORD(n->value));
+		break;
+	case T_LBREF:
+		printf("\tlda T%d+%d\n", n->val2, WORD(n->value));
 		break;
 	default:
 		return 0;
@@ -739,7 +768,7 @@ unsigned gen_direct(struct node *n)
 		if (cpu == 8085 && s == 2 ) {
 			printf("\txchg\n");
 			if (load_hl_with(r) == 0)
-				return 0;
+				error("teq");
 			printf("\tshlx\n");
 			return 1;
 		}
@@ -1086,6 +1115,15 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		break;
+	case T_LBREF:
+		if (size == 1) {
+			printf("\tlda T%d+%d\n", n->val2, v);
+			printf("\tmov l,a\n");
+		} else if (size == 2) {
+			printf("\tlhld T%d+%d\n", n->val2, v);
+			return 1;
+		}
+		break;
 	case T_LREF:
 		/* We are loading something then not using it, and it's local
 		   so can go away */
@@ -1139,6 +1177,15 @@ unsigned gen_node(struct node *n)
 		else
 			printf("\tshld");
 		printf(" _%s+%d\n", namestr(n->snum), v);
+		return 1;
+	case T_LBSTORE:
+		if (size > 2)
+			return 0;
+		if (size == 1)
+			printf("\tmov a,l\n\tsta");
+		else
+			printf("\tshld");
+		printf(" T%d+%d\n", n->val2, v);
 		return 1;
 	case T_LSTORE:
 /*		printf(";L sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
