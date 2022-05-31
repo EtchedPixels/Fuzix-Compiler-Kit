@@ -986,15 +986,22 @@ unsigned gen_shortcut(struct node *n)
 		return 1;
 	}
 	/* Locals we can do on 8085, 8080 is doable but messy - so not worth it */
-	if (n->op == T_LSTORE && s <= 2 && cpu == 8085 && n->value + sp < 255) {
-		codegen_lr(n->right);
-		/* Expression result is now in HL */
-		printf("\tldsi %d\n", WORD(n->value + sp));
-		if (s == 2)
-			printf("\tshlx\n");
-		else
-			printf("\tmov a,l\n\tstax d\n");
-		return 1;
+	if (n->op == T_LSTORE && s <= 2) {
+		if (n->value + sp == 0 && s == 2) {
+			/* The one case 8080 is worth doing */
+			codegen_lr(n->right);
+			printf("\tpop psw\n\tpush h\n");
+			return 1;
+		}
+		if (cpu == 8085 && n->value + sp < 255) {
+			codegen_lr(n->right);
+			printf("\tldsi %d\n", WORD(n->value + sp));
+			if (s == 2)
+				printf("\tshlx\n");
+			else
+				printf("\tmov a,l\n\tstax d\n");
+			return 1;
+		}
 	}
 	return 0;
 }
