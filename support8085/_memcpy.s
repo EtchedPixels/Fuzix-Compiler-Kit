@@ -25,6 +25,7 @@ _memcpy:
 	ora	b
 	jz	done
 
+	dcx	b
 	push	h
 loop:
 	ldax	d

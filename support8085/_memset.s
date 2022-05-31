@@ -20,6 +20,7 @@ _memset:
 	ora	b
 	jz	done
 
+	dcx	b
 	push	h
 loop:
 	mov	m,a
