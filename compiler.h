@@ -16,7 +16,7 @@
    recursive struct definition */
 #define NUM_STRUCT_FIELD	50
 /* Number of switch entries within the current scope. 4 bytes per entry */
-#define NUM_SWITCH		100
+#define NUM_SWITCH		128
 /* Number of constants from enum. 4 bytes per entry */
 #define NUM_CONSTANT		50
 

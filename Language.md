@@ -27,7 +27,7 @@ restriction this is sufficient.
 Functions may have up to 32 parameters although if these are not simple you
 will hit other expression limits first.
 
-Switches may have a maximum of 100 case labels including nested switches.
+Switches may have a maximum of 128 case labels including nested switches.
 
 A struct may have up to 30 members
 
@@ -81,7 +81,7 @@ All the standard C operators are supported. Note that # and ## are managed
 by the pre-processor not this compiler.
 
 All the standard C punctuators are supported. The use of '#' is only
-performed by thge C pre-processor not this compiler.
+performed by the C pre-processor not this compiler.
 
 The standard arithmetic conversion should be applying. This may need some
 further debug.
