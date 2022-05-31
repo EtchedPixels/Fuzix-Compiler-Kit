@@ -118,6 +118,28 @@
 	shld %2
 	shld %3
 
+# This can occur across complex expressions where the backend doesn't see
+# the optimization in the tree eg a = (b,c).
+	lxi h,%1
+	xchg
+	lhlx
+	shld %2
+=
+	lhld %1
+	shld %2
+
+# Copy to static
+	lxi h,%1
+	xchg
+	lhld %2
+	shlx
+;
+=
+	lxi d,%1
+	lhld %2
+	shlx
+;
+
 # Trivial byte cleanup
 	mvi a,%1
 	mov m,a
@@ -362,7 +384,7 @@
 =
 	call __bbandde
 
-# Merge array/struct offdsetting (fixme - should be constify cleaned)
+# Merge array/struct offsetting (fixme - should be constify cleaned)
 	lxi d,%1
 	dad d
 	lxi d,%2
