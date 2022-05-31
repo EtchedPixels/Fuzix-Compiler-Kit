@@ -1,8 +1,6 @@
 /*
  *	Declaration handling. All cases are actually the same, including
  *	typedef (hence the weird typedef syntax)
- *
- *	We don't deal with the comma cases yet (ie int a, *b)
  */
 
 #include "compiler.h"
