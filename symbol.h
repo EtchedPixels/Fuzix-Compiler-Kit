@@ -37,7 +37,7 @@ struct symbol
 
 extern struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage, unsigned type);
 extern struct symbol *update_symbol_by_name(unsigned name, unsigned storage, unsigned type);
-extern struct symbol *find_symbol(unsigned name);
+extern struct symbol *find_symbol(unsigned name, unsigned global);
 extern struct symbol *find_symbol_by_class(unsigned name, unsigned class);
 extern struct symbol *alloc_symbol(unsigned name, unsigned local);
 extern void pop_local_symbols(struct symbol *top);

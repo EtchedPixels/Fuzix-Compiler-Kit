@@ -83,7 +83,7 @@ struct node *primary(void)
 	if (token == T_LPAREN)
 		func = 1;
 	if (name) {
-		struct symbol *sym = find_symbol(name);
+		struct symbol *sym = find_symbol(name, 0);
 		/* Weird case you can call a function you've not declared. This
 		   makes it int f() */
 		if (func && sym == NULL)

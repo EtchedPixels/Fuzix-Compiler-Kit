@@ -23,7 +23,7 @@ struct symbol *symbol_ref(unsigned type)
 
 /* Local symbols have priority in all cases */
 /* Find a symbol in the normal name space */
-struct symbol *find_symbol(unsigned name)
+struct symbol *find_symbol(unsigned name, unsigned global)
 {
 	struct symbol *s = last_sym;
 	struct symbol *gmatch = NULL;
@@ -31,9 +31,10 @@ struct symbol *find_symbol(unsigned name)
 	   by scope */
 	while (s >= symtab) {
 		if (s->name == name && s->infonext < S_TYPEDEF) {
-			if (s->infonext < S_STATIC)
-				return s;
-			else	/* Still need to look for a local */
+			if (s->infonext < S_STATIC) {
+				if (!global)
+					return s;
+			} else	/* Still need to look for a local */
 				gmatch = s;
 		}
 		s--;
@@ -161,10 +162,20 @@ struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage
 struct symbol *update_symbol_by_name(unsigned name, unsigned storage,
 			     unsigned type)
 {
-	struct symbol *sym = find_symbol_by_class(name, storage);
+	struct symbol *sym;
+	unsigned global = 0;
+	/* If we are updating a static/global symbol then ignore any local names
+	   obscuring it. In the reverse case the priority rule will fix it for now
+	   FIXME: when we fix the block contexts we have to fix this hack too */
+	if (storage >= S_STATIC)
+		global = 1;
+	if (storage >= S_TYPEDEF)
+		sym = find_symbol_by_class(name, storage);
+	else
+		sym = find_symbol(name, global);
 	/* Is it local ? if the one we found is global then we don't update
 	   it - we create a local one masking it */
-	if (sym && storage < S_STATIC && sym->infonext >= S_STATIC)
+	if (sym && global == 0 && sym->infonext >= S_STATIC)
 		sym = NULL;
 	return update_symbol(sym, name, storage, type);
 }
@@ -262,7 +273,7 @@ unsigned array_type(unsigned n)
 {
 	if (!IS_ARRAY(n))
 		return CINT;
-	return symtab[INFO(n)].type;	/* Type of function is its return type */
+	return symtab[INFO(n)].type;	/* Type of array is its element type */
 }
 
 /* Make a sized version of the array type given */
