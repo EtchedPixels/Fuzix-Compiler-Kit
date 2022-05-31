@@ -51,6 +51,9 @@ unsigned type_canonical(unsigned t)
 			indirections();
 		t = s->type + PTR(t);
 	}
+	/* Functions automagically turn into pointers to themselves */
+	if (IS_FUNCTION(t) && !PTR(t))
+		return PTRTO | t;
 	return t;
 }
 
