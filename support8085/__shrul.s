@@ -64,7 +64,7 @@ shloop:
 		rar
 		mov	e,a
 		dcr	c
-		jmp	shloop
+		jnz	shloop
 		pop	b
 done:
 		shld	__hireg
