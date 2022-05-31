@@ -11,39 +11,39 @@
 
 __cmpulws:		; workspace and stack
 	shld	__tmp	; word before __hireg
-	lxi	h,4	; stacked value
+	lxi	h,7	; stacked value, high byte
 	dad	sp
-	lxi	d,__tmp
+	lxi	d,__hireg+1	; high byte first
 __cmpul:
 	ldax	d
 	cmp	m
 	rnz
-	inx	d
-	inx	h
+	dcx	d
+	dcx	h
 	ldax	d
 	cmp	m
 	rnz
-	inx	d
-	inx	h
+	dcx	d
+	dcx	h
 	ldax	d
 	cmp	m
 	rnz
-	inx	d
-	inx	h
+	dcx	d
+	dcx	h
 	ldax	d
 	cmp	m
 	rnz
-	inx	d
-	inx	h
+	dcx	d
+	dcx	h
 	ldax	d
 	cmp	m
 	ret
 
 __cmplws:
 	shld	__tmp
-	lxi	h,4
+	lxi	h,7
 	dad	sp
-	lxi	d,__tmp
+	lxi	d,__hireg+1
 __cmpl:
 	; Same idea but we need to deal with signs first
 	ldax	d

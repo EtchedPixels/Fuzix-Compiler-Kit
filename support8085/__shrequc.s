@@ -1,34 +1,26 @@
-		.export __shrequc
-		.export __shreqc
-		.setcpu 8080
-		.code
-
-__shreqc:
-	xchg
-	pop	h
-	xthl
-
-	mov	a,m
-	ora	a
-	jz	done
-	jp	plus
-nextm:
-	stc
-	rar
-	dcr	e
-	jnz	nextm
-done:
-	mov	l,a
-	ret
-
+;
+;	Right shift TOS left by HL
+;
+			.export __shrequc
+			.setcpu 8080
+			.code
 __shrequc:
 	xchg
 	pop	h
 	xthl
-plus:
+	mov	a,e
+	ani	7
+	mov	e,a
+	mov	a,m
+	jz	noop
+loop:
 	ora	a
 	rar
 	dcr	e
-	jnz	plus
+	jnz	loop
+	mov	m,a
+noop:
 	mov	l,a
 	ret
+
+

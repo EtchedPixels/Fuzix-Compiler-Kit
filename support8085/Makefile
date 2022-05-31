@@ -24,7 +24,7 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __pushl.o __sex.o \
       __minuseqc.o __pluseqc.o __modeqc.o __modequc.o __diveqc.o __divequc.o \
       __castc.o __castcl.o __castu_l.o __cast_l.o __cast_ul.o \
       __postincc.o __postdecc.o \
-      __shrdeuc.o __shrequc.o \
+      __shrdeuc.o __shrequc.o __shleqc.o __shreqc.o __shrequc.o \
       __bandl.o __borl.o __bxorl.o \
       __oreql.o __andeql.o __xoreql.o \
       __pluseql.o __minuseql.o \
