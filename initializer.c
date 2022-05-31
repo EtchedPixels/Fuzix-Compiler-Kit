@@ -41,6 +41,7 @@ static unsigned initializer_group(struct symbol *sym, unsigned type, unsigned n,
 {
     unsigned sized = n;
     unsigned string = 0;
+    unsigned count = 0;
     /* C has a funky special case rule that you can write
        char x[16] = "foo"; which creates a copy of the string in that
        array not a literal reference. It's also got a second funky special case
@@ -69,6 +70,7 @@ static unsigned initializer_group(struct symbol *sym, unsigned type, unsigned n,
             break;
         n--;
         initializers(sym, type, storage);
+        count++;
         if (!match(T_COMMA))
             break;
     }
@@ -78,7 +80,7 @@ static unsigned initializer_group(struct symbol *sym, unsigned type, unsigned n,
     }
     /* Catches any excess elements */
     require(T_RCURLY);
-    return n;
+    return count;
 }
 
 /*
@@ -145,6 +147,7 @@ static void initializer_struct(struct symbol *psym, unsigned type, unsigned stor
 static void initializer_array(struct symbol *sym, unsigned type, unsigned depth, unsigned storage)
 {
     unsigned n = array_dimension(type, depth);
+    unsigned count = 0;
 
     if (depth < array_num_dimensions(type)) {
         type = type_deref(type);
@@ -153,20 +156,21 @@ static void initializer_array(struct symbol *sym, unsigned type, unsigned depth,
             n = TARGET_MAX_PTR;
         while(n--) {
             initializer_array(sym, type, depth + 1, storage);
+            count++;
             /* Trailing comma is allowed so eat it before checking n */
             if (match(T_COMMA) && n)
                 continue;
             break;
         }
-        if (array_dimension(type, depth) == 0)
-            sym->type = array_with_size(type, n);
+        if (array_dimension(type, 1) == 0)
+            sym->type = array_with_size(type, count);
         /* Pad the remaining pieces */
         while(n--)
             put_padding_data(type_sizeof(type));
         require(T_RCURLY);
     } else {
         n = initializer_group(sym, type_deref(type), n, storage);
-        if (array_dimension(type, depth) == 0)
+        if (array_dimension(type, 1) == 0)
             sym->type = array_with_size(type, n);
     }
 }
