@@ -625,13 +625,13 @@ static struct node *hier1a(void)
 	if (!PTR(lt) && !IS_ARITH(lt))
 		badtype();
 	/* Now do the left of the colon */
-	a1 = hier1a();
+	a1 = make_rval(hier1a());
 	if (!match(T_COLON)) {
 		error("missing colon");
 		return l;
 	}
 	/* We can have a ? a ? b : c : d ? e : f .. */
-	a2 = hier1a();
+	a2 = make_rval(hier1a());
 
 	a1t = type_canonical(a1->type);
 	a2t = type_canonical(a2->type);
