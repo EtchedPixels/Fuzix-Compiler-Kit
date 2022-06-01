@@ -11,5 +11,5 @@ __ccne:		xchg
 		jnz	__true
 		mov	a,h
 		cmp	d
-		jnz	__false
-		jmp	__true
+		jnz	__true
+		jmp	__false

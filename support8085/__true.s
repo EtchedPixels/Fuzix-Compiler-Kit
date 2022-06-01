@@ -8,7 +8,7 @@
 
 __true:
 		lxi	h,0
-		inr	h
+		inr	l
 		ret
 __false:
 		xra	a
@@ -18,7 +18,7 @@ __false:
 
 __rtrue:
 		lxi	h,0
-		inr	h
+		inr	l
 		jmp	__ret
 
 __rfalse:	xra	a

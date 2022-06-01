@@ -4,6 +4,8 @@
 
 __shrl:
 		mov	a,l		; shift amount
+		pop	h
+		shld	__retaddr
 		pop	d
 		pop	h		; shifting HLDE by A
 		ani	31		; nothing to do ?
@@ -50,7 +52,7 @@ not2byte:
 ;	Do any remaining work
 ;
 leftover:
-		rz
+		jz	done
 		push	b
 		mov	c,a		; count into C
 shloop:
@@ -68,10 +70,9 @@ shloop:
 		rar
 		mov	e,a
 		dcr	c
-		jmp	shloop
+		jnz	shloop
 		pop	b
 done:
 		shld	__hireg
 		xchg
-		ret
-
+		jmp	__ret
