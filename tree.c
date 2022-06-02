@@ -207,10 +207,15 @@ struct node *make_rval(struct node *n)
 	unsigned nt = n->type;
 	if (n->flags & LVAL) {
 		if (IS_ARRAY(nt)) {
-			n->flags &= ~LVAL;
+			if (PTR(nt) == array_num_dimensions(nt)) {
+				n->flags &= ~LVAL;
+				return n;
+			}
+			n = tree(T_DEREF, NULL, n);
 			/* Decay to base type of array */
 			if (!PTR(nt))
 				n->type = type_canonical(nt);
+			return n;
 		} else if (IS_FUNCTION(nt) && !PTR(nt)) {
 			n->flags &= ~LVAL;
 		} else
@@ -279,6 +284,26 @@ struct node *bool_tree(struct node *n)
 	return n;
 }
 
+/* Calculate arithmetic promotion */
+static unsigned arith_promotion(unsigned lt, unsigned rt)
+{
+	if (PTR(lt))
+		lt = UINT;
+	if (PTR(rt))
+		rt = UINT;
+	/* Our types are ordered for a reason */
+	/* Does want review versus standard TODO */
+	if (rt > lt)
+		lt = rt;
+	if (lt < CINT)
+		lt = CINT;
+	if (lt < FLOAT) {
+		if((rt | lt) & UNSIGNED)
+			lt |= UNSIGNED;
+	}
+	return lt;
+}
+
 struct node *arith_promotion_tree(unsigned op, struct node *l,
 				  struct node *r)
 {
@@ -287,24 +312,7 @@ struct node *arith_promotion_tree(unsigned op, struct node *l,
 	unsigned rt = type_canonical(r->type);
 	struct node *n;
 
-	if (PTR(lt))
-		lt = UINT;
-	if (PTR(rt))
-		rt = UINT;
-
-	/* Our types are ordered for a reason */
-	/* Does want review versus standard TODO */
-	if (r->type > l->type)
-		lt = r->type;
-
-	/* C rules, we might want to defer this and be smart though */
-	if (lt < CINT)
-		lt = CINT;
-
-	if (lt < FLOAT) {
-		if((rt | lt) & UNSIGNED)
-			lt |= UNSIGNED;
-	}
+	lt = arith_promotion(lt, rt);
 
 	if (l->type != lt)
 		l = make_cast(l, lt);
@@ -333,8 +341,12 @@ struct node *intarith_tree(unsigned op, struct node *l, struct node *r)
 	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
 		badtype();
 	if (op == T_LTLT || op == T_GTGT) {
-		struct node *n = tree(op, l, make_cast(r, CINT));
-		n->type = l->type;
+		struct node *n;
+		lt = arith_promotion(lt, lt);
+		if (lt != rt)
+			l = make_cast(l, lt);
+		n = tree(op, l, make_cast(r, CINT));
+		n->type = lt;
 		return n;
 	} else
 		return arith_promotion_tree(op, l, r);
@@ -469,7 +481,8 @@ struct node *constify(struct node *n)
 			return l;
 		}
 #if 0
-		/* We can only do this if n has no side effects */
+		/* We can only do this if n has no side effects
+		   TODO: at least swap the MUL for a load ?? */
 		if (r->value == 0) {
 			l = make_constant(0, n->type);
 			free_tree(n);
