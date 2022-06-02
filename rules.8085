@@ -92,6 +92,15 @@
 	lxi h,%1
 	shld %2
 
+	ldsi %1
+	shlx
+;
+	ldsi %1
+	lhlx
+=
+	ldsi %1
+	shlx
+
 # Clean up trivial multiple loads - often from assignments
 	lxi h,%1
 	shld %2
