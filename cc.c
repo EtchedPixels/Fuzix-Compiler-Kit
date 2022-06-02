@@ -114,9 +114,10 @@ int c_files;
 int standalone;
 char *cpu = "8080";
 int mapfile;
-int targetos;
+/* TODO: OS_FUZIX won't work until ld is taught about literal segments */
 #define OS_NONE		0
 #define OS_FUZIX	1
+int targetos = OS_NONE;
 int fuzixsub;
 char optimize = '0';
 char *codeseg;
@@ -433,15 +434,11 @@ void link_phase(void)
 				add_argument("-b");
 				add_argument("-C");
 				add_argument("256");
-				add_argument("-Z");
-				add_argument("0");
 				break;
 			case 2:
 				add_argument("-b");
 				add_argument("-C");
 				add_argument("512");
-				add_argument("-Z");
-				add_argument("2");
 				break;
 			}
 			break;
@@ -744,7 +741,7 @@ int main(int argc, char *argv[]) {
 				targetos = OS_FUZIX;
 				fuzixsub = 2;
 			} else {
-				fprintf(stderr, "cc: only flex, fuzix and mc10 target types are known.\n");
+				fprintf(stderr, "cc: only fuzix target types are known.\n");
 				fatal();
 			}
 			break;
