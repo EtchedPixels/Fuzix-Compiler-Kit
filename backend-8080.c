@@ -593,46 +593,62 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 	return 0;
 }
 
-static const char dad_h[8] = "\tdad h\n";
+static int count_mul_cost(unsigned n)
+{
+	int cost = 0;
+	if ((n & 0xFF) == 0) {
+		n >>= 8;
+		cost += 3;		/* mov mvi */
+	}
+	while(n > 1) {
+		if (n & 1)
+			cost += 3;	/* push pop dad d */
+		n >>= 1;
+		cost++;			/* dad h */
+	}
+	return cost;
+}
+
+/* Write the multiply for any value > 0 */
+static void write_mul(unsigned n)
+{
+	unsigned pops = 0;
+	unsigned count = 0;
+	if ((n & 0xFF) == 0) {
+		printf("\tmov h,l\n\tmvi l,0\n");
+		n >>= 8;
+	}
+	while(n > 1) {
+		if (n & 1) {
+			pops++;
+			printf("\tpush h\n");
+		}
+		printf("\tdad h\n");
+		n >>= 1;
+	}
+	while(pops--) {
+		printf("\tpop d\n\tdad d\n");
+	}
+}
 
 static unsigned gen_fast_mul(unsigned s, unsigned n)
 {
-	if (s != 2)
+	/* Pulled out of my hat 8) */
+	unsigned cost = 15 + 3 * opt;
+	if (s > 2)
 		return 0;
 
-	switch(n) {
-		case 0:
-			printf("\tlxi h,0\n");
-			return 1;
-		case 1:	/* Should have been removed already */
-			return 1;
-		case 256:
-			printf("\tmov h,l\n");
-			printf("\tmvi l,0\n");
-			return 1;
-		case 32:
-			printf(dad_h);
-		case 16:
-			printf(dad_h);
-		case 8:
-			printf(dad_h);
-		case 4:
-			printf(dad_h);
-		case 2:
-			printf(dad_h);
-			return 1;
-		case 12:
-			printf(dad_h);
-		case 6:
-			printf(dad_h);
-		case 3:
-			printf("\tpush h\n\tdad h\n\tpop d\n\tdad d\n");
-			return 1;
-		case 10:
-			printf(dad_h);
-		case 5:
-			printf("\tpush h\n\tdad h\n\tdad h\n\tpop d\n\tdad d\n");
-			return 1;
+	/* The base cost of the helper is 6 lxi de, n; call, but this may be too aggressive
+	   given the cost of mulde TODO */
+	if (optsize)
+		cost = 10;
+	if (n == 0) {
+		printf("\tlxi h,0\n");
+		return 1;
+	}
+	if (count_mul_cost(n) <= cost) {
+		write_mul(n);
+		return 1;
 	}
 	return 0;
 }
