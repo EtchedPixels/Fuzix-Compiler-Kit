@@ -19,7 +19,7 @@ __ccgt:
 		xra	d
 		jp	sign_same
 		xra	d		; A is now H
-		jm	__false
+		jp	__false
 		jmp	__true
 sign_same:
 		mov	a,e
