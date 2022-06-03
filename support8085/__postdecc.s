@@ -8,11 +8,10 @@
 __postdecc:
 		xchg
 		pop	h
-		shld	__retaddr	; save return
-		pop	h
+		xthl
 		mov	a,m
 		mov	d,a
 		sub	e
 		mov	m,a
 		mov	e,d
-		jmp	__ret
+		ret

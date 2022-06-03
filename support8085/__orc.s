@@ -10,7 +10,7 @@ __orc:
 __oruc:
 		mov	a,l		; working register into A
 		pop	h		; return address
-		shld	__retaddr
+		xthl
 		ora	e
 		mov	l,a
-		jmp	__ret
+		ret

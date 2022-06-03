@@ -10,12 +10,11 @@ __or:
 __oru:
 		xchg			; working register into DE
 		pop	h		; return address
-		shld	__retaddr
-		pop	h		; top of stack for maths
+		xthl
 		mov	a,h
 		ora	d
 		mov	h,a
 		mov	a,l
 		ora	e
 		mov	l,a
-		jmp	__ret
+		ret

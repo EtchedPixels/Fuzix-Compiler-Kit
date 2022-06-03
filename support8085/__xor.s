@@ -4,14 +4,13 @@
 		.export __xor
 		.export __xoru
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 __xor:
 __xoru:
 		xchg			; working register into DE
 		pop	h		; return address
-		shld	__retaddr
-		pop	h		; top of stack for maths
+		xthl
 		mov	a,h
 		xra	d
 		mov	h,a

@@ -3,16 +3,15 @@
 ;
 		.export __postincc
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 __postincc:
 		xchg
 		pop	h
-		shld	__retaddr	; save return
-		pop	h
+		xthl
 		mov	a,m
 		mov	d,a
 		add	e
 		mov	m,a
 		mov	e,d
-		jmp	__ret
+		ret

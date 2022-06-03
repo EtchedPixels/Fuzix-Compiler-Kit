@@ -10,11 +10,10 @@ __minus:
 __minusu:
 		xchg			; working register into DE
 		pop	h		; return address
-		shld	__retaddr
-		pop	h		; top of stack for maths
+		xthl
 		push	b		; save working BC
 		mov	b,d
 		mov	c,e
 		dsub
 		pop	b		; get B back
-		jmp	__ret
+		ret

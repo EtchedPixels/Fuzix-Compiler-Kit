@@ -10,7 +10,7 @@ __xorc:
 __xoruc:
 		mov	a,l		; working register into A
 		pop	h		; return address
-		shld	__retaddr
-		xra	e
+		xthl
+		xra	l
 		mov	l,a
-		jmp	__ret
+		ret
