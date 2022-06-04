@@ -262,7 +262,7 @@ unsigned copy_string(unsigned label, unsigned maxlen, unsigned pad, unsigned lit
 	unsigned c;
 	unsigned l = 0;
 
-	header(H_STRING, label, 0);
+	header(H_STRING, label, lit);
 
 	/* Copy the encoding string as is */
 	while((c = tokbyte()) != 0) {
