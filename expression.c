@@ -237,7 +237,7 @@ static struct node *hier11(void)
 					junk();
 					return l;
 				}
-				r = expression_tree(1);
+				r = typeconv(expression_tree(1), CINT, 0);
 				require(T_RSQUARE);
 				scale = type_ptrscale(lt);
 				l = tree(T_PLUS, make_rval(l),
