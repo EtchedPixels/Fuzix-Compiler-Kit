@@ -59,6 +59,4 @@ done:
 		xchg
 		shld	__hireg
 		xchg
-		pop	psw
-		pop	psw
 		jmp	__ret

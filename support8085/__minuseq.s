@@ -18,7 +18,7 @@ __minuseq:
 		sub	l
 		mov	l,a
 		mov	a,d
-		sub	h
+		sbb	h
 		mov	h,a
 		
 		pop	d		; get the TOS address
