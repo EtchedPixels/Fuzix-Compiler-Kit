@@ -16,6 +16,7 @@ _memset:
 	lhlx
 
 
+	mov	e,a
 	mov	a,c
 	ora	b
 	jz	done
@@ -23,7 +24,7 @@ _memset:
 	dcx	b
 	push	h
 loop:
-	mov	m,a
+	mov	m,e
 	inx	h
 	dcx	b
 	jnk	loop
