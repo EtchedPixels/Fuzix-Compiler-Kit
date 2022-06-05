@@ -248,7 +248,7 @@ void gen_epilogue(unsigned size)
 	}
 	if (size > 10) {
 		printf("\txchg\n");
-		printf("\tlxi h,0x%x\n", (uint16_t) - size);
+		printf("\tlxi h,0x%x\n", (uint16_t)size);
 		printf("\tdad sp\n");
 		printf("\tsphl\n");
 		printf("\txchg\n");
@@ -295,7 +295,7 @@ static void gen_cleanup(unsigned v)
 		   arguments so it seems a win to stay in HL */
 		/* TODO: spot void function and skip xchg */
 		printf("\txchg\n");
-		printf("\tlxi h,%d\n", -v);
+		printf("\tlxi h,%d\n", v);
 		printf("\tdad sp\n");
 		printf("\tsphl\n");
 		printf("\txchg\n");
