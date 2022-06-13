@@ -25,7 +25,7 @@ __cmpgteq:
 sign_same:
 		mov	a,l
 		sub	e
-		mov	a,d
+		mov	a,h
 		sbb	d
 		jc	__false
 		jmp	__true

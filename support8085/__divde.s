@@ -25,7 +25,6 @@ __divde:
 	;	C tells us if we need to invert
 
 	call	__divdeu
-	xchg
 
 	mov	a,c
 	rar
@@ -48,7 +47,7 @@ __remde:
 	xchg
 	;	C tells us if we need to invert
 
-	call	__divdeu
+	call	__remdeu
 
 	mov	a,c
 	rar
