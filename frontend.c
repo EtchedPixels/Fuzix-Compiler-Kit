@@ -608,7 +608,7 @@ static unsigned tokenize_numeric(unsigned c)
 	}
 	/* UF is not valid but LF or FL is a double */
 	if (force_float && force_unsigned)
-		error("??");
+		error("invalid type specifiers");
 
 	if (force_float && !is_float) {
 		val = float_convert(val);
@@ -621,16 +621,13 @@ static unsigned tokenize_numeric(unsigned c)
 	} else {
 		/* Anything can be shoved in a ulong */
 		type = T_ULONGVAL;
-
 		/* FIXME: this needs review for the -32768 case */
-#ifdef TARGET_LONG_INT
-		if (!force_long)
-			type = T_UINTVAL;
-#else
 		/* Will it fit in a uint ? */
-		if (!force_long && val <= TARGET_MAX_UINT)
+		if (!force_long && val <= TARGET_MAX_UINT) {
 			type = T_UINTVAL;
-		else if (!force_unsigned) {
+			if (!force_unsigned && val <= TARGET_MAX_INT)
+				type = T_INTVAL;
+		} else  if (!force_unsigned) {
 			/* Maybe a signed long then ? */
 			if (val <= TARGET_MAX_LONG)
 				type = T_LONGVAL;
@@ -638,7 +635,6 @@ static unsigned tokenize_numeric(unsigned c)
 			if (!force_long && val <= TARGET_MAX_INT)
 				type = T_INTVAL;
 		}
-#endif
 	}
 	/* Order really doesn't matter here so stick to LE. We will worry about 
 	   actual byte order in the code generation */

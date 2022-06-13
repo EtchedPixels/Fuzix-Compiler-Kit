@@ -98,7 +98,7 @@ void gen_switch(unsigned n, unsigned type)
 {
 	gen_helpcall(NULL);
 	printf("switch");
-	helper_type(type);
+	helper_type(type, 0);
 	printf("\n\t.word Sw%d\n", n);
 }
 

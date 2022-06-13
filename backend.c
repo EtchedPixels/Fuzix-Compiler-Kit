@@ -448,22 +448,25 @@ void process_data(void)
  *	direct method
  */
 
-void helper_type(unsigned t)
+void helper_type(unsigned t, unsigned s)
 {
 	if (PTR(t))
-		t = CSHORT;
+		t = USHORT;
 	switch (t) {
 	case UCHAR:
-		putchar('u');
+		if (s)
+			putchar('u');
 	case CCHAR:
 		putchar('c');
 		break;
 	case UINT:
-		putchar('u');
+		if (s)
+			putchar('u');
 	case CSHORT:
 		break;
 	case ULONG:
-		putchar('u');
+		if (s)
+			putchar('u');
 	case CLONG:
 		putchar('l');
 		break;
@@ -484,7 +487,7 @@ void helper_type(unsigned t)
  *
  *	Would be nice to have an option to build C like helper calls
  */
-void do_helper(struct node *n, const char *h, unsigned t)
+void do_helper(struct node *n, const char *h, unsigned t, unsigned s)
 {
 	/* A function call has a type that depends upon the call, but the
 	   type we want is a pointer */
@@ -496,13 +499,13 @@ void do_helper(struct node *n, const char *h, unsigned t)
 	   bool we care about the type below the bool, and the result is
 	   always integer. In the case of a cast we care about everything */
 	if (n->op == T_BOOL)
-		helper_type(n->right->type & ~UNSIGNED);
+		helper_type(n->right->type, 0);
 	else {
 		if (n->op == T_CAST) {
-			helper_type(n->right->type);
+			helper_type(n->right->type, 1);
 			putchar('_');
 		}
-		helper_type(t);
+		helper_type(t, s);
 	}
 	putchar('\n');
 	gen_helpclean(n);
@@ -510,13 +513,13 @@ void do_helper(struct node *n, const char *h, unsigned t)
 
 void helper(struct node *n, const char *h)
 {
-	do_helper(n, h, n->type & ~UNSIGNED);
+	do_helper(n, h, n->type, 0);
 }
 
 /* Sign of types matters */
 void helper_s(struct node *n, const char *h)
 {
-	do_helper(n, h, n->type);
+	do_helper(n, h, n->type, 1);
 }
 
 void make_node(struct node *n)

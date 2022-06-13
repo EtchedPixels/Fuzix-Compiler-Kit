@@ -6,10 +6,16 @@
 		.export __rtrue
 		.export	__rfalse
 
+		; Until we sort out optimizing these away
+		.export __cmpgteq0u
+		.export __cmplt0u
+
+__cmpgteq0u:
 __true:
 		lxi	h,0
 		inr	l
 		ret
+__cmplt0u:
 __false:
 		xra	a
 		mov	h,a

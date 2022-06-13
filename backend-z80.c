@@ -265,7 +265,7 @@ void gen_switch(unsigned n, unsigned type)
 {
 	printf("\tld de, Sw%d\n", n);
 	printf("\tcall __switch");
-	helper_type(type);
+	helper_type(type, 0);
 	printf("\n");
 }
 

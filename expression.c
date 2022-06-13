@@ -238,7 +238,7 @@ static struct node *hier11(void)
 					return l;
 				}
 				/* TODO: assumes ptrdiff is an integer sized type */
-				r = typeconv(expression_tree(1), CINT, 0);
+				r = typeconv(expression_tree(1), UINT, 0);
 				require(T_RSQUARE);
 				scale = type_ptrscale(lt);
 				l = tree(T_PLUS, make_rval(l),
@@ -467,10 +467,10 @@ static struct node *hier8(void)
 				l = tree(T_SLASH, tree(op, l, r), make_constant(-scale, UINT));
 			/* TODO: these two assume ptrdiff is an int sized type */
 			else if (PTR(l->type)) {
-				r = typeconv(r, CINT, 0);
+				r = typeconv(r, UINT, 0);
 				l = tree(op, l, tree(T_STAR, r, make_constant(scale, UINT)));
 			} else {
-				l = typeconv(l, CINT, 0);
+				l = typeconv(l, UINT, 0);
 				l = tree(op, tree(T_STAR, l, make_constant(scale, UINT)), r);
 			}
 			l->type = rt;

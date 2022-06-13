@@ -13,7 +13,7 @@ extern void init_nodes(void);
 
 extern void helper(struct node *n, const char *h);
 extern void helper_s(struct node *n, const char *h);
-extern void helper_type(unsigned t);
+extern void helper_type(unsigned t, unsigned s);
 extern void codegen_lr(struct node *n);
 
 extern struct node *gen_rewrite_node(struct node *n);

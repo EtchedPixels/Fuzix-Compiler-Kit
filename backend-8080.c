@@ -342,7 +342,7 @@ void gen_switch(unsigned n, unsigned type)
 {
 	printf("\tlxi d,Sw%d\n", n);
 	printf("\tjmp __switch");
-	helper_type(type & ~UNSIGNED);
+	helper_type(type, 0);
 	printf("\n");
 }
 
@@ -556,7 +556,7 @@ static void repeated_op(const char *o, unsigned n)
 		printf("\t%s\n", o);
 }
 
-/* We use "DE" as a name but A as rgister for 8bit ops... probably ought to rework one day */
+/* We use "DE" as a name but A as register for 8bit ops... probably ought to rework one day */
 static unsigned gen_deop(const char *op, struct node *n, struct node *r, unsigned sign)
 {
 	unsigned s = get_size(n->type);
@@ -576,13 +576,18 @@ static unsigned gen_deop(const char *op, struct node *n, struct node *r, unsigne
 	return 1;
 }
 
+/* TODO: someone needs to own eliminating no side effect impossible
+   or true expressions like unsigned < 0 */
 static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsigned sign)
 {
 	if (r->op == T_CONSTANT && r->value == 0) {
 		char buf[10];
 		strcpy(buf, op);
 		strcat(buf, "0");
-		helper(n, buf);
+		if (sign)
+			helper_s(n, buf);
+		else
+			helper(n, buf);
 		n->flags |= ISBOOL;
 		return 1;
 	}

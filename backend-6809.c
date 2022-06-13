@@ -231,7 +231,7 @@ void gen_switch(unsigned n, unsigned type)
 {
 	printf("\tldx #Sw%d\n", n);
 	printf("\tjsr __switch");
-	helper_type(type);
+	helper_type(type, 0);
 	printf("\n");
 }
 

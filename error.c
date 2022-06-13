@@ -79,7 +79,7 @@ void error(const char *p)
 void fatal(const char *p)
 {
 	error(p);
-	exit(255);
+//	exit(255);
 }
 
 void errorc(const unsigned c, const char *p)
