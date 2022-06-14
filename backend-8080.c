@@ -459,6 +459,16 @@ static unsigned access_direct(struct node *n)
 	return 1;
 }
 
+static unsigned access_direct_b(struct node *n)
+{
+	/* We can't access as much via B directly because we've got no easy xchg with b */
+	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_LABEL)
+		return 0;
+	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
+		return 0;
+	return 1;
+}
+
 /*
  *	Get something that passed the access_direct check into de. Could
  *	we merge this with the similar hl one in the main table ?
@@ -845,18 +855,21 @@ unsigned gen_direct(struct node *n)
 					repeated_op("dcx h", v);
 				return 1;
 			}
+			printf("\tlxi d,%d\n", 65536 - v);
+			printf("\tdad d\n");
+			return 1;
 		}
-		/* TODO - do we care about saving BC ? */
-		if (cpu == 8085 && s <= 2) {
+		if (cpu == 8085 && s <= 2 && access_direct_b(r)) {
 			printf("\tpush b\n");
 			/* LHS is in HL at the moment, end up with the result in HL */
 			if (s == 1) {
 				if (load_a_with(r) == 0)
-					return 0;
+					error("min1");
 				printf("\tmov c,a\n");
+			} else {
+				if (load_bc_with(r) == 0)
+					error("min2");
 			}
-			if (s > 2 || load_bc_with(r) == 0)
-				return 0;
 			printf("\tdsub  ; b\n\tpop b\n");
 			return 1;
 		}
