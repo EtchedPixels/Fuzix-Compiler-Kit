@@ -32,11 +32,6 @@ __cmpul:
 	dcx	h
 	ldax	d
 	cmp	m
-	rnz
-	dcx	d
-	dcx	h
-	ldax	d
-	cmp	m
 	ret
 
 __cmplws:
