@@ -18,10 +18,13 @@ trees from cc1.
 
 ## Status
 
-At this point the compiler can parse my fairly basic test collection of code
-without dumping, or erroring it wrongly. Code generation work is really just
-beginning and there is some output from the core backend that is definitely
-wrong and needs pinning down further.
+The compiler can parse and generate output for the full Fuzix codebase. The
+code generator being worked on first is for the 8085 and it's currently at
+the point it can build a kernel and user space although the userspace at
+this point dies somewhere in init. The code generator still needs some work,
+and the support libraries a fair bit of debugging. The front end and core
+compiler should now be reasonably stable although some bugs undoubtedly
+remain.
 
 ## Installation
 
@@ -142,14 +145,13 @@ code for any processor you want.
 
 ## Credits
 
-The expression parser was created by turning the SmallC 3.0 one into a more
-traditional tree building recursive parser and testing it in SmallC. The
-rest of the code is original although the design is influenced by several
-small C subset compilers and also ANSI pcc.
+The expression parser was created by turning the public domain SmallC 3.0 one
+into a more traditional tree building recursive parser and testing it in
+SmallC. The rest of the code is original although the design is influenced by
+several small C subset compilers and also ANSI pcc.
 
 ## Licence
 
 Compiler (not any runtime)	:	GPLv3
 
 copt is from Z88DK. Z88DK is under the Clarified Artistic License
-
