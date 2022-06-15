@@ -37,8 +37,6 @@ assembler/linker toolchain currently in the CC6303 repository. In the
 as68 directory of that git do a make clean; make -f Makefile.8085 and then
 copy the various xx85 tools it produces into the /opt/cc85 space.
 
-At the moment there is no C library, not much support code and no crt0.
-
 ## Intended C Subset
 
 The goal is to support the following
