@@ -1099,9 +1099,9 @@ static unsigned gen_cast(struct node *n)
 	unsigned ls;
 
 	if (PTR(rt))
-		rt = CSHORT;
+		rt = USHORT;
 	if (PTR(lt))
-		lt = CSHORT;
+		lt = USHORT;
 
 	/* Floats and stuff handled by helper */
 	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
