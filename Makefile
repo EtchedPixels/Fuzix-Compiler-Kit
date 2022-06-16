@@ -60,7 +60,7 @@ cc2.z80:	$(OBJS5)
 cc2.65c816:	$(OBJS6)
 	gcc -g3 $(OBJS6) -o cc2.65c816
 
-cc2.6803:	$(OBJS6)
+cc2.6803:	$(OBJS7)
 	gcc -g3 $(OBJS6) -o cc2.6803
 
 support8085:

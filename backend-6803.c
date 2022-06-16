@@ -262,8 +262,16 @@ static unsigned get_stack_size(unsigned t)
 unsigned gen_push(struct node *n)
 {
 	/* Our push will put the object on the stack, so account for it */
-	sp += get_stack_size(n->type);
-	return 0;
+	unsigned v = get_stack_size(n->type);
+	sp += v;
+	if (v > 4)
+		return 0;
+	puts("\tpshb");
+	if (v > 1)
+		puts("\tpsha");
+	if (v > 2 && cpu > 6800)
+		printf("\tldx @sreg\n\tpshx\n");
+	return 1;
 }
 
 /*
@@ -273,16 +281,45 @@ unsigned gen_push(struct node *n)
  */
 unsigned gen_direct(struct node *n)
 {
+	unsigned v;
 	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
 	   type of the function return so don't use that for the cleanup value
 	   in n->right */
 	case T_CLEANUP:
-		gen_helpcall(NULL);
-		printf("cleanup\n");
-		gen_value(UINT, n->right->value);
-		sp -= n->right->value;
-		return 1;
+		/* We really want to know if this was a void function TODO */
+		/* Doesn't work for 6800 TODO */
+		v =- n->right->value;
+		if (v < 12) {
+			while(v > 1) {
+				puts("\tpulx");
+				v -= 2;
+			}
+			if (v)
+				puts("\tins");
+		} else {
+			puts("\tstab @tmp");
+			if (v >= 255) {
+				puts("\tldab #255");
+				while(v >= 255) {
+					puts("\tabx");
+					v -= 255;
+				}
+			}
+			switch(v) {
+			case 1:
+				puts("\tins");
+				break;
+			case 2:
+				puts("\tpulx");
+				break;
+			default:
+				printf("\tldab #%d\n\tabx\n", v);
+				break;
+			}
+			puts("\tldab @tmp\n");
+		}
+		return 1;	
 	}
 	return 0;
 }
@@ -302,14 +339,43 @@ unsigned gen_uni_direct(struct node *n)
  */
 unsigned gen_shortcut(struct node *n)
 {
+	if (n->op == T_COMMA) {
+		n->left->flags |= NORETURN;
+		codegen_lr(n->left);
+		codegen_lr(n->right);
+		return 1;
+	}
 	return 0;
 }
 
 unsigned gen_node(struct node *n)
 {
+	unsigned s = get_size(n->type);
+	unsigned v = WORD(n->value);
 	/* Function call arguments are special - they are removed by the
 	   act of call/return and reported via T_CLEANUP */
 	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL)
 		sp -= get_stack_size(n->left->type);
+	switch(n->op) {
+	case T_CONSTANT:
+		switch(s) {
+		case 4:
+			printf("\tldd #%d\n", (unsigned)((n->value >> 16) & 0xFFFF));
+			printf("\tstd @hireg\n");
+		case 2:
+			printf("\tldd #%d\n", v);
+			return 1;
+		case 1:
+			printf("\tldb #%d\n", BYTE(v));
+			return 1;
+		}
+		break;
+	case T_NAME:
+		printf("\tldd #%s+%d\n", namestr(n->snum), v);
+		return 1;
+	case T_LABEL:
+		printf("\tldd #T%d+%d\n", n->val2, v);
+		return 1;
+	}
 	return 0;
 }
