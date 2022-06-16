@@ -1,4 +1,5 @@
-all: cc cc0 cc1 cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 copt support8085
+all: cc cc0 cc1.8080 cc1.6803 cc2 cc2.8080 cc2.6809 \
+     cc2.z80 cc2.65c816 cc2.6803 copt support8085
 
 .PHONY: support8085
 
@@ -13,6 +14,7 @@ OBJS3 = backend.o backend-8080.o
 OBJS4 = backend.o backend-6809.o
 OBJS5 = backend.o backend-z80.o
 OBJS6 = backend.o backend-65c816.o
+OBJS7 = backend.o backend-6803.o
 
 CFLAGS = -Wall -pedantic -g3
 
@@ -37,8 +39,11 @@ cc:	cc.o
 cc0:	$(OBJS0)
 	gcc -g3 $(OBJS0) -o cc0
 
-cc1:	$(OBJS1)
-	gcc -g3 $(OBJS1) -o cc1
+cc1.8080:$(OBJS1) target-8080.o
+	gcc -g3 $(OBJS1) -o cc1.8080
+
+cc1.6803:$(OBJS1) target-6803.o
+	gcc -g3 $(OBJS1) -o cc1.6803
 
 cc2:	$(OBJS2)
 	gcc -g3 $(OBJS2) -o cc2
@@ -54,6 +59,9 @@ cc2.z80:	$(OBJS5)
 
 cc2.65c816:	$(OBJS6)
 	gcc -g3 $(OBJS6) -o cc2.65c816
+
+cc2.6803:	$(OBJS6)
+	gcc -g3 $(OBJS6) -o cc2.6803
 
 support8085:
 	(cd support8085; make)
@@ -71,7 +79,8 @@ install: all
 	mkdir -p /opt/cc85/include
 	cp cc /opt/cc85/bin/cc85
 	cp cpp /opt/cc85/lib/cpp
-	cp cc[01] /opt/cc85/lib
+	cp cc0 /opt/cc85/lib
+	cp cc1.8080 /opt/cc85/lib
 	cp cc2.8080 /opt/cc85/lib
 	cp copt /opt/cc85/lib
 	cp rules.8080 /opt/cc85/lib
