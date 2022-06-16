@@ -289,6 +289,71 @@ static void grow_stack(unsigned v)
 		}
 	}
 }
+
+/*
+ *	Tree rewriting. We turn variable references into single node along
+ *	with calls to a function by name. Also re-order some operations
+ *	for better code generation later
+ */
+#define T_NREF		(T_USER)		/* Load of C global/static */
+#define T_CALLNAME	(T_USER+1)		/* Function call by name */
+#define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
+#define T_LREF		(T_USER+3)		/* Ditto for local */
+#define T_LSTORE	(T_USER+4)
+#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
+#define T_LBSTORE	(T_USER+6)
+
+static void squash_node(struct node *n, struct node *o)
+{
+	n->value = o->value;
+	n->val2 = o->val2;
+	n->snum = o->snum;
+	free_node(o);
+}
+
+static void squash_left(struct node *n, unsigned op)
+{
+	struct node *l = n->left;
+	n->op = op;
+	squash_node(n, l);
+	n->left = NULL;
+}
+
+static void squash_right(struct node *n, unsigned op)
+{
+	struct node *r = n->right;
+	n->op = op;
+	squash_node(n, r);
+	n->right = NULL;
+}
+
+/*
+ *	Heuristic for guessing what to put on the right. We are pretty
+ *	flexible given our register/memory architecture
+ */
+
+static unsigned is_simple(struct node *n)
+{
+	unsigned op = n->op;
+
+	/* Multi-word objects are never simple */
+	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
+		return 0;
+
+	/* We can load these directly into a register and we want the
+	   constant on the right */
+	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME)
+		return 10;
+	/* We can reference global objects cheaply too but we prefer
+	   constants on the right */
+	if (op == T_NREF || op == T_LBREF)
+		return 9;
+	/* Locals are usually fairly cheap to reference but can blow up
+	   into complicated stuff on big stack ranges so for now punt
+	   on that */
+	return 0;
+}
+
 /*
  *	Our chance to do tree rewriting. We don't do much for the 8080
  *	at this point, but we do rewrite name references and function calls
@@ -296,6 +361,72 @@ static void grow_stack(unsigned v)
  */
 struct node *gen_rewrite_node(struct node *n)
 {
+	struct node *l = n->left;
+	struct node *r = n->right;
+	unsigned op = n->op;
+	unsigned nt = n->type;
+
+	/* TODO: we can probably sanely inline 4 byte versions */
+	/* Rewrite references into a load operation */
+	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt)) {
+		if (op == T_DEREF) {
+			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
+				if (r->op == T_ARGUMENT)
+					r->value += ARGBASE + frame_len;
+				squash_right(n, T_LREF);
+				return n;
+			}
+			if (r->op == T_NAME) {
+				squash_right(n, T_NREF);
+				return n;
+			}
+			if (r->op == T_LABEL) {
+				squash_right(n, T_LBREF);
+				return n;
+			}
+		}
+		if (op == T_EQ) {
+			if (l->op == T_NAME) {
+				squash_left(n, T_NSTORE);
+				return n;
+			}
+			if (l->op == T_LABEL) {
+				squash_left(n, T_LBSTORE);
+				return n;
+			}
+			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
+				if (l->op == T_ARGUMENT)
+					l->value += ARGBASE + frame_len;
+				squash_left(n, T_LSTORE);
+				return n;
+			}
+		}
+	}
+	/* Eliminate casts for sign, pointer conversion or same */
+	if (op == T_CAST) {
+		if (nt == r->type || (nt ^ r->type) == UNSIGNED ||
+		 (PTR(nt) && PTR(r->type))) {
+			free_node(n);
+			return r;
+		}
+	}
+	/* Rewrite function call of a name into a new node so we can
+	   turn it easily into call xyz */
+	if (op == T_FUNCCALL && r->op == T_NAME && PTR(r->type) == 1) {
+		n->op = T_CALLNAME;
+		n->snum = r->snum;
+		n->value = r->value;
+		free_node(r);
+		n->right = NULL;
+	}
+	/* Commutive operations. We can swap the sides over on these */
+	if (op == T_AND || op == T_OR || op == T_HAT || op == T_STAR || op == T_PLUS) {
+/*		printf(";left %d right %d\n", is_simple(n->left), is_simple(n->right)); */
+		if (is_simple(n->left) > is_simple(n->right)) {
+			n->right = l;
+			n->left = r;
+		}
+	}
 	return n;
 }
 
@@ -531,12 +662,10 @@ unsigned gen_push(struct node *n)
  */
 unsigned gen_direct(struct node *n)
 {
-	unsigned v;
-	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
 	   type of the function return so don't use that for the cleanup value
 	   in n->right */
-	case T_CLEANUP:
+	if (n->op == T_CLEANUP) {
 		shrink_stack(n->right->value);
 		return 1;	
 	}
