@@ -66,8 +66,10 @@ void gen_segment(unsigned s)
 		printf("\t.text\n");
 		break;
 	case A_DATA:
-	case A_LITERAL:
 		printf("\t.data\n");
+		break;
+	case A_LITERAL:
+		printf("\t.literal\n");
 		break;
 	case A_BSS:
 		printf("\t.bss\n");
