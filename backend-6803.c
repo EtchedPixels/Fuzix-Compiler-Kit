@@ -44,6 +44,252 @@ static unsigned frame_len;	/* Number of bytes of stack frame */
 static unsigned sp;		/* Stack pointer offset tracking */
 
 /*
+ *	Register state tracking
+ */
+
+static unsigned value_d;
+static unsigned value_x;
+static unsigned state_d;
+static unsigned state_x;
+
+#define INVALID		0
+#define	CONSTANT	1
+#define	BCONSTANT	2	/* Only used with D tracker */
+#define STACKREL	3	/* Only used with X tracker */
+
+static void invalidate_d(void)
+{
+	state_d = INVALID;
+}
+
+static void load_d(unsigned v, unsigned keepc)
+{
+	unsigned char vl = v;
+	unsigned char vh = v >> 8;
+	unsigned char vdl = value_d;
+	unsigned char vdh = value_d >> 8;
+
+	/* Complete match */
+	if (state_d == CONSTANT && value_d == v)
+		return;
+
+	/* We know the low byte and it matches */
+	if ((state_d == CONSTANT || state_d == BCONSTANT) && vdl == vl) {
+		if (vh || keepc)
+			printf("\tldaa #%d\n", vh);
+		else
+			puts("\tclra");
+		state_d = CONSTANT;
+		value_d = v;
+		return;
+	}
+	/* See if the high byte matches */
+	if (state_d == CONSTANT && vh == vdh) {
+		if (vl || keepc)
+			printf("\tldab #%d\n", vl);
+		else
+			puts("\tclrb\n");
+		state_d = CONSTANT;
+		value_d = v;
+		return;
+	}
+	state_d = CONSTANT;
+	value_d = v;
+	if (v == 0 && !keepc) {
+		puts("\tclra\n\tclrb");
+		return;
+	}
+	printf("ldd #%d\n", v);
+}
+
+static void load_b(unsigned v, unsigned keepc)
+{
+	if ((state_d == BCONSTANT || state_d == CONSTANT) && (value_d & 0xFF) == (v & 0xFF))
+		return;
+	if (state_d == CONSTANT) {
+		value_d &= 0xFF00;
+		value_d |= v & 0xFF;
+	} else {
+		state_d = BCONSTANT;
+		value_d = v;
+	}
+	if (v == 0 && !keepc)
+		puts("\tclrb");
+	else
+		printf("\tldab #%d\n", v);
+}
+
+static void modify_d(unsigned v)
+{
+	if (v == 0)
+		return;
+	if (state_d != CONSTANT) {
+		printf("\taddd #%d\n", v);
+		return;
+	};
+	v += value_d;
+	/* Let the load routine figure out how to load this most efficiently */
+	load_d(v, 0);
+}
+
+/* For now just track stack relative X. We might want to track symbol relative
+   as well, but probably not constant. Due to the way X works we don't generate
+   code in these helpers but instead in the code that uses them */
+
+static void invalidate_x(void)
+{
+	state_x = INVALID;
+}
+
+static void load_x_s(void)
+{
+	state_x = STACKREL;
+	value_x = sp;
+}
+
+static void modify_x(unsigned v)
+{
+	if (state_x != STACKREL)
+		return;
+	value_x += v;
+}
+
+static void repeated_instruction(const char *x, unsigned n)
+{
+	while(n--)
+		puts(x);
+}
+
+
+/*
+ *	Helpers
+ */
+
+/* Generate an X that can access offset spoff from the stack. Most of the
+   time we are able to just load X as needed and keeping using n,X. O a bigger
+   stack we have to play around with X a bit */
+
+static unsigned gen_offset(int spoff, int spmax, unsigned save_d)
+{
+	if (state_x != STACKREL) {
+		load_x_s();
+		puts("\ttsx");
+	}
+	/* X is now some offset relative to what we need, but may be too big */
+	spoff += value_x;
+	if (spoff <= spmax)
+		return spoff;
+	/* The value is out of range of addressing to be used. Modify X */
+	if (cpu == 6303 || cpu == 6811) {
+		if (spmax - spoff < 5) {
+			repeated_instruction("\tinx", spmax - spoff);
+			modify_x(spmax - spoff);
+		} else {
+			puts("\txchg");
+			printf("\taddd #%d\n", spoff);
+			puts("\txchg");
+			modify_x(spoff);
+		}
+		return 0;
+	}
+	if (spoff < 0)
+		error("badgo");
+	/* We only have ABX and we may have to save B */
+	if (spmax -spoff < 10 - 2 * save_d)
+		repeated_instruction("\tinx", spmax - spoff);
+	else {
+		unsigned n = spmax - spoff;
+		/* Could in theory optimize if state of d is known and happens
+		   to contain right byte - unlikely! */
+		if (save_d)
+			puts("\tstab @tmp");
+		if (n >= 255) {
+			puts("\tldab #255");
+			while(n >= 255) {
+				puts("\tabx");
+				n -= 255;
+			}
+		}
+		if (n)
+			printf("\tldab #%d\n\tabx\n", n);
+		if (save_d)
+			puts("\tldab @tmp");
+	}
+	modify_x(spmax - spoff);
+	return spmax;
+}
+
+static void shrink_stack(unsigned v)
+{
+	/* TODO: set properly */
+	invalidate_x();
+	if (v < 12) {
+		while(v > 1) {
+			puts("\tpulx");
+			v -= 2;
+		}
+		if (v)
+			puts("\tins");
+	} else {
+		if (cpu == 6303 || cpu == 6811) {
+			puts("\ttsx\n\txchg");	/* SP into D */
+			printf("\taddd #%d\n", v);
+			puts("\txchg\n\ttxs");
+		} else {
+			puts("\tstab @tmp");
+			if (v >= 255) {
+			puts("\tldab #255");
+				while(v >= 255) {
+					puts("\tabx");
+					v -= 255;
+				}
+			}
+			switch(v) {
+			case 1:
+				puts("\tins");
+				break;
+			case 2:
+				puts("\tpulx");
+				break;
+			default:
+				printf("\tldab #%d\n\tabx\n", v);
+				break;
+			}
+			puts("\tldab @tmp\n");
+		}
+	}
+}
+
+/* We assume this can always kill d */
+static void grow_stack(unsigned v)
+{
+	unsigned cost = 12;
+	if (cpu == 6803)
+		cost = 22;
+	if (v < cost) {
+		while(v > 1) {
+			puts("\tpshx");
+			v -= 2;
+		}
+		if (v)
+			puts("\tdes");
+	} else {
+		if (cpu == 6303 || cpu == 6811) {
+			invalidate_x();
+			puts("\ttsx\n\txchg");	/* SP into D */
+			printf("\taddd #%d\n", -v);
+			puts("\txchg\n\ttxs");
+		} else {
+			invalidate_d();
+			puts("\tsts @tmp");
+			printf("\tldd #%d\n", -v);
+			puts("\taddd @tmp");
+			puts("\tstd @tmp");
+			puts("\tlds @tmp");
+		}
+	}
+}
+/*
  *	Our chance to do tree rewriting. We don't do much for the 8080
  *	at this point, but we do rewrite name references and function calls
  *	to make them easier to process.
@@ -82,16 +328,14 @@ void gen_segment(unsigned s)
 void gen_prologue(const char *name)
 {
 	printf("_%s:\n", name);
+	invalidate_d();
 }
 
 /* Generate the stack frame */
 void gen_frame(unsigned size)
 {
 	frame_len = size;
-	sp += size;
-	gen_helpcall(NULL);
-	printf("enter\n");
-	gen_value(UINT, size);
+	grow_stack(size);
 }
 
 void gen_epilogue(unsigned size)
@@ -100,15 +344,15 @@ void gen_epilogue(unsigned size)
 		error("sp");
 	}
 	sp -= size;
-	gen_helpcall(NULL);
-	printf("exit\n");
-	gen_value(UINT, size);
-	printf("\tret\n");
+	shrink_stack(size);
+	puts("\trts");
 }
 
 void gen_label(const char *tail, unsigned n)
 {
 	printf("L%d%s:\n", n, tail);
+	invalidate_d();
+	invalidate_x();
 }
 
 void gen_jump(const char *tail, unsigned n)
@@ -142,11 +386,15 @@ void gen_switchdata(unsigned n, unsigned size)
 
 void gen_case(unsigned tag, unsigned entry)
 {
+	invalidate_d();
+	invalidate_x();
 	printf("Sw%d_%d:\n", tag, entry);
 }
 
 void gen_case_label(unsigned tag, unsigned entry)
 {
+	invalidate_d();
+	invalidate_x();
 	printf("Sw%d_%d:\n", tag, entry);
 }
 
@@ -157,6 +405,8 @@ void gen_case_data(unsigned tag, unsigned entry)
 
 void gen_helpcall(struct node *n)
 {
+	invalidate_d();
+	invalidate_x();
 	printf("\thjsr __");
 }
 
@@ -269,7 +519,7 @@ unsigned gen_push(struct node *n)
 	puts("\tpshb");
 	if (v > 1)
 		puts("\tpsha");
-	if (v > 2 && cpu > 6800)
+	if (v > 2)
 		printf("\tldx @sreg\n\tpshx\n");
 	return 1;
 }
@@ -287,38 +537,7 @@ unsigned gen_direct(struct node *n)
 	   type of the function return so don't use that for the cleanup value
 	   in n->right */
 	case T_CLEANUP:
-		/* We really want to know if this was a void function TODO */
-		/* Doesn't work for 6800 TODO */
-		v =- n->right->value;
-		if (v < 12) {
-			while(v > 1) {
-				puts("\tpulx");
-				v -= 2;
-			}
-			if (v)
-				puts("\tins");
-		} else {
-			puts("\tstab @tmp");
-			if (v >= 255) {
-				puts("\tldab #255");
-				while(v >= 255) {
-					puts("\tabx");
-					v -= 255;
-				}
-			}
-			switch(v) {
-			case 1:
-				puts("\tins");
-				break;
-			case 2:
-				puts("\tpulx");
-				break;
-			default:
-				printf("\tldab #%d\n\tabx\n", v);
-				break;
-			}
-			puts("\tldab @tmp\n");
-		}
+		shrink_stack(n->right->value);
 		return 1;	
 	}
 	return 0;
@@ -352,6 +571,7 @@ unsigned gen_node(struct node *n)
 {
 	unsigned s = get_size(n->type);
 	unsigned v = WORD(n->value);
+	unsigned h = WORD(n->value >> 16);
 	/* Function call arguments are special - they are removed by the
 	   act of call/return and reported via T_CLEANUP */
 	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL)
@@ -360,20 +580,22 @@ unsigned gen_node(struct node *n)
 	case T_CONSTANT:
 		switch(s) {
 		case 4:
-			printf("\tldd #%d\n", (unsigned)((n->value >> 16) & 0xFFFF));
+			load_d(h, 0);
 			printf("\tstd @hireg\n");
 		case 2:
-			printf("\tldd #%d\n", v);
+			load_d(v, 0);
 			return 1;
 		case 1:
-			printf("\tldb #%d\n", BYTE(v));
+			load_b(v, 0);
 			return 1;
 		}
 		break;
 	case T_NAME:
+		invalidate_d();
 		printf("\tldd #%s+%d\n", namestr(n->snum), v);
 		return 1;
 	case T_LABEL:
+		invalidate_d();
 		printf("\tldd #T%d+%d\n", n->val2, v);
 		return 1;
 	}
