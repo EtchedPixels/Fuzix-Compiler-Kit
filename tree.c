@@ -64,7 +64,7 @@ struct node *tree(unsigned op, struct node *l, struct node *r)
 		n->type = l->type;
 	else if (r)
 		n->type = r->type;
-	c = constify(n, 0);
+	c = constify(n);
 	if (c)
 		return c;
 	return n;
@@ -74,9 +74,10 @@ struct node *sf_tree(unsigned op, struct node *l, struct node *r)
 {
 	struct node *n = tree(op, l, r);
 	/* A dereference is only a side effect if it might be volatile */
-	if (op == T_DEREF)
-		n->flags |= voltrack;
-	else
+	if (op == T_DEREF) {
+		if (voltrack)
+			n->flags |= SIDEEFFECT;
+	} else
 		n->flags |= SIDEEFFECT;
 	return n;
 }
@@ -448,6 +449,20 @@ static unsigned is_name(unsigned n)
 	return 0;
 }
 
+/* Check of the tree has side effects */
+static unsigned tree_impure(struct node *n)
+{
+	if (n->right) {
+		if (tree_impure(n->right))
+			return 1;
+	}
+	if (n->left) {
+		if (tree_impure(n->left))
+			return 1;
+	}
+	return n->flags & SIDEEFFECT;
+}
+
 /*
  *	TODO:
  *	We need a sensible way of not rewalking the same trees
@@ -459,20 +474,20 @@ static unsigned is_name(unsigned n)
  *	as we remove a lot of nodes as we go.
  */
 
-struct node *constify(struct node *n, unsigned flag)
+struct node *constify(struct node *n)
 {
 	struct node *l = n->left;
 	struct node *r = n->right;
+	unsigned op = n->op;
 
 	/* Remember if we are a node or child of a node that has a side
 	   effect. This determines what can be eliminated */
-	flag |= n->flags & SIDEEFFECT;
 
 	/* Casting of constant form objects */
 	/* We block casting of structures and arrays to each other higher up
 	   so all we have to worry about is truncating constants and just
 	   relabelling the type on a name or label */
-	if (n->op == T_CAST) {
+	if (op == T_CAST) {
 		if (r->op == T_CONSTANT)
 			return replace_constant(n, n->type, r->value);
 		if (r->op == T_NAME || r->op == T_LABEL) {
@@ -482,44 +497,60 @@ struct node *constify(struct node *n, unsigned flag)
 		}
 	}
 	/* Remove multiply by 1 or 0 */
-	if (n->op == T_STAR && r->op == T_CONSTANT) {
+	if (op == T_STAR && r->op == T_CONSTANT) {
 		if (r->value == 1) {
 			free_node(r);
 			free_node(n);
 			return l;
 		}
 		/* We can only do this if n and l have no side effects */
-		if (r->value == 0 && !flag && !(l->flags & SIDEEFFECT)) {
+		if (r->value == 0 && !tree_impure(l)) {
 			l = make_constant(0, n->type);
 			free_tree(n);
 			return l;
 		}
 	}
 	/* Divide by 1 */
-	if (n->op == T_SLASH && r->op == T_CONSTANT) {
+	if (op == T_SLASH && r->op == T_CONSTANT) {
 		if (r->value == 1) {
 			free_node(n);
 			free_tree(r);
 			return l;
 		}
 	}
-
+	/* Unsigned ops that resolve to never true/false */
+	if (r && r->op == T_CONSTANT && r->value == 0 && (n->type & UNSIGNED) && !tree_impure(l)) {
+		if (op == T_LT) {
+			free_tree(l);
+			free_node(r);
+			free_node(n);
+			warning("always false");
+			return bool_tree(make_constant(0, CINT));
+		}
+		if (op == T_GTEQ) {
+			free_tree(l);
+			free_node(r);
+			free_node(n);
+			warning("always true");
+			return bool_tree(make_constant(1, CINT));
+		}
+	}
 #if 0
 	/* This will always fail as we don't eliminate T_BOOL or understand
 	   T_BOOL(const) is a constant value that still typecasts and flag sets */
 	/* The logic ops are special as they permit shortcuts and need to be
 	   dealt with l->r */
-	if (n->op == T_ANDAND || n->op == T_OROR) {
-		l = constify(l, flag);
+	if (op == T_ANDAND || op == T_OROR) {
+		l = constify(l);
 		if (l == NULL || !IS_INTARITH(l->type) || (l->flags & LVAL))
 			return NULL;
-		if (n->op == T_OROR && l->value) {
+		if (op == T_OROR && l->value) {
 			free_tree(l);
 			free_tree(r);
 			free_node(n);
 			return bool_tree(make_constant(1, CINT));
 		}
-		if (n->op == T_ANDAND && !l->value) {
+		if (op == T_ANDAND && !l->value) {
 			free_tree(l);
 			free_tree(r);
 			free_node(n);
@@ -528,7 +559,7 @@ struct node *constify(struct node *n, unsigned flag)
 	}
 #endif
 	if (r) {
-		r = constify(r, flag);
+		r = constify(r);
 		if (r == NULL)
 			return NULL;
 		n->right = r;
@@ -539,7 +570,7 @@ struct node *constify(struct node *n, unsigned flag)
 
 		/* Lval names are constant but a maths operation on two name lval is not */
 		if (is_name(l->op) || is_name(r->op)) {
-			if (n->op != T_PLUS)
+			if (op != T_PLUS)
 				return NULL;
 			/* Special case for name + const */
 			if (is_name(l->op)) {
@@ -556,7 +587,7 @@ struct node *constify(struct node *n, unsigned flag)
 			return r;
 		}
 		if (l) {
-			l = constify(l, flag);
+			l = constify(l);
 			if (l == NULL)
 				return NULL;
 			n->left = l;
@@ -567,7 +598,7 @@ struct node *constify(struct node *n, unsigned flag)
 		if (l->flags & LVAL)
 			return NULL;
 
-		switch(n->op) {
+		switch(op) {
 		case T_PLUS:
 			value += r->value;
 			break;
@@ -621,6 +652,30 @@ struct node *constify(struct node *n, unsigned flag)
 			else
 				value = ((signed long)value) >> r->value;
 			break;
+		case T_LT:
+			if (l->type & UNSIGNED)
+				value = value < r->value;
+			else
+				value = (signed long)value < (signed long )r->value;
+			break;
+		case T_LTEQ:
+			if (l->type & UNSIGNED)
+				value = value <= r->value;
+			else
+				value = (signed long)value <= (signed long )r->value;
+			break;
+		case T_GT:
+			if (l->type & UNSIGNED)
+				value = value < r->value;
+			else
+				value = (signed long)value < (signed long )r->value;
+			break;
+		case T_GTEQ:
+			if (l->type & UNSIGNED)
+				value = value < r->value;
+			else
+				value = (signed long)value < (signed long )r->value;
+			break;
 		default:
 			return NULL;
 		}
@@ -635,7 +690,7 @@ struct node *constify(struct node *n, unsigned flag)
 		if (r->flags & LVAL)
 			return NULL;
 
-		switch(n->op) {
+		switch(op) {
 		case T_NEGATE:
 			/* This also cleans up any negative constants that were tokenized
 			   as T_NEGATE, T_CONST <n> */

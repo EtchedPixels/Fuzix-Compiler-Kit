@@ -44,4 +44,4 @@ extern struct node *ordercomp_tree(unsigned op, struct node *l, struct node *r);
 extern struct node *assign_tree(struct node *l, struct node *r);
 extern struct node *logic_tree(unsigned op, struct node *l, struct node *r);
 
-extern struct node *constify(struct node *n, unsigned eff);
+extern struct node *constify(struct node *n);
