@@ -335,7 +335,8 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	unsigned n;
 
 	/* Pass useful information flags to the backend */
-	if (func_return(type) == VOID)
+	func_type = func_return(type);
+	if (func_type == VOID)
 		func_flags |= F_VOIDRET;
 	p = func_args(type);
 	n = *p++;
@@ -351,7 +352,6 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	if (st == S_AUTO || st == S_EXTERN)
 		error("invalid storage class");
 	func_tag = next_tag++;
-	func_type = type;
 	header(H_FUNCTION, func_tag, name);
 	hrw = mark_header();
 	header(H_FRAME, 0, 0);
