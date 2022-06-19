@@ -43,7 +43,7 @@
  *	Split I/D
  */
 
-#define DEBUG
+#undef DEBUG
 
 #include <stdio.h>
 #include <stdint.h>
@@ -62,7 +62,7 @@
 
 #define CMD_AS		BINPATH"as85"
 #define CMD_CC0		LIBPATH"cc0"
-#define CMD_CC1		LIBPATH"cc1"
+#define CMD_CC1		LIBPATH"cc1.8080"
 #define CMD_CC2		LIBPATH"cc2.8080"
 #define CMD_COPT	LIBPATH"copt"
 #define CMD_CPP		LIBPATH"cpp"
@@ -315,7 +315,9 @@ static void redirect_in(const char *p)
 		perror(p);
 		fatal();
 	}
+#ifdef DEBUG
 	printf("<%s\n", p);
+#endif
 }
 
 static void redirect_out(const char *p)
@@ -325,7 +327,9 @@ static void redirect_out(const char *p)
 		perror(p);
 		fatal();
 	}
+#ifdef DEBUG
 	printf(">%s\n", p);
+#endif
 }
 
 static void build_arglist(char *p)
