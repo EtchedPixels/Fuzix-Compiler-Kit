@@ -63,3 +63,5 @@ extern unsigned gen_shortcut(struct node *n);
 #define A_LITERAL	4
 
 #define MAX_SEG		3
+
+extern unsigned func_flags;
