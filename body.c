@@ -330,6 +330,23 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	/* This makes me sad, but there isn't a nice way to work out
 	   the frame size ahead of time */
 	unsigned long hrw;
+	unsigned func_flags = 0;
+	unsigned *p;
+	unsigned n;
+
+	/* Pass useful information flags to the backend */
+	if (func_return(type) == VOID)
+		func_flags |= F_VOIDRET;
+	p = func_args(type);
+	n = *p++;
+	if (n == 1 && *p == VOID)
+		func_flags |= F_VOID;
+	while(n--) {
+		if (*p++ == ELLIPSIS) {
+			func_flags |= F_VARARG;
+			break;
+		}
+	}
 
 	if (st == S_AUTO || st == S_EXTERN)
 		error("invalid storage class");
@@ -337,13 +354,13 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	func_type = type;
 	header(H_FUNCTION, func_tag, name);
 	hrw = mark_header();
-	header(H_FRAME, 0, name);
+	header(H_FRAME, 0, 0);
 
 	init_labels();
 
 	statement_block(1);
 	footer(H_FUNCTION, func_tag, name);
 
-	rewrite_header(hrw, H_FRAME, frame_size(), name);
+	rewrite_header(hrw, H_FRAME, frame_size(), func_flags);
 	check_labels();
 }
