@@ -433,6 +433,26 @@ static unsigned gen_logic8(struct node *n, const char *p, unsigned form)
 }
 
 /*
+ *	Same but the other argument is top of stack
+ */
+static unsigned gen_pair_pop(struct node *n, const char *p)
+{
+	unsigned s = get_size(n->type);
+	unsigned offs;
+	if (s > 2)
+		return 0;
+
+	/* Get the X offset to the top of stack variable */
+	offs = gen_offset(sp, 255, 1);
+	if (s == 2)
+		printf("\t%sb 1,x\n\t%sa ,x\n\tpulx\n", p, p);
+	else
+		printf("\t%sb ,x\n\tins\n", p);
+	invalidate_d();
+	return 1;
+}
+
+/*
  *	Ditto but 16bit op forms exist
  */
 static unsigned gen_op16(struct node *n, const char *op)
@@ -499,6 +519,35 @@ static unsigned gen_cast(struct node *n, struct node *r)
 	puts("\tclra");
 	return 1;
 }
+
+/*
+ *	Turn commutative ?= operations into instructions via X
+ */
+static unsigned gen_xeqop(struct node *n, const char *cop, unsigned form)
+{
+	struct node *l = n->left;
+	unsigned s = get_size(n->type);
+
+	if (s > 2 || !can_reference(l))
+		return 0;
+	/* Get the modifcation value */
+	codegen_lr(n->right);
+	load_x_with(l);
+	invalidate_d();
+	/* TODO: optimize logic ops with constants */
+	if (form == 0)
+		printf("\t%sd ,x\n", cop);
+	else {
+		printf("\t%sa ,x\n", cop);
+		printf("\t%sb 1,x\n", cop);
+	}
+	if (s == 2)
+		printf("\tstd ,x\n");
+	else
+		printf("\tstab ,x\n");
+	return 1;
+}
+
 
 static void shrink_stack(unsigned v)
 {
@@ -950,6 +999,13 @@ unsigned gen_direct(struct node *n)
 		return gen_compare(n, "boollt");
 	case T_LTEQ:
 		return gen_compare(n, "boollteq");
+#if 0
+		/* Spot the easy cases and fix */
+		/* Also do simple constant shifts here maybe ? */
+	case T_MUL:
+	case T_DIV:
+	case T_PERCENT:
+#endif
 	}
 	return 0;
 }
@@ -964,34 +1020,6 @@ unsigned gen_uni_direct(struct node *n)
 	return 0;
 }
 
-
-/*
- *	Turn commutative ?= operations into instructions via X
- */
-static unsigned gen_xeqop(struct node *n, const char *cop, unsigned form)
-{
-	struct node *l = n->left;
-	unsigned s = get_size(n->type);
-
-	if (s > 2 || !can_reference(l))
-		return 0;
-	/* Get the modifcation value */
-	codegen_lr(n->right);
-	load_x_with(l);
-	invalidate_d();
-	/* TODO: optimize logic ops with constants */
-	if (form == 0)
-		printf("\t%sd ,x\n", cop);
-	else {
-		printf("\t%sa ,x\n", cop);
-		printf("\t%sb 1,x\n", cop);
-	}
-	if (s == 2)
-		printf("\tstd ,x\n");
-	else
-		printf("\tstab ,x\n");
-	return 1;
-}
 
 /*
  *	Allow the code generator to shortcut trees it knows
@@ -1044,6 +1072,8 @@ unsigned gen_node(struct node *n)
 	unsigned s = get_size(n->type);
 	unsigned v = WORD(n->value);
 	unsigned h = WORD(n->value >> 16);
+	unsigned offs;
+
 	/* Function call arguments are special - they are removed by the
 	   act of call/return and reported via T_CLEANUP */
 	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL)
@@ -1069,6 +1099,96 @@ unsigned gen_node(struct node *n)
 		invalidate_d();
 		printf("\tldd #T%d+%d\n", n->val2, v);
 		return 1;
+	case T_CALLNAME:
+		printf("\tjsr _%s+%d\n", namestr(n->snum), v);
+		return 1;
+	case T_EQ:
+		invalidate_x();
+		printf("\tpulx\n");
+		if (s == 1)
+			printf("\tstab ,x\n");
+		else if (s == 2)
+			printf("\tstd ,x\n");
+		else
+			return 0;
+		return 1;
+	case T_AND:
+		return gen_pair_pop(n, "and");
+	case T_OR:
+		return gen_pair_pop(n, "ora");
+	case T_HAT:
+		return gen_pair_pop(n, "eor");
+	case T_CAST:
+		return gen_cast(n, n->right);
+	case T_NEGATE:
+		if (s > 2)
+			return 0;
+		if (s == 2)
+			puts("\tsubd @one");
+		else
+			puts("\tdecb");
+		/* Fall through */
+	case T_TILDE:
+		if (s > 2)
+			return 0;
+		if (s == 2)
+			puts("\tcoma");
+		puts("\tcomb");
+		invalidate_d();
+		return 1;
+	case T_DEREF:
+		invalidate_x();
+		if (s == 2)
+			puts("\tpulx\nstd ,x\n");
+		else if (s == 1)
+			puts("\tpulx\nstab ,x\n");
+		else
+			return 0;
+	case T_LREF:
+		if (s == 4) {
+			offs = gen_offset(n->value, 253, 0);
+			printf("\tldd %d,x\nstd @hireg", offs);
+			printf("\tldd %d,x\n", offs + 2);
+			invalidate_d();
+			return 1;
+		}
+		offs = gen_offset(n->value, 255, 0);
+		if (s == 2)
+			printf("\tldd %d,x\n", offs);
+		else if (s == 1)
+			printf("\tldab %d,x\n", offs);
+		return 1;
+	case T_NREF:
+		if (s == 4) {
+			printf("\tldd _%s+%d\n\tstd @hireg",
+			       namestr(n->snum), WORD(n->value));
+			printf("\tldd _%s+%d\n", namestr(n->snum),
+			       WORD(n->value) + 2);
+		} else if (s == 2)
+			printf("\tldd _%s+%d\n", namestr(n->snum),
+			       WORD(n->value));
+		else if (s == 1)
+			printf("\tldab _%s+%d\n", namestr(n->snum),
+			       WORD(n->value));
+		return 1;
+	case T_LBREF:
+		if (s == 4) {
+			printf("\tldd T%d+%d\n\tstd @hireg", n->val2,
+			       WORD(n->value));
+			printf("\tldd T%d+%d\n", n->val2,
+			       WORD(n->value) + 2);
+		} else if (s == 2)
+			printf("\tldd T%d+%d\n", n->val2, WORD(n->value));
+		else if (s == 1)
+			printf("\tldab T%d+%d\n", n->val2, WORD(n->value));
+		return 1;
+#if 0
+	case T_PLUS:
+	case T_MINUS:
+	case T_LSTORE:
+	case T_NSTORE:
+	case T_LBSTORE:
+#endif
 	}
 	return 0;
 }
