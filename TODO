@@ -4,10 +4,17 @@
 - Turn the frame the other way up ?
 - Track register state on backend
 - Fix up the canonical and array decay - check decay to array type
-- setjmp/longjmp
+TEST - setjmp/longjmp
 - Have O_ op table tight packed and rerite T_ into O_ entries, then have a property table
   for them (memread, memwrite, modworking, sideffect, setcc, communtatitve)
-- Teach NSTORE etc to also do label forms for local statics
+TEST - Teach NSTORE etc to also do label forms for local statics
+- Can we tag the presence of volatile somehow. It is rare so we could just
+  remember if volatile appeared in a cast anywhere in the expression and assume
+  badness, and also keep a small table of names that are volatile (eg keep
+  10 sym ptrs for global and for local ?)
+- Other volatile option, is to pass a volatile marker on expression trees if
+  a volatile cast appears or a local is marked volatile. Globals are a bit
+  tricker that way ?
 
 Broken 
 -	constify needs a hard stare or two

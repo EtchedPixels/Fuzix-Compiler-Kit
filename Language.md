@@ -36,6 +36,12 @@ There can be a total of 50 enum constants.
 Some parsing limits are not currently checked so ridiculous levels of struct
 declaration or similar may run out of stack
 
+Volatile and const are parsed but not enforced. The compiler does however
+track the presence of volatile keywords within a statement and within
+local variables and arguments. It acts accordingly for that expression or
+all expressions in that function. Global volatile objects, or volatile
+types for things like struct fields do not have this effect.
+
 ## Numerical Limits
 
 All types must fit the bit pattern of the host unsigned long
@@ -53,7 +59,7 @@ situations. This is a bug to be fixed.
 ## Language
 
 All the C89 keywords are recognized. The register directive is ignored,
-volatile and const are parsed and ignored. While const is useful it really
+volatile and const are parsed and mostly ignored. While const is useful it really
 complicates type handling. Volatile on the other hand is broken by design.
 
 Identifiers comply with the C standard.
@@ -93,9 +99,7 @@ The behaviour of shifts exceeding the size of the type is target dependent.
 
 ## Declarations
 
-Automatic sizing of arrays in an initializer is not currently supported.
-
-The const and volatile qualifiers are parsed but ignored.
+The const and volatile qualifiers are parsed but mostly ignored.
 
 The use of ellipsis C99 style as an indicator of partial array assignent is
 supported.

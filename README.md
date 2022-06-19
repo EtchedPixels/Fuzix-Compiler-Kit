@@ -80,7 +80,7 @@ Things that add size and complexity or are just pointless.
 * C11 bloat by committee
 * struct/union passing, struct/union returns and other related badness
 * bitfields
-* const and volatile. To do these makes type handling really really tricky. They are accepted so that code with them can build.
+* const and volatile typing. To do these makes type handling really really tricky. They are accepted so that code with them can build.
 
 ###
 
@@ -88,7 +88,7 @@ Known incompatibilities (some to be fixed)
 
 * The constant value -32768 does not always get typed correctly. The reason for this is a complicated story about how cc0/cc1 interact.
 * Many C compilers permit (void) to 'cast' the result of a call away, we do not.
-* Array auto-sizing is not yet supported.
+* Local variables have a single function wide scope not a block scope
 
 ## Internals
 
