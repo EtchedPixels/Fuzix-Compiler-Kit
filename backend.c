@@ -226,6 +226,7 @@ static unsigned compile_expression(void)
 static unsigned func_ret;
 static unsigned frame_len;
 static unsigned func_ret_used;
+unsigned func_flags;
 
 static void process_literal(unsigned id)
 {
@@ -272,6 +273,7 @@ static void process_header(void)
 		break;
 	case H_FRAME:
 		frame_len = h.h_name;
+		func_flags = h.h_data;
 		gen_frame(h.h_name);
 		break;
 	case H_FUNCTION | H_FOOTER:
