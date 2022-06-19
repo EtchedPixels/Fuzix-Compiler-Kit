@@ -6,7 +6,7 @@ struct node
     unsigned type;
     unsigned flags;
 #define LVAL			1
-#define NOEFF			2	/* No side effect.. not yet used */
+#define SIDEEFFECT		2	/* Has side effect, used */
 #define NORETURN		4	/* Top level return is not used */
 #define ISBOOL			8	/* Return value is boolean truth */
     unsigned long value;	/* Offset for a NAME fp offset for a LOCAL */
@@ -17,6 +17,7 @@ struct node
 extern void init_nodes(void);
 
 extern struct node *tree(unsigned op, struct node *l, struct node *r);
+extern struct node *sf_tree(unsigned op, struct node *l, struct node *r);
 extern void free_node(struct node *n);
 extern struct node *new_node(void);
 
@@ -43,4 +44,4 @@ extern struct node *ordercomp_tree(unsigned op, struct node *l, struct node *r);
 extern struct node *assign_tree(struct node *l, struct node *r);
 extern struct node *logic_tree(unsigned op, struct node *l, struct node *r);
 
-extern struct node *constify(struct node *n);
+extern struct node *constify(struct node *n, unsigned eff);

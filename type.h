@@ -57,3 +57,4 @@ extern int type_pointermatch(struct node *l, struct node *r);
 extern int type_pointerconv(struct node *r, unsigned lt, unsigned warn);
 
 extern unsigned deffunctype;	/* Type number for int foo(); */
+extern unsigned voltrack;	/* Track volatile possibility */

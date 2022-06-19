@@ -336,7 +336,7 @@ static struct node *hier10(void)
 			unsigned s = type_scale(l->type);
 			next_token();
 			/* Put the constant on the right for convenience */
-			r = tree(op, l, make_constant(s, UINT));
+			r = sf_tree(op, l, make_constant(s, UINT));
 			return r;
 		}
 		return l;
@@ -355,7 +355,7 @@ static struct node *hier10(void)
 			op = T_PLUSEQ;
 		else
 			op = T_MINUSEQ;
-		return tree(op, r, make_constant(type_scale(r->type), UINT));
+		return sf_tree(op, r, make_constant(type_scale(r->type), UINT));
 	case T_TILDE:
 		/* Floating point bit ops are not allowed */
 		r = make_rval(hier10());
@@ -696,10 +696,10 @@ static struct node *hier1(void)
 				break;
 			}
 			if (scale)
-				return tree(fc, l,
+				return sf_tree(fc, l,
 					    tree(T_STAR, r,
 						 make_constant(scale, UINT)));
-			return tree(fc, l, r);
+			return sf_tree(fc, l, r);
 		} else
 			return l;
 	}

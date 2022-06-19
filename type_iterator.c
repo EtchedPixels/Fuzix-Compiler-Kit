@@ -8,6 +8,9 @@
 
 unsigned is_modifier(void)
 {
+	/* Track volatile hints */
+	if (token == T_VOLATILE)
+		voltrack++;
 	return (token == T_CONST || token == T_VOLATILE);
 }
 
@@ -394,7 +397,7 @@ unsigned type_name_parse(unsigned storage, unsigned type, unsigned *name)
 			header(H_EXPORT, *name, 0);
 		mark_storage(&argsave, &locsave);
 		init_storage();
-		function_body(storage, *name, func_return(type));
+		function_body(storage, *name, type);
 		pop_storage(&argsave, &locsave);
 		sym->infonext |= INITIALIZED;
 		funcbody = 1;

@@ -64,9 +64,20 @@ struct node *tree(unsigned op, struct node *l, struct node *r)
 		n->type = l->type;
 	else if (r)
 		n->type = r->type;
-	c = constify(n);
+	c = constify(n, 0);
 	if (c)
 		return c;
+	return n;
+}
+
+struct node *sf_tree(unsigned op, struct node *l, struct node *r)
+{
+	struct node *n = tree(op, l, r);
+	/* A dereference is only a side effect if it might be volatile */
+	if (op == T_DEREF)
+		n->flags |= voltrack;
+	else
+		n->flags |= SIDEEFFECT;
 	return n;
 }
 
@@ -176,30 +187,12 @@ static void nameref(struct node *n)
 	}
 }
 
-void canonicalize(struct node *n)
+static unsigned transitive(unsigned op)
 {
-	if (n->left)
-		canonicalize(n->left);
-	if (n->right)
-		canonicalize(n->right);
-	/* Get constants onto the right hand side */
-	if (n->left && is_constant(n->left)) {
-		struct node *t = n->left;
-		n->left = n->right;
-		n->right = t;
-	}
-	/* Propogate NOEFF side effect checking. If our children have a side
-	   effect then we don't even if we were safe ourselves */
-	if (!(n->left->flags & NOEFF) || !(n->right->flags & NOEFF))
-		n->flags &= -~NOEFF;
-
-	/* Turn name + constant into name offsets */
-	if (n->op == T_PLUS)
-		nameref(n);
-
-	/* Target rewrites - eg turning DEREF of local + const into a name with
-	   offset when supported or switching around subtrace trees that are NOEFF */
-	//target_canonicalize(n);
+	if (op == T_AND || op == T_OR || op == T_HAT ||
+	    op == T_PLUS || op == T_STAR)
+		return 1;
+	return 0;
 }
 
 struct node *make_rval(struct node *n)
@@ -211,7 +204,7 @@ struct node *make_rval(struct node *n)
 				n->flags &= ~LVAL;
 				return n;
 			}
-			n = tree(T_DEREF, NULL, n);
+			n = sf_tree(T_DEREF, NULL, n);
 			/* Decay to base type of array */
 			if (!PTR(nt))
 				n->type = type_canonical(nt);
@@ -219,7 +212,7 @@ struct node *make_rval(struct node *n)
 		} else if (IS_FUNCTION(nt) && !PTR(nt)) {
 			n->flags &= ~LVAL;
 		} else
-			return tree(T_DEREF, NULL, n);
+			return sf_tree(T_DEREF, NULL, n);
 	}
 	return n;
 }
@@ -370,16 +363,16 @@ struct node *assign_tree(struct node *l, struct node *r)
 	unsigned rt = type_canonical(r->type);
 
 	if (lt == rt)
-		return tree(T_EQ, l, r);
+		return sf_tree(T_EQ, l, r);
 	if (PTR(lt)) {
 		type_pointermatch(l, r);
-		return tree(T_EQ, l, r);
+		return sf_tree(T_EQ, l, r);
 	} else if (PTR(rt))
 		typemismatch();
 	else if (!IS_ARITH(lt) || !IS_ARITH(rt)) {
 		invalidtype();
 	}
-	return tree(T_EQ, l, make_cast(r, l->type));
+	return sf_tree(T_EQ, l, make_cast(r, l->type));
 }
 
 /* && || */
@@ -455,10 +448,25 @@ static unsigned is_name(unsigned n)
 	return 0;
 }
 
-struct node *constify(struct node *n)
+/*
+ *	TODO:
+ *	We need a sensible way of not rewalking the same trees
+ *
+ *	Walk down a tree and attempt to reduce it to the simplest
+ *	form we can manage. At the moment we do this repeatedly as
+ *	we build the tree but that needs rethinking. On the other hand
+ *	we don't want to do it at the end or we risk running out of nodes
+ *	as we remove a lot of nodes as we go.
+ */
+
+struct node *constify(struct node *n, unsigned flag)
 {
 	struct node *l = n->left;
 	struct node *r = n->right;
+
+	/* Remember if we are a node or child of a node that has a side
+	   effect. This determines what can be eliminated */
+	flag |= n->flags & SIDEEFFECT;
 
 	/* Casting of constant form objects */
 	/* We block casting of structures and arrays to each other higher up
@@ -476,19 +484,16 @@ struct node *constify(struct node *n)
 	/* Remove multiply by 1 or 0 */
 	if (n->op == T_STAR && r->op == T_CONSTANT) {
 		if (r->value == 1) {
-			free_node(n);
 			free_node(r);
+			free_node(n);
 			return l;
 		}
-#if 0
-		/* We can only do this if n has no side effects
-		   TODO: at least swap the MUL for a load ?? */
-		if (r->value == 0) {
+		/* We can only do this if n and l have no side effects */
+		if (r->value == 0 && !flag && !(l->flags & SIDEEFFECT)) {
 			l = make_constant(0, n->type);
 			free_tree(n);
 			return l;
 		}
-#endif
 	}
 	/* Divide by 1 */
 	if (n->op == T_SLASH && r->op == T_CONSTANT) {
@@ -499,9 +504,31 @@ struct node *constify(struct node *n)
 		}
 	}
 
-
+#if 0
+	/* This will always fail as we don't eliminate T_BOOL or understand
+	   T_BOOL(const) is a constant value that still typecasts and flag sets */
+	/* The logic ops are special as they permit shortcuts and need to be
+	   dealt with l->r */
+	if (n->op == T_ANDAND || n->op == T_OROR) {
+		l = constify(l, flag);
+		if (l == NULL || !IS_INTARITH(l->type) || (l->flags & LVAL))
+			return NULL;
+		if (n->op == T_OROR && l->value) {
+			free_tree(l);
+			free_tree(r);
+			free_node(n);
+			return bool_tree(make_constant(1, CINT));
+		}
+		if (n->op == T_ANDAND && !l->value) {
+			free_tree(l);
+			free_tree(r);
+			free_node(n);
+			return bool_tree(make_constant(0, CINT));
+		}
+	}
+#endif
 	if (r) {
-		r = constify(r);
+		r = constify(r, flag);
 		if (r == NULL)
 			return NULL;
 		n->right = r;
@@ -529,7 +556,7 @@ struct node *constify(struct node *n)
 			return r;
 		}
 		if (l) {
-			l = constify(l);
+			l = constify(l, flag);
 			if (l == NULL)
 				return NULL;
 			n->left = l;

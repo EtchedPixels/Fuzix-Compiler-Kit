@@ -12,6 +12,7 @@ FILE *debug;
 
 unsigned deffunctype;		/* The type of an undeclared function */
 unsigned funcbody;		/* Parser global for function body */
+unsigned voltrack;		/* Track possible volatiles */
 
 /*
  *	A C program consists of a series of declarations that by default
@@ -24,6 +25,7 @@ static void toplevel(void)
 		dotypedef();
 	} else {
 		funcbody = 0;
+		voltrack = 0;
 		declaration(S_EXTDEF);
 	}
 }
