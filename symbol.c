@@ -177,6 +177,9 @@ struct symbol *update_symbol_by_name(unsigned name, unsigned storage,
 	   it - we create a local one masking it */
 	if (sym && global == 0 && sym->infonext >= S_STATIC)
 		sym = NULL;
+	/* Local symbols don't duplicate. TODO awareness of block level */
+	if (sym && !global)
+		error("duplicate name");
 	return update_symbol(sym, name, storage, type);
 }
 
