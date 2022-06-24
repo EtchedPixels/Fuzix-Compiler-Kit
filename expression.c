@@ -688,13 +688,24 @@ static struct node *hier1(void)
 				needlval();
 				return l;
 			}
+			/* TODO: review - fix things like float ^= and fold
+			   these rules and the non eq versions together somehow */
 			r = make_rval(hier1());
 			switch (fc) {
 			case T_MINUSEQ:
 			case T_PLUSEQ:
 				scale = type_scale(l->type);
+			case T_STAREQ:
+			case T_SLASHEQ:
+				if (!IS_ARITH(r->type))
+					badtype();
 				break;
+			default:
+				if (!IS_INTARITH(r->type))
+					badtype();
 			}
+			/* Get the type converted to the bit width of the maths */
+			r = make_cast(r, l->type);
 			if (scale)
 				return sf_tree(fc, l,
 					    tree(T_STAR, r,
