@@ -13,6 +13,8 @@ extern unsigned target_argsize(unsigned t);
 extern unsigned target_ptr_arith(unsigned t);
 extern unsigned target_scale_ptr(unsigned t, unsigned scale);
 extern unsigned target_type_remap(unsigned t);
+extern unsigned target_register(unsigned t);
+extern void target_reginit(void);
 
 /* Default integer type is 2 byte */
 #define CINT	CSHORT

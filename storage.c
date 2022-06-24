@@ -18,7 +18,7 @@ unsigned get_storage(unsigned dflt)
 	case T_AUTO:
 		return S_AUTO;
 	case T_REGISTER:
-		return S_AUTO;	/* For now */
+		return S_REGISTER;
 	case T_STATIC:
 		if (dflt == S_AUTO)
 			return S_LSTATIC;

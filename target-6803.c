@@ -65,3 +65,12 @@ unsigned target_type_remap(unsigned type)
 		return FLOAT;
 	return type;
 }
+
+unsigned target_register(unsigned type)
+{
+	return 0;
+}
+
+void target_reginit(void)
+{
+}

@@ -40,6 +40,7 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 {
 	struct symbol *sym;
 	static unsigned lstatic;	/* Number local statics for scope */
+	unsigned offset;
 
 	/* It's quite valid C to just write "int;" but usually dumb except
 	   that it's used for struct and union */
@@ -48,11 +49,17 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 			warning("useless declaration");
 		return 1;
 	}
-	if (s == S_AUTO && defstorage == S_EXTDEF)
+	if ((s == S_AUTO || s == S_REGISTER) && defstorage == S_EXTDEF)
 		error("no automatic globals");
 
 	if (IS_FUNCTION(type) && !PTR(type) && s == S_EXTDEF)
 		s = S_EXTERN;
+
+	if (s == S_REGISTER) {
+		offset = target_register(type);
+		if (offset == 0)
+			s = S_AUTO;
+	}
 
 	/* Do we already have this symbol */
 	sym = update_symbol_by_name(name, s, type);
@@ -60,6 +67,8 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 	if (funcbody)
 		return 0;
 
+	if (s == S_REGISTER)
+		sym->data.offset = offset;
 	if (s == S_AUTO)
 		sym->data.offset = assign_storage(type, S_AUTO);
 	if (s == S_LSTATIC)

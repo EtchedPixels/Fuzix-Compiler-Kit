@@ -26,6 +26,7 @@ static void toplevel(void)
 	} else {
 		funcbody = 0;
 		voltrack = 0;
+		target_reginit();
 		declaration(S_EXTDEF);
 	}
 }

@@ -68,3 +68,22 @@ unsigned target_type_remap(unsigned type)
 		return FLOAT;
 	return type;
 }
+
+static unsigned bc_free;
+
+/* TODO: work out how to do register usefully in the backend */
+unsigned target_register(unsigned type)
+{
+#if 0
+	if (bc_free) {
+		bc_free = 0;
+		return 1;
+	}
+#endif
+	return 0;
+}
+
+void target_reginit(void)
+{
+	bc_free = 1;
+}
