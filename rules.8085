@@ -250,6 +250,21 @@
 	lhld %1
 	push h
 
+# And via xthl
+	push h
+	lxi h,%1
+	xthl
+=
+	lxi h,%1
+	push h
+
+	push h
+	lhld %1
+	xthl
+=
+	lhld %1
+	push h
+
 # Argument is object address - not a totally safe pattern but should be fine
 # for all the compiler generates - if not will need to add a ;npush tag
 # or similar to match
