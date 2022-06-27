@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -628,7 +629,6 @@ static int count_mul_cost(unsigned n)
 static void write_mul(unsigned n)
 {
 	unsigned pops = 0;
-	unsigned count = 0;
 	if ((n & 0xFF) == 0) {
 		printf("\tmov h,l\n\tmvi l,0\n");
 		n >>= 8;
@@ -783,17 +783,25 @@ unsigned gen_direct(struct node *n)
 		gen_cleanup(v);
 		return 1;
 	case T_NSTORE:
-		if (s == 1) {
-			printf("\tmov a,l\n");
-			printf("\tsta _%s+%d\n", namestr(n->snum), WORD(n->value));
+		if (s > 2)
+			return 0;
+		if (s == 1)
+			printf("\tmov a,l\n\tsta");
+		else
+			printf("\tshld ");
+		printf("_%s+%d\n", namestr(n->snum), WORD(n->value));
 			return 1;
-		}
-		if (s == 2) {
-			printf("\tshld _%s+%d\n", namestr(n->snum), WORD(n->value));
-			return 1;
-		}
 		/* TODO 4/8 for long etc */
 		return 0;
+	case T_LBSTORE:
+		if (s > 2)
+			return 0;
+		if (s == 1)
+			printf("\tmov a,l\n\tsta");
+		else
+			printf("\tshld");
+		printf(" T%d+%d\n", n->val2, v);
+		return 1;
 	case T_EQ:
 		/* The address is in HL at this point */
 		if (cpu == 8085 && s == 2 ) {
@@ -1053,7 +1061,10 @@ unsigned gen_shortcut(struct node *n)
 		if (n->value + sp == 0 && s == 2) {
 			/* The one case 8080 is worth doing */
 			codegen_lr(n->right);
-			printf("\tpop psw\n\tpush h\n");
+			if (n->flags & NORETURN)
+				printf("\txthl\n");
+			else
+				printf("\tpop psw\n\tpush h\n");
 			return 1;
 		}
 		if (cpu == 8085 && n->value + sp < 255) {
@@ -1224,7 +1235,10 @@ unsigned gen_node(struct node *n)
 	case T_LSTORE:
 /*		printf(";L sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
 		if (v + sp == 0 && size == 2 ) {
-			printf("\tpop psw\n\tpush h\n");
+			if (n->flags & NORETURN)
+				printf("\txthl\n");
+			else
+				printf("\tpop psw\n\tpush h\n");
 			return 1;
 		}
 		v += sp;
