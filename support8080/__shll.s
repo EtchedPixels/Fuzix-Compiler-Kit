@@ -39,19 +39,19 @@ remainder:
 		push	b
 		mov	c,a
 shiftloop:
-		mov	a,e
-		ora	a
-		ral
-		mov	e,a
-		mov	a,d
-		ral
-		mov	d,a
 		mov	a,l
+		ora	a
 		ral
 		mov	l,a
 		mov	a,h
 		ral
 		mov	h,a
+		mov	a,e
+		ral
+		mov	e,a
+		mov	a,d
+		ral
+		mov	d,a
 		dcr	c
 		jnz	shiftloop
 		pop	b

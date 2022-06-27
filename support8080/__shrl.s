@@ -2,6 +2,8 @@
 		.setcpu 8080
 		.code
 
+; FIXME: this is broken because we don't get the carry right on the
+; shortcut cases
 __shrl:
 		mov	a,l		; shift amount
 		pop	h

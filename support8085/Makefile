@@ -36,7 +36,7 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __pushl.o __sex.o \
       __assignl.o \
       __minusl.o __plusl.o __mull.o __divl.o \
       __postincl.o __postdecl.o \
-      __shll.o __shrl.o __shrul.o \
+      __shll.o __shrl.o \
       __shleql.o __shreql.o \
       __bandde.o __borde.o __bxorde.o __mulde.o __shrdeu.o \
       __muldec.o \
