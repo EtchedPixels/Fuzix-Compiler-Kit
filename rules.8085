@@ -101,6 +101,12 @@
 	ldsi %1
 	shlx
 
+	xchg
+	pop d
+	xchg
+=
+	pop h
+
 # Clean up trivial multiple loads - often from assignments
 	lxi h,%1
 	shld %2
