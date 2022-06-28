@@ -461,17 +461,21 @@ static struct node *hier8(void)
 		else {
 			scale = type_ptrscale_binop(op, l, r, &rt);
 			/* The type checking was done in type_ptrscale_binop */
-			if (scale == 1) {
-				l = tree(op, l, r);
-			} else if (scale < 0)
+			if (scale < 0)
 				l = tree(T_SLASH, tree(op, l, r), make_constant(-scale, UINT));
 			/* TODO: these two assume ptrdiff is an int sized type */
 			else if (PTR(l->type)) {
 				r = typeconv(r, UINT, 0);
-				l = tree(op, l, tree(T_STAR, r, make_constant(scale, UINT)));
+				if (scale)
+					l = tree(op, l, tree(T_STAR, r, make_constant(scale, UINT)));
+				else
+					l = tree(op, l, r);
 			} else {
 				l = typeconv(l, UINT, 0);
-				l = tree(op, tree(T_STAR, l, make_constant(scale, UINT)), r);
+				if (scale)
+					l = tree(op, tree(T_STAR, l, make_constant(scale, UINT)), r);
+				else
+					l = tree(op, l, r);
 			}
 			l->type = rt;
 		}
