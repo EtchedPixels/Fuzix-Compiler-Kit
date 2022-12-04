@@ -975,9 +975,20 @@ unsigned gen_direct(struct node *n)
 			if (r->op == T_CONSTANT && r->value < 4 && (n->flags & NORETURN)) {
 				repeated_op("dcr m", r->value);
 			} else {
-				if (load_a_with(r) == 0)
-					return 0;
-				printf("\tsub m\n\tmov m,a\n");
+				/* Subtraction is not transitive so this is
+				   messier */
+				if (r->op == T_CONSTANT) {
+					if (r->value == 1)
+						printf("\tmov a,m\n\tdcr a\n\tmov m,a");
+					else
+						printf("\tmov a,m\n\tsbi %d\n\tmov m,a",
+							(int)r->value);
+				} else {
+					if (load_a_with(r) == 0)
+						return 0;
+					printf("\tcma\n\tinr a\n\n");
+					printf("\tsub m\n\tmov m,a\n");
+				}
 				if (!(n->flags & NORETURN))
 					printf("\tmov l,a\n");
 			}
@@ -1136,7 +1147,6 @@ unsigned gen_node(struct node *n)
 	unsigned v;
 	char *name;
 	/* We adjust sp so track the pre-adjustment one too when we need it */
-	unsigned spval = sp;
 
 	v = n->value;
 
