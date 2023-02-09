@@ -8,7 +8,7 @@ int test_lt(int a, int b)
     return a < b;
 }
 
-int test_lt8(char a, char b)
+int test_lt8(signed char a, signed char b)
 {
     return a < b;
 }
@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
     if (test_lt8(-4, -7) == 1)
         return 8;
     /* +ve / -ve */
-    if (test_lt8(39, -127) == 0)
+    if (test_lt8(39, -127) == 1)
         return 9;
     /* -ve / +ve */
     if (test_lt8(-1, 5) == 0)
