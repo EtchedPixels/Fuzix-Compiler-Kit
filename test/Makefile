@@ -11,6 +11,4 @@ testcrt0.o: testcrt0.s
 	cc85 -c testcrt0.s
 
 clean:
-	rm -f *.o tests/*.o *~ tests/*~ emu85
-
-
+	rm -f *.o tests/*.o *~ tests/*~ emu85 tests/*.map *.log

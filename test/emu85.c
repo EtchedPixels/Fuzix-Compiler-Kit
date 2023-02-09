@@ -36,7 +36,7 @@ uint8_t i8085_inport(uint8_t port)
 void i8085_outport(uint8_t port, uint8_t value)
 {
     if (value)
-        fprintf(stderr, "***FAIL %02X\n", value);
+        fprintf(stderr, "***FAIL %d\n", value);
     exit(value);
 }
 
@@ -52,13 +52,13 @@ void i8085_set_output(int value)
 int main(int argc, char *argv[])
 {
     int fd;
-    if (argc == 3 && strcmp(argv[1], "-d") == 0) {
+    if (argc == 4 && strcmp(argv[1], "-d") == 0) {
         argv++;
         argc--;
         i8085_log = stderr;
     }
-    if (argc != 2) {
-        fprintf(stderr, "emu85: test name.\n");
+    if (argc != 3) {
+        fprintf(stderr, "emu85: test map.\n");
         exit(1);
     }
     fd = open(argv[1], O_RDONLY);
@@ -72,6 +72,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
     close(fd);
+    i8085_load_symbols(argv[2]);
     i8085_reset(0);
     while(1)
         i8085_exec(100000);
