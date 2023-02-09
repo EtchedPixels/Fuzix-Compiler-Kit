@@ -14,7 +14,6 @@ __divu:
 	pop	h
 	xthl
 	call	__divdeu
-	xchg
 	ret
 
 __divdeu:

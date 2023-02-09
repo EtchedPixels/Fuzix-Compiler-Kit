@@ -12,7 +12,6 @@ __div:
 	pop	h
 	xthl
 	call	__divde
-	xchg
 	ret
 
 __divde:
@@ -22,15 +21,13 @@ __divde:
 	xchg
 	call	signfix
 	xchg
-	;	C tells us if we need to invert
+	;	C tells us if we need to negate
 
 	call	__divdeu
 
 	mov	a,c
 	rar
-	jnc	noinvert
-	call	signfix
-noinvert:
+	cc	negate
 	pop	b
 	ret
 
@@ -45,15 +42,13 @@ __remde:
 	mvi	c,0
 	call	signfix
 	xchg
-	;	C tells us if we need to invert
+	;	C tells us if we need to negate
 
 	call	__remdeu
 
 	mov	a,c
 	rar
-	jnc	noinvertr
-	call	signfix
-noinvertr:
+	cc	negate
 	pop	b
 	ret
 
@@ -62,6 +57,7 @@ signfix:
 	mov	a,h
 	ora	a
 	rp
+negate:
 	cma
 	mov	h,a
 	mov	a,l

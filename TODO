@@ -15,6 +15,8 @@ TEST - Teach NSTORE etc to also do label forms for local statics
 - Other volatile option, is to pass a volatile marker on expression trees if
   a volatile cast appears or a local is marked volatile. Globals are a bit
   tricker that way ?
+- 8085 - load byte vars by word loading the right offset and ignoring one.
+- Eliminate assignment to self ?
 
 Broken 
 -	constify needs a hard stare or two
@@ -25,6 +27,7 @@ Broken
 		{ int n; { long n; } } - need to know if we are creating new sym level
 -	Fix
 	void (*p)(void); void x(void);   if (p == x) - bad type (&x works)
+-	Why is  if (++x) of char generating a castc before the cmpeq ?
 
 
 Longer term
