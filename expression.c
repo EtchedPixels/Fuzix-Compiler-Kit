@@ -336,7 +336,12 @@ static struct node *hier10(void)
 			unsigned s = type_scale(l->type);
 			next_token();
 			/* Put the constant on the right for convenience */
-			r = sf_tree(op, l, make_constant(s, UINT));
+			/* We can know the constant will fit a UINT for 16bit boxes
+			   but 32bit ptr 16bit int this is borked FIXME */
+			if (PTR(l->type))
+				r = sf_tree(op, l, make_constant(s, UINT));
+			else
+				r = sf_tree(op, l, make_constant(s, l->type));
 			return r;
 		}
 		return l;
@@ -355,7 +360,12 @@ static struct node *hier10(void)
 			op = T_PLUSEQ;
 		else
 			op = T_MINUSEQ;
-		return sf_tree(op, r, make_constant(type_scale(r->type), UINT));
+		/* FIXME: turning it into a PLUSEQ/MINUSEQ implies the right side
+		   type needs to be ptr size not UINT ?? */
+		if (PTR(r->type))
+			return sf_tree(op, r, make_constant(type_scale(r->type), UINT));
+		/* We should probably keep an optimized ++/-- FIXME */
+		return sf_tree(op, r, make_constant(1, r->type));
 	case T_TILDE:
 		/* Floating point bit ops are not allowed */
 		r = make_rval(hier10());
