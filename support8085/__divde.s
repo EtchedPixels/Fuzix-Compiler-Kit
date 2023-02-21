@@ -37,11 +37,11 @@ __rem:
 	xthl
 __remde:
 	push	b
+	xchg
 	call	signfix
 	xchg
 	mvi	c,0
 	call	signfix
-	xchg
 	;	C tells us if we need to negate
 
 	call	__remdeu

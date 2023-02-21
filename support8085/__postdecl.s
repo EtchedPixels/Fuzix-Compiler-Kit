@@ -1,5 +1,7 @@
 ;
 ;		TOS = lval of object HL = amount
+;		Amount is always within the size of a pointer so is not
+;		turned long on 8085
 ;
 		.export __postdecl
 
@@ -22,12 +24,12 @@ __postdecl:
 		inx	h
 		mov	a,m
 		sta	__hireg
-		sbb	d
+		sbi	0
 		mov	m,a
 		inx	h
 		mov	a,m
 		sta	__hireg+1
-		sbb	d
+		sbi	0
 		mov	m,a
                 lhld	__tmp
 		ret

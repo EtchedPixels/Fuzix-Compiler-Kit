@@ -46,9 +46,9 @@ __cmpl:
 	; Same sign - unsigned compare
 	jp	__cmpul
 	xra	m
-	jp	setnc	; m +ve / d -ve
-	ora	a	; clear carry
-	; We know A top bit is set so NZ is as we want it
+	jm	setnc	; m +ve / d -ve
+	inr	a	; clear carry
+	; A cannot be 0xFF so this will ensure NZ
 	ret
 setnc:	xra	a
 	inr	a	; NZ

@@ -8,23 +8,18 @@
 		.code
 __andeq:
 __andequ:
-		shld	__tmp		; save add value
-		pop	h
-		shld	__retaddr	; save return
-		pop	d
-		push	d		; get a copy of the TOS address
-		lhld	__tmp
-		ldax	d
-		ana	h
-		mov	h,a
-		inx	d
-		ldax	d
-		ana	l
-		mov	l,a
 		xchg
 		pop	h
-		mov	e,m
+		xthl
+		; HL is now the pointer, DE the mask
+		mov	a,m
+		ana	e
+		mov	m,a
+		mov	e,a
 		inx	h
-		mov	d,m
-		xchg
-		jmp	__ret
+		mov	a,m
+		ana	d
+		mov	m,a
+		mov	l,e
+		mov	h,a
+		ret

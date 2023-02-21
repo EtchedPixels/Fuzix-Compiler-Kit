@@ -7,7 +7,7 @@ __minuseql:
 	pop	h
 	xthl
 
-	; HL is pointer, hireg:de amount to add
+	; HL is pointer, hireg:de amount to sub
 
 	mov	a,m
 	sub	e
@@ -38,5 +38,5 @@ __minuseql:
 	xchg
 	shld	__hireg
 
-	pop	d
+	pop	h
 	ret

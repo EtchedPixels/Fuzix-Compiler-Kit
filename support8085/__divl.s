@@ -39,9 +39,9 @@ __divlop:
 	pop	d
 
 	pop	h		; 32bit dividend into tmp2
-	shld	__tmp2+2
-	pop	h
 	shld	__tmp2
+	pop	h
+	shld	__tmp2+2
 
 	push	d		; Save return address
 

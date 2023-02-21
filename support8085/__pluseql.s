@@ -38,5 +38,5 @@ __pluseql:
 	xchg
 	shld	__hireg
 
-	pop	d
+	pop	h
 	ret
