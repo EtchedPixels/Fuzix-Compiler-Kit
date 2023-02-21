@@ -1279,9 +1279,13 @@ void i8085_load_symbols(const char *path)
 		return;
 	}
 	while(fgets(buf, 63, fp) != NULL) {
-		if (sscanf(buf, "%x %c %16s", &addr, &type, name) == 3)
+		if (sscanf(buf, "%x %c %16s", &addr, &type, name) == 3) {
+			if (strncmp(name, "__code_", 7) &&
+			    strncmp(name, "__data_", 7) &&
+			    strncmp(name, "__discard_", 10) &&
+			    strncmp(name, "__bss_", 6))
 			i8085_add_symbol(addr, type, name);
-		else
+		} else
 			fprintf(stderr, "format error %s\n", buf);
 	}
 	fclose(fp);
