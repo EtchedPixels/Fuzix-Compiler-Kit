@@ -46,13 +46,13 @@ int main(int argc, char *argv[])
         return 9;
     if (mods(1000, 10) != 0)
         return 10;
-    if (mods(1005, 10) != 5)
+    if (mods(1006, 10) != 6)
         return 11;
-    if (mods(-1005, 10) != 5)
+    if (mods(-1006, 10) != -6)
         return 12;
-    if (mods(-1005, -10) != -5)
+    if (mods(-1006, -10) != -6)
         return 13;
-    if (mods(1005, -10) != -5)
+    if (mods(1006, -10) != 6)
         return 14;
     return 0;
 }
