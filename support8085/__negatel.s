@@ -11,6 +11,9 @@ __negatel:
 	mov	a,l
 	cma
 	mov	l,a
+	inx	h
+	mov	a,h
+	ora	a
 	push	h
 	push	psw
 	lhld	__hireg

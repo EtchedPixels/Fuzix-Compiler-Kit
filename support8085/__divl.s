@@ -214,7 +214,7 @@ dodiveq:
 	call	divldo		; result in hireg:tmp
 	pop	d
 	push	h
-	lxi	h,__tmp
+	lxi	h,__tmp2
 	call	__copy4		; copy it back
 	pop	h
 	ret
