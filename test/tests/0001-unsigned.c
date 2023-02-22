@@ -41,8 +41,11 @@ int test_uge8(unsigned char a, unsigned char b)
     return a >= b;
 }
 
+static unsigned x = 12;
+
 int main(int argc, char *argv[])
 {
+    unsigned n;
     if (test_ult(33, 11) == 1)
         return 1;
     if (test_ult(32769U, 11U) == 1)
@@ -128,8 +131,24 @@ int main(int argc, char *argv[])
     if (test_ule8(12,12) == 0)
         return 20;
 
-
-
-
+    /* cc tests */
+    n = 12;
+    if (n < 12)
+        return 21;
+    if (n > 12)
+        return 22;
+    if (n <= 11)
+        return 23;
+    if (n >= 13)
+        return 24;
+    /* Static cc tests */
+    if (x > 12)
+        return 25;
+    if (x >= 13)
+        return 26;
+    if (x < 12)
+        return 27;
+    if (x <= 11)
+        return 28;
     return 0;
 }
