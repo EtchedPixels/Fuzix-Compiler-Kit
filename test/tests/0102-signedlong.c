@@ -13,6 +13,7 @@ long test_lt(long a, long b)
 
 int main(int argc, char *argv[])
 {
+    long x;
     /* Both positive */
     if (test_lt(0x30301110, 0x00001110) == 1)
         return 1;
@@ -30,5 +31,8 @@ int main(int argc, char *argv[])
         return 5;
     if (test_lt(0, -1) == 1)
         return 6;
+    x = 4413;
+    if (-x != -4413)
+        return 7;
     return 0;
 }

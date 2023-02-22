@@ -35,9 +35,22 @@ uint8_t i8085_inport(uint8_t port)
 
 void i8085_outport(uint8_t port, uint8_t value)
 {
-    if (value)
-        fprintf(stderr, "***FAIL %d\n", value);
-    exit(value);
+    switch(port) {
+    case 0xFD:
+        if (value < 32 || value > 127)
+            printf("\\x%02X", value);
+        else
+            putchar(value);
+        fflush(stdout);
+        return;
+    case 0xFF:
+        if (value)
+            fprintf(stderr, "***FAIL %d\n", value);
+        exit(value);
+    default:
+        fprintf(stderr, "***BAD PORT %d\n", port);
+        exit(1);
+    }
 }
 
 int i8085_get_input(void)
