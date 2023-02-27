@@ -13,7 +13,10 @@ __ccltequ:
 		xthl
 		mov	a,l
 		sub	e
+		mov	l,a
 		mov	a,h
 		sbb	d
 		jc	__true
+		ora	l
+		jz	__true
 		jmp	__false

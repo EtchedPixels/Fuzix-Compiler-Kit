@@ -27,6 +27,6 @@ sign_same:
 		sub	l
 		mov	a,d
 		sbb	h
-		jc	__true
+		jm	__true
 		jmp	__false
 

@@ -8,23 +8,18 @@
 		.code
 __xoreq:
 __xorequ:
-		shld	__tmp		; save add value
+		xchg
 		pop	h
-		shld	__retaddr	; save return
-		pop	d
-		push	d		; get a copy of the TOS address
-		lhld	__tmp
-		ldax	d
-		xra	h
+		xthl
+		; Mask now in DE pointer in HL
+		mov	a,m
+		xra	e
+		mov	m,a		; xor byte and store
+		mov	e,a
+		inx	h		; high byte
+		mov	a,m
+		xra	d
+		mov	m,a		; same again
+		mov	l,e		; recover value for caller
 		mov	h,a
-		inx	d
-		ldax	d
-		xra	l
-		mov	l,a
-		xchg
-		pop	h
-		mov	e,m
-		inx	h
-		mov	d,m
-		xchg
 		jmp	__ret

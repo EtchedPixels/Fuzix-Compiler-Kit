@@ -1,4 +1,4 @@
-all: lib8085.a crt0.o
+all: lib8080.a crt0.o
 
 OBJ = workspace.o __true.o __switchc.o __switch.o __pushl.o __sex.o \
       __ldwordw.o \
@@ -45,9 +45,9 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __pushl.o __sex.o \
 .s.o:
 	cc85 -c $<
 
-lib8085.a: $(OBJ)
-	rm -f lib8085.a
-	ar qc lib8085.a $(OBJ)
+lib8080.a: $(OBJ)
+	rm -f lib8080.a
+	ar qc lib8080.a $(OBJ)
 
 clean:
 	rm -f *.o *.a

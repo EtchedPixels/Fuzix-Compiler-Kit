@@ -39,9 +39,9 @@ __divlop:
 	pop	d
 
 	pop	h		; 32bit dividend into tmp2
-	shld	__tmp2+2
-	pop	h
 	shld	__tmp2
+	pop	h
+	shld	__tmp2+2
 
 	push	d		; Save return address
 
@@ -214,7 +214,7 @@ dodiveq:
 	call	divldo		; result in hireg:tmp
 	pop	d
 	push	h
-	lxi	h,__tmp
+	lxi	h,__tmp2
 	call	__copy4		; copy it back
 	pop	h
 	ret

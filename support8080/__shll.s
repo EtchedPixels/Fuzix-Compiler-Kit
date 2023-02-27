@@ -4,12 +4,13 @@
 
 __shll:
 		mov	a,l		; shift amount
-		ani	31
-		jz	done
 		pop	h
 		shld	__retaddr	; save return address
 		pop	h
 		pop	d
+
+		ani	31
+		jz	done
 
 		; Shift DEHL left by A
 
