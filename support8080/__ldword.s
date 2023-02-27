@@ -1,17 +1,16 @@
 ;
 ;	Load word from further off stack
 ;
-		.export __ldwordw
+		.export __ldword
 
 		.setcpu 8080
 		.code
 
-__ldwordw:
+__ldword:
 	pop	h
 	mov	e,m
 	inx	h
-	mov	d,m
-	inx	h
+	mvi	d,0
 	push	h
 	dad	sp
 	mov	a,m

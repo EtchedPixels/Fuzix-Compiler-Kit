@@ -40,14 +40,26 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __pushl.o __sex.o \
       __shleql.o __shreql.o \
       __bandde.o __borde.o __bxorde.o __mulde.o __shrdeu.o \
       __muldec.o \
+      __ldword.o __ldwordw.o __stword.o __stwordw.o \
+      __ldbyte.o __ldbytew.o __stbyte.o __stbytew.o \
       _memcpy.o _memset.o _strlen.o
+
+include ldst.mk
+
+ldword/_10.o: makeldst
+	./makeldst
+	cc85 -c ldword/_10.s
+
+makeldst: makeldst.c
+	$(CC) makeldst.c -o ./makeldst
 
 .s.o:
 	cc85 -c $<
 
-lib8080.a: $(OBJ)
+lib8080.a: makeldst $(OBJ)
 	rm -f lib8080.a
 	ar qc lib8080.a $(OBJ)
 
 clean:
 	rm -f *.o *.a
+	rm -f ldword/* stword/*
