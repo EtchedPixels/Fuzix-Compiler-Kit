@@ -1,7 +1,8 @@
 all: cc cc0 cc1.8080 cc1.6803 cc2 cc2.8080 cc2.6809 \
-     cc2.z80 cc2.65c816 cc2.6803 copt support8085
+     cc2.z80 cc2.65c816 cc2.6803 copt \
+     support8080 support8085
 
-.PHONY: support8085
+.PHONY: support8080 support8085
 
 OBJS0 = frontend.o
 
@@ -63,6 +64,9 @@ cc2.65c816:	$(OBJS6)
 cc2.6803:	$(OBJS7)
 	gcc -g3 $(OBJS7) -o cc2.6803
 
+support8080:
+	(cd support8080; make)
+
 support8085:
 	(cd support8085; make)
 
@@ -86,5 +90,6 @@ install: all
 	cp rules.8080 /opt/cc85/lib
 	cp rules.8085 /opt/cc85/lib
 	cp support8085/crt0.o /opt/cc85/lib
+	cp support8080/lib8080.a /opt/cc85/lib/lib8080.a
 	cp support8085/lib8085.a /opt/cc85/lib/lib8085.a
 	ar cq /opt/cc85/lib/libc.a
