@@ -1195,7 +1195,7 @@ unsigned gen_node(struct node *n)
 			if (size == 2)
 				printf("\tlhlx\n");
 			else
-				printf("\tldax d\n\tmov d,a\n");
+				printf("\tldax d\n\tmov l,a\n");
 			return 1;
 		}
 		/* Byte load is shorter inline for most cases */
