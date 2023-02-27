@@ -4,7 +4,7 @@
 		.export __plus
 		.export __plusu
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 __plus:
 __plusu:

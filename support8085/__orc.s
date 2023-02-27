@@ -4,7 +4,7 @@
 		.export __orc
 		.export __oruc
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 __orc:
 __oruc:

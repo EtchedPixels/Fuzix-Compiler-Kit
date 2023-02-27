@@ -4,7 +4,7 @@
 		.export __xorc
 		.export __xoruc
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 __xorc:
 __xoruc:

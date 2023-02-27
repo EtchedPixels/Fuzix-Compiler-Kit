@@ -4,7 +4,7 @@
 		.export __andeq
 		.export __andequ
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 __andeq:
 __andequ:

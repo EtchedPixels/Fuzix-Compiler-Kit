@@ -4,7 +4,7 @@
 		.export __or
 		.export __oru
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 __or:
 __oru:

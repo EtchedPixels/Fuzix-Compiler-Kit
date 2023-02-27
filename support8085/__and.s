@@ -3,7 +3,7 @@
 ;
 		.export __band
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 __band:
 		xchg			; working register into DE

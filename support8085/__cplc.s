@@ -1,7 +1,7 @@
 		.export	__negatec
 		.export __cplc
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 
 __negatec:

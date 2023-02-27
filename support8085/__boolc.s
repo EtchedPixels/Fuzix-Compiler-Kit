@@ -1,7 +1,7 @@
 		.export	__boolc
 		.export __cmpne0c
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 ;
 ;	Unlike most operations we require the bool ones to set the flags

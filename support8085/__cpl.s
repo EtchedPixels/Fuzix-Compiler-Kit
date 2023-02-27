@@ -1,7 +1,7 @@
 		.export	__negate
 		.export __cpl
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 
 __negate:

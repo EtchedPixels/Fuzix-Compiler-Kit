@@ -1,6 +1,6 @@
 		.export	__notl
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 
 __notl:

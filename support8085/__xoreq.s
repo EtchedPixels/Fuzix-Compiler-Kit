@@ -4,7 +4,7 @@
 		.export __xoreq
 		.export __xorequ
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 __xoreq:
 __xorequ:

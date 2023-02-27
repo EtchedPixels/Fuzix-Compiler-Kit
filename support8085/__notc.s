@@ -1,6 +1,6 @@
 		.export	__notc
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 
 __notc:

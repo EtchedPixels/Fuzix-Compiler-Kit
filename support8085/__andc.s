@@ -4,7 +4,7 @@
 		.export __andc
 		.export __anduc
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 __andc:
 __anduc:

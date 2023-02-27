@@ -1,6 +1,6 @@
 		.export	__booll
 
-		.setcpu 8085
+		.setcpu 8080
 		.code
 
 __booll:

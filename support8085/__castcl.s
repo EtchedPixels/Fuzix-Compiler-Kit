@@ -3,7 +3,7 @@
 ;
 		.export __castc_l
 		.export __castc_ul
-		.setcpu 8085
+		.setcpu 8080
 
 		.code
 

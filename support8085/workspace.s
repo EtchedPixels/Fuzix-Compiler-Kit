@@ -1,5 +1,5 @@
 		.data
-		.setcpu 8085
+		.setcpu 8080
 
 		.export __tmp
 		.export __tmp2
