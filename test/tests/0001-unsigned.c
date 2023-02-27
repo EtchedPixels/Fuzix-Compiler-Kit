@@ -42,10 +42,12 @@ int test_uge8(unsigned char a, unsigned char b)
 }
 
 static unsigned x = 12;
+static unsigned char y = 12;
 
 int main(int argc, char *argv[])
 {
     unsigned n;
+    unsigned char m;
     if (test_ult(33, 11) == 1)
         return 1;
     if (test_ult(32769U, 11U) == 1)
@@ -150,5 +152,29 @@ int main(int argc, char *argv[])
         return 27;
     if (x <= 11)
         return 28;
+
+    /* Byte */
+
+    /* cc tests */
+    m = 12;
+    if (m < 12)
+        return 29;
+    if (m > 12)
+        return 30;
+    if (m <= 11)
+        return 31;
+    if (m >= 13)
+        return 32;
+
+    /* Static cc tests */
+    if (y > 12)
+        return 33;
+    if (y >= 13)
+        return 34;
+    if (y < 12)
+        return 35;
+    if (y <= 11)
+        return 36;
+
     return 0;
 }
