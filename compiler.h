@@ -46,3 +46,5 @@
 #include "type_iterator.h"
 
 extern FILE *debug;
+
+extern unsigned in_sizeof;

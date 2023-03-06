@@ -13,7 +13,7 @@ FILE *debug;
 unsigned deffunctype;		/* The type of an undeclared function */
 unsigned funcbody;		/* Parser global for function body */
 unsigned voltrack;		/* Track possible volatiles */
-
+unsigned in_sizeof;		/* Set if we are in sizeof() */
 /*
  *	A C program consists of a series of declarations that by default
  *	are external definitions.

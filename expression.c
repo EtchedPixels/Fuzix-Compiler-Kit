@@ -199,12 +199,16 @@ struct node *get_sizeof(void)
 		return make_constant(type_sizeof(type), UINT);
 	}
 	/* Sizeof an expression. This is one case that does not degrade to a pointer
-	   if the result is an array */
+	   if the result is an array. We track whether we are in sizeof so that
+	   we can optimize some of the symbol table tracking for constanrt strings
+	   to keep memory usage a bit more controlled. See primary.c */
+	in_sizeof++;
 	n = hier0(0);
 	r = make_constant(type_sizeof(n->type), UINT);
 	free_tree(n);
 	if (want_paren)
 		require(T_RPAREN);
+	in_sizeof--;
 	return r;
 }
 

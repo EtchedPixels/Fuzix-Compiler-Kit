@@ -268,6 +268,9 @@ unsigned copy_string(unsigned label, unsigned maxlen, unsigned pad, unsigned lit
 	while((c = tokbyte()) != 0) {
 		if (l < maxlen) {
 			out_byte(c);
+			/* Quoted FFFF FFFE pairs count as one byte */
+			if (c == 0xFF)
+				out_byte(tokbyte());
 			l++;
 		}
 	} while(c);

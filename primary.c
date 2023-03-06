@@ -18,17 +18,33 @@ struct node *constant_node(void)
 	struct node *n;
 	unsigned label;
 	unsigned t;
+	int len;
 
 	/* Strings are special */
-	label = quoted_string(NULL);
+	label = quoted_string(&len);
 	if (label) {
 		/* We have a temporary name */
 		n = make_label(label);
+		if (in_sizeof) {
+			unsigned *idx = idx_get(2);
+			*idx = 1;	/* 1 dimension */
+			idx[1] = len;
 #ifdef TARGET_CHAR_UNSIGNED
-		n->type = PTRTO | UCHAR;	/* PTR to UCHAR */
+			n->type = make_array(UCHAR, idx);
 #else
-		n->type = PTRTO | CCHAR;	/* PTR to CHAR */
+			n->type = make_array(CHAR, idx);
 #endif
+		} else {
+			/* The only case the array is seen as a sized array
+			   is in sizeof() so for all other cases decay it to
+			   a char pointer in advance to save all the extra
+			   type tracking  cost */
+#ifdef TARGET_CHAR_UNSIGNED
+			n->type = PTRTO | UCHAR;
+#else
+			n->type = PTRTO | CHAR;
+#endif
+		}
 		return n;
 	}
 	/* Numeric */
