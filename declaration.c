@@ -39,7 +39,6 @@ void dotypedef(void)
 unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defstorage)
 {
 	struct symbol *sym;
-	static unsigned lstatic;	/* Number local statics for scope */
 	unsigned offset;
 
 	/* It's quite valid C to just write "int;" but usually dumb except
