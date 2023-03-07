@@ -10,7 +10,7 @@ __or:
 __oru:
 		xchg			; working register into DE
 		pop	h		; return address
-		xthl
+		xthl			; back on stack HL is now the bits
 		mov	a,h
 		ora	d
 		mov	h,a

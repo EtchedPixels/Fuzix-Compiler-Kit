@@ -22,4 +22,4 @@ __xorequ:
 		mov	m,a		; same again
 		mov	l,e		; recover value for caller
 		mov	h,a
-		jmp	__ret
+		ret

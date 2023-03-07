@@ -17,4 +17,4 @@ __xoru:
 		mov	a,l
 		xra	e
 		mov	l,a
-		jmp	__ret
+		ret

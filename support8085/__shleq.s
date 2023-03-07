@@ -7,39 +7,22 @@
 		.code
 
 __shleq:
-	xchg		; shift into de
-	pop	h
-	xthl		; pointer into hl
-
-	xchg		; pointer into de, shift into hl
-
 	mov	a,l
+	pop	h		; return
+	xthl			; HL is now the lval
+	xchg			; DE is now the lval
+	lhlx			; HL is now the bits
 	ani	15
-	adi	<shiftit
-	mov	l,a
-	mov	h,a
-	aci	>shiftit
-	mov	a,h
-	push	h
-	lhlx		; load the value
-	ret		; into the unroll
-	
+	rz
+	cpi	8
+	jc	notquick
+	mov	h,l
+	mvi	l,0
+	sbi	8
+	jz	done
+notquick:
 	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-shiftit:
-	shlx
+	dcr	a
+	jnz	notquick
+done:	shlx
 	ret
