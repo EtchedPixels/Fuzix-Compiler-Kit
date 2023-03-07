@@ -19,14 +19,12 @@ __cclteq:
 		xra	d
 		jp	sign_same
 		xra	d		; A is now H
-		jm	__false
-		jmp	__true
+		jm	__true
+		jmp	__false
 sign_same:
 		mov	a,e
 		sub	l
 		mov	a,d
 		sbb	h
-		lxi	h,2
-		jz	__true
-		jc	__true
+		jnc	__true
 		jmp	__false
