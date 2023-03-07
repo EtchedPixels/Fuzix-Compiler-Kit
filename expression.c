@@ -233,7 +233,7 @@ static struct node *hier11(void)
 	if (token == T_LSQUARE || token == T_LPAREN || token == T_DOT
 	    || token == T_POINTSTO) {
 		for (;;) {
-			lt = l->type;;
+			lt = l->type;
 			ptr = PTR(type_canonical(lt));
 			if (match(T_LSQUARE)) {
 				if (ptr == 0) {
