@@ -378,7 +378,7 @@ void convert_c_to_s(char *path)
 	if (codeseg)
 		add_argument(codeseg);
 	redirect_in(tmp);
-	if (optimize == 0) {
+	if (optimize == '0') {
 		redirect_out(pathmod(path, ".#", ".s", 2));
 		run_command();
 		free(t);
