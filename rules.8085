@@ -156,18 +156,13 @@
 ;
 
 # Trivial byte cleanup
-	mvi a,%1
+	mvi a,0
 	mov m,a
 	mov l,a
 =
-	mvi l,%1
-	mov m,l
-
-	mvi l,%1
-	mov m,l
-;
-=
-	mvi m,%1
+	xra a
+	mov m,a
+	mov l,a
 
 # Simple stack optimize for pushes of same
 	lxi h,%1
