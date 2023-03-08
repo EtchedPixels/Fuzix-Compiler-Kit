@@ -1019,7 +1019,7 @@ unsigned gen_direct(struct node *n)
 		if (s == 1) {
 			if (load_a_with(r) == 0)
 				return 0;
-			printf("\tsub m\n\tmov m,a\n");
+			printf("\txra m\n\tmov m,a\n");
 			if (!(n->flags & NORETURN))
 				printf("\tmov l,a\n");
 			return 1;
