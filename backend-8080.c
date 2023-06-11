@@ -1088,6 +1088,7 @@ unsigned gen_shortcut(struct node *n)
 			return 1;
 		}
 	}
+	/* ?? LBSTORE */
 	return 0;
 }
 
@@ -1161,11 +1162,16 @@ unsigned gen_node(struct node *n)
 
 	switch (n->op) {
 		/* Load from a name */
-	case T_NREF: /* NREF/STORE FIXME for long/float/double */
+	case T_NREF:
 		if (size == 1) {
 			printf("\tlda _%s+%d\n", namestr(n->snum), v);
 			printf("\tmov l,a\n");
 		} else if (size == 2) {
+			printf("\tlhld _%s+%d\n", namestr(n->snum), v);
+			return 1;
+		} else if (size == 4) {
+			printf("\tlhld _%s+%d\n", namestr(n->snum), v + 2);
+			printf("\tshld __hireg\n");
 			printf("\tlhld _%s+%d\n", namestr(n->snum), v);
 			return 1;
 		}
@@ -1217,14 +1223,21 @@ unsigned gen_node(struct node *n)
 			name = "ldbyte";
 		else
 			name = "ldword";
+		/* We do a call so the stack offset is two bigger */
 		if (v < LWDIRECT)
-			printf("\tcall __%s%d\n", name, v);
-		else if (v < 255)
-			printf("\tcall __%s\n\t.byte %d\n", name, v);
+			printf("\tcall __%s%d\n", name, v + 2);
+		else if (v < 253)
+			printf("\tcall __%s\n\t.byte %d\n", name, v + 2);
 		else
-			printf("\tcall __%sw\n\t.word %d\n", name, v);
+			printf("\tcall __%sw\n\t.word %d\n", name, v + 2);
 		return 1;
 	case T_NSTORE:
+		if (size == 4) {
+			printf("\tshld %s+%d\n", namestr(n->snum), v);
+			printf("\txchg\n\tlhld __hireg\nshld %s+%d\n\txchg\n",
+				namestr(n->snum), v + 2);
+			return 1;
+		}
 		if (size > 2)
 			return 0;
 		if (size == 1)
@@ -1234,6 +1247,12 @@ unsigned gen_node(struct node *n)
 		printf(" _%s+%d\n", namestr(n->snum), v);
 		return 1;
 	case T_LBSTORE:
+		if (size == 4) {
+			printf("\tshld T%d+%d\n", n->val2, v);
+			printf("\txchg\n\tlhld __hireg\nshld T%d+%d\n\txchg\n",
+				n->val2, v + 2);
+			return 1;
+		}
 		if (size > 2)
 			return 0;
 		if (size == 1)
@@ -1287,12 +1306,14 @@ unsigned gen_node(struct node *n)
 			name = "stbyte";
 		else
 			name = "stword";
+		/* Like load the helper is offset by two because of the
+		   stack */
 		if (v < 24)
-			printf("\tcall __%s%d\n", name, v);
-		else if (v < 255)
-			printf("\tcall __%s\n\t.byte %d\n", name, v);
+			printf("\tcall __%s%d\n", name, v + 2);
+		else if (v < 253)
+			printf("\tcall __%s\n\t.byte %d\n", name, v + 2);
 		else
-			printf("\tcall __%sw\n\t.word %d\n", name, v);
+			printf("\tcall __%sw\n\t.word %d\n", name, v + 2);
 		return 1;
 		/* Call a function by name */
 	case T_CALLNAME:
@@ -1357,6 +1378,7 @@ unsigned gen_node(struct node *n)
 		printf("\tlxi h,");
 		printf("_%s+%d\n", namestr(n->snum), v);
 		return 1;
+	/* FIXME: LBNAME ?? */
 	case T_LOCAL:
 		v += sp;
 /*		printf(";LO sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
