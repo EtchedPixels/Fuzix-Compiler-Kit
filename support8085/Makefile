@@ -1,6 +1,6 @@
 all: lib8085.a crt0.o
 
-OBJ = workspace.o __true.o __switchc.o __switch.o __pushl.o __sex.o \
+OBJ = workspace.o __true.o __switchc.o __switch.o __switchl.o __pushl.o __sex.o \
       __ldwordw.o \
       __and.o __andeq.o __or.o __oreq.o __xor.o __xoreq.o \
       __andeqde.o __oreqde.o __xoreqde.o \
