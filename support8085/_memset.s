@@ -7,7 +7,7 @@
 _memset:
 	push	b
 	ldsi	7
-	mov	a,m		; fill byte
+	ldax	d		; fill byte
 	ldsi	8		; count
 	lhlx
 	mov	b,h
