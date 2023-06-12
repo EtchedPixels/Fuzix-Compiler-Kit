@@ -13,7 +13,7 @@ __divu:
 	xchg
 	pop	h
 	xthl
-	call	__divdeu
+	call	__remdeu
 	xchg
 	ret
 

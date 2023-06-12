@@ -71,5 +71,4 @@ nomatch3:
 		mov	a,e
 		ora	d
 		jnz	next
-		inx	h
 		jmp	match

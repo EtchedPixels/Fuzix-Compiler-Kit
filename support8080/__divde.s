@@ -11,9 +11,6 @@ __div:
 	xchg
 	pop	h
 	xthl
-	call	__divde
-	ret
-
 __divde:
 	push	b
 	mvi	c,0

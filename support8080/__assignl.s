@@ -14,17 +14,15 @@ __assignl:
 		inx	h
 		mov	m,d
 		inx	h
-		xchg
 		push	d		; for return
-		inx	h
-		inx	h
 		xchg
 		lhld	__hireg
 		xchg
+		; de is now the high bytes
 		mov	m,e
 		inx	h
 		mov	m,d
-		pop	h
+		pop	h		; saved low word
 		ret
 
 
