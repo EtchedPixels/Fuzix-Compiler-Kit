@@ -1,28 +1,30 @@
 		.export __shrul
+		.export __shrl_p
 		.setcpu 8080
 		.code
 
 
 __shrul:
 		;	Shift top of stack by amount in HL
-
 		mov	a,l		; shift amount
-		pop	h
-		shld	__retaddr
+		pop	h		; return address
+		pop	d		; lower half of value
+		xthl			; swap return addr with lower half
 
-		pop	d		; low work
-		pop	h		; high word - shifting HLDE by A
+		; value is now HL:DE
+
 		ani	31		; nothing to do ?
 		jz	done
 ;
 ;	Shortcut, do the bytes by register swap
 ;
+__shrl_p:			; Positive side of __shrl joins here
 		cpi	24
 		jc	not3byte
 		mov	e,h
-		mvi	h,0
-		mov	l,h
-		mov	d,h
+		mvi	d,0
+		mov	h,d
+		mov	l,d
 		sui	24
 		jmp	leftover
 
@@ -69,4 +71,4 @@ shloop:
 done:
 		shld	__hireg
 		xchg
-		jmp	__ret
+		ret

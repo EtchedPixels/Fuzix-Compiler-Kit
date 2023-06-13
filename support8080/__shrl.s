@@ -2,25 +2,28 @@
 		.setcpu 8080
 		.code
 
-; FIXME: this is broken because we don't get the carry right on the
-; shortcut cases
 __shrl:
+		; Shift top of stack by amount in HL - signed shift
 		mov	a,l		; shift amount
-		pop	h
-		shld	__retaddr
-		pop	d
-		pop	h		; shifting HLDE by A
+		pop	h		; return address
+		pop	d		; upper half of value
+		xthl			; swap return addr with lower half
+
+		; value is now HL:DE
+
 		ani	31		; nothing to do ?
 		jz	done
 
 		push	psw
 
-		mvi	b,0
 		mov	a,h
 		ora	a
-		jp	zerofill
-		dcr	b
-zerofill:
+		jm	shift_neg
+
+		pop	psw
+		jmp	__shrl_p
+
+shift_neg:
 		pop	psw
 ;
 ;	Shortcut, do the bytes by register swap
@@ -28,9 +31,9 @@ zerofill:
 		cpi	24
 		jc	not3byte
 		mov	e,h
-		mov	h,b
-		mov	l,b
-		mov	d,b
+		mvi	d,255
+		mov	h,d
+		mov	l,d
 		sui	24
 		jmp	leftover
 
@@ -38,8 +41,8 @@ not3byte:
 		cpi	16
 		jc	not2byte
 		xchg			; HL into DE
-		mov	h,b
-		mov	l,b
+		mvi	h,255
+		mov	l,d
 		sui	16
 		jmp	leftover
 not2byte:
@@ -48,7 +51,7 @@ not2byte:
 		mov	e,d
 		mov	d,l
 		mov	l,h
-		mov	h,b
+		mvi	h,255
 		sui	8
 ;
 ;	Do any remaining work
@@ -59,7 +62,7 @@ leftover:
 		mov	c,a		; count into C
 shloop:
 		mov	a,h
-		add	a		; will set carry if top bit was set
+		stc
 		rar			; shifts in the carry
 		mov	h,a
 		mov	a,l
@@ -77,4 +80,4 @@ shloop:
 done:
 		shld	__hireg
 		xchg
-		jmp	__ret
+		ret
