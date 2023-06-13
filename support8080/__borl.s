@@ -6,10 +6,9 @@
 		.code
 
 __orl:
-	xchg			; save value into de
+	xchg			; pointer into de
 	lxi	h,2
-	dad	sp		; base of value to or
-	xchg			; so m is the memory pointer, de the value
+	dad	sp		; so m is the memory pointer, de the value
 	mov	a,m
 	ora	e
 	mov	e,a
