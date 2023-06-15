@@ -22,8 +22,8 @@ __diveq:
 	; Return is in HL
 	xchg
 	pop	h
-	mov	e,m
+	mov	m,e	; Save return
 	inx	h
-	mov	d,m
+	mov	m,d
 	xchg		; Result back in HL
 	ret

@@ -3,43 +3,35 @@
 ;
 ;
 		.export __shleq
-		.setcpu 8085
+		.setcpu 8080
 		.code
 
 __shleq:
-	xchg		; shift into de
-	pop	h
-	xthl		; pointer into hl
-
-	xchg		; pointer into de, shift into hl
-
 	mov	a,l
+	pop	h		; return
+	xthl			; HL is now the lval ptr
+	mov	e,m		; get the value into DE
+	inx	h
+	mov	d,m
+	xchg			; value is in HL, ptr DE-1
+
 	ani	15
-	adi	<shiftit
-	mov	l,a
-	mov	h,a
-	aci	>shiftit
-	mov	a,h
-	push	h
-	lhlx		; load the value
-	ret		; into the unroll
-	
+	rz
+	cpi	8
+	jc	notquick
+	mov	h,l
+	mvi	l,0
+	sbi	8
+	jz	done
+notquick:
 	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-	dad	h
-shiftit:
-	shlx
+	dcr	a
+	jnz	notquick
+done:
+	; Store HL into DE-1
+	xchg
+	mov	m,d
+	dcx	h
+	mov	m,e
+	xchg
 	ret
