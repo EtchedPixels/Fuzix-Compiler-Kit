@@ -13,4 +13,4 @@ __anduc:
 		xthl			; TOS value into HL
 		ana	e
 		mov	l,a
-		jmp	__ret
+		ret

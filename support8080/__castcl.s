@@ -12,8 +12,9 @@ __castc_ul:
 	mvi	h,0
 	mov	a,l
 	ora	a
-	rp
+	jp	positive
 	dcr	h
+positive:
 	mov	a,h
 	sta	__hireg
 	sta	__hireg+1
