@@ -849,9 +849,10 @@ int main(int argc, char *argv[])
 	opt = *argv[3];
 	if (isdigit(opt))
 		opt -= '0';
-	else if (opt == 's')
+	else if (opt == 's') {
+		opt = 0;
 		optsize = 1;
-	else
+	} else
 		error("invalid optimizer level");
 	if (argv[4])
 		codeseg = argv[4];
