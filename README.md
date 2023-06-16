@@ -20,8 +20,8 @@ trees from cc1.
 
 The compiler can parse and generate output for the full Fuzix codebase. The
 code generator being worked on first is for the 8085 and it's currently at
-the point it can build a kernel and user space although the userspace at
-this point dies somewhere in init. The code generator still needs some work,
+the point it can build a kernel and user space that runs correctly, with the
+8080 code generator fairly close to this state. The code generator still needs some work,
 and the support libraries a fair bit of debugging. The front end and core
 compiler should now be reasonably stable although some bugs undoubtedly
 remain.
@@ -80,7 +80,7 @@ Things that add size and complexity or are just pointless.
 * C11 bloat by committee
 * struct/union passing, struct/union returns and other related badness
 * bitfields
-* const and volatile typing. To do these makes type handling really really tricky. They are accepted so that code with them can build.
+* const and volatile typing. To do these makes type handling really really tricky. They are accepted so that code with them can build and some magic tricks are done to get volatile right
 
 ###
 
