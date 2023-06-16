@@ -28,7 +28,7 @@ __assignl:
 
 ; Assign 0L to lval in HL
 __assign0l:
-		xra	h
+		xra	a
 		mov	m,a
 		inx	h
 		mov	m,a
@@ -36,6 +36,7 @@ __assign0l:
 		mov	m,a
 		inx	h
 		mov	m,a
-		lxi	h,0
+		mov	h,a
+		mov	l,a
 		shld	__hireg		; clear hireg
 		ret

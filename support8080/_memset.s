@@ -2,33 +2,36 @@
 ;	Memset
 ;
 		.export _memset
-		.setcpu 8085
+		.setcpu 8080
 		.code
 _memset:
 	push	b
-	ldsi	7
+	lxi	h,4		; Allow for the push of B
+	dad	sp
+	mov	e,m
+	inx	h
+	mov	d,m		; Pointer
+	push	d		; Return is the passed pointer
+	inx	h
 	mov	a,m		; fill byte
-	ldsi	8		; count
-	lhlx
-	mov	b,h
-	mov	c,l
-	ldsi	4		; pointer
-	lhlx
+	inx	h		; skip fill high
+	inx	h
+	mov	c,m
+	inx	h
+	mov	b,m		; length into BC
 
-	mov	e,a
-	mov	a,c
-	ora	b
-	jz	done
+	mov	l,a		; We need to free up A for the loop check
+	xchg			; now have HL as the pointer and E as the fill byte
+	jmp	loopin
 
-	dcx	b
-	push	h
 loop:
 	mov	m,e
 	inx	h
 	dcx	b
-	jnk	loop
-	pop	h
-
-done:
-	pop	b
+loopin:
+	mov	a,b
+	ora	c
+	jnz	loop
+	pop	h		; Address passed in
+	pop	b		; Restore B
 	ret

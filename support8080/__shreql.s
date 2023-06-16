@@ -1,83 +1,103 @@
-			.export __shreql
-			.export __shrequl
-			.setcpu 8085
-			.code
+	.export __shreql
+	.export __shrequl
+	.setcpu 8080
+	.code
 ;
-;	On 8085 we have ARHL so right arithmetic isn't too hard
+;	Has to be done the hard way
+;
+;	TOS holds the lval, HL the shift
+;
+;
+;	We could optimize 8,16,24 bit shift slices with register swaps TODO
 ;
 __shreql:
 	mov	a,l
 	pop	h
 	xthl
-	push	b
+	push	b		; save BC
+	push	h
 	; HL is now the lval, A is the shift
 	ani	31
 	jz	done
-	push	h
-	call	setup4
-loop:
-	arhl
-loop2:
-	xchg
-	jc	slide1
-	arhl
-	xchg
-	dcr	a
-	jnz	loop
-done:
-	; our value is now in HLDE
-	shld	__hireg		; save the upper half result
-	pop	h		; lval back
+	mov	b,a		; count
+	call	setup4		; HLDE is now the data
+	mov	a,h
+	ora	a
+	jp	shftu		; Sign bit positive - do unsigned shift
+shftn:
+	mov	a,h
+	stc			; Set top bit as we are shifting a negative number
+	rar
+	mov	h,a
+	mov	a,l
+	rar
+	mov	l,a
+	mov	a,d
+	rar
+	mov	d,a
+	mov	a,e
+	rar
+	mov	e,a
+	dcr	b
+	jnz	shftn
+
+	; Result is now in HL:DE
+store:
+	shld	__hireg
+	pop	h
 	mov	m,e
 	inx	h
 	mov	m,d
 	inx	h
-	push	d
 	xchg
 	lhld	__hireg
 	xchg
-	mov	m,e		; write back the upper word
-	inx	h
 	mov	m,d
-	pop	h		; get low word back for result
+	inx	h
+	mov	m,e
+	xchg
 	pop	b
 	ret
-slide1:
-	arhl
-	dad	b		; set top bit
-	xchg
-	dcr	a
-	jnz	loop
-	jmp	done
+
+; No shift but still need to load it
+done:
+	call	setup4
+	jmp	store
 
 ;
-;	We have no right shift logical
+;	Shift through A on the 8080
 ;
 __shrequl:
 	mov	a,l
 	pop	h
 	xthl
-	push	b
+	push	b		; save BC
+	push	h
 	; HL is now the lval, A is the shift
 	ani	31
 	jz	done
-	push	h
-	call	setup4
-
-	;	Do one slow shift to get a 0 bit top then fall into the
-	;	signed version
-	arhl
-	push	psw
+	mov	b,a		; count
+	call	setup4		; HLDE is now the data
+shftu:
 	mov	a,h
-	ani	0x7F
+	ora	a
+	rar
 	mov	h,a
-	pop	psw
-	jmp	loop2
+	mov	a,l
+	rar
+	mov	l,a
+	mov	a,d
+	rar
+	mov	d,a
+	mov	a,e
+	rar
+	mov	e,a
+	dcr	b
+	jnz	shftu
+
+	jmp	store
 
 setup4:
-	push	psw
-	lxi	b,0x8000	; used to do the shift carry
-	push	h
 	mov	e,m
 	inx	h
 	mov	d,m
@@ -86,5 +106,4 @@ setup4:
 	inx	h
 	mov	h,m
 	mov	l,a
-	pop	psw
 	ret

@@ -2,7 +2,7 @@
 ;	memcpy
 ;
 		.export _memcpy
-		.setcpu 8085
+		.setcpu 8080
 		.code
 _memcpy:
 	push	b
@@ -33,7 +33,9 @@ loop:
 	mov	m,a
 	inx	h
 	dcx	b
-	jnk	loop
+	mov	a,b
+	ora	c
+	jnz	loop
 	pop	h
 
 done:
