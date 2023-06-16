@@ -77,7 +77,6 @@ __shrequl:
 setup4:
 	push	psw
 	lxi	b,0x8000	; used to do the shift carry
-	push	h
 	mov	e,m
 	inx	h
 	mov	d,m

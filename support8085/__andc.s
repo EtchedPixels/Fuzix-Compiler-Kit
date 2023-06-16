@@ -10,7 +10,7 @@ __andc:
 __anduc:
 		mov	a,l		; working register into A
 		pop	h		; return address
-		shld	__retaddr
+		xthl			; TOS value into HL
 		ana	e
 		mov	l,a
 		jmp	__ret

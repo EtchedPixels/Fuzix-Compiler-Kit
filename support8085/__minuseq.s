@@ -1,26 +1,25 @@
 ;
 ;		TOS = lval of object HL = amount
 ;
-		.export __minuseq
+	.export __minuseq
 
-		.setcpu 8085
-		.code
+	.setcpu 8080
+	.code
 __minuseq:
-		shld	__tmp		; save add value
-		pop	h
-		shld	__retaddr	; save return
-		pop	d
-		push	d		; get a copy of the TOS address
-		lhlx			; load it into HL
-		xchg
-		lhld	__tmp
-		mov	a,e
-		sub	l
-		mov	l,a
-		mov	a,d
-		sbb	h
-		mov	h,a
-		
-		pop	d		; get the TOS address
-		shlx			; store it back
-		jmp	__ret
+	xchg		; DE is now the amount
+	pop	h	; return
+	xthl		; return in place of TOS ptr
+
+	; HL = ptr DE = value
+
+	mov	a,m
+	sub	e
+	mov	m,a
+	mov	e,a	; Save result into DE
+	inx	h
+	mov	a,m
+	sbb	d
+	mov	m,a
+	mov	d,a	; Result now in DE also
+	xchg		; into HL for return
+	ret
