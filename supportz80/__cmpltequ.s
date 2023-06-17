@@ -1,18 +1,18 @@
 		.export __cmpltequ
 		.export __cmpltequb
-		.setcpu 8080
 		.code
 
 		; true if HL <= DE
 
 __cmpltequ:
-		mov	a,h
-		cmp	d
-		jc	__true
-		jnz	__false
+		or	a
+		sbc	hl,de
+		jp	c,__true
+		jp	z,__true
+		jp	false
 __cmpltequb:
-		mov	a,l
-		cmp	e
-		jz	__true
-		jnc	__false
-		jmp	__true
+		ld	a,l
+		cp	e
+		jp	c,__true
+		jp	z,__true
+		jp	__false

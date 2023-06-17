@@ -2,23 +2,18 @@
 ;		True if TOS >= HL
 ;
 		.export __ccgtequ
-
-		.setcpu 8080
-
 		.code
 ;
 __ccgtequ:
-		xchg
-		pop	h
-		xthl
-		mov	a,l
-		sub	e
-		mov	a,h
-		sbb	d
+		ex	de,hl
+		pop	hl
+		ex	(sp),hl
+		or	a
+		sbc	hl,de
 		; If we carried it is less than
-		cmc	; flip carry flag C is now set if true
-		mvi	h,0
-		mov	a,h
+		ccf	; flip carry flag C is now set if true
+		ld	h,0
+		ld	a,h
 		adc	a		; 0 if original carried, 1 if not 
-		mov	l,a
+		ld	l,a
 		ret

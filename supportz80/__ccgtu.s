@@ -2,22 +2,14 @@
 ;		True if TOS < HL
 ;
 		.export __ccgtu
-
-		.setcpu 8080
-
 		.code
 
 __ccgtu:
-		xchg
-		pop	h
-		xthl
-		mov	a,l
-		sub	e
-		mov	l,a
-		mov	a,h
-		sbb	d
-		jc	__false
-		ora	l
-		; if C or Z then false
-		jz	__false
-		jmp	__true
+		ex	de,hl
+		pop	hl
+		ex	(sp),hl
+		or	a
+		sbc	hl,de
+		jp	c,__false
+		jp	z,__false
+		jp	__true

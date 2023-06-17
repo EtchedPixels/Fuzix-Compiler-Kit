@@ -53,9 +53,6 @@ done:
 		call	setup4
 		jr	store
 
-;
-;	Shift through A on the 8080
-;
 __shrequl:
 		ld	a,l
 		pop	hl

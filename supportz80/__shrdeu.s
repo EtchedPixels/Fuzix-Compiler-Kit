@@ -9,9 +9,6 @@ __shru:
 		ed	(sp),hl		; return up stack, h is now the value to shift
 		jp	__shrdeu
 
-;
-;	For the 8080 we have to go via A all the time
-;
 __shrde:
 		ld	a,h
 		add	a

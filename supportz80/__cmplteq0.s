@@ -1,7 +1,5 @@
-			.export __cmplteq0
-			.setcpu 8080
-
-			.code
+		.export __cmplteq0
+		.code
 
 __cmplteq0:
 		ld	a,h
