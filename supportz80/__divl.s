@@ -9,221 +9,218 @@
 ; Based on the ACK 8080 routine but with a bit less stack shuffling
 ;
 
-			.export	__divl
-			.export	__divul
-			.export __reml
-			.export __remul
-			.export	__diveql
-			.export	__divequl
-			.export __remeql
-			.export __remequl
+		.export	__divl
+		.export	__divul
+		.export __reml
+		.export __remul
+		.export	__diveql
+		.export	__divequl
+		.export __remeql
+		.export __remequl
 
-			.setcpu 8080
-			.code
+		.code
 
 ; Calculate TOS / hireg:hl
 
 __divl:
-	mvi	a,129
-	jmp	__divlop
+		ld	a,129
+		jr	__divlop
 __reml:
-	mvi	a,128
-	jmp	__divlop
+		ld	a,128
+		jr	__divlop
 __divul:
-	mvi	a,1
-	jmp	__divlop
+		ld	a,1
+		jr	__divlop
 __remul:
-	xra	a		; remainder 32bit
+		xor	a		; remainder 32bit
 __divlop:
-	shld	__tmp		; 32bit divisor into hireg:tmp
-	pop	d
+		ld	(__tmp),hl	; 32bit divisor into hireg:tmp
+		pop	de
 
-	pop	h		; 32bit dividend into tmp2
-	shld	__tmp2
-	pop	h
-	shld	__tmp2+2
+		pop	hl		; 32bit dividend into tmp2
+		ld	(__tmp2),hl
+		pop	hl
+		ld	(__tmp2+2),hl
 
-	push	d		; Save return address
+		push	de		; Save return address
 
-	;
-	;	Entry point for assignment forms
-	;
+		;
+		;	Entry point for assignment forms
+		;
 divldo:
-	push	b		; Save BC
+		push	bc		; Save BC
 
-	lxi	h,0			; store initial value of remainder
-	shld	__tmp3
-	shld	__tmp3+2
+		ld	hl,0			; store initial value of remainder
+		ld	(__tmp3),hl
+		ld	(__tmp3+2),hl
 
-	mvi	b,0
+		ld	b,0
 
-	push	psw
-	ral
-	jnc	nosignmod		; jump if unsigned
+		push	af
+		add	a
+		jr	nc,nosignmod		; jump if unsigned
 
-	;
-	;	Do the preparatory juggling for signed maths
-	;
+		;
+		;	Do the preparatory juggling for signed maths
+		;
 
-	lda	__tmp2+3
-	ral
-	jnc	nocomp
-	mvi	b,129
-	lxi	h,__tmp2
-	call	compl		; dividend is positive now
+		ld	a,(__tmp2+3)
+		add	a
+		jr	nc,nocomp
+		ld	b,129
+		ld	hl,__tmp2
+		call	compl		; dividend is positive now
 
 nocomp:
-	lda	__tmp+3
-	ral
-	jnc	nosignmod
-	inr	b
-	lxi	h,__tmp
-	call	compl		; divisor is positive now
+		ld	a,(__tmp+3)
+		add	a
+		jr	nc,nosignmod
+		inc	b
+		ld	hl,__tmp
+		call	compl		; divisor is positive now
 
-	;
-	;	Unsigned 32bit divide. Signed maths fixups happen after this
-	;
+		;
+		;	Unsigned 32bit divide. Signed maths fixups happen after this
+		;
 
 nosignmod:
-	push	b		; save the status of the signs
+		push	bc		; save the status of the signs
 
 
-	;
-	;	Standard divide algorithm 32 cycles
-	;
-	mvi	b,32
+		;
+		;	Standard divide algorithm 32 cycles
+		;
+		ld	b,32
 
-	;
-	;	Shift
-	;
+		;
+		;	Shift
+		;
 divloop:
-	lxi h,	__tmp2		; 64bit left shift through tmp2 tmp3
-	mvi	c,8
-	xra	a
+		ld	h,__tmp2		; 64bit left shift through tmp2 tmp3
+		ld	c,8
+		xor	a
 shiftl:
-	mov	a,m
-	ral
-	mov	m,a
-	inx	h
-	dcr	c
-	jnz	shiftl
+		rl	(hl)
+		inc	hl
+		dec	c
+		jr	nz,shiftl
 
-	;
-	;	32bit compare
-	;
-	lxi	h,__tmp3+3
-	lxi	d,__tmp+3
-	mvi	c,4
+		;
+		;	32bit compare
+		;
+		ld	hl,__tmp3+3
+		ld	de,__tmp+3
+		ld	c,4
 
 nextcmp:			; 1b
-	ldax	d
-	cmp	m
-	jz	same		; 0f
-	jnc 	smaller		; 3f
-	jmp	larger		; 4f
-same:	dcx	d		; 0f
-	dcx	h
-	dcr	c
-	jnz	nextcmp
+		ld	a,(de)
+		cp	(hl)
+		jr	z,same		; 0f
+		jr	nc,smaller		; 3f
+		jr	larger		; 4f
+same:		dec	de		; 0f
+		dec	hl
+		dec	c
+		jr	nz,nextcmp
 
-	; Equal - fall through
+		; Equal - fall through
 
 larger:		; 4f
-	lxi	d,__tmp3		; remainder is larger or equal: subtract divisor
-	lxi	h,__tmp
-	mvi	c,4
-	xra	a
+		ld	de,__tmp3		; remainder is larger or equal: subtract divisor
+		ld	hl,__tmp
+		ld	c,4
+		xor	a
 nextsub:
-	ldax	d		; 1b
-	sbb	m
-	stax	d
-	inx	d
-	inx	h
-	dcr	c
-	jnz	nextsub		; 1b
-	lxi	h,__tmp2
-	inr	m
+		ld	a,(de)		; 1b
+		sbc	(hl)
+		ld	(de),a
+		inc	de
+		inc	hl
+		dec	c
+		jr	nz,nextsub		; 1b
+		ld	hl,__tmp2
+		inc	(hl)
 
 smaller:			; 3f
-	dcr	b
-	jnz	divloop		; keep looping
+		dec	b
+		jr	nz,divloop		; keep looping
 
-	;
-	;	The main work is done.
-	;
+		;
+		;	The main work is done.
+		;
 
-	pop	b		; state of signs
-	pop	psw		; A holds the operation flags
-	rar
-	jnc	remainder
-	;
-	;	Division
-	;
-	mov	a,b
-	rar
-	lxi	h,__tmp2	; complement quotient if divisor
-	cc	compl		; and dividend have different signs
-	lhld	__tmp2+2	; quotient high
-	shld	__hireg		; into hireg
-	lhld	__tmp2
-	jmp	cleanup
-	;
-	;	Remainder
-	;
+		pop	bc		; state of signs
+		pop	af		; A holds the operation flags
+		rra
+		jr	nc,remainder
+		;
+		;	Division
+		;
+		ld	a,b
+		rra
+		ld	hl,__tmp2	; complement quotient if divisor
+		call	c,compl		; and dividend have different signs
+		ld	hl,(__tmp2+2)	; quotient high
+		ld	(__hireg),hl		; into hireg
+		ld	hl,(__tmp2)
+		jr	cleanup
+		;
+		;	Remainder
+		;
 remainder:
-	mov	a,b
-	ral
-	lxi 	h,__tmp3
-	cc	compl		; negate remainder if dividend was negative
-	lhld	__tmp3+2
-	shld	__hireg
-	lhld	__tmp3
+		ld	a,b
+		add	a
+		ld 	hl,__tmp3
+		call	c,compl		; negate remainder if dividend was negative
+		ld	hl,(__tmp3+2)
+		ld	(__hireg),hl
+		ld	hl,(__tmp3)
 cleanup:
-	pop	b
-	ret
+		pop	bc
+		ret
 
 ; make 2's complement of 4 bytes pointed to by hl.
-compl:	push	b
-	mvi	c,4
-	xra	a
+compl:		push	bc
+		ld	c,4
+		xor	a
 complp:
-	mvi	a,0		; preserve carry
-	sbb	m
-	mov	m,a
-	inx	h
-	dcr	c
-	jnz	complp
-	pop	b
-	ret
+		ld	a,0		; preserve carry
+		sbc	(hl)
+		ld	(hl),a
+		inc	hl
+		dec	c
+		jr	nz,complp
+		pop	bc
+		ret
 ;
 ;	Helpers for assign forms
 ;
 ;	(TOS) = (TOS) / hireg:hl
 ;
 __diveql:
-	mvi	a,129		; select operation
+		ld	a,129		; select operation
 dodiveq:
-	shld	__tmp		; so we can use hireg:tmp
-	pop	h		; return address
-	xthl			; swap for lval
-	push	h		; save address
-	lxi	d,__tmp2
-	push	psw
-	call	__copy4		; copy value into tmp2/tmp3
-	pop	psw
-	call	divldo		; result in hireg:tmp
-	pop	d
-	push	h
-	lxi	h,__tmp2
-	call	__copy4		; copy it back
-	pop	h
-	ret
+		ld	(__tmp),hl	; so we can use hireg:tmp
+		pop	hl		; return address
+		ex	(sp),hl		; swap for lval
+		push	hl		; save address
+		ld	de,__tmp2
+		push	af
+		call	__copy4		; copy value into tmp2/tmp3
+		pop	af
+		call	divldo		; result in hireg:tmp
+		pop	de
+		push	hl
+		ld	hl,__tmp2
+		call	__copy4		; copy it back
+		pop	hl
+		ret
 __divequl:
-	mvi	a,1
-	jmp	dodiveq
+		ld	a,1
+		jr	dodiveq
 __remeql:
-	mvi	a,128
-	jmp	dodiveq
+		ld	a,128
+		jr	dodiveq
 __remequl:
-	xra	a
-	jmp	dodiveq
+		xor	a
+		jr	dodiveq

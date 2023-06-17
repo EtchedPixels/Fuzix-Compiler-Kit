@@ -2,28 +2,28 @@
 ;		(TOS) /= HL
 ;
 
-			.export __divequ
-			.setcpu 8080
-			.code
+		.export __divequ
+		.code
+
 __divequ:
-	xchg		; value to divide by in DE
-	pop	h
-	xthl
-	; Now we are doing (HL) / DE
-	push	d
-	mov	e,m
-	inx	h
-	mov	d,m
-	dcx	h
-	xthl	; swap address with stacked value
-	xchg
-	; We are now doing HL / DE and the address we want is TOS
-	call __divdeu
-	; Return is in HL
-	xchg
-	pop	h
-	mov	m,e
-	inx	h
-	mov	m,d
-	xchg
-	ret
+		ex	de,hl		; value to divide by in DE
+		pop	hl
+		ex	(sp),hl
+		; Now we are doing (HL) / DE
+		push	d
+		ld	e,(hl)
+		inc	hl
+		ld	d,(hl)
+		dec	hl
+		ex	(sp),hl	; swap address with stacked value
+		ex	de,hl
+		; We are now doing HL / DE and the address we want is TOS
+		call	__divdeu
+		; Return is in HL
+		ex	de,hl
+		pop	hl
+		ld	(hl),e
+		inc	hl
+		ld	(hl),d
+		ex	de,hl
+		ret

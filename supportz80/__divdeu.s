@@ -5,75 +5,73 @@
 		.export __divdeu
 		.export __remu
 		.export __remdeu
-
-		.setcpu	8080
 		.code
 
 __divu:
-	xchg
-	pop	h
-	xthl
-	call	__remdeu
-	xchg
-	ret
+		ex	de,hl
+		pop	hl
+		ex	(sp),hl
+		call	__remdeu
+		ex	de,hl
+		ret
 
 __divdeu:
-	call	__remdeu
-	xchg
-	ret
+		call	__remdeu
+		ex	de,hl
+		ret
 
 
 __remu:
-	xchg
-	pop	h
-	xthl
+		ex	de,hl
+		pop	hl
+		ex	(sp),hl
 __remdeu:
-	push	b
+		push	bc
 
-	;	HL dividend, DE divisor
-	xchg
+		;	HL dividend, DE divisor
+		ex	de,hl
 
-	;	DE is now the dividend
-	;	Negate HL into BC, so we can use dad to 16bit subtract
+		;	DE is now the dividend
+		;	Negate HL into BC, so we can use dad to 16bit subtract
 
-	mov	a,l
-	cma
-	mov	c,a
-	mov	a,h
-	cma
-	mov	b,a
-	inx	b
+		ld	a,l
+		cpl
+		ld	c,a
+		ld	a,h
+		cpl
+		ld	b,a
+		inc	bc
 
-	;	16 iterations, clear working register
+		;	16 iterations, clear working register
 
-	lxi	h,0
-	mvi	a,16
+		ld	hl,0
+		ld	a,16
 
 divloop:
-	push	psw
+		push	af
 
-	;	HLDE <<= 1
-	dad	h
-	xchg
-	dad	h
-	xchg
-	jnc	nocopy
-	inx	h		; safe to inr l ?
+		;	HLDE <<= 1
+		add	hl,hl
+		ex	de,hl
+		add	hl,hl
+		ex	de,hl
+		jr	nc,nocopy
+		inc	hl		; safe to inc l ?
 nocopy:
 
-	push	h		; save remainder to stack
-	dad	b		; subtract
-	jnc	bigenough
+		push	hl		; save remainder to stack
+		add	hl,bc		; subtract
+		jr	nc,bigenough
 
-	xthl			; swap remainder with result
-	inx	d		; set the low bit (is it safe to inr e ?
+		ex	(sp),hl			; swap remainder with result
+		inc	de		; set the low bit (is it safe to inr e ?
 
 bigenough:
-	pop	h		; remove remainder/result from stack
-	pop	psw		; recover count
-	dcr	a		; iterate
-	jnz	divloop
+		pop	hl		; relde remainder/result from stack
+		pop	af		; recover count
+		dec	a		; iterate
+		jr	nz,divloop
 
-	;	DE = result, HL remainder
-	pop	b
-	ret
+		;	DE = result, HL remainder
+		pop	bc
+		ret
