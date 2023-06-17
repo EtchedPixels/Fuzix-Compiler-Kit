@@ -1104,7 +1104,7 @@ unsigned gen_push(struct node *n)
 		if (optsize)
 			printf("\tcall __pushl\n");
 		else
-			printf("\tex de,hl\n\tlhld __hireg\n\tpush hl\n\tpush de\n");
+			printf("\tex de,hl\n\tld hl,(__hireg)\n\tpush hl\n\tpush de\n");
 		return 1;
 	default:
 		return 0;
