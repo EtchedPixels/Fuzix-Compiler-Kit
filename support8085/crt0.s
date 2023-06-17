@@ -4,5 +4,5 @@
 
 start:
 		call	_main
-		push	d
+		push	h
 		call	_exit

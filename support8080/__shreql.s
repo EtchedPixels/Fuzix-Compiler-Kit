@@ -49,6 +49,7 @@ store:
 	inx	h
 	mov	m,d
 	inx	h
+	push	d
 	xchg
 	lhld	__hireg
 	xchg
@@ -56,6 +57,7 @@ store:
 	inx	h
 	mov	m,e
 	xchg
+	pop	h		; get low back
 	pop	b
 	ret
 

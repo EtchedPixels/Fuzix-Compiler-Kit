@@ -12,7 +12,7 @@ __castc_ul:
 	mvi	h,0
 	mov	a,l
 	ora	a
-	jp	p,positive
+	jp	positive
 	dcr	h
 positive:
 	mov	a,h

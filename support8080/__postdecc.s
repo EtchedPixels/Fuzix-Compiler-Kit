@@ -13,5 +13,5 @@ __postdecc:
 		mov	d,a
 		sub	e
 		mov	m,a
-		mov	e,d
+		mov	l,d
 		ret
