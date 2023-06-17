@@ -9,7 +9,7 @@ __cmpgtequ:
 		sbc	hl,de
 		jp	c,__false
 		jp	__true
-__cmpgrequb:
+__cmpgtequb:
 		ld	a,l
 		cp	e
 		jp	c,__false

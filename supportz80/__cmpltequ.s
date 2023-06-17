@@ -9,7 +9,7 @@ __cmpltequ:
 		sbc	hl,de
 		jp	c,__true
 		jp	z,__true
-		jp	false
+		jp	__false
 __cmpltequb:
 		ld	a,l
 		cp	e

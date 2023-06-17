@@ -253,7 +253,7 @@ void gen_epilogue(unsigned size)
 		return;
 	}
 	if (size & 1) {
-		printf("\tinx sp\n");
+		printf("\tinc sp\n");
 		size--;
 	}
 	while (size) {
@@ -423,7 +423,7 @@ void gen_value(unsigned type, unsigned long value)
 
 void gen_start(void)
 {
-	printf("\t.setcpu %d\n", cpu);
+/* TODO */	printf(";\t.setcpu z%d\n", cpu);
 }
 
 void gen_end(void)
@@ -1347,7 +1347,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (size == 4 && cpu == 8085 && !optsize) {
-			printf("\tex de,hl\n\tinx d\n\tinx d\n\tlhlx\n\tshld __hireg\t\n\tdec d\n\tdec d\n\tlhlx\n");
+			printf("\tex de,hl\n\tinc de\n\tinc de\n\tlhlx\n\tshld __hireg\t\n\tdec d\n\tdec d\n\tlhlx\n");
 			return 1;
 		}
 		break;

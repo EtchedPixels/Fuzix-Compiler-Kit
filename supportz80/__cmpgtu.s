@@ -1,5 +1,4 @@
 		.export __cmpgtu
-		.export __cmpgtub
 		.code
 
 		; true if HL > DE

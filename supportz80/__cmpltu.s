@@ -12,5 +12,5 @@ __cmpltu:
 __cmpltub:
 		ld	a,l
 		cp	e
-		jp	c,_true
+		jp	c,__true
 		jp	__false
