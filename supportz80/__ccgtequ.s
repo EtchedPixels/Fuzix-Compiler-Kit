@@ -14,6 +14,6 @@ __ccgtequ:
 		ccf	; flip carry flag C is now set if true
 		ld	h,0
 		ld	a,h
-		adc	a		; 0 if original carried, 1 if not 
+		adc	a,a		; 0 if original carried, 1 if not
 		ld	l,a
 		ret

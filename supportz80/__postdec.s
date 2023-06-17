@@ -15,7 +15,7 @@ __postdec:
 		inc	hl
 		ld	a,(hl)
 		ld	(__tmp+1),a
-		sbc	d
+		sbc	a,d
 		ld	(hl),a
                 ld	hl,(__tmp)
 		ret

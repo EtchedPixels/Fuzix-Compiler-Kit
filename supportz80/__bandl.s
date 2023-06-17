@@ -11,7 +11,7 @@ __bandl:
 		ld	a,(hl)
 		and	e
 		ld	e,a
-		inx	h
+		inc	hl
 		ld	a,(hl)
 		and	d
 		ld	d,a

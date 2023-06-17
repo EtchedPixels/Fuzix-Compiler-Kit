@@ -5,7 +5,7 @@ __shll:
 		ld	a,l		; shift amount
 		pop	hl		; return address
 		pop	de		; low word
-		ex	(hl),sp		; return address back, get high word
+		ex	(sp),hl		; return address back, get high word
 		ex	de,hl		; turn into DE:HL 32bit
 
 		and	31
@@ -13,7 +13,7 @@ __shll:
 
 		; Shift DEHL left by A
 
-		cmp	24
+		cp	24
 		jr	c,not3byte
 		ld	d,l
 		ld	e,0
@@ -21,13 +21,13 @@ __shll:
 		ld	l,e
 		sub	24
 		jr	leftover
-not3byte:	cmp	16
+not3byte:	cp	16
 		jr	c,not2byte
-		xchg
+		ex	de,hl
 		ld	hl,0
 		sub	16
 		jr	leftover
-not2byte:	cmp	8
+not2byte:	cp	8
 		jr	c,remainder
 		ld	d,e
 		ld	e,h

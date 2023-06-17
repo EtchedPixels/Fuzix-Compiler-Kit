@@ -11,17 +11,17 @@ __xorl:
 		ld	a,(hl)
 		xor	e
 		ld	e,a
-		inx	h
+		inc	hl
 		ld	a,(hl)
 		xor	d
 		ld	d,a
-		inx	h
-		push	d
+		inc	hl
+		push	de
 		ld	de,(__hireg)
 		ld	a,(hl)
 		xor	e
 		ld	e,a
-		inx	h
+		inc	hl
 		ld	a,(hl)
 		xor	d
 		ld	d,a

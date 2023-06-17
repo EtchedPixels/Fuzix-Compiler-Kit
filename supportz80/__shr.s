@@ -10,7 +10,7 @@ __shr:
 		and	15		; A is shift, HL is value
 		ret	z
 		cp	8
-		jr	c,nobytes
+		jr	c,shift
 		ld	l,h
 		ld	h,0
 		sub	8

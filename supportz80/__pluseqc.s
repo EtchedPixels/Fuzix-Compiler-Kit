@@ -1,3 +1,4 @@
+
 ;
 ;		TOS = lval of object L = amount
 ;
@@ -9,7 +10,7 @@ __pluseqc:
 		pop	hl
 		ex	(sp),hl
 		ld	a,(hl)
-		add	e
+		add	a,e
 		ld	(hl),a
 		ld	l,a
 		ret

@@ -1,9 +1,9 @@
 		.export __xoreql
 		.code
 __xoreql:
-		xchg
-		pop	h
-		xthl
+		ex	de,hl
+		pop	hl
+		ex	(sp),hl
 		ld	a,e
 		xor	(hl)
 		ld	e,a

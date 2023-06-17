@@ -3,32 +3,32 @@
 
 __pluseql:
 		ex	de,hl
-		pop	h
-		xthl
+		pop	hl
+		ex	(sp),hl
 
 		; HL is pointer, hireg:de amount to add
 
 		ld	a,(hl)
-		add	e
+		add	a,e
 		ld	(hl),a
 		ld	e,a
 		inc	hl
 		ld	a,(hl)
-		adc	d
+		adc	a,d
 		ld	(hl),a
 		ld	d,a
 		inc	hl
-		push	d
+		push	de
 
 		ld	de,(__hireg)
 
 		ld	a,(hl)
-		adc	e
+		adc	a,e
 		ld	(hl),a
 		ld	e,a
 		inc	hl
 		ld	a,(hl)
-		adc	d
+		adc	a,d
 		ld	(hl),a
 		ld	d,a
 

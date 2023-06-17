@@ -17,17 +17,17 @@ __postdecl:
 		inc	hl
 		ld	a,(hl)
 		ld	(__tmp+1),a
-		sbc	d
+		sbc	a,d
 		ld	(hl),a
 		inc	hl
 		ld	a,(hl)
 		ld	(__hireg),a
-		sbc	0
+		sbc	a,0
 		ld	(hl),a
 		inc	hl
 		ld	a,(hl)
 		ld	(__hireg+1),a
-		sbc	0
+		sbc	a,0
 		ld	(hl),a
                 ld	hl,(__tmp)
 		ret

@@ -8,7 +8,7 @@ __ldword:
 		pop	hl	; Get byte following call
 		ld	e,(hl)
 		inc	hl
-		lkd	d,0
+		ld	d,0
 		push	hl	; Return to byte after info byte
 		ex	de,hl	; HL is now the offset
 		add	hl,sp	; Add to SP

@@ -10,7 +10,7 @@ __remeqc:
 		ex	(sp),hl
 		; Now we are doing (HL) * DE
 		push	de
-		mov	e,(hl)
+		ld	e,(hl)
 		ex	(sp),hl		; swap address with stacked value
 		ex	de,hl		; swap them back as we divide by DE
 		; We are now doing HL / DE and the address we want is TOS

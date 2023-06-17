@@ -9,7 +9,7 @@ __remequ:
 		pop	hl
 		ex	(sp),hl
 		; Now we are doing (HL) * DE
-		push	d
+		push	de
 		ld	e,(hl)
 		inc	hl
 		ld	d,(hl)
@@ -20,8 +20,8 @@ __remequ:
 		; Return is in HL
 		ex	de,hl
 		pop	hl
-		ld	m,d
+		ld	(hl),d
 		dec	hl
-		ld	m,e
+		ld	(hl),e
 		ex	de,hl
 		ret

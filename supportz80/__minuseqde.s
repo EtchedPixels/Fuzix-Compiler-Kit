@@ -14,7 +14,7 @@ __minuseqde:
 		sub	c
 		ld	e,a
 		ld	a,d
-		sbc	b
+		sbc	a,b
 		ld	d,a
 		ld	(hl),d
 		dec	hl

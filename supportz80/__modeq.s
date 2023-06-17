@@ -7,7 +7,7 @@
 
 __remeq:
 		ex	de,hl
-		pop	h
+		pop	hl
 		ex	(sp),hl
 		; Now we are doing (HL) * DE
 		push	de

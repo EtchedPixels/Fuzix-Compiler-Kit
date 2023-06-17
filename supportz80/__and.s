@@ -12,6 +12,6 @@ __band:
 		and	d
 		ld	h,a
 		ld	a,l
-		ana	e
+		and	e
 		ld	l,a
 		ret

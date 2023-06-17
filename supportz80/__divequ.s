@@ -10,7 +10,7 @@ __divequ:
 		pop	hl
 		ex	(sp),hl
 		; Now we are doing (HL) / DE
-		push	d
+		push	de
 		ld	e,(hl)
 		inc	hl
 		ld	d,(hl)

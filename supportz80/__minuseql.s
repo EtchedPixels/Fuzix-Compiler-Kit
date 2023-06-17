@@ -14,7 +14,7 @@ __minuseql:
 		ld	e,a
 		inc	hl
 		ld	a,(hl)
-		sbc	d
+		sbc	a,d
 		ld	(hl),a
 		ld	d,a
 		inc	hl
@@ -23,12 +23,12 @@ __minuseql:
 		ld	de,(__hireg)
 
 		ld	a,(hl)
-		sbc	e
+		sbc	a,e
 		ld	(hl),a
 		ld	e,a
 		inc	hl
 		ld	a,(hl)
-		sbc	d
+		sbc	a,d
 		ld	(hl),a
 		ld	d,a
 

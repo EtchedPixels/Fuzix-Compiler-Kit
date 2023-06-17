@@ -11,11 +11,11 @@ __shleql:
 		push	af
 		push	hl
 		ld	e,(hl)
-		inx	h
+		inc	hl
 		ld	d,(hl)
-		inx	h
+		inc	hl
 		ld	a,(hl)
-		inx	h
+		inc	hl
 		ld	h,(hl)
 		ld	l,a
 		pop	af

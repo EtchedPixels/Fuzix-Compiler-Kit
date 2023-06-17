@@ -7,7 +7,7 @@
 __sex:
 		ld	a,l
 		ld	h,0
-		ora 	a
+		or 	a
 		ret	p
 		dec	h
 		ret

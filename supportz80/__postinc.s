@@ -10,12 +10,12 @@ __postinc:
 		ex	(sp),hl
 		ld	a,(hl)
 		ld	(__tmp),a
-		add	e
+		add	a,e
 		ld	(hl),a
 		inc	hl
 		ld	a,(hl)
 		ld	(__tmp+1),a
-		adc	d
+		adc	a,d
 		ld	(hl),a
                 ld	hl,(__tmp)
 		ret

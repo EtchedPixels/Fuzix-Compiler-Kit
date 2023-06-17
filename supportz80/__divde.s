@@ -21,7 +21,7 @@ __divde:
 
 		call	__divdeu
 
-		mov	a,c
+		ld	a,c
 		rra
 		call	c,negate
 		pop	bc
@@ -42,23 +42,23 @@ __remde:
 
 		call	__remdeu
 
-		mov	a,c
+		ld	a,c
 		rra
 		call	c,negate
-		pop	b
+		pop	bc
 		ret
 
 ;	Turn HL positive, xor a with one if was
 signfix:
-		mov	a,h
+		ld	a,h
 		or	a
 		ret	p
 negate:
 		cpl
-		mov	h,a
-		mov	a,l
+		ld	h,a
+		ld	a,l
 		cpl
-		mov	l,a
+		ld	l,a
 		inc	hl
 		inc	c
 		ret

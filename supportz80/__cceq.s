@@ -2,7 +2,7 @@
 
 		.code
 
-__cceq:		ex	de.hl
+__cceq:		ex	de,hl
 		pop	hl
 		ex	(sp),hl
 		or	a

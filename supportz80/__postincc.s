@@ -10,7 +10,7 @@ __postincc:
 		ex	(sp),hl		; Swap with pointer
 		ld	a,(hl)		; Get old value
 		ld	d,a		; Old value into D
-		add	e		; Plus E
+		add	a,e		; Plus E
 		ld	(hl),a		; Save to pointer
 		ld	l,d		; into return
 		ld	h,0		; clear upper byte of working value

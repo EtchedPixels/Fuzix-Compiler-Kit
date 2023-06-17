@@ -18,12 +18,12 @@ _memset:
 		inc	hl		; skip fill high
 		inc	hl
 		ld	c,(hl)
-		ld	hl
+		inc	hl
 		ld	b,(hl)		; length into BC
 
 		ld	l,a		; We need to free up A for the loop check
 		ex	de,hl		; now have HL as the pointer and E as the fill byte
-		jmp	loopin
+		jp	loopin
 
 loop:
 		ld	(hl),e

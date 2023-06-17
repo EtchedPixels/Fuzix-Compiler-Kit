@@ -8,7 +8,7 @@ __shlde:
 __shldec:
 		and	15
 		ret	z
-		cmp	8
+		cp	8
 		jr	c,noquick
 		ld	h,l
 		ld	l,0

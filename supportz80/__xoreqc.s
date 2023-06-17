@@ -8,7 +8,7 @@ __xoreqc:
 		pop	hl		; return address
 		ex	(sp),hl		; swap it for the lval
 		ld	a,e
-		xra	(hl)
+		xor	(hl)
 		ld	(hl),a
 		ld	l,a
 		ret

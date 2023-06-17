@@ -1,4 +1,4 @@
-r;
+;
 ;		TOS = lval of object HL = mask
 ;
 		.export __xoreq
@@ -15,7 +15,7 @@ __xorequ:
 		xor	e
 		ld	(hl),a		; xor byte and store
 		ld	e,a
-		inx	h		; high byte
+		inc	hl		; high byte
 		ld	a,(hl)
 		xor	d
 		ld	(hl),a		; same again

@@ -12,6 +12,6 @@ __ccltu:
 		sbc	hl,de
 		ld	hl,0
 		ld	a,l
-		adc	a		; 1 if original carried, 0 if not
+		adc	a,a		; 1 if original carried, 0 if not
 		ld	l,a
 		ret

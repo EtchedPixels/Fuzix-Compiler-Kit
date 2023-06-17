@@ -19,7 +19,7 @@ __shrdeuc:
 		; Shift L right unsigned by e
 		ld	a,e
 		and	7
-		rz
+		ret	z
 		ld	e,a
 loop:
 		srl	l

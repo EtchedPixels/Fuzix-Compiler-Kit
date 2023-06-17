@@ -3,6 +3,6 @@
 
 __notc:
 		ld	a,l
-		ora	a
+		or	a
 		jp	z,__true
 		jp	__false

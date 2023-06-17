@@ -13,22 +13,22 @@ __postincl:
 		; HL is now the pointer, hireg:DE the amount
 		ld	a,(hl)
 		ld	(__tmp),a
-		add	e
+		add	a,e
 		ld	(hl),a
 		inc	hl
 		ld	a,(hl)
 		ld	(__tmp+1),a
-		adc	d
+		adc	a,d
 		ld	(hl),a
 		inc	hl
 		ld	a,(hl)
 		ld	(__hireg),a
-		adc	0
+		adc	a,0
 		ld	(hl),a
 		inc	hl
 		ld	a,(hl)
 		ld	(__hireg+1),a
-		adc	0
+		adc	a,0
 		ld	(hl),a
                 ld	hl,(__tmp)
 		ret

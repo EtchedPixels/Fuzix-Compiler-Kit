@@ -9,7 +9,7 @@ __oreqde:
 		or	e
 		ld	(hl),a
 		ld	e,a
-		inx	h
+		inc	hl
 		ld	a,(hl)
 		or	d
 		ld	(hl),a

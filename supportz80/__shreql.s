@@ -16,7 +16,7 @@ __shreql:
 		push	bc		; save BC
 		push	hl
 		; HL is now the lval, A is the shift
-		andi	31
+		and	31
 		jr	z,done
 		ld	b,a		; count
 		call	setup4		; HLDE is now the data

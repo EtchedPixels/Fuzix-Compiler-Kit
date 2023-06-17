@@ -29,7 +29,7 @@ __pluseq2:
 		inc	de
 		inc	de
 		ld	(hl),d
-		dec	hgl
+		dec	hl
 		ld	(hl),e
 		ex	de,hl
 		ret

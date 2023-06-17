@@ -37,7 +37,7 @@ nextbit:
 		rra
 		jr	nc,noadd
 		ld	hl,(__tmp2)	; 32bit add of the product
-		xchg
+		ex	de,hl
 		ld	hl,(__tmp3)
 		add	hl,de
 		ld	(__tmp3),hl

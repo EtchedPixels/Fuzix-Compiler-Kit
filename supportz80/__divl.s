@@ -57,7 +57,7 @@ divldo:
 		ld	b,0
 
 		push	af
-		add	a
+		add	a,a
 		jr	nc,nosignmod		; jump if unsigned
 
 		;
@@ -65,7 +65,7 @@ divldo:
 		;
 
 		ld	a,(__tmp2+3)
-		add	a
+		add	a,a
 		jr	nc,nocomp
 		ld	b,129
 		ld	hl,__tmp2
@@ -73,7 +73,7 @@ divldo:
 
 nocomp:
 		ld	a,(__tmp+3)
-		add	a
+		add	a,a
 		jr	nc,nosignmod
 		inc	b
 		ld	hl,__tmp
@@ -132,7 +132,7 @@ larger:		; 4f
 		xor	a
 nextsub:
 		ld	a,(de)		; 1b
-		sbc	(hl)
+		sbc	a,(hl)
 		ld	(de),a
 		inc	de
 		inc	hl
@@ -169,7 +169,7 @@ smaller:			; 3f
 		;
 remainder:
 		ld	a,b
-		add	a
+		add	a,a
 		ld 	hl,__tmp3
 		call	c,compl		; negate remainder if dividend was negative
 		ld	hl,(__tmp3+2)
@@ -185,7 +185,7 @@ compl:		push	bc
 		xor	a
 complp:
 		ld	a,0		; preserve carry
-		sbc	(hl)
+		sbc	a,(hl)
 		ld	(hl),a
 		inc	hl
 		dec	c

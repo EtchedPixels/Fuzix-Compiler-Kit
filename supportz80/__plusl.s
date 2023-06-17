@@ -19,4 +19,4 @@ nocarry:
 		add	hl,de
 		ld	(__hireg),hl	; Save high part
 		pop	hl		; Recover result
-		jmp	__ret		; Out
+		jp	__ret		; Out

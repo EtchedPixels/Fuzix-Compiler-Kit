@@ -10,7 +10,7 @@ __diveq:
 		pop	hl		; return address
 		ex	(sp),hl		; swap with TOS lval
 		; Now we are doing (HL) * DE
-		push	d		; save value
+		push	de		; save value
 		ld	e,(hl)
 		inc	hl
 		ld	d,(hl)		; DE is now (TOS)
@@ -21,7 +21,7 @@ __diveq:
 		call	__divde
 		; Return is in HL
 		ex	de,hl
-		pop	h
+		pop	hl
 		ld	(hl),e	; Save return
 		inc	hl
 		ld	(hl),d

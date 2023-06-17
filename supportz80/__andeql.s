@@ -2,8 +2,8 @@
 		.code
 __andeql:
 		ex	de,hl
-		pop	h
-		exp	(sp),hl
+		pop	hl
+		ex	(sp),hl
 		ld	a,e
 		and	(hl)
 		ld	e,a

@@ -12,9 +12,9 @@ __shleqc:
 		and	7
 		ld	e,a
 		ld	a,(hl)
-		jz	noop
+		jr	z,noop
 loop:
-		add	a
+		add	a,a
 		dec	e
 		jr	nz,loop
 		ld	(hl),a

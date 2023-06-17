@@ -1,4 +1,4 @@
-all: lib8080.a crt0.o
+all: libz80.a crt0.o
 
 OBJ = workspace.o __true.o __switchc.o __switch.o __switchl.o __pushl.o __sex.o \
       __ldwordw.o \
@@ -48,17 +48,17 @@ include ldst.mk
 
 ldword/_10.o: makeldst
 	./makeldst
-	cc85 -c ldword/_10.s
+	ccz80 -c ldword/_10.s
 
 makeldst: makeldst.c
 	$(CC) makeldst.c -o ./makeldst
 
 .s.o:
-	cc85 -c $<
+	ccz80 -c $<
 
-lib8080.a: makeldst $(OBJ)
-	rm -f lib8080.a
-	ar qc lib8080.a $(OBJ)
+libz80.a: makeldst $(OBJ)
+	rm -f libz80.a
+	ar qc libz80.a $(OBJ)
 
 clean:
 	rm -f *.o *.a

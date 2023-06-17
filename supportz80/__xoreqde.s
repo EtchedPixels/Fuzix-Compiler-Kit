@@ -9,7 +9,7 @@ __xoreqde:
 		xor	e
 		ld	(hl),a
 		ld	e,a
-		inx	h
+		inc	hl
 		ld	a,(hl)
 		xor	d
 		ld	(hl),a

@@ -52,7 +52,7 @@ match:
 		inc	hl
 		ld	d,(hl)
 		ex	de,hl
-		pop	bl
+		pop	bc
 		jp	(hl)
 
 nomatch:

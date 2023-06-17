@@ -7,20 +7,20 @@ _memcpy:
 		push	bc
 		ld	h,9
 		add	hl,sp
-		mov	b,(hl)
+		ld	b,(hl)
 		dec	hl
-		mov	c,(hl)
+		ld	c,(hl)
 		dec	hl
-		mov	d,(hl)	; Source
+		ld	d,(hl)	; Source
 		dec	hl
-		mov	e,(hl)
+		ld	e,(hl)
 		dec	hl
-		mov	a,(hl)	; Destination
+		ld	a,(hl)	; Destination
 		dec	hl
-		mov	l,(hl)
-		mov	h,a
+		ld	l,(hl)
+		ld	h,a
 
-		mov	a,b
+		ld	a,b
 		or	c
 		jr	z,done
 

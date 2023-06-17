@@ -6,12 +6,12 @@
 __shru:
 		ex	de,hl		; shift value into d
 		pop	hl		; return address into h
-		ed	(sp),hl		; return up stack, h is now the value to shift
+		ex	(sp),hl		; return up stack, h is now the value to shift
 		jp	__shrdeu
 
 __shrde:
 		ld	a,h
-		add	a
+		add	a,a
 		jr	c,__shrdeneg
 		; Positive right shift signed and unsigned are the same
 __shrdeu:

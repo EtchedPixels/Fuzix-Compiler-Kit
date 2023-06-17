@@ -15,9 +15,9 @@ __minuseq:
 		sub	e
 		ld	(hl),a
 		ld	e,a	; Save result into DE
-		inx	h
+		inc	hl
 		ld	a,(hl)
-		sbc	d
+		sbc	a,d
 		ld	(hl),a
 		ld	d,a	; Result now in DE also
 		ex	de,hl	; into HL for return

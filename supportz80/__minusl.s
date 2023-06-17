@@ -14,7 +14,7 @@ __minusl:
 		ld	e,a
 		inc	hl
 		ld	a,(hl)
-		sbc	d
+		sbc	a,d
 		ld	d,a
 		inc	hl
 
@@ -23,11 +23,11 @@ __minusl:
 		ld	de,(__hireg)
 
 		ld	a,(hl)
-		sbc	e
+		sbc	a,e
 		ld	e,a
 		inc	hl
 		ld	a,(hl)
-		sbc	d
+		sbc	a,d
 		ld	d,a
 
 		ld	(__hireg),de

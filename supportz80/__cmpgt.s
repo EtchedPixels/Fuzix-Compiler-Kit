@@ -23,5 +23,5 @@ sign_same:
 		;  C is clear
 		ex	de,hl
 		sbc	hl,de
-		j	c,__true
+		jp	c,__true
 		jp	__false
