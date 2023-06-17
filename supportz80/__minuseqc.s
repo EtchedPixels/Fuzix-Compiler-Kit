@@ -3,17 +3,16 @@
 ;
 		.export __minuseqc
 		.export __minusequc
-
-		.setcpu 8080
 		.code
+
 __minuseqc:
 __minusequc:
-		xchg
-		pop	h
-		xthl
-		mov	a,m
+		ex	de,hl
+		pop	hl
+		ex	(sp),hl
+		ld	a,(hl)
 		sub	e
-		mov	m,a
-		mov	l,a
+		ld	(hl),a
+		ld	l,a
 		ret
 

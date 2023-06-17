@@ -1,37 +1,38 @@
 ;
 ;	Memset
 ;
+;	TODO: rewrite into Z80 style with a set and copy
+;
 		.export _memset
-		.setcpu 8080
 		.code
 _memset:
-	push	b
-	lxi	h,4		; Allow for the push of B
-	dad	sp
-	mov	e,m
-	inx	h
-	mov	d,m		; Pointer
-	push	d		; Return is the passed pointer
-	inx	h
-	mov	a,m		; fill byte
-	inx	h		; skip fill high
-	inx	h
-	mov	c,m
-	inx	h
-	mov	b,m		; length into BC
+		push	bc
+		ld	hl,4		; Allow for the push of BC
+		add	hl,sp
+		ld	e,(hl)
+		inc	hl
+		ld	d,(hl)		; Pointer
+		push	de		; Return is the passed pointer
+		inc	hl
+		ld	a,(hl)		; fill byte
+		inc	hl		; skip fill high
+		inc	hl
+		ld	c,(hl)
+		ld	hl
+		ld	b,(hl)		; length into BC
 
-	mov	l,a		; We need to free up A for the loop check
-	xchg			; now have HL as the pointer and E as the fill byte
-	jmp	loopin
+		ld	l,a		; We need to free up A for the loop check
+		ex	de,hl		; now have HL as the pointer and E as the fill byte
+		jmp	loopin
 
 loop:
-	mov	m,e
-	inx	h
-	dcx	b
+		ld	(hl),e
+		inc	hl
+		dec	bc
 loopin:
-	mov	a,b
-	ora	c
-	jnz	loop
-	pop	h		; Address passed in
-	pop	b		; Restore B
-	ret
+		ld	a,b
+		or	c
+		jr	nz,loop
+		pop	hl		; Address passed in
+		pop	bc		; Restore BC
+		ret

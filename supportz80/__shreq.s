@@ -2,57 +2,35 @@
 ;	TOS is the lval, hl is the shift amount
 ;
 ;
-	.export __shreq
-	.setcpu 8080
-	.code
+		.export __shreq
+		.code
 
 __shreq:
-	xchg		; shift into de
-	pop	h
-	xthl		; pointer into hl
+		ex	de,hl		; shift into de
+		pop	hl
+		ex	(sp),hl		; pointer into hl
 
-	mov	a,e	; save shift value
-	xchg
-	mov	e,m
-	inx	h
-	mov	d,m
+		ld	a,e	; save shift value
+		ex	de,hl
+		ld	e,(hl)
+		inc	hl
+		ld	d,(hl)
 
-	; No work to do
-	ani	15
-	rz
+		; No work to do
+		and	15
+		ret	z
 
-	push	b
-	mov	c,a
+		push	bc
+		ld	b,a
 
-	mov	a,d
-	ora	a
-	jm	sh1
 shuffle:
-	ora	a
-	mov	a,d
-	rar
-	mov	d,a
-	mov	a,e
-	rar
-	mov	e,a
-	dcr	c
-	jnz	shuffle
+		sra	d
+		rr	e
+		djnz	shuffle
 shdone:
-	pop	b
-	mov	m,d
-	dcx	h
-	mov	m,e
-	xchg
-	ret
-
-sh1:
-	stc
-	mov	a,d
-	rar
-	mov	d,a
-	mov	a,e
-	rar
-	mov	e,a
-	dcr	c
-	jnz	sh1
-	jmp	shdone
+		pop	bc
+		ld	(hl),d
+		dec	hl
+		ld	(hl),e
+		ex	de,hl
+		ret

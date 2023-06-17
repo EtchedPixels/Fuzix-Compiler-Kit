@@ -1,35 +1,33 @@
 
 		.export __muldec
-		.setcpu 8080
 		.code
 
 ;
 ;	L * A into HL
 ;
-
+;	TODO: switch these around for more Z80 friendly and faster methods
+;
 
 __muldec:
-	push	b
-	mov	e,a
-	mov	d,l		; now D * E
-	lxi	h,0		; into HL
-	mvi	b,8
+		push	bc
+		ld	e,a
+		ld	d,l		; now D * E
+		ld	hl,0		; into HL
+		ld	b,8
 next:
-	mov	a,d
-	rar
-	mov	d,a
-	jnc	noadd
-	mov	a,h
-	add	e
-	mov	h,a
-noadd:	mov	a,h
-	rar
-	mov	h,a
-	mov	a,l
-	rar
-	mov	l,a
-	dcr	b
-	jnz	next
-	pop	b
-	ret
-
+		ld	a,d
+		rra
+		ld	d,a
+		jr	nc,noadd
+		ld	a,h
+		add	a,e
+		ld	h,a
+noadd:		ld	a,h
+		rra
+		ld	h,a
+		ld	a,l
+		rra
+		ld	l,a
+		djnz	next
+		pop	bc
+		ret

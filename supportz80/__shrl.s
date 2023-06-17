@@ -1,83 +1,72 @@
 		.export __shrl
-		.setcpu 8080
 		.code
 
 __shrl:
 		; Shift top of stack by amount in HL - signed shift
-		mov	a,l		; shift amount
-		pop	h		; return address
-		pop	d		; upper half of value
-		xthl			; swap return addr with lower half
+		ld	a,l		; shift amount
+		pop	hl		; return address
+		pop	de		; upper half of value
+		ex	(sp),hl		; swap return addr with lower half
 
 		; value is now HL:DE
 
-		ani	31		; nothing to do ?
-		jz	done
+		and	31		; nothing to do ?
+		jr	z,done
 
-		push	psw
+		push	af
 
-		mov	a,h
-		ora	a
-		jm	shift_neg
+		ld	a,h
+		or	a
+		jp	m,shift_neg
 
-		pop	psw
-		jmp	__shrl_p
+		pop	af
+		jp	__shrl_p
 
 shift_neg:
-		pop	psw
+		pop	af
 ;
 ;	Shortcut, do the bytes by register swap
 ;
-		cpi	24
-		jc	not3byte
-		mov	e,h
-		mvi	d,255
-		mov	h,d
-		mov	l,d
-		sui	24
-		jmp	leftover
+		cp	24
+		jr	c,not3byte
+		ld	e,h
+		ld	d,255
+		ld	h,d
+		ld	l,d
+		sub	24
+		jr	leftover
 
 not3byte:
-		cpi	16
-		jc	not2byte
-		xchg			; HL into DE
-		mvi	h,255
-		mov	l,d
-		sui	16
-		jmp	leftover
+		cp	16
+		jr	c,not2byte
+		ex	de,hl		; HL into DE
+		ld	h,255
+		ld	l,d
+		sub	16
+		jr	leftover
 not2byte:
-		cpi	8
-		jc	leftover
-		mov	e,d
-		mov	d,l
-		mov	l,h
-		mvi	h,255
-		sui	8
+		cp	8
+		jr	c,leftover
+		ld	e,d
+		ld	d,l
+		ld	l,h
+		ld	h,255
+		sub	8
 ;
 ;	Do any remaining work
 ;
 leftover:
-		jz	done
-		push	b
-		mov	c,a		; count into C
+		jr	z,done
+		push	bc
+		ld	b,a		; count into B
 shloop:
-		mov	a,h
-		stc
-		rar			; shifts in the carry
-		mov	h,a
-		mov	a,l
-		rar
-		mov	l,a
-		mov	a,d
-		rar
-		mov	d,a
-		mov	a,e
-		rar
-		mov	e,a
-		dcr	c
-		jnz	shloop
-		pop	b
+		sra	h
+		rr	l
+		rr	d
+		rr	e
+		djnz	shloop
+		pop	bc
 done:
-		shld	__hireg
-		xchg
+		ld	(__hireg),hl
+		ex	de,hl
 		ret

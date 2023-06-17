@@ -2,22 +2,20 @@
 ;		TOS = lval of object HL = amount
 ;
 		.export __postdec
-
-		.setcpu 8080
 		.code
 
 __postdec:
-		xchg
-		pop	h
-		xthl
-		mov	a,m
-		sta	__tmp
+		ex	de,hl
+		pop	hl
+		ex	(sp),hl
+		ld	a,(hl)
+		ld	(__tmp),a
 		sub	e
-		mov	m,a
-		inx	h
-		mov	a,m
-		sta	__tmp+1
-		sbb	d
-		mov	m,a
-                lhld	__tmp
+		ld	(hl),a
+		inc	hl
+		ld	a,(hl)
+		ld	(__tmp+1),a
+		sbc	d
+		ld	(hl),a
+                ld	hl,(__tmp)
 		ret

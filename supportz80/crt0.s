@@ -1,8 +1,7 @@
 
 		.code
-		.setcpu 8080
 
 start:
 		call	_main
-		push	d
+		push	hl
 		call	_exit

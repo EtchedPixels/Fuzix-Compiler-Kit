@@ -4,31 +4,31 @@
 ;		int is safe (largest possible sizeof()).
 ;
 		.export __postincl
-		.setcpu 8080
 		.code
+
 __postincl:
-		xchg
-		pop	h
-		xthl
+		ex	de,hl
+		pop	hl
+		ex	(sp),hl
 		; HL is now the pointer, hireg:DE the amount
-		mov	a,m
-		sta	__tmp
+		ld	a,(hl)
+		ld	(__tmp),a
 		add	e
-		mov	m,a
-		inx	h
-		mov	a,m
-		sta	__tmp+1
+		ld	(hl),a
+		inc	hl
+		ld	a,(hl)
+		ld	(__tmp+1),a
 		adc	d
-		mov	m,a
-		inx	h
-		mov	a,m
-		sta	__hireg
-		aci	0
-		mov	m,a
-		inx	h
-		mov	a,m
-		sta	__hireg+1
-		aci	0
-		mov	m,a
-                lhld	__tmp
+		ld	(hl),a
+		inc	hl
+		ld	a,(hl)
+		ld	(__hireg),a
+		adc	0
+		ld	(hl),a
+		inc	hl
+		ld	a,(hl)
+		ld	(__hireg+1),a
+		adc	0
+		ld	(hl),a
+                ld	hl,(__tmp)
 		ret

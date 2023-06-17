@@ -1,51 +1,52 @@
-
-		.setcpu 8080
 		.export __muldeb
 		.export __mulde
 		.export __mul
 
 		.code
+;
+;	TODO: rework for Z80 optimized - use B not C etc
+;
 
 __mul:
-		xchg
-		pop	h
-		xthl
+		ex	de,hl
+		pop	hl
+		ex	(sp),hl
 ;
 ;		HL * DE
 ;
-__mulde:	push	b
+__mulde:	push	bc
 
-		mov	b,h		; save old upper byte
+		ld	b,h		; save old upper byte
 
-		mov	a,l		; work on old lower
-		mvi	c,8
+		ld	a,l		; work on old lower
+		ld	c,8
 
-		lxi	h,0		; accumulator for the shift/adds
+		ld	hl,0		; accumulator for the shift/adds
 
-low:		rar
-		jnc	noadd1
-		dad	d
-noadd1:		xchg
-		dad	h
-		xchg
-		dcr	c
-		jnz	low
+low:		rra
+		jr	nc, noadd1
+		add	hl,de
+noadd1:		ex	de,hl
+		add	hl,de
+		ex	de,hl
+		dec	c
+		jr	nz, low
 
-		mov	a,b
-		mvi	c,8
+		ld	a,b
+		ld	c,8
 
-hi:		rar
-		jnc	noadd2
-		dad	d
-noadd2:		xchg			; 8085 can ora rdel not really
-		dad	h		; worth the hassle ?
-		xchg
-		dcr	c
-		jnz	hi
+hi:		rra
+		jr	nc,noadd2
+		add	hl,de
+noadd2:		ex	de,hl			; 8085 can ora rdel not really
+		add	hl,de		; worth the hassle ?
+		ex	de,hl
+		dec	c
+		jr	nz,hi
 
 		; result is in HL
 
-		pop	b
+		pop	bc
 		ret
-__muldeb:	mvi	h,0
-		jmp	__mulde
+__muldeb:	ld	h,0
+		jr	__mulde

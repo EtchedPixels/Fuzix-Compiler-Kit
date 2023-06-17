@@ -4,7 +4,6 @@
 		.export __cmpgt0u
 		.export __cmpgt0ub
 
-		.setcpu 8080
 		.code
 
 __cmpgt0ub:

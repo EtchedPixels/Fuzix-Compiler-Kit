@@ -1,24 +1,24 @@
 ;
 ;		32bit complement
 ;
-			.export __cpll
-			.setcpu 8080
-			.code
+		.export __cpll
+		.code
+
 __cpll:
-	mov	a,h
-	cma
-	mov	h,a
-	mov	a,l
-	cma
-	mov	l,a
-	push	h
-	lhld	__hireg
-	mov	a,h
-	cma
-	mov	h,a
-	mov	a,l
-	cma
-	mov	l,a
-	shld	__hireg
-	pop	h
-	ret
+		ld	a,h
+		cpl
+		ld	h,a
+		ld	a,l
+		cpl
+		ld	l,a
+		push	hl
+		ld	hl,(__hireg)
+		ld	a,h
+		cpl
+		ld	h,a
+		ld	a,l
+		cpl
+		ld	l,a
+		ld	(__hireg),hl
+		pop	hl
+		ret

@@ -2,7 +2,6 @@
 ;		Long or, values are on stack and in hireg:h
 ;
 		.export __orl
-		.setcpu	8080
 		.code
 
 __orl:

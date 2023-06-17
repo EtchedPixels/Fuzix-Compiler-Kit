@@ -4,32 +4,30 @@
 ;		turned long on 8085
 ;
 		.export __postdecl
-
-		.setcpu 8080
 		.code
 
 __postdecl:
-		xchg
-		pop	h
-		xthl
-		mov	a,m
-		sta	__tmp
+		ex	de,hl
+		pop	hl
+		ex	(sp),hl
+		ld	a,(hl)
+		ld	(__tmp),a
 		sub	e
-		mov	m,a
-		inx	h
-		mov	a,m
-		sta	__tmp+1
-		sbb	d
-		mov	m,a
-		inx	h
-		mov	a,m
-		sta	__hireg
-		sbi	0
-		mov	m,a
-		inx	h
-		mov	a,m
-		sta	__hireg+1
-		sbi	0
-		mov	m,a
-                lhld	__tmp
+		ld	(hl),a
+		inc	hl
+		ld	a,(hl)
+		ld	(__tmp+1),a
+		sbc	d
+		ld	(hl),a
+		inc	hl
+		ld	a,(hl)
+		ld	(__hireg),a
+		sbc	0
+		ld	(hl),a
+		inc	hl
+		ld	a,(hl)
+		ld	(__hireg+1),a
+		sbc	0
+		ld	(hl),a
+                ld	hl,(__tmp)
 		ret

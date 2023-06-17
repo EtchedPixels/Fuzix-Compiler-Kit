@@ -1,53 +1,43 @@
-			.export __shleql
-			.setcpu 8080
-			.code
+		.export __shleql
+		.code
 
 __shleql:
-	mov	a,l
-	pop	h
-	xthl
-	; HL is now the lval, A is the shift
-	ani	31
-	jz	done
-	push	psw
-	push	h
-	mov	e,m
-	inx	h
-	mov	d,m
-	inx	h
-	mov	a,m
-	inx	h
-	mov	h,m
-	mov	l,a
-	pop	psw
+		ld	a,l
+		pop	hl
+		ex	(sp),hl
+		; HL is now the lval, A is the shift
+		and	31
+		jr	z,done
+		push	af
+		push	hl
+		ld	e,(hl)
+		inx	h
+		ld	d,(hl)
+		inx	h
+		ld	a,(hl)
+		inx	h
+		ld	h,(hl)
+		ld	l,a
+		pop	af
 loop:
-	xchg
-	dad	h
-	xchg
-	jc	slide1
-	dad	h
-	dcr	a
-	jnz	loop
+		ex	de,hl
+		add	hl,hl
+		ex	de,hl
+		adc	hl,hl
+		dec	a
+		jr	nz,loop
 done:
-	; our value is now in HLDE
-	shld	__hireg		; save the upper half result
-	pop	h		; lval back
-	mov	m,e
-	inx	h
-	mov	m,d
-	inx	h
-	push	d
-	xchg
-	lhld	__hireg
-	xchg
-	mov	m,e		; write back the upper word
-	inx	h
-	mov	m,d
-	pop	h		; get low word back for result
-	ret
-slide1:
-	dad	h
-	inr	l		; set low bit
-	dcr	a
-	jnz	loop
-	jmp	done
+		; our value is now in HLDE
+		ld	(__hireg),hl	; save the upper half result
+		pop	hl		; lval back
+		ld	(hl),e
+		inc	hl
+		ld	(hl),d
+		inc	hl
+		push	de
+		ld	de,(__hireg)
+		ld	(hl),e		; write back the upper word
+		inc	hl
+		ld	(hl),d
+		pop	hl		; get low word back for result
+		ret

@@ -1,38 +1,28 @@
 		.export __shrdec
 		.export __shrdeuc
-		.setcpu	8080
 
 		.code
 
 __shrdec:
-		mov	a,l
-		ora	a
-		rz			; we can check for free...
-		jp	__shrdeuc	; same as unsigned if positive
-;
-;	Shifting a negative number
-;
-		mov	a,e
-		ani	7
-		rz
-		mov	e,a
+		ld	a,e
+		and	7
+		ret	z
+		ld	e,a
 loopm:
-		stc
-		rar
-		dcr	e
-		jnz	loopm
+		sra	l
+		dec	e
+		jr	nz,loopm
 		ret
 	
 
 __shrdeuc:
 		; Shift L right unsigned by e
-		mov	a,e
-		ani	7
+		ld	a,e
+		and	7
 		rz
-		mov	e,a
+		ld	e,a
 loop:
-		ora	a
-		rar
-		dcr	e
-		jnz	loop
+		srl	l
+		dec	e
+		jr	nz,loop
 		ret

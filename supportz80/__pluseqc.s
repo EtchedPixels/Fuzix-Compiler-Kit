@@ -2,15 +2,14 @@
 ;		TOS = lval of object L = amount
 ;
 		.export __pluseqc
-
-		.setcpu 8080
 		.code
+
 __pluseqc:
-		xchg
-		pop	h
-		xthl
-		mov	a,m
+		ex	de,hl
+		pop	hl
+		ex	(sp),hl
+		ld	a,(hl)
 		add	e
-		mov	m,a
-		mov	l,a
+		ld	(hl),a
+		ld	l,a
 		ret

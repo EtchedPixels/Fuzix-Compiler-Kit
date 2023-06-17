@@ -1,20 +1,20 @@
 ;
 ;	Add de to (HL), return the result
 ;
-			.export __pluseqde
-			.setcpu 8080
-			.code
+		.export __pluseqde
+		.code
+
 __pluseqde:
-	push	b
-	mov	c,m
-	inx	h
-	mov	b,m
-	xchg
-	dad	b	; do the math
-	xchg
-	mov	m,d
-	dcx	h
-	mov	m,e
-	xchg
-	pop	b	; restore BC
-	ret
+		push	bc
+		ld	c,(hl)
+		inc	hl
+		ld	b,(hl)
+		ex	de,hl
+		add	hl,bc	; do the math
+		ex	de,hl
+		ld	(hl),d
+		dec	hl
+		ld	(hl),e
+		ex	de,hl
+		pop	bc	; restore BC
+		ret

@@ -1,25 +1,24 @@
 ;
 ;		TOS = lval of object HL = amount
 ;
-	.export __minuseq
+		.export __minuseq
+		.code
 
-	.setcpu 8080
-	.code
 __minuseq:
-	xchg		; DE is now the amount
-	pop	h	; return
-	xthl		; return in place of TOS ptr
+		ex	de,hl	; DE is now the amount
+		pop	hl	; return
+		ex	(sp),hl	; return in place of TOS ptr
 
-	; HL = ptr DE = value
+		; HL = ptr DE = value
 
-	mov	a,m
-	sub	e
-	mov	m,a
-	mov	e,a	; Save result into DE
-	inx	h
-	mov	a,m
-	sbb	d
-	mov	m,a
-	mov	d,a	; Result now in DE also
-	xchg		; into HL for return
-	ret
+		ld	a,(hl)
+		sub	e
+		ld	(hl),a
+		ld	e,a	; Save result into DE
+		inx	h
+		ld	a,(hl)
+		sbc	d
+		ld	(hl),a
+		ld	d,a	; Result now in DE also
+		ex	de,hl	; into HL for return
+		ret

@@ -1,20 +1,19 @@
 ;
 ;		(HL) &= DE
 ;
-			.export __oreqde
-			.setcpu 8080
-			.code
+		.export __oreqde
+		.code
 
 __oreqde:
-	mov	a,m
-	ora	e
-	mov	m,a
-	mov	e,a
-	inx	h
-	mov	a,m
-	ora	d
-	mov	m,a
-	mov	d,a
-	xchg
-	ret
+		ld	a,(hl)
+		or	e
+		ld	(hl),a
+		ld	e,a
+		inx	h
+		ld	a,(hl)
+		or	d
+		ld	(hl),a
+		ld	d,a
+		ex	de,hl
+		ret
 

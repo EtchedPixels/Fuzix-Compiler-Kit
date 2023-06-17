@@ -24,7 +24,7 @@ __shll:
 not3byte:	cmp	16
 		jr	c,not2byte
 		xchg
-		lxi	h,0
+		ld	hl,0
 		sub	16
 		jr	leftover
 not2byte:	cmp	8

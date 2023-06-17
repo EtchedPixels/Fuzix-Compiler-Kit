@@ -2,44 +2,39 @@
 ;		highreg:hl = TOS - hireg:hl
 ;
 		.export __minusl
-		.setcpu 8080
 		.code
 
 __minusl:
-	xchg		; low half of value into DE
-	lxi	h,2
-	dad	sp	; pointer into stack
+		ex	de,hl	; low half of value into DE
+		ld	h,2
+		add	hl,sp	; pointer into stack
 
-	mov	a,m
-	sub	e
-	mov	e,a
-	inx	h
-	mov	a,m
-	sbb	d
-	mov	d,a
-	inx	h
+		ld	a,(hl)
+		sub	e
+		ld	e,a
+		inc	hl
+		ld	a,(hl)
+		sbc	d
+		ld	d,a
+		inc	hl
 
-	push	d	; save low word
+		push	de	; save low word
 
-	xchg
-	lhld	__hireg	; high word
-	xchg
+		ld	de,(__hireg)
 
-	mov	a,m
-	sbb	e
-	mov	e,a
-	inx	h
-	mov	a,m
-	sbb	d
-	mov	d,a
+		ld	a,(hl)
+		sbc	e
+		ld	e,a
+		inc	hl
+		ld	a,(hl)
+		sbc	d
+		ld	d,a
 
-	xchg
-	shld	__hireg
+		ld	(__hireg),de
 
-	pop	h	; our result
-	pop	d	; our return address
-	pop	psw	; throw the argument
-	pop	psw
-	push	d
-	ret
-
+		pop	hl	; our result
+		pop	de	; our return address
+		pop	af	; throw the argument
+		pop	af
+		push	de
+		ret

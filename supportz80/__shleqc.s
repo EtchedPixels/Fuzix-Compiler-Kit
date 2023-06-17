@@ -1,25 +1,25 @@
 ;
 ;	Shift TOS left by HL
 ;
-			.export __shleqc
-			.setcpu 8080
-			.code
+		.export __shleqc
+		.code
+
 __shleqc:
-	xchg
-	pop	h
-	xthl
-	mov	a,e
-	ani	7
-	mov	e,a
-	mov	a,m
-	jz	noop
+		ex	de,hl
+		pop	hl
+		ex	(sp),hl
+		ld	a,e
+		and	7
+		ld	e,a
+		ld	a,(hl)
+		jz	noop
 loop:
-	add	a
-	dcr	e
-	jnz	loop
-	mov	m,a
+		add	a
+		dec	e
+		jr	nz,loop
+		ld	(hl),a
 noop:
-	mov	l,a
-	ret
+		ld	l,a
+		ret
 
 

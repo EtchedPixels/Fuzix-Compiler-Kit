@@ -1,42 +1,38 @@
 		.export __pluseql
 		.code
-		.setcpu	8080
 
 __pluseql:
-	xchg
-	pop	h
-	xthl
+		ex	de,hl
+		pop	h
+		xthl
 
-	; HL is pointer, hireg:de amount to add
+		; HL is pointer, hireg:de amount to add
 
-	mov	a,m
-	add	e
-	mov	m,a
-	mov	e,a
-	inx	h
-	mov	a,m
-	adc	d
-	mov	m,a
-	mov	d,a
-	inx	h
-	push	d
+		ld	a,(hl)
+		add	e
+		ld	(hl),a
+		ld	e,a
+		inc	hl
+		ld	a,(hl)
+		adc	d
+		ld	(hl),a
+		ld	d,a
+		inc	hl
+		push	d
 
-	xchg
-	lhld	__hireg
-	xchg
+		ld	de,(__hireg)
 
-	mov	a,m
-	adc	e
-	mov	m,a
-	mov	e,a
-	inx	h
-	mov	a,m
-	adc	d
-	mov	m,a
-	mov	d,a
+		ld	a,(hl)
+		adc	e
+		ld	(hl),a
+		ld	e,a
+		inc	hl
+		ld	a,(hl)
+		adc	d
+		ld	(hl),a
+		ld	d,a
 
-	xchg
-	shld	__hireg
+		ld	(__hireg),de
 
-	pop	h
-	ret
+		pop	hl
+		ret

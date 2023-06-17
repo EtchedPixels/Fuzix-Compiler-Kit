@@ -1,37 +1,36 @@
 ;
 ;	HL = lval
 ;
-	.export __minuseq1
-	.export __minuseq2
-	.export __minuseq1d
-	.export __minuseq2d
+		.export __minuseq1
+		.export __minuseq2
+		.export __minuseq1d
+		.export __minuseq2d
 
-	.setcpu 8080
-	.code
+		.code
 
 __minuseq1d:
-	xchg
+		ex	de,hl
 __minuseq1:
-	mov	e,m
-	inx	h
-	mov	d,m
-	dcx	d
-	mov	m,d
-	dcx	h
-	mov	m,e
-	xchg
-	ret
+		ld	e,(hl)
+		inc	hl
+		ld	d,(hl)
+		dec	de
+		ld	(hl),d
+		dec	hl
+		ld	(hl),e
+		ex	de,hl
+		ret
 
 __minuseq2d:
-	xchg
+		ex	de,hl
 __minuseq2:
-	mov	e,m
-	inx	h
-	mov	d,m
-	dcx	d
-	dcx	d
-	mov	m,d
-	dcx	h
-	mov	m,e
-	xchg
-	ret
+		ld	e,(hl)
+		inc	hl
+		ld	d,(hl)
+		dec	de
+		dec	de
+		ld	(hl),d
+		dec	hl
+		ld	(hl),e
+		ex	de,hl
+		ret

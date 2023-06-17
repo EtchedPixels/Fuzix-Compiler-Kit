@@ -2,16 +2,15 @@
 ;		TOS = lval of object HL = amount
 ;
 		.export __postdecc
-
-		.setcpu 8080
 		.code
+
 __postdecc:
-		xchg
-		pop	h
-		xthl
-		mov	a,m
-		mov	d,a
+		ex	de,hl
+		pop	hl
+		ex	(sp),hl
+		ld	a,(hl)
+		ld	d,a		; save old value
 		sub	e
-		mov	m,a
-		mov	e,d
+		ld	(hl),a
+		ld	l,d		; return old value
 		ret

@@ -1,6 +1,5 @@
 	.export __shreql
 	.export __shrequl
-	.setcpu 8080
 	.code
 ;
 ;	Has to be done the hard way
@@ -11,99 +10,79 @@
 ;	We could optimize 8,16,24 bit shift slices with register swaps TODO
 ;
 __shreql:
-	mov	a,l
-	pop	h
-	xthl
-	push	b		; save BC
-	push	h
-	; HL is now the lval, A is the shift
-	ani	31
-	jz	done
-	mov	b,a		; count
-	call	setup4		; HLDE is now the data
-	mov	a,h
-	ora	a
-	jp	shftu		; Sign bit positive - do unsigned shift
+		ld	a,l
+		pop	hl
+		ex	(sp),hl
+		push	bc		; save BC
+		push	hl
+		; HL is now the lval, A is the shift
+		andi	31
+		jr	z,done
+		ld	b,a		; count
+		call	setup4		; HLDE is now the data
+		ld	a,h
+		or	a
+		; When we do the optimized path his will help
+		jp	p,shftu		; Sign bit positive - do unsigned shift
 shftn:
-	mov	a,h
-	stc			; Set top bit as we are shifting a negative number
-	rar
-	mov	h,a
-	mov	a,l
-	rar
-	mov	l,a
-	mov	a,d
-	rar
-	mov	d,a
-	mov	a,e
-	rar
-	mov	e,a
-	dcr	b
-	jnz	shftn
+		sra	h
+		rr	l
+		rr	d
+		rr	e
+		djnz	shftn
 
-	; Result is now in HL:DE
+		; Result is now in HL:DE
 store:
-	shld	__hireg
-	pop	h
-	mov	m,e
-	inx	h
-	mov	m,d
-	inx	h
-	xchg
-	lhld	__hireg
-	xchg
-	mov	m,d
-	inx	h
-	mov	m,e
-	xchg
-	pop	b
-	ret
+		ld	(__hireg),hl
+		pop	hl
+		ld	(hl),e
+		inc	hl
+		ld	(hl),d
+		inc	hl
+		push	de		; save low half
+		ld	de,(__hireg)
+		ld	(hl),d
+		inc	hl
+		ld	(hl),e
+		pop	hl
+		pop	bc
+		ret
 
 ; No shift but still need to load it
 done:
-	call	setup4
-	jmp	store
+		call	setup4
+		jr	store
 
 ;
 ;	Shift through A on the 8080
 ;
 __shrequl:
-	mov	a,l
-	pop	h
-	xthl
-	push	b		; save BC
-	push	h
-	; HL is now the lval, A is the shift
-	ani	31
-	jz	done
-	mov	b,a		; count
-	call	setup4		; HLDE is now the data
+		ld	a,l
+		pop	hl
+		ex	(sp),hl
+		push	bc		; save BC
+		push	hl
+		; HL is now the lval, A is the shift
+		and	31
+		jr	z,done
+		ld	b,a		; count
+		call	setup4		; HLDE is now the data
 shftu:
-	mov	a,h
-	ora	a
-	rar
-	mov	h,a
-	mov	a,l
-	rar
-	mov	l,a
-	mov	a,d
-	rar
-	mov	d,a
-	mov	a,e
-	rar
-	mov	e,a
-	dcr	b
-	jnz	shftu
+		srl	h
+		rr	l
+		rr	d
+		rr	e
+		djnz	shftu
 
-	jmp	store
+		jr	store
 
 setup4:
-	mov	e,m
-	inx	h
-	mov	d,m
-	inx	h
-	mov	a,m
-	inx	h
-	mov	h,m
-	mov	l,a
-	ret
+		ld	e,(hl)
+		inc	hl
+		ld	d,(hl)
+		inc	hl
+		ld	a,(hl)
+		inc	hl
+		ld	h,(hl)
+		ld	l,a
+		ret

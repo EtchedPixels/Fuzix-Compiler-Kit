@@ -1,42 +1,38 @@
 		.export __minuseql
 		.code
-		.setcpu	8080
 
 __minuseql:
-	xchg
-	pop	h
-	xthl
+		ex	de,hl
+		pop	hl
+		ex	(sp),hl
 
-	; HL is pointer, hireg:de amount to add
+		; HL is pointer, hireg:de amount to subtract
 
-	mov	a,m
-	sub	e
-	mov	m,a
-	mov	e,a
-	inx	h
-	mov	a,m
-	sbb	d
-	mov	m,a
-	mov	d,a
-	inx	h
-	push	d
+		ld	a,(hl)
+		sub	e
+		ld	(hl),a
+		ld	e,a
+		inc	hl
+		ld	a,(hl)
+		sbc	d
+		ld	(hl),a
+		ld	d,a
+		inc	hl
+		push	de
 
-	xchg
-	lhld	__hireg
-	xchg
+		ld	de,(__hireg)
 
-	mov	a,m
-	sbb	e
-	mov	m,a
-	mov	e,a
-	inx	h
-	mov	a,m
-	sbb	d
-	mov	m,a
-	mov	d,a
+		ld	a,(hl)
+		sbc	e
+		ld	(hl),a
+		ld	e,a
+		inc	hl
+		ld	a,(hl)
+		sbc	d
+		ld	(hl),a
+		ld	d,a
 
-	xchg
-	shld	__hireg
+		ld	(__hireg),de
 
-	pop	d
-	ret
+		pop	hl
+		ret

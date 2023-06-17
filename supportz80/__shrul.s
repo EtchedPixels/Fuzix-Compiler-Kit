@@ -1,74 +1,63 @@
 		.export __shrul
 		.export __shrl_p
-		.setcpu 8080
 		.code
 
 
 __shrul:
 		;	Shift top of stack by amount in HL
-		mov	a,l		; shift amount
-		pop	h		; return address
-		pop	d		; lower half of value
-		xthl			; swap return addr with lower half
+		ld	a,l		; shift amount
+		pop	hl		; return address
+		pop	de		; lower half of value
+		ex	(sp),hl		; swap return addr with lower half
 
 		; value is now HL:DE
 
-		ani	31		; nothing to do ?
-		jz	done
+		and	31		; nothing to do ?
+		jr	z,done
 ;
 ;	Shortcut, do the bytes by register swap
 ;
 __shrl_p:			; Positive side of __shrl joins here
-		cpi	24
-		jc	not3byte
-		mov	e,h
-		mvi	d,0
-		mov	h,d
-		mov	l,d
-		sui	24
-		jmp	leftover
+		cp	24
+		jr	c,not3byte
+		ld	e,h
+		ld	d,0
+		ld	h,d
+		ld	l,d
+		sub	24
+		jr	leftover
 
 not3byte:
-		cpi	16
-		jc	not2byte
-		xchg			; HL into DE
-		mvi	h,0
-		mov	l,h
-		sui	16
-		jmp	leftover
+		cp	16
+		jr	c,not2byte
+		ex	de,hl			; HL into DE
+		ld	h,0
+		ld	l,h
+		sub	16
+		jr	leftover
 not2byte:
-		cpi	8
-		jc	leftover
-		mov	e,d
-		mov	d,l
-		mov	l,h
-		mvi	h,0
-		sui	8
+		cp	8
+		jr	c,leftover
+		ld	e,d
+		ld	d,l
+		ld	l,h
+		ld	h,0
+		sub	8
 ;
 ;	Do any remaining work
 ;
 leftover:
-		jz	done
-		push	b
-		mov	c,a		; count into C
+		jr	z,done
+		push	bc
+		ld	b,a		; count into B
 shloop:
-		mov	a,h
-		ora	a
-		rar
-		mov	h,a
-		mov	a,l
-		rar
-		mov	l,a
-		mov	a,d
-		rar
-		mov	d,a
-		mov	a,e
-		rar
-		mov	e,a
-		dcr	c
-		jnz	shloop
-		pop	b
+		srl	h
+		rr	l
+		rr	d
+		rr	e
+		djnz	shloop
+		pop	bc
 done:
-		shld	__hireg
-		xchg
+		ld	(__hireg),hl
+		ex	de,hl
 		ret

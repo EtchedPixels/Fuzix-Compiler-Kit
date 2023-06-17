@@ -2,47 +2,46 @@
 ;	Switch. We use the tables as is, nothing clever like
 ;	binary searching yet
 ;
-			.export __switch
-			.export __switchu
-			.setcpu 8080
-			.code
+		.export __switch
+		.export __switchu
+		.code
 
 __switchu:
 __switch:
-		push	b
-		mov	b,h
-		mov	c,l
+		push	bc
+		ld	b,h
+		ld	c,l
 
 		; DE points to the table in the format
 		; Length
 		; value, label
 		; default label
-		xchg
-		mov	e,m
-		inx	h
-		mov	d,m
+		ex	de,hl
+		ld	e,(hl)
+		inc	hl
+		ld	d,(hl)
 next:
-		inx	h		; Move on to value to check
-		mov	a,m
-		cmp	c
-		inx	h		; Move on to address
-		mov	a,m
-		inx	h
-		jnz	nomatch
-		cmp	b
-		jz	match
+		inc	hl		; Move on to value to check
+		ld	a,(hl)
+		cp	c
+		inc	hl		; Move on to address
+		ld	a,(hl)
+		inc	hl
+		jr	nz,nomatch
+		cp	b
+		jr	z,match
 nomatch:
-		inx	h		; Skip address low
-		dcx	d
-		mov	a,e
-		ora	d
-		jnz	next
-		inx	h
+		inc	hl		; Skip address low
+		dec	de
+		ld	a,e
+		or	d
+		jr	nz, next
+		inc	hl
 		; We are pointing at the address
 match:
-		mov	e,m
-		inx	h
-		mov	d,m
-		xchg
-		pop	b
-		pchl
+		ld	e,(hl)
+		inc	hl
+		ld	d,(hl)
+		ex	de,hl
+		pop	bc
+		jp	(hl)
