@@ -317,7 +317,7 @@ static void gen_cleanup(unsigned v)
 			v -= 2;
 		}
 		if (v)
-			printf("\tdcr sp\n");
+			printf("\tdcx sp\n");
 	}
 }
 
@@ -1226,7 +1226,7 @@ unsigned gen_node(struct node *n)
 			if (cpu == 8085)
 				printf("\txchg\nlhlx\n");
 			else
-				printf("\tmov a,m\n\tinx h\n\tmov d,m\n\tmov e,a\n");
+				printf("\tmov a,m\n\tinx h\n\tmov h,m\n\tmov l,a\n");
 			return 1;
 		}
 		/* Via helper magic for compactness on 8080 */
