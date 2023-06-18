@@ -19,11 +19,11 @@ trees from cc1.
 ## Status
 
 The compiler can parse and generate output for the full Fuzix codebase. The
-code generator being worked on first is for the 8085 and it's currently at
-the point it can build a kernel and user space that runs correctly, with the
-8080 code generator fairly close to this state. The code generator still needs some work,
-and the support libraries a fair bit of debugging. The front end and core
-compiler should now be reasonably stable although some bugs undoubtedly
+code generator being worked on first is for the 8080/5 and it's currently at
+the point it can build a kernel and user space that runs correctly, except
+for a couple of apps that need bugs chasing down. The code generator still
+needs some work, and the support libraries a bit of debugging. The front end
+and core compiler should now be reasonably stable although some bugs undoubtedly
 remain.
 
 ## Installation
@@ -89,6 +89,55 @@ Known incompatibilities (some to be fixed)
 * The constant value -32768 does not always get typed correctly. The reason for this is a complicated story about how cc0/cc1 interact.
 * Many C compilers permit (void) to 'cast' the result of a call away, we do not.
 * Local variables have a single function wide scope not a block scope
+
+## Backend Status
+
+### 6303/6803/68HC11
+
+This is an early sketch only based upon the CC6303 code generation and
+support code.
+
+### 8080/8085
+
+The compiler generates passable 8080 code and knows how to use call stubs
+for argument fetching/storing to get compact code at a performance cost if
+requested. On the 8085 extensive use is made of LDSI, LHLX and SHLX to get
+good compact code generation.
+
+Long maths is quite slow but is not trivial to optimize, particularly on the
+8080 processor. There is also no option to use RST calls for the most common
+bits of code for compactness (quite possibly worth 1Kb or more for some
+stuff). The code generator does not know the fancy tricks for turning
+constant divides into shift/multiply sets.
+
+The BC register is not currently used but is saved and restored correctly.
+Using this for a register variable (integer or byte pointer) or to cache a
+live variable is a future project.
+
+Signed comparison and sign extension are significantly slower than unsigned.
+This is an instruction set limitation.
+
+### Z80 / Z180
+
+This is some initial work based upon the 8080 code generator. It has not at
+this point being significantly extended. The code generator knows how to
+load BC directly and some (but not all) support code has been optimized.
+There is not yet support for using IX or IY for struct access and for frame
+pointers. In fact IX and IY are not used at all.
+
+The Z80 is particularly horrible to work with because (IX) offset loads and
+stores are both slow and long winded, and there are a lack of other effective
+ways to generate stack references except the 8080 style.
+
+The Z180 is not yet differentiated. This will only matter for the support
+library code and maybe inlining a few specific multiplication cases.
+
+### Default
+
+This is a simple test backend the just turns the input into a lot of calls.
+It is intended as a reference only although it may be useful for processors
+that require a threadcode implementation (eg 1802) or to build an
+interpreted backend.
 
 ## Internals
 
