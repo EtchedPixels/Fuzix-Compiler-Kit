@@ -84,9 +84,11 @@ supportz80:
 	(cd supportz80; make)
 
 clean:
-	rm -f cc cc0 cc1 cc2 cc2.8080 cc2.6809 copt
+	rm -f cc cc85 ccz80 cc0 cc1 cc2 cc2.8080 cc2.6809 cc2.z80 copt
 	rm -f *~ *.o
+	(cd support8080; make clean)
 	(cd support8085; make clean)
+	(cd supportz80; make clean)
 
 # Hack for now
 # assumes a suitable cpp, as, libs and includes are present
