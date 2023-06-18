@@ -96,7 +96,7 @@ nosignmod:
 		;	Shift
 		;
 divloop:
-		ld	h,__tmp2		; 64bit left shift through tmp2 tmp3
+		ld	hl,__tmp2		; 64bit left shift through tmp2 tmp3
 		ld	c,8
 		xor	a
 shiftl:

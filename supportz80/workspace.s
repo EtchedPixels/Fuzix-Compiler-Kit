@@ -21,7 +21,7 @@ __tmp3:
 		.word	0
 		.word	0
 __xchgret:
-		xchg
+		ex	de,hl
 __ret:
 		.byte	0xC3		; JMP
 __retaddr:
@@ -29,4 +29,4 @@ __retaddr:
 
 		.code
 
-__callhl:	pchl
+__callhl:	jp	(hl)
