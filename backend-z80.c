@@ -423,7 +423,7 @@ void gen_value(unsigned type, unsigned long value)
 
 void gen_start(void)
 {
-/* TODO */	printf(";\t.setcpu z%d\n", cpu);
+	printf(";\t.setcpu %d\n", cpu);
 }
 
 void gen_end(void)
