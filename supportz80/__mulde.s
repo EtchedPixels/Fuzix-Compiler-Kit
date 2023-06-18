@@ -27,7 +27,7 @@ low:		rra
 		jr	nc, noadd1
 		add	hl,de
 noadd1:		ex	de,hl
-		add	hl,de
+		add	hl,hl
 		ex	de,hl
 		dec	c
 		jr	nz, low
@@ -38,8 +38,8 @@ noadd1:		ex	de,hl
 hi:		rra
 		jr	nc,noadd2
 		add	hl,de
-noadd2:		ex	de,hl			; 8085 can ora rdel not really
-		add	hl,de		; worth the hassle ?
+noadd2:		ex	de,hl
+		add	hl,hl
 		ex	de,hl
 		dec	c
 		jr	nz,hi

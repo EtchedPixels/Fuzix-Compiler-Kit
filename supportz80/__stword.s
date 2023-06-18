@@ -5,7 +5,7 @@
 		.code
 
 __stword:
-		ex	de,hl		; tos is now value, hl is return
+		ex	(sp),hl		; tos is now value, hl is return
 		ld	e,(hl)
 		inc	hl
 		ld	d,0

@@ -5,8 +5,8 @@
 		.code
 
 __orl:
-		ex	de,hl		; pointer into de
-		ld	h,2
+		ex	de,hl		; low word into DE
+		ld	hl,2
 		add	hl,sp		; so hl is the memory pointer, de the value
 		ld	a,(hl)
 		or	e
@@ -16,19 +16,19 @@ __orl:
 		or	d
 		ld	d,a
 		inc	hl
-		push	de
-		ld	de,(__hireg)
-		ld	a,(hl)
+		push	de		; save result low
+		ld	de,(__hireg)	; get high reg
+		ld	a,(hl)		; do upper half
 		or	e
 		ld	e,a
 		inc	hl
 		ld	a,(hl)
 		or	d
 		ld	d,a
-		ld	(__hireg),de
+		ld	(__hireg),de	; upper into hireg
 		pop	hl		; result
-		pop	de
+		pop	de		; return addr
+		pop	af		; remove arg
 		pop	af
-		pop	af
-		push	de
+		push	de		; and return
 		ret

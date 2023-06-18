@@ -47,11 +47,11 @@ nextbit:
 nocarry:
 		ex	de,hl
 		ld	hl,(__tmp3+2)
-		add	hl,de
+		add	hl,de		; TODO -use adc hl,de ??
 		ld	(__tmp3+2),hl
 noadd:
 		ld	hl,(__tmp2)	; 32bit left shift using dad
-		add	hl,de
+		add	hl,hl
 		ld	(__tmp2),hl
 		ld	hl,(__tmp2+2)
 		jr	nc,noshiftc
