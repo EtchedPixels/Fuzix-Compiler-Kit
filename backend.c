@@ -177,12 +177,24 @@ static struct node *load_tree(void)
 	return n;
 }
 
+static unsigned depth = 0;
+
 static struct node *rewrite_tree(struct node *n)
 {
-	if (n->left)
+	unsigned f = 0;
+	depth++;
+	printf("; %-*s %04x\n", depth, "", n->op);
+	if (n->left) {
 		n->left = rewrite_tree(n->left);
-	if (n->right)
+		f |= n->left->flags;
+	}
+	if (n->right) {
 		n->right = rewrite_tree(n->right);
+		f |= n->right->flags;
+	}
+	if (f & (SIDEEFFECT|IMPURE))
+		n->flags |= IMPURE;
+	depth--;
 	/* Convert LVAL flag into pointer type */
 	if (n->flags & LVAL)
 		n->type++;
@@ -774,6 +786,12 @@ static unsigned branching_operator(struct node *n)
 void codegen_lr(struct node *n)
 {
 	unsigned o = branching_operator(n);
+
+	/* Don't generate any tree that has no side effects and no return */
+	if ((n->flags & (SIDEEFFECT|IMPURE|NORETURN)) == NORETURN)
+		return;
+
+	/* The case of NORETURN alone must be dealt with in the target code generators */
 
 	/* Certain operations require special handling because the rule is
 	   for partial evaluation only. Notably && || and ?: */
