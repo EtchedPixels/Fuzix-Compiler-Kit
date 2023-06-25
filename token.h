@@ -137,6 +137,7 @@
 #define T_CLEANUP	0x120D		/* Function call post stack clean */
 #define T_CASELABEL	0x120E		/* A case label */
 #define T_ARGCOMMA	0x120F		/* Links arguments to a call */
+#define T_REG		0x1210		/* name/offset for a register */
 
 #define T_USER		0x2000		/* Tokens for code generators */
 
