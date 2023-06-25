@@ -379,3 +379,31 @@ L%1_n:
 	jnz %1
 =
 ;
+
+# Tidy up some load patterns (below here needs review for 8085)
+	push h
+	lxi h,%1
+	xchg
+	pop h
+=
+	lxi d,%1
+
+	call _stword%1
+;
+	call _ldword%1
+=
+	call _stword%1
+
+	shld T%1
+;
+	lhld T%1
+=
+	shld T%1
+
+	lhld T%1
+	shld T%2
+;
+	lhld T%1
+=
+	lhld T%1
+	shld T%2
