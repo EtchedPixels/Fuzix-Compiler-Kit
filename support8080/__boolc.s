@@ -1,5 +1,6 @@
 		.export	__boolc
 		.export __cmpne0c
+		.export __boolc_a
 
 		.setcpu 8080
 		.code
@@ -10,6 +11,7 @@
 __cmpne0c:	; a compare to non zero is a bool op
 __boolc:
 		mov	a,l
+__boolc_a:
 		ora	a	; Z if zero
 		lxi	h,0
 		rz

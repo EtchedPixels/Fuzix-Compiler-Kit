@@ -40,6 +40,7 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __switchl.o __pushl.o __sex.o 
       __shleql.o __shreql.o \
       __bandde.o __borde.o __bxorde.o __mulde.o __shrdeu.o \
       __muldec.o \
+      __bcand.o __bcdiv.o __bcdivu.o __bcmul.o __bcor.o __bcshl.o __bcshr.o __bcsub.o __bcxor.o \
       _memcpy.o _memset.o _strlen.o
 
 .s.o:
