@@ -64,6 +64,8 @@ static unsigned get_stack_size(unsigned t)
 #define T_LSTORE	(T_USER+4)
 #define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
 #define T_LBSTORE	(T_USER+6)
+#define T_RREF		(T_USER+7)
+#define T_RSTORE	(T_USER+8)
 
 static void squash_node(struct node *n, struct node *o)
 {
@@ -134,6 +136,10 @@ struct node *gen_rewrite_node(struct node *n)
 				squash_right(n, T_LREF);
 				return n;
 			}
+			if (r->op == T_REG) {
+				squash_right(n, T_RREF);
+				return n;
+			}
 			if (r->op == T_NAME) {
 				squash_right(n, T_NREF);
 				return n;
@@ -156,6 +162,10 @@ struct node *gen_rewrite_node(struct node *n)
 				if (l->op == T_ARGUMENT)
 					l->value += ARGBASE + frame_len;
 				squash_left(n, T_LSTORE);
+				return n;
+			}
+			if (l->op == T_REG) {
+				squash_left(n, T_RSTORE);
 				return n;
 			}
 		}
@@ -464,8 +474,10 @@ static unsigned access_direct(struct node *n)
 {
 	/* We can direct access integer or smaller types that are constants
 	   global/static or string labels */
-	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_LABEL && n->op != T_NREF && n->op != T_LBREF)
-		return 0;
+	/* TODO group the user ones together for a range check ? */
+	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_LABEL &&
+		 n->op != T_NREF && n->op != T_LBREF && n->op != T_RREF)
+		 return 0;
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
 	return 1;
@@ -474,6 +486,7 @@ static unsigned access_direct(struct node *n)
 static unsigned access_direct_b(struct node *n)
 {
 	/* We can't access as much via B directly because we've got no easy xchg with b */
+	/* TODO: if we want BC we need to know if BC currently holds the reg var */
 	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_LABEL)
 		return 0;
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
@@ -532,6 +545,12 @@ static unsigned load_r_with(const char r, struct node *n)
 			return 1;
 		}
 		break;
+	case T_RREF:
+		if (r == 'd')
+			printf("\tmov d,b\n\tmov e,c\n");
+		else
+			printf("\tmov h,b\n\tmov l,c\n");
+		return 1;
 	default:
 		return 0;
 	}
@@ -565,6 +584,9 @@ static unsigned load_a_with(struct node *n)
 		break;
 	case T_LBREF:
 		printf("\tlda T%d+%d\n", n->val2, WORD(n->value));
+		break;
+	case T_RREF:
+		printf("\tmov a,c\n");
 		break;
 	default:
 		return 0;
@@ -813,6 +835,14 @@ unsigned gen_direct(struct node *n)
 			printf("\tshld");
 		printf(" T%d+%d\n", n->val2, v);
 		return 1;
+	case T_RSTORE:
+		if (s == 2)
+			printf("\tmov c,l\n\tmov b,h\n");
+		else if (s == 1)
+			printf("\tmov c,l\n");
+		else
+			return 0;
+		return 1;
 	case T_EQ:
 		/* The address is in HL at this point */
 		if (cpu == 8085 && s == 2 ) {
@@ -857,6 +887,11 @@ unsigned gen_direct(struct node *n)
 					return 0;
 				printf("\tmov e,a\n");
 			}
+			/* Short cut register case */
+			if (r->op == T_REG) {
+				printf("\tdad b\n");
+				return 1;
+			}
 			if (s > 2 || load_de_with(r) == 0)
 				return 0;
 			printf("\tdad d\n");
@@ -878,18 +913,25 @@ unsigned gen_direct(struct node *n)
 			printf("\tdad d\n");
 			return 1;
 		}
-		if (cpu == 8085 && s <= 2 && access_direct_b(r)) {
-			printf("\tpush b\n");
-			/* LHS is in HL at the moment, end up with the result in HL */
-			if (s == 1) {
-				if (load_a_with(r) == 0)
-					error("min1");
-				printf("\tmov c,a\n");
-			} else {
-				if (load_bc_with(r) == 0)
-					error("min2");
+		if (cpu == 8085 && s <= 2)  {
+			/* Shortcut subtracting register from working value */
+			if (r->op == T_REG) {
+				printf("\tdsub\n");
+				return 1;
 			}
-			printf("\tdsub  ; b\n\tpop b\n");
+			if (access_direct_b(r)) {
+				printf("\tpush b\n");
+				/* LHS is in HL at the moment, end up with the result in HL */
+				if (s == 1) {
+					if (load_a_with(r) == 0)
+						error("min1");
+					printf("\tmov c,a\n");
+				} else {
+					if (load_bc_with(r) == 0)
+						error("min2");
+				}
+				printf("\tdsub  ; b\n\tpop b\n");
+			}
 			return 1;
 		}
 		return 0;
@@ -960,14 +1002,16 @@ unsigned gen_direct(struct node *n)
 		return gen_deop("shrde", n, r, 1);
 	/* Shorten post inc/dec if result not needed - in which case it's the same as
 	   pre inc/dec */
+	/* TODO: All the eq ops need register handling because there is no address for the
+	   register */
 	case T_PLUSPLUS:
 		if (!(n->flags & NORETURN))
 			return 0;
 	case T_PLUSEQ:
 		if (s == 1) {
-			if (r->op == T_CONSTANT && r->value < 4 && (n->flags & NORETURN)) {
+			if (r->op == T_CONSTANT && r->value < 4 && (n->flags & NORETURN))
 				repeated_op("inr m", r->value);
-			} else {
+			else {
 				if (load_a_with(r) == 0)
 					return 0;
 				printf("\tadd m\n\tmov m,a\n");
@@ -1050,6 +1094,44 @@ unsigned gen_uni_direct(struct node *n)
 	return 0;
 }
 
+static unsigned reg_canincdec(struct node *n, unsigned s, int v)
+{
+	/* We only deal with short and char for register */
+	/* Is the shortcut worth it ? */
+	if (n->op != T_CONSTANT || v > 8 || v < -8)
+		return 0;
+	return 1;
+}
+
+static unsigned reg_incdec(unsigned s, int v)
+{
+	if (s == 1) {
+		if (v < 0)
+			repeated_op("dcr c", -v);
+		else
+			repeated_op("inr c", v);
+	} else {
+		if (v < 0)
+			repeated_op("dcx b", -v);
+		else
+			repeated_op("inx b", v);
+	}
+	return 1;
+}
+
+static void reg_logic(struct node *n, unsigned s, unsigned op, const char *i)
+{
+	/* TODO : constant optimization */
+	codegen_lr(n->right);
+	/* HL is now the value to combine with BC */
+	if (opt > 1) {
+		/* TODO - can avoid the reload into HL if NORETURN */
+		if (s == 2)
+			printf("\tmov a,b\n\t%s h\n\tmov b,a\nmov h,a\n", i + 3);
+		printf("\tmov a,c\n\t%s c\n\tmov c,a\nmov l,a\n", i + 3);
+	} else
+		helper(n, i);
+}
 /*
  *	Allow the code generator to short cut any subtrees it can directly
  *	generate.
@@ -1057,19 +1139,26 @@ unsigned gen_uni_direct(struct node *n)
 unsigned gen_shortcut(struct node *n)
 {
 	unsigned s = get_size(n->type);
+	struct node *l = n->left;
+	struct node *r = n->right;
 
 	/* The comma operator discards the result of the left side, then
 	   evaluates the right. Avoid pushing/popping and generating stuff
 	   that is surplus */
 	if (n->op == T_COMMA) {
-		n->left->flags |= NORETURN;
-		codegen_lr(n->left);
-		codegen_lr(n->right);
+		printf(";comma %04X %x\n", n->op, n->flags);
+		l->flags |= NORETURN;
+		printf(";left %04X %x\n", l->op, l->flags);
+		codegen_lr(l);
+		/* Parent determines child node requirements */
+		r->flags |= (n->flags & NORETURN);
+		printf(";right %04X %x\n", r->op, r->flags);
+		codegen_lr(r);
 		return 1;
 	}
 	/* Re-order assignments we can do the simple way */
 	if (n->op == T_NSTORE && s <= 2) {
-		codegen_lr(n->right);
+		codegen_lr(r);
 		/* Expression result is now in HL */
 		if (s == 2)
 			printf("\tshld");
@@ -1082,7 +1171,7 @@ unsigned gen_shortcut(struct node *n)
 	if (n->op == T_LSTORE && s <= 2) {
 		if (n->value + sp == 0 && s == 2) {
 			/* The one case 8080 is worth doing */
-			codegen_lr(n->right);
+			codegen_lr(r);
 			if (n->flags & NORETURN)
 				printf("\txthl\n");
 			else
@@ -1090,7 +1179,7 @@ unsigned gen_shortcut(struct node *n)
 			return 1;
 		}
 		if (cpu == 8085 && n->value + sp < 255) {
-			codegen_lr(n->right);
+			codegen_lr(r);
 			printf("\tldsi %d\n", WORD(n->value + sp));
 			if (s == 2)
 				printf("\tshlx\n");
@@ -1099,7 +1188,90 @@ unsigned gen_shortcut(struct node *n)
 			return 1;
 		}
 	}
+	/* Shortcut any initialization of BC we can do directly */
+	if (n->op == T_RSTORE) {
+		if (load_bc_with(r))
+			return 1;
+	}
 	/* ?? LBSTORE */
+	/* Register targetted ops. These are totally different to the normal EQ ops because
+	   we don't have an address we can push and then do a memory op */
+	if (l && l->op == T_REG) {
+		switch(n->op) {
+		/* TODO: optimize small cases using inc b */
+		case T_PLUSPLUS:
+			if (reg_canincdec(r, s, r->value)) {
+				printf("\tmov l,c\n");
+				if (s == 2)
+					printf("\tmov h,b\n");
+				reg_incdec(s, r->value);
+				return 1;
+			}
+			if (!(n->flags & NORETURN))
+				printf("\tpush b\n");
+			/* Fall through */
+		case T_PLUSEQ:
+			if (reg_canincdec(r, s, r->value)) {
+				reg_incdec(s, r->value);
+				if (n->flags & NORETURN)
+					return 1;
+				if (n->op == T_PLUSEQ) {
+					printf("\tmov l,c\n");
+					if (s == 2)
+						printf("\tmov h,b\n");
+				}
+			} else {
+				/* Amount to add into HL */
+				codegen_lr(r);
+				printf("\tdad b\n");
+				printf("\tmov c,l\n");
+				if (s == 2)
+					printf("\tmov b,h\n");
+			}
+			if (n->op == T_PLUSPLUS && !(n->flags & NORETURN))
+				printf("\tpop h\n");
+			return 1;
+		case T_MINUSMINUS:
+			if (!(n->flags & NORETURN)) {
+				if (reg_canincdec(r, s, -r->value)) {
+					printf("\tpush b\n");
+					reg_incdec(s, r->value);
+					printf("\tpop h\n");
+					return 1;
+				}
+				codegen_lr(r);
+				printf("\tpush b\n");
+				helper(n, "bcsub");
+				printf("\tpop h\n");
+				return 1;
+			}
+			/* If we don't care about the return they look the same so fall
+			   through */
+		case T_MINUSEQ:
+			if (reg_canincdec(r, s, -r->value)) {
+				reg_incdec(s, r->value);
+				if (n->flags & NORETURN)
+					return 1;
+				printf("\tmov l,c\n");
+				if (s == 2)
+					printf("\tmov h,b\n");
+				return 1;
+			}
+			/* Get the subtraction value into HL */
+			codegen_lr(r);
+			helper(n, "bcsub");
+			return 1;
+		case T_ANDEQ:
+			reg_logic(n, s, 0, "regana");
+			return 1;
+		case T_OREQ:
+			reg_logic(n, s, 1, "regora");
+			return 1;
+		case T_HATEQ:
+			reg_logic(n, s, 2, "regxra");
+			return 1;
+		}
+	}
 	return 0;
 }
 
@@ -1158,6 +1330,7 @@ unsigned gen_node(struct node *n)
 	unsigned size = get_size(n->type);
 	unsigned v;
 	char *name;
+	unsigned nr = n->flags & NORETURN;
 	/* We adjust sp so track the pre-adjustment one too when we need it */
 
 	v = n->value;
@@ -1199,9 +1372,9 @@ unsigned gen_node(struct node *n)
 	case T_LREF:
 		/* We are loading something then not using it, and it's local
 		   so can go away */
-		if (n->flags & NORETURN)
+		printf(";L sp %d %s(%ld)\n", sp, namestr(n->snum), n->value);
+		if (nr)
 			return 1;
-/*		printf(";L sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
 		if (v + sp == 0 && size == 2) {
 			printf("\tpop h\n\tpush h\n");
 			return 1;
@@ -1242,6 +1415,13 @@ unsigned gen_node(struct node *n)
 		else
 			printf("\tcall __%sw\n\t.word %d\n", name, v + 2);
 		return 1;
+	case T_RREF:
+		if (nr)
+			return 1;
+		if (size == 2)
+			printf("\tmov h,b\n");
+		printf("\tmov l,c\n");
+		return 1;
 	case T_NSTORE:
 		if (size == 4) {
 			printf("\tshld %s+%d\n", namestr(n->snum), v);
@@ -1275,7 +1455,7 @@ unsigned gen_node(struct node *n)
 	case T_LSTORE:
 /*		printf(";L sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
 		if (v + sp == 0 && size == 2 ) {
-			if (n->flags & NORETURN)
+			if (nr)
 				printf("\txthl\n");
 			else
 				printf("\tpop psw\n\tpush h\n");
@@ -1298,7 +1478,7 @@ unsigned gen_node(struct node *n)
 		}
 		if (size == 1 && (!optsize || v >= LWDIRECT)) {
 			printf("\tmov a,l\n\tlxi h,%d\n\tdad sp\n\tmov m,a\n", WORD(v));
-			if (!(n->flags & NORETURN))
+			if (!nr)
 				printf("\tmov l,a\n");
 			return 1;
 		}
@@ -1307,7 +1487,7 @@ unsigned gen_node(struct node *n)
 		if (opt > 2 && size == 2) {
 			printf("\txchg\n\tlxi h,%d\n\tdad sp\n\tmov m,e\n\tinx h\n", WORD(v));
 			printf("\tmov m,d\n");
-			if (!(n->flags & NORETURN))
+			if (!nr)
 				printf("\txchg\n");
 			return 1;
 		}
@@ -1326,6 +1506,11 @@ unsigned gen_node(struct node *n)
 		else
 			printf("\tcall __%sw\n\t.word %d\n", name, v + 2);
 		return 1;
+	case T_RSTORE:
+		if (size == 2)
+			printf("\tmov b,h\n");
+		printf("\tmov c,l\n");
+		return 1;
 		/* Call a function by name */
 	case T_CALLNAME:
 		printf("\tcall _%s+%d\n", namestr(n->snum), v);
@@ -1336,7 +1521,7 @@ unsigned gen_node(struct node *n)
 				printf("\tpop d\n\tshlx\n");
 			else {
 				printf("\txchg\n\tpop h\n\tmov m,e\n\tinx h\n\tmov m,d\n");
-				if (!(n->flags & NORETURN))
+				if (!(nr))
 					printf("\txchg\n");
 			}
 			return 1;
@@ -1369,10 +1554,14 @@ unsigned gen_node(struct node *n)
 		printf("\tcall __callhl\n");
 		return 1;
 	case T_LABEL:
+		if (nr)
+			return 1;
 		/* Used for const strings and local static */
 		printf("\tlxi h,T%d+%d\n", n->val2, v);
 		return 1;
 	case T_CONSTANT:
+		if (nr)
+			return 1;
 		switch(size) {
 		case 4:
 			printf("\tlxi h,%u\n", ((v >> 16) & 0xFFFF));
@@ -1386,11 +1575,15 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_NAME:
+		if (nr)
+			return 1;
 		printf("\tlxi h,");
 		printf("_%s+%d\n", namestr(n->snum), v);
 		return 1;
 	/* FIXME: LBNAME ?? */
 	case T_LOCAL:
+		if (nr)
+			return 1;
 		v += sp;
 /*		printf(";LO sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
 		if (cpu == 8085 && v <= 255) {
@@ -1402,6 +1595,8 @@ unsigned gen_node(struct node *n)
 		}
 		return 1;
 	case T_ARGUMENT:
+		if (nr)
+			return 1;
 		v += frame_len + ARGBASE + sp;
 /*		printf(";AR sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
 		if (cpu == 8085 && v <= 255) {
@@ -1412,7 +1607,15 @@ unsigned gen_node(struct node *n)
 			printf("\tdad sp\n");
 		}
 		return 1;
+	case T_REG:
+		if (nr)
+			return 1;
+		/* A register has no address.. we need to sort this out */
+		error("rega");
+		return 1;
 	case T_CAST:
+		if (nr)
+			return 1;
 		return gen_cast(n);
 	case T_PLUS:
 		if (size <= 2) {
