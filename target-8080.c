@@ -71,15 +71,16 @@ unsigned target_type_remap(unsigned type)
 
 static unsigned bc_free;
 
-/* TODO: work out how to do register usefully in the backend */
+/* Use BC for a register char pointer or integer/char type. Don't use it for any
+  other pointer type because we have ldax b bot lhlx with b */
 unsigned target_register(unsigned type)
 {
-#if 0
-	if (bc_free) {
+	if (!bc_free || type >= CLONG)
+		return 0;
+	if (PTR(type) == 0 || (PTR(type) == 1 && type < CSHORT)) {
 		bc_free = 0;
 		return 1;
 	}
-#endif
 	return 0;
 }
 
