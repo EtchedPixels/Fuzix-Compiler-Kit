@@ -6,9 +6,10 @@ struct node
     unsigned type;
     unsigned flags;
 #define LVAL			1
-#define SIDEEFFECT		2	/* Has side effect, used */
+#define SIDEEFFECT		2	/* Has side effect */
 #define NORETURN		4	/* Top level return is not used */
 #define ISBOOL			8	/* Return value is boolean truth */
+#define IMPURE			16	/* Something in the subtree has a side effect */
     unsigned long value;	/* Offset for a NAME fp offset for a LOCAL */
     unsigned snum;		/* Name of symbol (for code generator) */
     unsigned val2;		/* Label for name, (also used for code gen) */
