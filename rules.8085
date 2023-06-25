@@ -458,3 +458,24 @@ L%1_n:
 	jnz %1
 =
 ;
+
+	push h
+	lxi h,%1
+	xchg
+	pop h
+=
+	lxi d,%1
+
+	shld T%1
+;
+	lhld T%1
+=
+	shld T%1
+
+	lhld T%1
+	shld T%2
+;
+	lhld T%1
+=
+	lhld T%1
+	shld T%2

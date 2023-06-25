@@ -380,7 +380,7 @@ L%1_n:
 =
 ;
 
-# Tidy up some load patterns (below here needs review for 8085)
+# Tidy up some load patterns
 	push h
 	lxi h,%1
 	xchg
