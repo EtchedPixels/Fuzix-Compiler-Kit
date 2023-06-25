@@ -163,6 +163,7 @@ struct node *function_call(struct node *n)
 		n = tree(T_FUNCCALL, call_args(&narg, argp, &argsize), n);
 		missedarg(narg, argp[0]);
 	}
+	n->flags |= SIDEEFFECT;
 	/* Always emit this - some targets have other uses for knowing
 	   the boundary of a function call return */
 	n->type = type;
@@ -745,11 +746,9 @@ struct node *hier0(unsigned comma)
 	while (comma && match(T_COMMA)) {
 		l->flags |= NORETURN;
 		r = hier0(comma);
-		l = tree(T_COMMA, l, r);
-		/* If the comman operator final evaulation was an lval then pass the lval
-		   flag along */
+		/* The return of a comma operator is never an lval */
+		l = tree(T_COMMA, make_rval(l), make_rval(r));
 		l->type = r->type;
-		l->flags |= r->flags & LVAL;
 	}
 	return l;
 }
@@ -774,7 +773,7 @@ unsigned expression(unsigned comma, unsigned mkbool, unsigned noret)
 	if (token == T_SEMICOLON)
 		return VOID;
 	n = expression_tree(comma);
-	if (mkbool) {
+	if (mkbool) {	/* && noret ?? - if we are not using it we don't need it ? */
 		if (!IS_INTARITH(n->type) && !PTR(n->type))
 			typemismatch();
 		n = bool_tree(n);
