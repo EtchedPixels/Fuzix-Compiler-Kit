@@ -128,7 +128,7 @@ struct node *gen_rewrite_node(struct node *n)
 	unsigned nt = n->type;
 
 	/* Rewrite references into a load operation */
-	if (nt == CSHORT || nt == USHORT || PTR(nt)) {
+	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt)) {
 		if (op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
 				if (r->op == T_ARGUMENT)
@@ -1235,7 +1235,7 @@ unsigned gen_shortcut(struct node *n)
 			if (!(n->flags & NORETURN)) {
 				if (reg_canincdec(r, s, -r->value)) {
 					printf("\tpush b\n");
-					reg_incdec(s, r->value);
+					reg_incdec(s, -r->value);
 					printf("\tpop h\n");
 					return 1;
 				}
@@ -1249,7 +1249,7 @@ unsigned gen_shortcut(struct node *n)
 			   through */
 		case T_MINUSEQ:
 			if (reg_canincdec(r, s, -r->value)) {
-				reg_incdec(s, r->value);
+				reg_incdec(s, -r->value);
 				if (n->flags & NORETURN)
 					return 1;
 				printf("\tmov l,c\n");
@@ -1357,29 +1357,33 @@ unsigned gen_node(struct node *n)
 			printf("\tlhld _%s+%d\n", namestr(n->snum), v + 2);
 			printf("\tshld __hireg\n");
 			printf("\tlhld _%s+%d\n", namestr(n->snum), v);
-			return 1;
-		}
-		break;
+		} else
+			error("nrb");
+		return 1;
 	case T_LBREF:
 		if (size == 1) {
 			printf("\tlda T%d+%d\n", n->val2, v);
 			printf("\tmov l,a\n");
 		} else if (size == 2) {
 			printf("\tlhld T%d+%d\n", n->val2, v);
-			return 1;
-		}
-		break;
+		} else if (size == 4) {
+			printf("\tlhld T%d+%d\n", n->val2, v + 2);
+			printf("\tshld __hireg\n");
+			printf("\tlhld T%d+%d\n", n->val2, v);
+		} else
+			error("lbrb");
+		return 1;
 	case T_LREF:
 		/* We are loading something then not using it, and it's local
 		   so can go away */
 		printf(";L sp %d %s(%ld)\n", sp, namestr(n->snum), n->value);
 		if (nr)
 			return 1;
-		if (v + sp == 0 && size == 2) {
+		v += sp;
+		if (v == 0 && size == 2) {
 			printf("\tpop h\n\tpush h\n");
 			return 1;
 		}
-		v += sp;
 		if (cpu == 8085 && v <= 255) {
 			printf("\tldsi %d\n", v);
 			if (size == 2)
@@ -1429,8 +1433,6 @@ unsigned gen_node(struct node *n)
 				namestr(n->snum), v + 2);
 			return 1;
 		}
-		if (size > 2)
-			return 0;
 		if (size == 1)
 			printf("\tmov a,l\n\tsta");
 		else
@@ -1444,8 +1446,6 @@ unsigned gen_node(struct node *n)
 				n->val2, v + 2);
 			return 1;
 		}
-		if (size > 2)
-			return 0;
 		if (size == 1)
 			printf("\tmov a,l\n\tsta");
 		else
@@ -1454,14 +1454,14 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LSTORE:
 /*		printf(";L sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
-		if (v + sp == 0 && size == 2 ) {
+		v += sp;
+		if (v == 0 && size == 2 ) {
 			if (nr)
 				printf("\txthl\n");
 			else
 				printf("\tpop psw\n\tpush h\n");
 			return 1;
 		}
-		v += sp;
 		if (cpu == 8085 && v <= 255) {
 			printf("\tldsi %d\n", v);
 			if (size == 2)
