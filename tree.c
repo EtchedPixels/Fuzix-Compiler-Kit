@@ -95,11 +95,12 @@ struct node *make_symbol(struct symbol *s)
 {
 	struct node *n = new_node();
 
-	n->val2 = s->data.offset;
+	n->value = s->data.offset;
 
 	switch(S_STORAGE(s->infonext)) {
 	case S_LSTATIC:
 		n->op = T_LABEL;
+		n->val2 = s->data.offset;
 		break;
 	case S_AUTO:
 		n->op = T_LOCAL;
