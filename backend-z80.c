@@ -2,13 +2,56 @@
  *	Z80 backend. For the moment an 8080 backend but with the syntax
  *	changed. This gives us a tested base to work from for Z80 specific
  *	functionality.
+ *
+ *	The Z80 essentially has three ways of dealing with locals
+ *
+ *	1.	8080 style	LD HL,offset ADD HL,SP  { LD E,(HL), INC HL, LD D,(HL) }
+ *				7 bytes, 21 + 20 -> 41 clocks.
+ *	2.	Call helpers	Akin again to the 8080 port
+ *				3 - 5 bytes, but slower (28 cycles minimum extra cost)
+ *	3.	IX frame pointer style
+ *				LD E,(ix + n), LD D,(ix + n  + 1)
+ *				6 bytes 38 cycles
+ *				much higher function entry/exit cost
+ *
+ *	Therefore it actually looks likely that we will be better off figuring out how
+ *	to use IX, IY and BC as "register" variables either compiler or user assigned
+ *	once we have that functionality
+ *
+ *	The situation only improves if we get to Z280 or Rabbit processors
+ *
+ *	R2000/R3000:	LD	HL,(SP + n)  8bit unsigned (ditto IX IY)
+ *			LD	HL,(HL + n) ; IX+ IY+
+ * 			LD	(HL + n), HL	; IX+ IY+
+ *			LD	(SP + n), HL  ; IX+ IY+
+ *
+ *	Z80n		As Z80 but can add A and constants to 8/16bit directly which helps in
+ *			some stack accessing by avoiding a load and push constant
+ *
+ *	eZ80		Adds LD BC/DE?HL,(HL) and reverse or HL/IX/IY so now frame pointer
+ *			is actually useful
+ *
+ *	Z280		Can use IX+off for 16bit ops including loads and add so like the ez80
+ *			frame pointers look useful, but this extends to other ops like ADDW INCW
+ *			etc. Has LDA (ie LEA) so can LDA IX,(SP - n) etc. Can also load and
+ *			save IX IY and HL from (SP + n). Can also push constants and relative
+ *			addresses
+ *
  */
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include "compiler.h"
 #include "backend.h"
+
+/* Until we do more testing */
+#define IS_EZ80		0	/* EZ80 has ld de,(hl) and friends but not offset */
+#define IS_RABBIT	0	/* Has dl hl,(rr + n) and vice versa but only 16bit */
+#define HAS_LDHLSP	0	/* Can ld hl,(sp + n) and vice versa */
+#define HAS_LDASP	0	/* Can ld a,(sp + n) and vice versa */
+#define HAS_LDHLHL	0	/* Can ld hl,(hl) or hl,(hl + 0) */
 
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
@@ -84,9 +127,8 @@ static void squash_right(struct node *n, unsigned op)
 
 /*
  *	Heuristic for guessing what to put on the right. This is very
- *	processor dependent. For 8080 we are quite limited especially
- *	with locals. In theory we could extend some things to 8bit
- *	locals on 8085 (ldsi, ld a,(de), ld e,a)
+ *	processor dependent. For Z80 we can fetch most global or static
+ *	objects but locals are problematic
  */
 
 static unsigned is_simple(struct node *n)
@@ -100,9 +142,9 @@ static unsigned is_simple(struct node *n)
 	/* We can load these directly into a register */
 	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME)
 		return 10;
-	/* We can load this directly into a register but may need ex de,hl pairs */
+	/* We can load this directly into a register but it may be a byte longer */
 	if (op == T_NREF || op == T_LBREF)
-		return 1;
+		return 10;
 	return 0;
 }
 
@@ -574,6 +616,7 @@ static unsigned gen_deop(const char *op, struct node *n, struct node *r, unsigne
    or true expressions like unsigned < 0 */
 static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsigned sign)
 {
+	/* TODO: Z280 has CPW HL,DE CPW HL, const */
 	if (r->op == T_CONSTANT && r->value == 0) {
 		char buf[10];
 		strcpy(buf, op);
@@ -687,6 +730,14 @@ static unsigned gen_logicc(struct node *n, unsigned s, const char *op, unsigned 
 	unsigned h = (v >> 8) & 0xFF;
 	unsigned l = v & 0xFF;
 
+	/* Rabbit has 16bit logic operators */
+	if (s == 2 && IS_RABBIT) {
+		if (load_de_with(n) == 0)
+			return 0;
+		printf("\t%s hl,de\n", op);
+		return 1;
+	}
+
 	if (s > 2 || (n && n->op != T_CONSTANT))
 		return 0;
 
@@ -798,11 +849,12 @@ unsigned gen_direct(struct node *n)
 		return 1;
 	case T_EQ:
 		/* The address is in HL at this point */
-		if (cpu == 8085 && s == 2 ) {
-			printf("\tex de,hl\n");
-			if (load_hl_with(r) == 0)
-				error("teq");
-			printf("\tshlx\n");
+		if (IS_EZ80 && s == 2) {
+			if (load_de_with(r) == 0)
+				return 0;
+			printf("\tld (hl),de\n");
+			if (!(n->flags & NORETURN))
+				printf("\tex de,hl\n");
 			return 1;
 		}
 		if (s == 1) {
@@ -861,19 +913,6 @@ unsigned gen_direct(struct node *n)
 			printf("\tadd hl,de\n");
 			return 1;
 		}
-		if (cpu == 8085 && s <= 2 && access_direct(r)) {
-			/* LHS is in HL at the moment, end up with the result in HL */
-			if (s == 1) {
-				if (load_a_with(r) == 0)
-					error("min1");
-				printf("\tld e,a\n");
-			} else {
-				if (load_de_with(r) == 0)
-					error("min2");
-			}
-			printf("\tor a\n\tsbc hl,de\n");
-			return 1;
-		}
 		return 0;
 	case T_STAR:
 		if (r->op == T_CONSTANT) {
@@ -894,15 +933,15 @@ unsigned gen_direct(struct node *n)
 		}
 		return gen_deop("remde", n, r, 1);
 	case T_AND:
-		if (gen_logicc(r, s, "ani", r->value, 1))
+		if (gen_logicc(r, s, "and", r->value, 1))
 			return 1;
 		return gen_deop("bandde", n, r, 0);
 	case T_OR:
-		if (gen_logicc(r, s, "ori", r->value, 2))
+		if (gen_logicc(r, s, "or", r->value, 2))
 			return 1;
 		return gen_deop("borde", n, r, 0);
 	case T_HAT:
-		if (gen_logicc(r, s, "xri", r->value, 3))
+		if (gen_logicc(r, s, "xor", r->value, 3))
 			return 1;
 		return gen_deop("bxorde", n, r, 0);
 	/* TODO: add sbc hl,de etc versions of these when we can - or in optimizer ? */
@@ -919,6 +958,7 @@ unsigned gen_direct(struct node *n)
 	case T_BANGEQ:
 		return gen_compc("cmpne", n, r, 0);
 	case T_LTLT:
+		/* TODO: Z80N has some shift helpers */
 		if (s <= 2 && r->op == T_CONSTANT && r->value <= 8) {
 			if (r->value < 8)
 				repeated_op("add hl,hl", r->value);
@@ -932,14 +972,6 @@ unsigned gen_direct(struct node *n)
 		if (s == 2 && (n->type & UNSIGNED) && r->op == T_CONSTANT && r->value == 8) {
 			printf("\tld l,h\n\tld h,0\n");
 			return 1;
-		}
-		/* TODO: we have signed and unsigned right shift pairs */
-		/* 8085 has a signed right shift 16bit */
-		if (cpu == 8085 && (!(n->type & UNSIGNED)) && s == 2) {
-			if (s <= 2 && r->op == T_CONSTANT && r->value < 8) {
-				repeated_op("arhl", r->value);
-				return 1;
-			}
 		}
 		return gen_deop("shrde", n, r, 1);
 	/* Shorten post inc/dec if result not needed - in which case it's the same as
@@ -1063,24 +1095,22 @@ unsigned gen_shortcut(struct node *n)
 		}
 		return 1;
 	}
-	/* Locals we can do on 8085, 8080 is doable but messy - so not worth it */
+	/* Locals we can do on some later processors, Z80 is doable but messy - so not worth it */
 	if (n->op == T_LSTORE && s <= 2) {
+		/* Rabbit and Z280 */
+		if (HAS_LDHLSP && n->value + sp < 255 && s == 2) {
+			codegen_lr(n->right);
+			printf("\tld (sp + %d),hl\n", WORD(n->value + sp));
+			return 1;
+		}
+		/* General case */
 		if (n->value + sp == 0 && s == 2) {
-			/* The one case 8080 is worth doing */
+			/* The one case Z80 is worth doing */
 			codegen_lr(n->right);
 			if (n->flags & NORETURN)
 				printf("\tex (sp),hl\n");
 			else
 				printf("\tpop af\n\tpush hl\n");
-			return 1;
-		}
-		if (cpu == 8085 && n->value + sp < 255) {
-			codegen_lr(n->right);
-			printf("\tldsi %d\n", WORD(n->value + sp));
-			if (s == 2)
-				printf("\tshlx\n");
-			else
-				printf("\tmov a,l\n\tstax d\n");
 			return 1;
 		}
 	}
@@ -1187,17 +1217,15 @@ unsigned gen_node(struct node *n)
 		if (n->flags & NORETURN)
 			return 1;
 /*		printf(";L sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
-		if (v + sp == 0 && size == 2) {
-			printf("\tpop hl\n\tpush hl\n");
+		v += sp;
+		/* Rabbit amd Z280 have LD HL,(SP + n) */
+		if (HAS_LDHLSP && v <= 255) {
+			/* We will load an extra byte for 16bit, so hopefully non MMIO TODO */
+			printf("\tld hl,(sp+%d)\n", v);
 			return 1;
 		}
-		v += sp;
-		if (cpu == 8085 && v <= 255) {
-			printf("\tldsi %d\n", v);
-			if (size == 2)
-				printf("\tlhlx\n");
-			else
-				printf("\tld a,(de)\n\tld l,a\n");
+		if (v == 0 && size == 2) {
+			printf("\tpop hl\n\tpush hl\n");
 			return 1;
 		}
 		/* Byte load is shorter inline for most cases */
@@ -1205,11 +1233,13 @@ unsigned gen_node(struct node *n)
 			printf("ld hl,%d\n\tadd hl,sp\n\tld l,(hl)\n", v);
 			return 1;
 		}
-		/* Word load is long winded on 8080 */
-		if (size == 2 && (cpu == 8085 || opt > 2)) {
+		/* Word load is long winded on Z80 */
+		if (size == 2 && opt > 2) {
 			printf("\tld hl,%d\n\tadd hl,sp\n", WORD(v));
-			if (cpu == 8085)
-				printf("\tex de,hl\nlhlx\n");
+			if (IS_RABBIT)
+				printf("\tld hl,(hl + %d\n)\n", 0);
+			else if (IS_EZ80)
+				printf("\tld de,(hl)\n\t ex de,hl\n");
 			else
 				printf("\tld e,(hl)\n\tinc hl\n\tld d,(hl)\n\tex de,hl\n");
 			return 1;
@@ -1260,26 +1290,27 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LSTORE:
 /*		printf(";L sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
-		if (v + sp == 0 && size == 2 ) {
+		v += sp;
+		if (HAS_LDHLSP && v <= 255) {
+			if (size == 2) {
+				printf("\tld (sp+%d),hl\n", v);
+				return 1;
+			}
+			if (HAS_LDASP && size == 1) {
+				printf("\tld a,l\n\tld (sp + %d),a d\n", v);
+				return 1;
+			}
+		}
+		if (v == 0 && size == 2 ) {
 			if (n->flags & NORETURN)
 				printf("\tex (sp).hl\n");
 			else
 				printf("\tpop af\n\tpush hl\n");
 			return 1;
 		}
-		v += sp;
-		if (cpu == 8085 && v <= 255) {
-			printf("\tldsi %d\n", v);
-			if (size == 2)
-				printf("\tshlx\n");
-			else
-				printf("\tmov a,l\n\tstax d\n");
-			return 1;
-		}
-		/* Large offsets for word on 8085 are 7 bytes, a helper call is 5 (3 with rst hacks)
-		   and much slower. As these are fairly rare just inline it */
-		if (cpu == 8085 && size == 2) {
-			printf("\tex de,hl\n\tld hl,%d\n\tadd hl,sp\n\tex de,hl\n\tshlx\n", WORD(v));
+		/* Rabbit can LD HL,(HL + 0) so we can construct a load fairly ok */
+		if (IS_RABBIT && size == 2) {
+			printf("\tld hl,%d\n\tadd hl,sp\n\tld hl,(hl + 0)\n", v);
 			return 1;
 		}
 		if (size == 1 && (!optsize || v >= LWDIRECT)) {
@@ -1297,7 +1328,7 @@ unsigned gen_node(struct node *n)
 				printf("\tex de,hl\n");
 			return 1;
 		}
-		/* Via helper magic for compactness on 8080 */
+		/* Via helper magic for compactness on Z80 */
 		/* Can rewrite some of them into rst if need be */
 		if (size == 1)
 			name = "stbyte";
@@ -1318,13 +1349,12 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_EQ:
 		if (size == 2) {
-			if (cpu == 8085)
-				printf("\tpop de\n\tshlx\n");
-			else {
+			if (IS_EZ80)
+				printf("\tex de,hl\npop hl\nld (hl),de\n");
+			else
 				printf("\tex de,hl\n\tpop hl\n\tld (hl),e\n\tinc hl\n\tld (hl),d\n");
-				if (!(n->flags & NORETURN))
-					printf("\tex de,hl\n");
-			}
+			if (!(n->flags & NORETURN))
+				printf("\tex de,hl\n");
 			return 1;
 		}
 		if (size == 1) {
@@ -1335,19 +1365,19 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_DEREF:
+		if (size == 4 && IS_EZ80) {
+			printf("\tld de,(hl)\n\tinc hl\n\tinc hl\n\tld hl,(hl)\n\tld (_hireg),hl\n\tex de.hl\n");
+			return 1;
+		}
 		if (size == 2) {
-			if (cpu == 8085)
-				printf("\tex de,hl\n\tlhlx\n");
+			if (HAS_LDHLHL)
+				printf("\tld hl,(hl)\n");
 			else
 				printf("\tld e,(hl)\n\tinc hl\n\tld d,(hl)\n\tex de,hl\n");
 			return 1;
 		}
 		if (size == 1) {
 			printf("\tld l,(hl)\n");
-			return 1;
-		}
-		if (size == 4 && cpu == 8085 && !optsize) {
-			printf("\tex de,hl\n\tinc de\n\tinc de\n\tlhlx\n\tshld __hireg\t\n\tdec d\n\tdec d\n\tlhlx\n");
 			return 1;
 		}
 		break;
@@ -1379,33 +1409,36 @@ unsigned gen_node(struct node *n)
 	case T_LOCAL:
 		v += sp;
 /*		printf(";LO sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
-		if (cpu == 8085 && v <= 255) {
-			printf("\tldsi %d\n", v);
-			printf("\tex de,hl\n");
-		} else {
-			printf("\tld hl,%d\n", v);
-			printf("\tadd hl,sp\n");
-		}
+		printf("\tld hl,%d\n", v);
+		printf("\tadd hl,sp\n");
 		return 1;
 	case T_ARGUMENT:
 		v += frame_len + ARGBASE + sp;
 /*		printf(";AR sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
-		if (cpu == 8085 && v <= 255) {
-			printf("\tldsi %d\n", v);
-			printf("\tex de,hl\n");
-		} else {
-			printf("\tld hl,%d\n", v);
-			printf("\tadd hl,sp\n");
-		}
+		printf("\tld hl,%d\n", v);
+		printf("\tadd hl,sp\n");
 		return 1;
 	case T_CAST:
+		/* TODO:Z280 has EXTS */
 		return gen_cast(n);
+	case T_BOOL:
+		/* Rabbit has an boolify operator */
+		if (IS_RABBIT) {
+			printf("\tbool hl\n");
+			return 1;
+		}
+		break;
 	case T_PLUS:
 		if (size <= 2) {
 			printf("\tpop de\n\tadd hl,de\n");
 			return 1;
 		}
 		break;
+	case T_MINUS:	/* TODO: check ordering */
+		if (size <= 2) {
+			printf("\tpop de\n\tor a\n\tex de,hl\n\tsbc hl,de\n");
+			return 1;
+		}
 	}
 	return 0;
 }
