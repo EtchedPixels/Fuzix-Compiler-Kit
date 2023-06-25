@@ -67,6 +67,7 @@ static unsigned get_stack_size(unsigned t)
 #define T_RREF		(T_USER+7)
 #define T_RSTORE	(T_USER+8)
 #define T_RDEREF	(T_USER+9)		/* *regptr */
+#define T_REQ		(T_USER+10)		/* *regptr */
 
 static void squash_node(struct node *n, struct node *o)
 {
@@ -136,6 +137,12 @@ struct node *gen_rewrite_node(struct node *n)
 	if (op == T_DEREF && r->op == T_RREF) {
 		n->op = T_RDEREF;
 		n->right = NULL;
+		return n;
+	}
+	/* *regptr = */
+	if (op == T_EQ && l->op == T_RREF) {
+		n->op = T_REQ;
+		n->left = NULL;
 		return n;
 	}
 	/* Rewrite references into a load operation */
@@ -1223,6 +1230,18 @@ unsigned gen_shortcut(struct node *n)
 	if (n->op == T_RSTORE) {
 		if (load_bc_with(r))
 			return 1;
+	}
+	/* Assignment to *BC, byte pointer always */
+	if (n->op == T_REQ) {
+		/* Try and get the value into A */
+		if (!load_a_with(r)) {
+			codegen_lr(r);		/* If not then into HL */
+			printf("\tmov a,l\n");
+		}
+		printf("\tstax b\n");	/* Do in case volatile */
+		if (!nr)
+			printf("\tmov l,a\n");
+		return 1;
 	}
 	/* ?? LBSTORE */
 	/* Register targetted ops. These are totally different to the normal EQ ops because
