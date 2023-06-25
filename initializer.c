@@ -9,7 +9,7 @@ static void initializer_single(struct symbol *sym, unsigned type, unsigned stora
 {
     struct node *n = expression_tree(0);
     n = typeconv(n, type, 1);
-    if (storage == S_AUTO) {
+    if (storage == S_AUTO || storage == S_REGISTER) {
         n = tree(T_EQ, make_symbol(sym), n);
         write_tree(n);
     } else {
@@ -189,7 +189,7 @@ void initializers(struct symbol *sym, unsigned type, unsigned storage)
         return;
     }
     /* No complex stack initializers, for now at least */
-    if (storage == S_AUTO) {
+    if (storage == S_AUTO || storage == S_REGISTER) {
         error("not a valid auto initializer");
         return;
     }
