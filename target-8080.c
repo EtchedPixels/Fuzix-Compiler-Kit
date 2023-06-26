@@ -79,6 +79,8 @@ unsigned target_register(unsigned type)
 		return 0;
 	if (PTR(type) == 0 || (PTR(type) == 1 && type < CSHORT)) {
 		bc_free = 0;
+		/* Tell the backend */
+		func_flags |= F_REG(1);
 		return 1;
 	}
 	return 0;

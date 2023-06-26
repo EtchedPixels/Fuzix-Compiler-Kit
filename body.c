@@ -14,6 +14,8 @@ static unsigned switch_type;
 static unsigned switch_default;
 static unsigned func_type;
 
+unsigned func_flags;
+
 /* C keyword statements */
 static void if_statement(void)
 {
@@ -330,9 +332,10 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	/* This makes me sad, but there isn't a nice way to work out
 	   the frame size ahead of time */
 	unsigned long hrw;
-	unsigned func_flags = 0;
 	unsigned *p;
 	unsigned n;
+
+	func_flags = 0;
 
 	/* Pass useful information flags to the backend */
 	func_type = func_return(type);
