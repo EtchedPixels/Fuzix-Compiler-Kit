@@ -513,7 +513,7 @@ static unsigned access_direct_b(struct node *n)
 {
 	/* We can't access as much via B directly because we've got no easy xchg with b */
 	/* TODO: if we want BC we need to know if BC currently holds the reg var */
-	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_LABEL)
+	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_LABEL && n->op != T_REG)
 		return 0;
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
@@ -574,8 +574,10 @@ static unsigned load_r_with(const char r, struct node *n)
 	case T_RREF:
 		if (r == 'd')
 			printf("\tmov d,b\n\tmov e,c\n");
-		else
+		else if (r == 'h')
 			printf("\tmov l,c\n\tmov h,b\n");
+		/* Assumes that BC isn't corrupted yet so is already the right value. Use
+		   this quirk with care (eg T_MINUS) */
 		return 1;
 	default:
 		return 0;
@@ -960,6 +962,7 @@ unsigned gen_direct(struct node *n)
 			}
 			if (access_direct_b(r)) {
 				printf("\tpush b\n");
+				/* Must not corrupt B before we are ready */
 				/* LHS is in HL at the moment, end up with the result in HL */
 				if (s == 1) {
 					if (load_a_with(r) == 0)
@@ -970,8 +973,8 @@ unsigned gen_direct(struct node *n)
 						error("min2");
 				}
 				printf("\tdsub  ; b\n\tpop b\n");
+				return 1;
 			}
-			return 1;
 		}
 		return 0;
 	case T_STAR:
