@@ -157,13 +157,12 @@ struct node *function_call(struct node *n)
 	/* A function without arguments */
 	if (match(T_RPAREN)) {
 		/* Make sure no arguments is acceptable */
-		n  = tree(T_FUNCCALL, NULL, n);
+		n  = sf_tree(T_FUNCCALL, NULL, n);
 		missedarg(narg, argp[0]);
 	} else {
-		n = tree(T_FUNCCALL, call_args(&narg, argp, &argsize), n);
+		n = sf_tree(T_FUNCCALL, call_args(&narg, argp, &argsize), n);
 		missedarg(narg, argp[0]);
 	}
-	n->flags |= SIDEEFFECT;
 	/* Always emit this - some targets have other uses for knowing
 	   the boundary of a function call return */
 	n->type = type;
