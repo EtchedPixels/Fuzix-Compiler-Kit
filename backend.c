@@ -183,7 +183,7 @@ static struct node *rewrite_tree(struct node *n)
 {
 	unsigned f = 0;
 	depth++;
-	printf("; %-*s %04x\n", depth, "", n->op);
+/*	printf("; %-*s %04x (%ld)\n", depth, "", n->op, n->value); */
 	if (n->left) {
 		n->left = rewrite_tree(n->left);
 		f |= n->left->flags;
