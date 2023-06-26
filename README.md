@@ -60,7 +60,7 @@ addressed.
 
 auto, static, extern, typedef
 
-register is accepted but currently ignored.
+register is accepted.
 
 ### C Syntax
 
@@ -110,9 +110,9 @@ bits of code for compactness (quite possibly worth 1Kb or more for some
 stuff). The code generator does not know the fancy tricks for turning
 constant divides into shift/multiply sets.
 
-The BC register is not currently used but is saved and restored correctly.
-Using this for a register variable (integer or byte pointer) or to cache a
-live variable is a future project.
+The BC register is used as a register variable for either byte or word
+constants, or a byte pointer. As there is no word sized load/store via BC or
+easy way to do it the BC register pair is not used for other pointer sizes.
 
 Signed comparison and sign extension are significantly slower than unsigned.
 This is an instruction set limitation.
@@ -123,7 +123,8 @@ This is some initial work based upon the 8080 code generator. It has not at
 this point being significantly extended. The code generator knows how to
 load BC directly and some (but not all) support code has been optimized.
 There is not yet support for using IX or IY for struct access and for frame
-pointers. In fact IX and IY are not used at all.
+pointers. In fact IX and IY are not used at all. Register variables have not
+yet been added.
 
 The Z80 is particularly horrible to work with because (IX) offset loads and
 stores are both slow and long winded, and there are a lack of other effective
