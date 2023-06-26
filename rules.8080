@@ -407,3 +407,27 @@ L%1_n:
 =
 	lhld T%1
 	shld T%2
+
+	mov l,a
+	call boolc
+=
+	call boolc_a
+
+# Register tidy
+	mov l,c
+	mov b,h
+	push h
+;
+=
+	push b
+;
+
+# Silly stuff
+	inx h
+	dcx h
+=
+
+	dcx h
+	inx h
+=
+
