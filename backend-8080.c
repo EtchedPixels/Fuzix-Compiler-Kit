@@ -20,7 +20,7 @@
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
 
-#define ARGBASE	2	/* Bytes between arguments and locals */
+#define ARGBASE	2	/* Bytes between arguments and locals if no reg saves */
 
 #define LWDIRECT 24	/* Number of __ldword1 __ldword2 etc forms for fastest access */
 
@@ -29,6 +29,7 @@
  */
 static unsigned frame_len;	/* Number of bytes of stack frame */
 static unsigned sp;		/* Stack pointer offset tracking */
+static unsigned argbase;	/* Argument offset in current function */
 
 static unsigned get_size(unsigned t)
 {
@@ -150,7 +151,7 @@ struct node *gen_rewrite_node(struct node *n)
 		if (op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
 				if (r->op == T_ARGUMENT)
-					r->value += ARGBASE + frame_len;
+					r->value += argbase + frame_len;
 				squash_right(n, T_LREF);
 				return n;
 			}
@@ -178,7 +179,7 @@ struct node *gen_rewrite_node(struct node *n)
 			}
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
 				if (l->op == T_ARGUMENT)
-					l->value += ARGBASE + frame_len;
+					l->value += argbase + frame_len;
 				squash_left(n, T_LSTORE);
 				return n;
 			}
@@ -255,6 +256,12 @@ void gen_frame(unsigned size)
 {
 	frame_len = size;
 	sp = 0;
+
+	argbase = ARGBASE;
+	if (func_flags & F_REG(1)) {
+		printf("\tpush b\n");
+		argbase += 2;
+	}
 	if (size > 10) {
 		printf("\tlxi h,%d\n", -size);
 		printf("\tdad sp\n");
@@ -283,26 +290,27 @@ void gen_epilogue(unsigned size)
 		printf("\txchg\n");
 		printf("\tsphl\n");
 		printf("\txchg\n");
-		printf("\tret\n");
-		return;
-	}
-	if (size > 10) {
-		printf("\txchg\n");
+	} else if (size > 10) {
+		unsigned x = func_flags & F_VOIDRET;
+		if (!x)
+			printf("\txchg\n");
 		printf("\tlxi h,0x%x\n", (uint16_t)size);
 		printf("\tdad sp\n");
 		printf("\tsphl\n");
-		printf("\txchg\n");
-		printf("\tret\n");
-		return;
+		if (!x)
+			printf("\txchg\n");
+	} else {
+		if (size & 1) {
+			printf("\tinx sp\n");
+			size--;
+		}
+		while (size) {
+			printf("\tpop d\n");
+			size -= 2;
+		}
 	}
-	if (size & 1) {
-		printf("\tinx sp\n");
-		size--;
-	}
-	while (size) {
-		printf("\tpop d\n");
-		size -= 2;
-	}
+	if (func_flags & F_REG(1))
+		printf("\tpop b\n");
 	printf("\tret\n");
 }
 
@@ -567,7 +575,7 @@ static unsigned load_r_with(const char r, struct node *n)
 		if (r == 'd')
 			printf("\tmov d,b\n\tmov e,c\n");
 		else
-			printf("\tmov h,b\n\tmov l,c\n");
+			printf("\tmov l,c\n\tmov h,b\n");
 		return 1;
 	default:
 		return 0;
@@ -1280,11 +1288,8 @@ unsigned gen_shortcut(struct node *n)
 		case T_MINUSMINUS:
 			if (!(n->flags & NORETURN)) {
 				if (reg_canincdec(r, s, -v)) {
-					if (nr)
-						printf("\tpush b\n");
+					loadhl(n, s);
 					reg_incdec(s, -v);
-					if (nr)
-						printf("\tpop h\n");
 					return 1;
 				}
 				codegen_lr(r);
@@ -1563,9 +1568,9 @@ unsigned gen_node(struct node *n)
 	case T_RREF:
 		if (nr)
 			return 1;
+		printf("\tmov l,c\n");
 		if (size == 2)
 			printf("\tmov h,b\n");
-		printf("\tmov l,c\n");
 		return 1;
 	case T_NSTORE:
 		if (size == 4) {
@@ -1742,7 +1747,7 @@ unsigned gen_node(struct node *n)
 	case T_ARGUMENT:
 		if (nr)
 			return 1;
-		v += frame_len + ARGBASE + sp;
+		v += frame_len + argbase + sp;
 /*		printf(";AR sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
 		if (cpu == 8085 && v <= 255) {
 			printf("\tldsi %d\n", v);
