@@ -4,10 +4,17 @@ static unsigned char byteop(void)
 
     while (i--);
     return i;
-    /* buf[i] = rj_sbox(buf[i]); */
-} /* aes_subBytes */
+}
 
+static unsigned int preop(void)
+{
+    register unsigned i = 16;
+    unsigned j = 0;
 
+    while (i--)
+        j++;
+    return j;
+}
 
 int main(int argc, char *argv[])
 {
@@ -19,5 +26,7 @@ int main(int argc, char *argv[])
         return 2;
     if (byteop() != 0xFF)
         return 3;
+    if (preop() != 16)
+        return 4;
     return 0;
 }
