@@ -1195,13 +1195,10 @@ unsigned gen_shortcut(struct node *n)
 	   evaluates the right. Avoid pushing/popping and generating stuff
 	   that is surplus */
 	if (n->op == T_COMMA) {
-		printf(";comma %04X %x\n", n->op, n->flags);
 		l->flags |= NORETURN;
-		printf(";left %04X %x\n", l->op, l->flags);
 		codegen_lr(l);
 		/* Parent determines child node requirements */
 		r->flags |= nr;
-		printf(";right %04X %x\n", r->op, r->flags);
 		codegen_lr(r);
 		return 1;
 	}
