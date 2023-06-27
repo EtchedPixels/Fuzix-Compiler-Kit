@@ -1,10 +1,48 @@
+
+	shld %1
+	shld %2
+	lhld %1		but volatiles...
+
+	mvi l,0
+	mov a,l
+=
+	xra a
+	mov l,a
+
+(and look at removing surplus writes to l in those cases)
+
+	push h
+	pop h
+	push h
+=
+ 	push h ?
+
+	xchg
+	call __cmpne  | __cmpeq
+
+	remove the xchg as de/hl is same as hl/de
+	others invert logic and remove xchg
+
+
+- Optimise compares to 0 and FFFF on 8080/5 with
+  mov a,h ana l  and mov a,h ora l ??
+- keep a volatile count of in context volatiles and some short arrays of names of volatiles
+  in scope so we can do basic volatiles as well as casting style
+- Special header type for the jumps to end of func ret so we can turn them into rets if there
+  is no epilogue (or direct jumps to a helper epilogue)
+- make backend set a flag if the current func is void
+- spot conditionals that are if (simple) and turn them into some kind of FLAGSONLY node so that
+  we can optimize simple conditions and avoid bool calls (eg ora a jz)
+	- set a FLAGONLY on the top node of the conditional in an if/while/.., then if we see a
+	  condition with FLAGONLY we can optimize it in the target
+		for stuff like if (*p) we can spot the boolc with FLAGSONLY and optimise it to
+		stuff like ld a,h or l and ld a,l or a (and peep can fix some of the other bits)
 - hash array and function type lookup
 - hash name lookup
 - rewrite x = x + .. and x = x -... etc as += -=
 - Turn the frame the other way up ?
 - Track register state on backend
 - Fix up the canonical and array decay - check decay to array type
-TEST - setjmp/longjmp
 - Have O_ op table tight packed and rerite T_ into O_ entries, then have a property table
   for them (memread, memwrite, modworking, sideffect, setcc, communtatitve)
 TEST - Teach NSTORE etc to also do label forms for local statics
@@ -32,8 +70,7 @@ Broken
 
 Longer term
 - fix ptrdiff_t matches INT assumption
-- z80 6809 style helpers for catching simpler ops and doing them via pairs
-  of (ix) ops
+- z80 6809 style helpers for catching simpler ops
 - backend hooks for building stack frame via initializers
 - literal based handling for some types (set by target) - eg double/longlong
   so that we pass pointers around including one to a memory "register". 

@@ -1,5 +1,5 @@
-all: cc85 ccz80 cc0 cc1.8080 cc1.6803 cc1.z80 cc2 cc2.8080 cc2.6809 \
-     cc2.z80 cc2.65c816 cc2.6803 copt \
+all: cc85 ccz80 ccthread cc0 cc1.8080 cc1.6803 cc1.z80 cc1.thread cc2 cc2.8080 cc2.6809 \
+     cc2.z80 cc2.65c816 cc2.6803 cc2.thread copt \
      support8080 support8085 supportz80
 
 .PHONY: support8080 support8085 supportz80
@@ -17,6 +17,7 @@ OBJS5 = backend.o backend-z80.o
 OBJS6 = backend.o backend-65c816.o
 OBJS7 = backend.o backend-6803.o
 OBJS8 = backend.o backend-8070.o
+OBJS9 = backend.o backend-threadcode.o
 
 CFLAGS = -Wall -pedantic -g3
 
@@ -41,6 +42,9 @@ cc85:	cc85.o
 ccz80:	ccz80.o
 	gcc -g3 ccz80.o -o ccz80
 
+ccthread: ccthread.o
+	gcc -g3 ccthread.o -o ccthread
+
 cc0:	$(OBJS0)
 	gcc -g3 $(OBJS0) -o cc0
 
@@ -52,6 +56,9 @@ cc1.z80:$(OBJS1) target-z80.o
 
 cc1.6803:$(OBJS1) target-6803.o
 	gcc -g3 $(OBJS1) -o cc1.6803
+
+cc1.thread:$(OBJS1) target-threadcode.o
+	gcc -g3 $(OBJS1) -o cc1.thread
 
 cc2:	$(OBJS2)
 	gcc -g3 $(OBJS2) -o cc2
@@ -74,6 +81,9 @@ cc2.6803:	$(OBJS7)
 cc2.8070:	$(OBJS8)
 	gcc -g3 $(OBJS8) -o cc2.8070
 
+cc2.thread:	$(OBJS9)
+	gcc -g3 $(OBJS9) -o cc2.thread
+
 support8080:
 	(cd support8080; make)
 
@@ -84,7 +94,9 @@ supportz80:
 	(cd supportz80; make)
 
 clean:
-	rm -f cc cc85 ccz80 cc0 cc1 cc2 cc2.8080 cc2.6809 cc2.z80 copt
+	rm -f cc cc85 ccz80 ccthread cc0 copt
+	rm -f cc1.8080 cc1.z80 cc1.6803 cc1.thread
+	rm -f  cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.8070 cc2.thread
 	rm -f *~ *.o
 	(cd support8080; make clean)
 	(cd support8085; make clean)
@@ -123,3 +135,17 @@ install: all
 	cp supportz80/crt0.o /opt/ccz80/lib
 	cp supportz80/libz80.a /opt/ccz80/lib/libz80.a
 	ar cq /opt/ccz80/lib/libc.a
+	# Threadcode
+	mkdir -p /opt/ccthread/bin
+	mkdir -p /opt/ccthread/lib
+	mkdir -p /opt/ccthread/include
+	cp ccthread /opt/ccthread/bin/ccthread
+	cp cppthread /opt/ccthread/lib/cpp
+	cp cc0 /opt/ccthread/lib
+	cp cc1.thread /opt/ccthread/lib
+	cp cc2.thread /opt/ccthread/lib
+	cp copt /opt/ccthread/lib
+	cp rules.thread /opt/ccthread/lib
+#	cp supportthread/crt0.o /opt/ccthread/lib
+#	cp supportthread/libthread.a /opt/ccthread/lib/libthread.a
+#	ar cq /opt/ccthread/lib/libc.a

@@ -133,6 +133,13 @@ ways to generate stack references except the 8080 style.
 The Z180 is not yet differentiated. This will only matter for the support
 library code and maybe inlining a few specific multiplication cases.
 
+### ThreadCode
+
+An initial backend that turns the C input into a series of helper references
+and data. This can easily be tweaked to make them calls, and peephole rules
+used to clean up or re-arrange them a bit to suit any need or turn it into
+byytecode etc.
+
 ### Default
 
 This is a simple test backend the just turns the input into a lot of calls.
