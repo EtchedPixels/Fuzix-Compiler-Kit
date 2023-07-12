@@ -8,7 +8,7 @@
  *	1.	8080 style	LD HL,offset ADD HL,SP  { LD E,(HL), INC HL, LD D,(HL) }
  *				7 bytes, 21 + 20 -> 41 clocks.
  *	2.	Call helpers	Akin again to the 8080 port
- *				3 - 5 bytes, but slower (28 cycles minimum extra cost)
+ *				3 - 5 bytes, but slower (28 cycles minimum extra cost) 66 for word helper
  *	3.	IX frame pointer style
  *				LD E,(ix + n), LD D,(ix + n  + 1)
  *				6 bytes 38 cycles
@@ -152,7 +152,7 @@ static unsigned is_simple(struct node *n)
 		return 0;
 
 	/* We can load these directly into a register */
-	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME)
+	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME || op == T_REG )
 		return 10;
 	/* We can load this directly into a register but it may be a byte longer */
 	if (op == T_NREF || op == T_LBREF)
@@ -183,6 +183,10 @@ struct node *gen_rewrite_node(struct node *n)
 		return n;
 	}
 	/* *regptr = */
+	/* TODO: spot the following tree
+			    T_PLUS
+		       T_RREF    T_CONSTANT -128-127-size
+	  so we can rewrite EQ/RDEREF off base + offset from pointer within range using ix offset */
 	if (op == T_EQ && l->op == T_RREF) {
 		n->op = T_REQ;
 		n->left = NULL;
@@ -596,21 +600,14 @@ static unsigned load_r_with(const char *rp, struct node *n)
 	case T_RREF:
 		/* Assumes that BC isn't corrupted yet so is already the right value. Use
 		   this quirk with care */
-		switch(n->value) {
-		case 1:	/* BC */
+		if (n->value == 1 && r != 'i') {
 			if (r == 'd')
 				printf("\tld d,b\n\tld e,c\n");
 			else
 				printf("\tld h,b\n\tld l,c\n");
 			return 1;
-		case 2: /* IX */
-			printf("\tpush ix\n");
-			break;
-		case 3: /* IY */
-			printf("\tpush iy\n");
-			break;
 		}
-		printf("\tpop %s\n", rp);
+		printf("\tpush %s\n\tpop %s\n", regnames[n->value], rp);
 		return 1;
 	default:
 		return 0;
@@ -626,11 +623,6 @@ static unsigned load_bc_with(struct node *n)
 static unsigned load_de_with(struct node *n)
 {
 	return load_r_with("de", n);
-}
-
-static unsigned load_hl_with(struct node *n)
-{
-	return load_r_with("hl", n);
 }
 
 static unsigned load_a_with(struct node *n)
@@ -669,19 +661,13 @@ static void get_regvar(unsigned reg, struct node *n, unsigned s)
 {
 	if (n && (n->flags & NORETURN))
 		return;
-	switch(reg) {
-	case 1:
+	if (reg == 1) {
 		printf("\tld l,c\n");
 		if (s == 2)
 			printf("\tld h,b\n");
 		return;
-	case 2:
-		printf("\tpush ix\n");
-		break;
-	case 3:
-		printf("\tpush iy\n");
-		break;
 	}
+	printf("\tpush %s\n\tpop hl\n", regnames[reg]);
 	printf("\tpop hl\n");
 }
 
@@ -693,11 +679,7 @@ static void load_regvar(unsigned r, unsigned s)
 			printf("\tld b,h\n");
 		return;
 	}
-	printf("\tpush hl\n");
-	if (r == 2)
-		printf("\tpop ix\n");
-	else
-		printf("\tpop iy\n");
+	printf("\tpush hl\n\tpop %s\n", regnames[r]);
 }
 
 /* We use "DE" as a name but A as register for 8bit ops... probably ought to rework one day */
@@ -999,6 +981,11 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
+		/* Faster case for foo + bc to avoid transfer to de */
+		if (r->op == T_REG && r->value == 1) {
+			printf("\tadd hl,bc\n");
+			return 1;
+		}
 		if (s <= 2) {
 			/* LHS is in HL at the moment, end up with the result in HL */
 			if (s == 1) {
@@ -1028,17 +1015,17 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		/* Avoid loading BC into DE unnecessarily */
-		if (r->op == T_REG) {
+		if (r->op == T_REG && r->value == 1) {
 			/* TODO IX stuff */
 			if (r->value == 1)
 				printf("\tor a\n\tsbc hl,bc\n");
 			return 1;
 		}
-		return 0;
-		/* TODO: Can we ex de,hl, load into hl and go? - check direction too
+		/* TODO: Can we ex de,hl, load into hl and go? - check direction too */
 		if (load_de_with(r) == 0)
 			return 0;
-		return 1; */
+		printf("\tor a\n\tsbc hl,de\n");
+		return 1;
 	case T_STAR:
 		if (r->op == T_CONSTANT) {
 			if (s <= 2 && can_fast_mul(s, r->value)) {
@@ -1327,13 +1314,12 @@ unsigned gen_shortcut(struct node *n)
 		}
 	}
 	/* Shortcut any initialization of BC/IX/IY we can do directly */
-	if (n->op == T_RSTORE) {
-		if (load_bc_with(r))
-			return 1;
-		return 0;
-	}
+	if (n->op == T_RSTORE)
+		return load_r_with(regnames[n->value], r);
+
 	/* Assignment to *BC, byte pointer always */
 	if (n->op == T_REQ) {
+		const char *rp = regnames[n->value];
 		switch(n->value) {
 		case 1:
 			/* Try and get the value into A */
@@ -1345,35 +1331,15 @@ unsigned gen_shortcut(struct node *n)
 			if (!nr)
 				printf("\tld l,a\n");
 			return 1;
-		/* TODO: fold these together */
 		case 2:
-			if (s == 1) {
-				if (!load_a_with(r)) {
-					codegen_lr(r);
-					printf("\tld (ix),l\n");
-					return 1;
-				}
-				printf("\tld (ix),a\n");
-				return 1;
-			}
-			if (s == 2) {
-				if (!load_de_with(r)) {
-					codegen_lr(r);
-					printf("\tex de,hl\n");
-				}
-				printf("\tld (ix),e\n");
-				printf("\tld (ix + 1),d\n");
-				return 1;
-			}
-			return 0;
 		case 3:
 			if (s == 1) {
 				if (!load_a_with(r)) {
 					codegen_lr(r);
-					printf("\tld (iy),l\n");
+					printf("\tld (%s),l\n", rp);
 					return 1;
 				}
-				printf("\tld (iy),a\n");
+				printf("\tld (%s),a\n", rp);
 				return 1;
 			}
 			if (s == 2) {
@@ -1381,17 +1347,16 @@ unsigned gen_shortcut(struct node *n)
 					codegen_lr(r);
 					printf("\tex de,hl\n");
 				}
-				printf("\tld (iy),e\n");
-				printf("\tld (iy + 1),d\n");
+				printf("\tld (%s),e\n", rp);
+				printf("\tld (%s + 1),d\n", rp);
 				return 1;
 			}
 			return 0;
 		}
-		return 1;
+		return 0;
 	}
 	/* Register targetted ops. These are totally different to the normal EQ ops because
 	   we don't have an address we can push and then do a memory op */
-	/* This lot need IX/IY adding. In many cases this will actually be really useful */
 	if (l && l->op == T_REG) {
 		unsigned reg = l->value;
 		v = r->value;
@@ -1413,20 +1378,20 @@ unsigned gen_shortcut(struct node *n)
 				if (n->op == T_PLUSEQ) {
 					get_regvar(reg, n, s);
 				}
-			} else if (reg == 1) {
+			} else {
 				/* Amount to add into HL */
-				/* TODO IX,IY */
 				if (reg == 1) {
 					codegen_lr(r);
 					printf("\tadd hl,bc\n");
 					printf("\tld c,l\n");
 					if (s == 2)
 						printf("\tld b,h\n");
+				} else {
+					codegen_lr(r);
+					printf("\tex de,hl\nadd %s,de\n", regnames[reg]);
+					if (!(n->flags & NORETURN))
+						get_regvar(reg, n, s);
 				}
-				codegen_lr(r);
-				printf("\tex de,hl\nadd i%c,de\n", "XXxy"[reg]);
-				if (!(n->flags & NORETURN))
-					get_regvar(reg, n, s);
 			}
 			if (n->op == T_PLUSPLUS && !(n->flags & NORETURN))
 				printf("\tpop hl\n");
@@ -1436,6 +1401,11 @@ unsigned gen_shortcut(struct node *n)
 				if (reg_canincdec(reg, r, s, -v)) {
 					get_regvar(reg, n, s);
 					reg_incdec(reg, s, -v);
+					return 1;
+				}
+				/* We can do subtracts between IX or IY and DE */
+				if (reg != 1 && load_de_with(r)) {
+					printf("\tor a\n\tsbc %s,de\n", regnames[reg]);
 					return 1;
 				}
 				codegen_lr(r);
@@ -1456,10 +1426,9 @@ unsigned gen_shortcut(struct node *n)
 			}
 			/* Get the subtraction value into HL */
 			codegen_lr(r);
-			/* TODO: helper bcxx ops need a new helper maker that puts in ix iy bc */
 			/* TODO: can we inline constants by doing an add of negative ? */
 			reghelper(n, "bcsub");
-			/* Result is only left in BC reload if needed */
+			/* Result is only left in reg var reload if needed */
 			get_regvar(reg, n, s);
 			return 1;
 		/* For now - we can do better - maybe just rewrite them into load,
@@ -1488,7 +1457,7 @@ unsigned gen_shortcut(struct node *n)
 			reghelper(n, "bcrem");
 			return 1;
 		case T_SHLEQ:
-			/* FIXME IX and IY for the simple cases */
+			/* TODO IX and IY for the simple cases */
 			if (r->op == T_CONSTANT && reg == 1) {
 				if (s == 1 && v >= 8) {
 					printf("\tld c,0\n");
