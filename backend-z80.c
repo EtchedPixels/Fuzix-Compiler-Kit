@@ -67,6 +67,13 @@ static unsigned frame_len;	/* Number of bytes of stack frame */
 static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned argbase;	/* Argument offset in current function */
 
+static const char *regnames[] = {	/* Register variable names */
+	NULL,
+	"bc",
+	"ix",
+	"iy"
+};
+
 static unsigned get_size(unsigned t)
 {
 	if (PTR(t))
@@ -1186,28 +1193,31 @@ unsigned gen_uni_direct(struct node *n)
 	return 0;
 }
 
-static unsigned reg_canincdec(struct node *n, unsigned s, int v)
+static unsigned reg_canincdec(unsigned reg, struct node *n, unsigned s, int v)
 {
 	/* We only deal with short and char for register */
+	if (reg > 1 && s != 2)
+		return 0;
 	/* Is the shortcut worth it ? */
 	if (n->op != T_CONSTANT || v > 8 || v < -8)
 		return 0;
 	return 1;
 }
 
-static unsigned reg_incdec(unsigned s, int v)
+static unsigned reg_incdec(unsigned reg, unsigned s, int v)
 {
-	if (s == 1) {
-		if (v < 0)
-			repeated_op("dec c", -v);
-		else
-			repeated_op("inc c", v);
-	} else {
-		if (v < 0)
-			repeated_op("dec bc", -v);
-		else
-			repeated_op("inc bc", v);
+	char buf[16];
+	char *op = "inc";
+	if (v < 0) {
+		op = "dec";
+		v = -v;
 	}
+	if (s == 1)
+		sprintf(buf, "%s %c\n", op, regnames[reg][1]);
+	else
+		sprintf(buf, "%s %s\n", op, regnames[reg]);
+
+	repeated_op(buf, v);
 	return 1;
 }
 
@@ -1257,7 +1267,7 @@ static void reg_logic(struct node *n, unsigned s, unsigned op, const char *i)
 			printf("\tld a,b\n\t%s h\n\tmld b,a\nld h,a\n", i + 2);
 		printf("\tld a,c\n\t%s c\n\tld c,a\nld l,a\n", i + 2);
 	} else {
-		helper(n, i);
+		reghelper(n, i);
 		get_regvar(n->left->value, NULL, s);
 	}
 }
@@ -1324,14 +1334,59 @@ unsigned gen_shortcut(struct node *n)
 	}
 	/* Assignment to *BC, byte pointer always */
 	if (n->op == T_REQ) {
-		/* Try and get the value into A */
-		if (!load_a_with(r)) {
-			codegen_lr(r);		/* If not then into HL */
-			printf("\tld a,l\n");
+		switch(n->value) {
+		case 1:
+			/* Try and get the value into A */
+			if (!load_a_with(r)) {
+				codegen_lr(r);		/* If not then into HL */
+				printf("\tld a,l\n");
+			}
+			printf("\tld (bc),a\n");	/* Do in case volatile */
+			if (!nr)
+				printf("\tld l,a\n");
+			return 1;
+		/* TODO: fold these together */
+		case 2:
+			if (s == 1) {
+				if (!load_a_with(r)) {
+					codegen_lr(r);
+					printf("\tld (ix),l\n");
+					return 1;
+				}
+				printf("\tld (ix),a\n");
+				return 1;
+			}
+			if (s == 2) {
+				if (!load_de_with(r)) {
+					codegen_lr(r);
+					printf("\tex de,hl\n");
+				}
+				printf("\tld (ix),e\n");
+				printf("\tld (ix + 1),d\n");
+				return 1;
+			}
+			return 0;
+		case 3:
+			if (s == 1) {
+				if (!load_a_with(r)) {
+					codegen_lr(r);
+					printf("\tld (iy),l\n");
+					return 1;
+				}
+				printf("\tld (iy),a\n");
+				return 1;
+			}
+			if (s == 2) {
+				if (!load_de_with(r)) {
+					codegen_lr(r);
+					printf("\tex de,hl\n");
+				}
+				printf("\tld (iy),e\n");
+				printf("\tld (iy + 1),d\n");
+				return 1;
+			}
+			return 0;
 		}
-		printf("\tld (bc),a\n");	/* Do in case volatile */
-		if (!nr)
-			printf("\tld l,a\n");
 		return 1;
 	}
 	/* Register targetted ops. These are totally different to the normal EQ ops because
@@ -1342,17 +1397,17 @@ unsigned gen_shortcut(struct node *n)
 		v = r->value;
 		switch(n->op) {
 		case T_PLUSPLUS:
-			if (reg_canincdec(r, s, v)) {
+			if (reg_canincdec(reg, r, s, v)) {
 				get_regvar(reg, n, s);
-				reg_incdec(s, v);
+				reg_incdec(reg, s, v);
 				return 1;
 			}
 			if (!(nr))
 				printf("\tpush bc\n");
 			/* Fall through */
 		case T_PLUSEQ:
-			if (reg_canincdec(r, s, v)) {
-				reg_incdec(s, v);
+			if (reg_canincdec(reg, r, s, v)) {
+				reg_incdec(reg, s, v);
 				if (nr)
 					return 1;
 				if (n->op == T_PLUSEQ) {
@@ -1378,9 +1433,9 @@ unsigned gen_shortcut(struct node *n)
 			return 1;
 		case T_MINUSMINUS:
 			if (!(n->flags & NORETURN)) {
-				if (reg_canincdec(r, s, -v)) {
+				if (reg_canincdec(reg, r, s, -v)) {
 					get_regvar(reg, n, s);
-					reg_incdec(s, -v);
+					reg_incdec(reg, s, -v);
 					return 1;
 				}
 				codegen_lr(r);
@@ -1394,8 +1449,8 @@ unsigned gen_shortcut(struct node *n)
 			/* If we don't care about the return they look the same so fall
 			   through */
 		case T_MINUSEQ:
-			if (reg_canincdec(r, s, -v)) {
-				reg_incdec(s, -v);
+			if (reg_canincdec(reg, r, s, -v)) {
+				reg_incdec(reg, s, -v);
 				get_regvar(reg, n, s);
 				return 1;
 			}
@@ -1776,11 +1831,26 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_RDEREF:
-		/* TODO: once we add the Z80 stuff properly this will be 1 or 2 byte and BC IX or IY */
-		printf("\tld a,(bc)\n");	/* NORETURN but generated imples volatile so keep the ldax */
-		if (!nr)
-			printf("\tld l,a\n");
-		return 1;
+		/* TODO: long pointers will need more work */
+		switch(n->value) {
+		case 1:
+			/* BC is never anything but a byte sized ptr */
+			printf("\tld a,(bc)\n");	/* NORETURN but generated imples volatile so keep the ldax */
+			if (!nr)
+				printf("\tld l,a\n");
+			return 1;
+		case 2:
+			printf("\tld l,(ix)\n");
+			if (size == 2)
+				printf("\tld h,(ix + 1)\n");
+			return 1;
+		case 3:
+			printf("\tld l,(iy)\n");
+			if (size == 2)
+				printf("\tld h,(iy + 1)\n");
+			return 1;
+		}
+		return 0;
 	case T_DEREF:
 		if (size == 4 && IS_EZ80) {
 			printf("\tld de,(hl)\n\tinc hl\n\tinc hl\n\tld hl,(hl)\n\tld (_hireg),hl\n\tex de.hl\n");
