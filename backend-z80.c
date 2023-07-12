@@ -179,6 +179,7 @@ struct node *gen_rewrite_node(struct node *n)
 	/* *regptr */
 	if (op == T_DEREF && r->op == T_RREF) {
 		n->op = T_RDEREF;
+		n->value = r->value;
 		n->right = NULL;
 		return n;
 	}
@@ -189,6 +190,7 @@ struct node *gen_rewrite_node(struct node *n)
 	  so we can rewrite EQ/RDEREF off base + offset from pointer within range using ix offset */
 	if (op == T_EQ && l->op == T_RREF) {
 		n->op = T_REQ;
+		n->value = l->value;
 		n->left = NULL;
 		return n;
 	}
@@ -376,7 +378,7 @@ void gen_label(const char *tail, unsigned n)
 
 void gen_jump(const char *tail, unsigned n)
 {
-	printf("\tjp L%d%s\n", n, tail);
+	printf("\tjr L%d%s\n", n, tail);
 }
 
 void gen_jfalse(const char *tail, unsigned n)
@@ -668,7 +670,6 @@ static void get_regvar(unsigned reg, struct node *n, unsigned s)
 		return;
 	}
 	printf("\tpush %s\n\tpop hl\n", regnames[reg]);
-	printf("\tpop hl\n");
 }
 
 static void load_regvar(unsigned r, unsigned s)
@@ -1200,9 +1201,9 @@ static unsigned reg_incdec(unsigned reg, unsigned s, int v)
 		v = -v;
 	}
 	if (s == 1)
-		sprintf(buf, "%s %c\n", op, regnames[reg][1]);
+		sprintf(buf, "%s %c", op, regnames[reg][1]);
 	else
-		sprintf(buf, "%s %s\n", op, regnames[reg]);
+		sprintf(buf, "%s %s", op, regnames[reg]);
 
 	repeated_op(buf, v);
 	return 1;
@@ -1320,6 +1321,7 @@ unsigned gen_shortcut(struct node *n)
 	/* Assignment to *BC, byte pointer always */
 	if (n->op == T_REQ) {
 		const char *rp = regnames[n->value];
+		fprintf(stderr, "T_REQ val %ld\n", n->value);
 		switch(n->value) {
 		case 1:
 			/* Try and get the value into A */
@@ -1339,7 +1341,11 @@ unsigned gen_shortcut(struct node *n)
 					printf("\tld (%s),l\n", rp);
 					return 1;
 				}
-				printf("\tld (%s),a\n", rp);
+				/* TODO: fix asm */
+				if (*rp == 'i')
+					printf("\tld (%s + 0),a\n", rp);
+				else
+					printf("\tld (%s),a\n", rp);
 				return 1;
 			}
 			if (s == 2) {
@@ -1347,7 +1353,7 @@ unsigned gen_shortcut(struct node *n)
 					codegen_lr(r);
 					printf("\tex de,hl\n");
 				}
-				printf("\tld (%s),e\n", rp);
+				printf("\tld (%s + 0),e\n", rp);
 				printf("\tld (%s + 1),d\n", rp);
 				return 1;
 			}
@@ -1362,13 +1368,15 @@ unsigned gen_shortcut(struct node *n)
 		v = r->value;
 		switch(n->op) {
 		case T_PLUSPLUS:
-			if (reg_canincdec(reg, r, s, v)) {
-				get_regvar(reg, n, s);
-				reg_incdec(reg, s, v);
-				return 1;
+			/* x++ with result discarded can be treated as ++x */
+			if (nr) {
+				if (reg_canincdec(reg, r, s, v)) {
+					reg_incdec(reg, s, v);
+					return 1;
+				}
 			}
-			if (!(nr))
-				printf("\tpush bc\n");
+			if (!nr)
+				printf("\tpush %s\n", regnames[reg]);
 			/* Fall through */
 		case T_PLUSEQ:
 			if (reg_canincdec(reg, r, s, v)) {
@@ -1809,7 +1817,7 @@ unsigned gen_node(struct node *n)
 				printf("\tld l,a\n");
 			return 1;
 		case 2:
-			printf("\tld l,(ix)\n");
+			printf("\tld l,(ix + 0)\n");	/* TODO: fix asm ? */
 			if (size == 2)
 				printf("\tld h,(ix + 1)\n");
 			return 1;

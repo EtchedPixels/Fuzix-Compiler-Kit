@@ -8,7 +8,7 @@ OBJS0 = frontend.o
 
 OBJS1 = body.o declaration.o enum.o error.o expression.o header.o idxdata.o \
 	initializer.o label.o lex.o main.o primary.o stackframe.o storage.o \
-	struct.o switch.o symbol.o target-8080.o tree.o type.o type_iterator.o
+	struct.o switch.o symbol.o tree.o type.o type_iterator.o
 
 OBJS2 = backend.o backend-default.o
 OBJS3 = backend.o backend-8080.o
@@ -49,16 +49,16 @@ cc0:	$(OBJS0)
 	gcc -g3 $(OBJS0) -o cc0
 
 cc1.8080:$(OBJS1) target-8080.o
-	gcc -g3 $(OBJS1) -o cc1.8080
+	gcc -g3 $(OBJS1) target-8080.o -o cc1.8080
 
 cc1.z80:$(OBJS1) target-z80.o
-	gcc -g3 $(OBJS1) -o cc1.z80
+	gcc -g3 $(OBJS1) target-z80.o -o cc1.z80
 
 cc1.6803:$(OBJS1) target-6803.o
-	gcc -g3 $(OBJS1) -o cc1.6803
+	gcc -g3 $(OBJS1) target-6803.o -o cc1.6803
 
 cc1.thread:$(OBJS1) target-threadcode.o
-	gcc -g3 $(OBJS1) -o cc1.thread
+	gcc -g3 $(OBJS1) target-threadcode.o -o cc1.thread
 
 cc2:	$(OBJS2)
 	gcc -g3 $(OBJS2) -o cc2

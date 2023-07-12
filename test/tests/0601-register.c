@@ -16,6 +16,20 @@ static unsigned int preop(void)
     return j;
 }
 
+static const char *str="01234567";
+
+static unsigned int ptrop(void)
+{
+    register char *p = str;
+    register unsigned n = 0;
+
+    while (*p) {
+        p++;
+        n++;
+    }
+    return n;
+}
+
 int main(int argc, char *argv[])
 {
     register int x = 0;
@@ -28,5 +42,7 @@ int main(int argc, char *argv[])
         return 3;
     if (preop() != 16)
         return 4;
+    if (ptrop() != 8)
+        return 5;
     return 0;
 }
