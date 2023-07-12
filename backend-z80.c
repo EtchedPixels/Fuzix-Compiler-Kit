@@ -325,11 +325,11 @@ void gen_epilogue(unsigned size)
 	if (size > 10) {
 		unsigned x = func_flags & F_VOIDRET;
 		if (!x)
-			printf("\txchg\n");
+			printf("\tex de,hl\n");
 		printf("\tld hl,0x%x\n", (uint16_t)size);
 		printf("\tadd hl,sp\n");
 		printf("\tld sp,hl\n");
-		if (x)
+		if (!x)
 			printf("\tex de,hl\n");
 	} else {
 		if (size & 1) {
@@ -1522,6 +1522,7 @@ unsigned gen_node(struct node *n)
 		if (size == 1) {
 			printf("\tld a,(_%s+%d)\n", namestr(n->snum), v);
 			printf("\tld l,a\n");
+			return 1;
 		} else if (size == 2) {
 			printf("\tld hl,(_%s+%d)\n", namestr(n->snum), v);
 			return 1;
