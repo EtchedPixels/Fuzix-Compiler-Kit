@@ -498,11 +498,12 @@ void gen_tree(struct node *n)
  */
 static unsigned access_direct(struct node *n)
 {
+	unsigned op = n->op;
 	/* We can direct access integer or smaller types that are constants
 	   global/static or string labels */
 	/* TODO group the user ones together for a range check ? */
-	if (n->op != T_CONSTANT && n->op != T_NAME && n->op != T_LABEL &&
-		 n->op != T_NREF && n->op != T_LBREF && n->op != T_RREF)
+	if (op != T_CONSTANT && op != T_NAME && op != T_LABEL &&
+		 op != T_NREF && op != T_LBREF && op != T_RREF)
 		 return 0;
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
@@ -1047,8 +1048,6 @@ unsigned gen_direct(struct node *n)
 		return gen_deop("shrde", n, r, 1);
 	/* Shorten post inc/dec if result not needed - in which case it's the same as
 	   pre inc/dec */
-	/* TODO: All the eq ops need register handling because there is no address for the
-	   register */
 	case T_PLUSPLUS:
 		if (!(n->flags & NORETURN))
 			return 0;
@@ -1238,6 +1237,7 @@ unsigned gen_shortcut(struct node *n)
 	if (n->op == T_RSTORE) {
 		if (load_bc_with(r))
 			return 1;
+		return 0;
 	}
 	/* Assignment to *BC, byte pointer always */
 	if (n->op == T_REQ) {
@@ -1297,6 +1297,7 @@ unsigned gen_shortcut(struct node *n)
 					printf("\tmov a,c\n\tsub l\n\tmov l,c\n\tmov c,a\n");
 					return 1;
 				}
+				/* TODO: can we inline constants by doing an add of negative ? */
 				helper(n, "bcsub");
 				return 1;
 			}
