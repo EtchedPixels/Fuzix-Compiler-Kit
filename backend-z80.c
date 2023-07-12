@@ -190,6 +190,10 @@ struct node *gen_rewrite_node(struct node *n)
 				squash_right(n, T_LREF);
 				return n;
 			}
+			if (r->op == T_REG) {
+				squash_right(n, T_RREF);
+				return n;
+			}
 			if (r->op == T_NAME) {
 				squash_right(n, T_NREF);
 				return n;
@@ -212,6 +216,10 @@ struct node *gen_rewrite_node(struct node *n)
 				if (l->op == T_ARGUMENT)
 					l->value += argbase + frame_len;
 				squash_left(n, T_LSTORE);
+				return n;
+			}
+			if (l->op == T_REG) {
+				squash_left(n, T_RSTORE);
 				return n;
 			}
 		}
@@ -662,16 +670,16 @@ static void loadhl(struct node *n, unsigned s)
 {
 	if (n && (n->flags & NORETURN))
 		return;
-	printf("\tmov l,c\n");
+	printf("\tld l,c\n");
 	if (s == 2)
-		printf("\tmov h,b\n");
+		printf("\tld h,b\n");
 }
 
 static void loadbc(unsigned s)
 {
-	printf("\tmov c,l\n");
+	printf("\tld c,l\n");
 	if (s == 2)
-		printf("\tmov b,h\n");
+		printf("\tld b,h\n");
 }
 
 /* We use "DE" as a name but A as register for 8bit ops... probably ought to rework one day */
@@ -1442,6 +1450,7 @@ unsigned gen_shortcut(struct node *n)
 			reg_logic(n, s, 2, "bcxra");
 			return 1;
 		}
+		fprintf(stderr, "unfixed regleft on %04X\n", n->op);
 	}
 	/* ?? LBSTORE TODO */
 	return 0;
