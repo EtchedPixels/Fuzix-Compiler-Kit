@@ -43,6 +43,7 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __switchl.o __pushl.o __sex.o 
       __ldword.o __ldwordw.o __stword.o __stwordw.o \
       __ldbyte.o __ldbytew.o __stbyte.o __stbytew.o \
       __bcand.o __bcdiv.o __bcdivu.o __bcmul.o __bcor.o __bcshl.o __bcshr.o __bcsub.o __bcxor.o \
+      __ixsub.o __iysub.o \
       _memcpy.o _memset.o _strlen.o
 
 include ldst.mk
