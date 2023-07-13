@@ -703,21 +703,55 @@ static unsigned gen_deop(const char *op, struct node *n, struct node *r, unsigne
 	return 1;
 }
 
-/* TODO: someone needs to own eliminating no side effect impossible
-   or true expressions like unsigned < 0 */
 static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsigned sign)
 {
+	unsigned s = get_size(n->type);
 	/* TODO: Z280 has CPW HL,DE CPW HL, const */
-	if (r->op == T_CONSTANT && r->value == 0) {
-		char buf[10];
-		strcpy(buf, op);
-		strcat(buf, "0");
-		if (sign)
-			helper_s(n, buf);
-		else
-			helper(n, buf);
-		n->flags |= ISBOOL;
-		return 1;
+	if (r->op == T_CONSTANT) {
+		/* Some minimal cases to work out how best to use CCONLY */
+		if (n->op == T_BANGEQ && (n->flags & CCONLY)) {
+			if (r->value == 0) {
+				if (s == 1) {
+					printf("\txor a\n\tcp l\n");
+					return 1;
+				}
+				if (s == 2) {
+					printf("\tld a,h\n\tor l\n");
+					return 1;
+				}
+			}
+			if (r->value == 255 && s == 1) {
+				printf("\tinc l\n");
+				return 1;
+			}
+			if (r->value == 0xFFFF && s == 2) {
+				printf("\tld a,h\n\tand l\n\tinc a\n");
+				return 1;
+			}
+		}
+		if (r->value == 0) {
+			char buf[10];
+			strcpy(buf, op);
+			strcat(buf, "0");
+			if (sign)
+				helper_s(n, buf);
+			else
+				helper(n, buf);
+			n->flags |= ISBOOL;
+			return 1;
+		}
+	}
+	/* We need to set a variable to the type of branch to use for the condition and then pick it up
+	   (once) in the following branch instruction to do more than the basics */
+	if (n->op == T_BANGEQ && (n->flags & CCONLY)) {
+		if (s == 1 && load_a_with(r) == 1) {
+			printf("\tcp l\n");
+			return 1;
+		}
+		if (s == 2 && load_de_with(r) == 1) {
+			printf("\tor a\n\tsbc hl,de\n");
+			return 1;
+		}
 	}
 	if (gen_deop(op, n, r, sign)) {
 		n->flags |= ISBOOL;
@@ -1321,7 +1355,6 @@ unsigned gen_shortcut(struct node *n)
 	/* Assignment to *BC, byte pointer always */
 	if (n->op == T_REQ) {
 		const char *rp = regnames[n->value];
-		fprintf(stderr, "T_REQ val %ld\n", n->value);
 		switch(n->value) {
 		case 1:
 			/* Try and get the value into A */
@@ -1551,15 +1584,17 @@ unsigned gen_push(struct node *n)
 	/* Our push will put the object on the stack, so account for it */
 	sp += size;
 
+	/* Drop a trailing ; in to tell the optimizer HL is now dead. This is safe
+	   as we currently operate but that may need review if we get clever */
 	switch(size) {
 	case 2:
-		printf("\tpush hl\n");
+		printf("\tpush hl\n;\n");
 		return 1;
 	case 4:
 		if (optsize)
-			printf("\tcall __pushl\n");
+			printf("\tcall __pushl\n;\n");
 		else
-			printf("\tex de,hl\n\tld hl,(__hireg)\n\tpush hl\n\tpush de\n");
+			printf("\tex de,hl\n\tld hl,(__hireg)\n\tpush hl\n\tpush de\n;\n");
 		return 1;
 	default:
 		return 0;
@@ -1693,9 +1728,13 @@ unsigned gen_node(struct node *n)
 		/* TODO: IX and IY */
 		if (nr)
 			return 1;
-		printf("\tld l,c\n");
-		if (size == 2)
-			printf("\tld h,b\n");
+		if (n->value == 1) {
+			printf("\tld l,c\n");
+			if (size == 2)
+				printf("\tld h,b\n");
+		} else {
+			printf("\tpush %s\n\tpop hl\n", regnames[n->value]);
+		}
  		return 1;
 	case T_NSTORE:
 		if (size == 4) {
