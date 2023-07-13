@@ -2,21 +2,21 @@
 ;		H holds the pointer
 ;
 		.export __derefl
+		.export __dereflsp
 		.setcpu	8080
 		.code
-
+__dereflsp:
+		dad	sp
 __derefl:
-		push	b
-		mov	c,m
+		mov	e,m
 		inx	h
-		mov	b,m
+		mov	d,m
 		inx	h
+		push	d
 		mov	e,m
 		inx	h
 		mov	d,m
 		xchg
 		shld	__hireg
-		mov	l,c
-		mov	h,b
-		pop	b
+		pop	h
 		ret

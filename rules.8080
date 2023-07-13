@@ -431,3 +431,8 @@ L%1_n:
 	inx h
 =
 
+# derefl is commonly linked to an add hl,sp
+	add hl,sp
+	call __derefl
+=
+	call __dereflsp
