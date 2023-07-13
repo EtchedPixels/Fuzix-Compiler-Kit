@@ -83,11 +83,11 @@ static void for_statement(void)
 	next_token();
 	header(H_FOR, cont_tag, break_tag);
 	require(T_LPAREN);
-	expression_or_null(0, 1);
+	expression_or_null(0, NORETURN);
 	require(T_SEMICOLON);
-	expression_or_null(1, 0);
+	expression_or_null(1, CCONLY);
 	require(T_SEMICOLON);
-	expression_or_null(0, 1);
+	expression_or_null(0, NORETURN);
 	require(T_RPAREN);
 	statement_block(0);
 	footer(H_FOR, cont_tag, break_tag);

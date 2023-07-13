@@ -10,6 +10,7 @@ struct node
 #define NORETURN		4	/* Top level return is not used */
 #define ISBOOL			8	/* Return value is boolean truth */
 #define IMPURE			16	/* Something in the subtree has a side effect */
+#define CCONLY			32	/* Only need condition side effects if platform has cc based branching */
     unsigned long value;	/* Offset for a NAME fp offset for a LOCAL */
     unsigned snum;		/* Name of symbol (for code generator) */
     unsigned val2;		/* Label for name, (also used for code gen) */

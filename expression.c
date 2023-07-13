@@ -765,20 +765,21 @@ struct node *expression_tree(unsigned comma)
 
 
 /* Generate an expression and write it the output */
-unsigned expression(unsigned comma, unsigned mkbool, unsigned noret)
+unsigned expression(unsigned comma, unsigned mkbool, unsigned flags)
 {
 	struct node *n;
 	unsigned t;
 	if (token == T_SEMICOLON)
 		return VOID;
 	n = expression_tree(comma);
-	if (mkbool) {	/* && noret ?? - if we are not using it we don't need it ? */
+	if (mkbool && !(flags & NORETURN)) {
 		if (!IS_INTARITH(n->type) && !PTR(n->type))
 			typemismatch();
+		/* NORETURN CCONLY etc also apply both to the bool node and the original */
+		n->flags |= flags;
 		n = bool_tree(n);
 	}
-	if (noret)
-		n->flags |= NORETURN;
+	n->flags |= flags;
 	t = n->type;
 	write_tree(n);
 	return t;
@@ -800,16 +801,18 @@ unsigned const_int_expression(void)
 	return v;
 }
 
+/* This is used for bracketed expressions following keywords such as if. These are
+   normally boolean/condition code except switch */
 unsigned bracketed_expression(unsigned mkbool)
 {
 	unsigned t;
 	require(T_LPAREN);
-	t = expression(1, mkbool, 0);
+	t = expression(1, mkbool, mkbool ? CCONLY : 0);
 	require(T_RPAREN);
 	return t;
 }
 
-void expression_or_null(unsigned mkbool, unsigned noret)
+void expression_or_null(unsigned mkbool, unsigned flags)
 {
 	struct node *n;
 	if (token == T_SEMICOLON || token == T_RPAREN) {
@@ -818,7 +821,7 @@ void expression_or_null(unsigned mkbool, unsigned noret)
 		n->type = VOID;
 		write_tree(n);
 	} else
-		expression(1, mkbool, noret);
+		expression(1, mkbool, flags);
 }
 
 void expression_typed(unsigned type)
