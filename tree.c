@@ -526,15 +526,15 @@ struct node *constify(struct node *n)
 		}
 	}
 	/* Unsigned ops that resolve to never true/false */
-	if (r && r->op == T_CONSTANT && r->value == 0 && (n->type & UNSIGNED) && !tree_impure(l)) {
-		if (op == T_LT) {
+	if (r && r->op == T_CONSTANT && r->value == 0 && (n->type & UNSIGNED)) {
+		if (op == T_LT && !tree_impure(l)) {
 			free_tree(l);
 			free_node(r);
 			free_node(n);
 			warning("always false");
 			return bool_tree(make_constant(0, CINT));
 		}
-		if (op == T_GTEQ) {
+		if (op == T_GTEQ && !tree_impure(l)) {
 			free_tree(l);
 			free_node(r);
 			free_node(n);
