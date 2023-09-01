@@ -493,6 +493,7 @@ void helper_type(unsigned t, unsigned s)
 	default:
 		fflush(stdout);
 		fprintf(stderr, "*** bad type %x\n", t);
+		printf("\n;bad type %x\n", t);
 	}
 }
 
@@ -672,6 +673,8 @@ void make_node(struct node *n)
 		helper(n, "negate");
 		break;
 	case T_FUNCCALL:
+		/* This should never get used, if it does you'll need to
+		   sort out the type handling for this case */
 		helper(n, "callfunc");
 		break;
 	case T_CLEANUP:
