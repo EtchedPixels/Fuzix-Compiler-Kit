@@ -1,6 +1,7 @@
-all: cc85 ccz80 ccthread cc0 cc1.8080 cc1.6803 cc1.z80 cc1.thread cc2 cc2.8080 cc2.6809 \
-     cc2.z80 cc2.65c816 cc2.6803 cc2.thread copt \
-     support8080 support8085 supportz80
+all: cc85 ccz80 ccthread ccbyte cc0 \
+     cc1.8080 cc1.6803 cc1.z80 cc1.thread cc1.byte \
+     cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread cc2.byte \
+     copt support8080 support8085 supportz80
 
 .PHONY: support8080 support8085 supportz80
 
@@ -18,6 +19,7 @@ OBJS6 = backend.o backend-65c816.o
 OBJS7 = backend.o backend-6803.o
 OBJS8 = backend.o backend-8070.o
 OBJS9 = backend.o backend-threadcode.o
+OBJS10 = backend.o backend-bytecode.o
 
 CFLAGS = -Wall -pedantic -g3
 
@@ -42,6 +44,9 @@ cc85:	cc85.o
 ccz80:	ccz80.o
 	gcc -g3 ccz80.o -o ccz80
 
+ccbyte: ccbyte.o
+	gcc -g3 ccbyte.o -o ccbyte
+
 ccthread: ccthread.o
 	gcc -g3 ccthread.o -o ccthread
 
@@ -59,6 +64,9 @@ cc1.6803:$(OBJS1) target-6803.o
 
 cc1.thread:$(OBJS1) target-threadcode.o
 	gcc -g3 $(OBJS1) target-threadcode.o -o cc1.thread
+
+cc1.byte:$(OBJS1) target-bytecode.o
+	gcc -g3 $(OBJS1) target-bytecode.o -o cc1.byte
 
 cc2:	$(OBJS2)
 	gcc -g3 $(OBJS2) -o cc2
@@ -83,6 +91,9 @@ cc2.8070:	$(OBJS8)
 
 cc2.thread:	$(OBJS9)
 	gcc -g3 $(OBJS9) -o cc2.thread
+
+cc2.byte:	$(OBJS10)
+	gcc -g3 $(OBJS10) -o cc2.byte
 
 support8080:
 	(cd support8080; make)
@@ -146,6 +157,17 @@ install: all
 	cp cc2.thread /opt/ccthread/lib
 	cp copt /opt/ccthread/lib
 	cp rules.thread /opt/ccthread/lib
+	# Bytecode
+	mkdir -p /opt/ccbyte/bin
+	mkdir -p /opt/ccbyte/lib
+	mkdir -p /opt/ccbyte/include
+	cp ccbyte /opt/ccbyte/bin/ccbyte
+	cp cppbyte /opt/ccbyte/lib/cpp
+	cp cc0 /opt/ccbyte/lib
+	cp cc1.byte /opt/ccbyte/lib
+	cp cc2.byte /opt/ccbyte/lib
+	cp copt /opt/ccbyte/lib
+	cp rules.byte /opt/ccbyte/lib
 #	cp supportthread/crt0.o /opt/ccthread/lib
 #	cp supportthread/libthread.a /opt/ccthread/lib/libthread.a
 #	ar cq /opt/ccthread/lib/libc.a
