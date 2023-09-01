@@ -353,7 +353,7 @@ static void gen_cleanup(unsigned v)
 			v -= 2;
 		}
 		if (v)
-			printf("\tdcx sp\n");
+			printf("\tinx sp\n");
 	}
 }
 
@@ -963,6 +963,7 @@ unsigned gen_direct(struct node *n)
 			}
 			if (access_direct_b(r)) {
 				printf("\tpush b\n");
+				sp += 2;
 				/* Must not corrupt B before we are ready */
 				/* LHS is in HL at the moment, end up with the result in HL */
 				if (s == 1) {
@@ -974,6 +975,7 @@ unsigned gen_direct(struct node *n)
 						error("min2");
 				}
 				printf("\tdsub  ; b\n\tpop b\n");
+				sp -= 2;
 				return 1;
 			}
 		}
@@ -1263,8 +1265,10 @@ unsigned gen_shortcut(struct node *n)
 				reg_incdec(s, v);
 				return 1;
 			}
-			if (!(nr))
+			if (!nr) {
 				printf("\tpush b\n");
+				sp += 2;
+			}
 			/* Fall through */
 		case T_PLUSEQ:
 			if (reg_canincdec(r, s, v)) {
@@ -1282,8 +1286,10 @@ unsigned gen_shortcut(struct node *n)
 				if (s == 2)
 					printf("\tmov b,h\n");
 			}
-			if (n->op == T_PLUSPLUS && !(n->flags & NORETURN))
+			if (n->op == T_PLUSPLUS && !(n->flags & NORETURN)) {
 				printf("\tpop h\n");
+				sp -= 2;
+			}
 			return 1;
 		case T_MINUSMINUS:
 			if (!(n->flags & NORETURN)) {
@@ -1556,8 +1562,10 @@ unsigned gen_node(struct node *n)
 		/* Via helper magic for compactness on 8080 */
 		if (size == 1)
 			name = "ldbyte";
-		else
+		else if (size == 2)
 			name = "ldword";
+		else
+			return 0;	/* Can't happen currently but trap it */
 		/* We do a call so the stack offset is two bigger */
 		if (v < LWDIRECT)
 			printf("\tcall __%s%d\n", name, v + 2);
@@ -1589,7 +1597,7 @@ unsigned gen_node(struct node *n)
 	case T_LBSTORE:
 		if (size == 4) {
 			printf("\tshld T%d+%d\n", n->val2, v);
-			printf("\txchg\n\tlhld __hireg\nshld T%d+%d\n\txchg\n",
+			printf("\txchg\n\tlhld __hireg\n\tshld T%d+%d\n\txchg\n",
 				n->val2, v + 2);
 			return 1;
 		}
@@ -1642,8 +1650,11 @@ unsigned gen_node(struct node *n)
 		/* Can rewrite some of them into rst if need be */
 		if (size == 1)
 			name = "stbyte";
-		else
+		else if (size == 2)
 			name = "stword";
+		/* FIXME */
+		else
+			return 0;
 		/* Like load the helper is offset by two because of the
 		   stack */
 		if (v < 24)
