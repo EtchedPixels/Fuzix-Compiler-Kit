@@ -410,7 +410,7 @@ static void gen_cleanup(unsigned v)
 			v -= 2;
 		}
 		if (v)
-			printf("\tdec sp\n");
+			printf("\tinc sp\n");
 	}
 }
 
@@ -1408,8 +1408,10 @@ unsigned gen_shortcut(struct node *n)
 					return 1;
 				}
 			}
-			if (!nr)
+			if (!nr) {
 				printf("\tpush %s\n", regnames[reg]);
+				sp += 2;
+			}
 			/* Fall through */
 		case T_PLUSEQ:
 			if (reg_canincdec(reg, r, s, v)) {
@@ -1434,8 +1436,10 @@ unsigned gen_shortcut(struct node *n)
 						get_regvar(reg, n, s);
 				}
 			}
-			if (n->op == T_PLUSPLUS && !(n->flags & NORETURN))
+			if (n->op == T_PLUSPLUS && !(n->flags & NORETURN)) {
 				printf("\tpop hl\n");
+				sp -= 2;
+			}
 			return 1;
 		case T_MINUSMINUS:
 			if (!(n->flags & NORETURN)) {
@@ -1756,7 +1760,7 @@ unsigned gen_node(struct node *n)
 	case T_LBSTORE:
 		if (size == 4) {
 			printf("\tld (T%d+%d),hl\n", n->val2, v);
-			printf("\tld de,(__hireg)\nld (T%d+%d),de\n",
+			printf("\tld de,(__hireg)\n\tld (T%d+%d),de\n",
 				n->val2, v + 2);
 			return 1;
 		}
