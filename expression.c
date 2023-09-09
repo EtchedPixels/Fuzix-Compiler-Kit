@@ -692,6 +692,10 @@ static struct node *hier1(void)
 		/* You can't assign to an array/offset, you assign to
 		   the underlying type */
 		l->type = type_canonical(l->type);
+		if (!IS_SIMPLE(l->type) && !PTR(l->type)) {
+			badtype();
+			return l;
+		}
 		return assign_tree(l, r);	/* Assignment */
 	} else {
 		fc = token;
