@@ -184,8 +184,8 @@ static void nameref(struct node *n)
 	if (is_constant(n->right) && IS_NAME(n->left->op)) {
 		unsigned value = n->left->value + n->right->value;
 		struct node *l = n->left;
+		memcpy(n , n->right, sizeof(*n));
 		free_node(n->right);
-		*n = *n->right;
 		n->value = value;
 		n->left = NULL;
 		n->right = NULL;
