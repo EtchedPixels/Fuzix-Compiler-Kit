@@ -386,7 +386,7 @@ static void process_header(void)
 		func_ret_used = 1;
 		break;
 	case H_RETURN | H_FOOTER:
-		gen_jump("_r", func_ret);
+		gen_exit("_r", func_ret);
 		break;
 	case H_LABEL:
 		sprintf(tbuf, "_g%d", h.h_data);

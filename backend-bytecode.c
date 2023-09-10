@@ -179,6 +179,11 @@ void gen_label(const char *tail, unsigned n)
 	printf("L%d%s:\n", n, tail);
 }
 
+void gen_exit(const char *tail, unsigned n)
+{
+	printf("\tjump L%d%s\n", n, tail);
+}
+
 void gen_jump(const char *tail, unsigned n)
 {
 	printf("\tjump L%d%s\n", n, tail);

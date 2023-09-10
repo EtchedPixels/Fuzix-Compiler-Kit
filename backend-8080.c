@@ -31,6 +31,7 @@ static unsigned frame_len;	/* Number of bytes of stack frame */
 static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned argbase;	/* Argument offset in current function */
 static unsigned unreachable;	/* Code following an unconditional jump */
+static unsigned func_cleanup;	/* Zero if we can just ret out */
 
 static unsigned get_size(unsigned t)
 {
@@ -258,6 +259,11 @@ void gen_frame(unsigned size)
 	frame_len = size;
 	sp = 0;
 
+	if (size || func_flags & F_REG(1))
+		func_cleanup = 1;
+	else
+		func_cleanup = 0;
+
 	argbase = ARGBASE;
 	if (func_flags & F_REG(1)) {
 		printf("\tpush b\n");
@@ -319,6 +325,16 @@ void gen_label(const char *tail, unsigned n)
 {
 	unreachable = 0;
 	printf("L%d%s:\n", n, tail);
+}
+
+/* A return statement. We can sometimes shortcut this if we have
+   no cleanup to do */
+void gen_exit(const char *tail, unsigned n)
+{
+	if (func_cleanup)
+		gen_jump(tail, n);
+	else
+		printf("\tret\n");
 }
 
 void gen_jump(const char *tail, unsigned n)
