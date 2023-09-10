@@ -23,20 +23,22 @@
 	remove the xchg as de/hl is same as hl/de
 	others invert logic and remove xchg
 
-
+- Z80 ix/iy ops - compact foo.bar offsets as (ix + n) when possible
+- Z80 find why asm blew up for (ix) not (ix + 0)
 - Optimise compares to 0 and FFFF on 8080/5 with
   mov a,h ana l  and mov a,h ora l ??
+  and sbc hl,de on z80  - these all need the flags only bits
 - keep a volatile count of in context volatiles and some short arrays of names of volatiles
   in scope so we can do basic volatiles as well as casting style
 - Special header type for the jumps to end of func ret so we can turn them into rets if there
   is no epilogue (or direct jumps to a helper epilogue)
-- make backend set a flag if the current func is void
 - spot conditionals that are if (simple) and turn them into some kind of FLAGSONLY node so that
   we can optimize simple conditions and avoid bool calls (eg ora a jz)
 	- set a FLAGONLY on the top node of the conditional in an if/while/.., then if we see a
 	  condition with FLAGONLY we can optimize it in the target
 		for stuff like if (*p) we can spot the boolc with FLAGSONLY and optimise it to
 		stuff like ld a,h or l and ld a,l or a (and peep can fix some of the other bits)
+  [Part done CCONLY exists now to use it more]
 - hash array and function type lookup
 - hash name lookup
 - rewrite x = x + .. and x = x -... etc as += -=
@@ -61,6 +63,12 @@ Broken
 -	need to switch how we handle -ve numbers to fix -32768 problem but also
 	stuff like negative floats. In check for MINUS/PLUS we need to look for
 	-ve constant and if so invert it and re-insert a fake MINUS token
+	(Other plan -
+		unambiguous minus is T_NEGATE
+		ambiguious generate T_NEGMAYBE then the value. If we are
+		expecting a uni op then we parse it as T_NEGATE. If we
+		were expecting a value we throw it and negate the following
+		constant)
 -	Fix
 		{ int n; { long n; } } - need to know if we are creating new sym level
 -	Fix
@@ -70,7 +78,6 @@ Broken
 
 Longer term
 - fix ptrdiff_t matches INT assumption
-- z80 6809 style helpers for catching simpler ops
 - backend hooks for building stack frame via initializers
 - literal based handling for some types (set by target) - eg double/longlong
   so that we pass pointers around including one to a memory "register". 
@@ -80,7 +87,6 @@ Longer term
 - look at some kind of simple register assignment rewriting so that 6803/6809
   etc can try and rewrite some subtrees to use an index register, and maybe
   also eliminate the push case for some of those
-- how to deal with Z80 sanely
 - simple register tracking helper library
 - rewrite && and || and maybe ?: so that we don't have
   (AND (BOOL (x)) (BOOL(y))) but some kind of
@@ -89,7 +95,7 @@ Longer term
   ok.
 - 6809 - use pshs/puls as a sneaky tight way to mod the stack
 - Optimizer pass for tree rearrangement ?
-- Whilst we need to be careful for side effects on * 0, we don't for and/or
+PARTDONE - Whilst we need to be careful for side effects on * 0, we don't for and/or
   subtrees with && || so should deal with those
 - cc0 and the -32768 funny (understand a little of previous token is needed)
 - native compile support for machines where a pointer is a native long type. Cross
@@ -98,11 +104,11 @@ Longer term
   Does need care handling any extra header stuff in the way.
 - Can we walk the subtrees looking for the most repeated left/right expensive
   refs (ie locals on 8080 or Z80) and rewrite the tree so the most common is
-  in BC, then work up the tree to decide what to use BC for ?
+  in say BC, then rewrite subtree with REG and a load/put of the reg
 - 8080 pass first argument in HL, so defer final push before func call. Then
   can xthl push hl to get stack in order, and do cleanup of all args on
   the return path instead of caller - would need vararg help for cleanup ?
 - 8080 rewrite  SHL(constant 1, by n) into a 1 << n node so we can gen a
   fast 1 << n (lookup table ?)
-- Walk subtrees of logic ops to try and optimize bools if value not used and subnodes just
+DONE - Walk subtrees of logic ops to try and optimize bools if value not used and subnodes just
   need cc
