@@ -18,6 +18,35 @@
 #include "token.h"
 #include "target.h"
 
+#if defined(__linux__)
+/* _itoa */
+static char buf[7];
+
+char *_uitoa(unsigned int i)
+{
+	char *p = buf + sizeof(buf);
+	int c;
+
+	*--p = '\0';
+	do {
+		c = i % 10;
+		i /= 10;
+		*--p = '0' + c;
+	} while(i);
+	return p;
+}
+
+char *_itoa(int i) {
+	char *p;
+	if (i >= 0)
+		return _uitoa(i);
+	p = _uitoa(-i);
+	*--p = '-';
+	return p;
+}
+
+#endif
+
 
 static unsigned char filename[33] = { "<stdin>" };
 static unsigned filechange = 1;
@@ -51,21 +80,67 @@ static unsigned err;
 static unsigned line = 1;
 static unsigned oldline = 0;
 
+static void colonspace(void)
+{
+	write(2, ": ", 2);
+}
+
+static void writes(const char *p)
+{
+	unsigned len = strlen(p);
+	write(2, p, len);
+}
+
+static void report(char code, const char *p)
+{
+	writes((const char *)filename);
+	colonspace();
+	writes(_itoa(line));
+	colonspace();
+	write(2, &code, 1);
+	colonspace();
+	writes(p);
+	write(2, "\n", 1);
+}
+
 void error(const char *p)
 {
-	fprintf(stderr, "%s: %d: E: %s\n", filename, line, p);
+	report('E', p);
 	err++;
 }
 
 void warning(const char *p)
 {
-	fprintf(stderr, "%s: %d: W: %s\n", filename, line, p);
+	report('W', p);
 }
 
 void fatal(const char *p)
 {
 	error(p);
 	exit(1);
+}
+
+#define BLOCK 512
+
+static uint8_t buffer[BLOCK];	/* 128 for CPM */
+static uint8_t *bufptr = buffer + BLOCK;
+static uint16_t bufleft = 0;
+
+/* Pull the input stream in blocks and optimize for our case as this
+   is of course a very hot path. This design allows for future running
+   on things like CP/M and with the right block size is also optimal for
+   Fuzix */
+
+static unsigned bgetc(void)
+{
+	if (bufleft == 0) {
+		bufleft = read(0, buffer, BLOCK);
+		if (bufleft == 0)
+			return EOF;
+		bufptr = buffer;
+	}
+	bufleft--;
+	return *bufptr++;
 }
 
 static unsigned pushback;
@@ -87,10 +162,10 @@ unsigned get(void)
 		}
 		return c;
 	}
-	c = getchar();
+	c = bgetc();
 	while(c == '#' && isnl) {
 		directive();
-		c = getchar();
+		c = bgetc();
 	}
 	isnl = 0;
 	if (c == '\n') {
@@ -99,7 +174,7 @@ unsigned get(void)
 	}
 	/* backslash newline continuation */
 	if (lastbslash && c == '\n')
-		c = getchar();
+		c = bgetc();
 
 	if (c == '\\')
 		lastbslash = 1;
@@ -148,20 +223,20 @@ static void directive(void)
 	line = 0;
 
 	do {
-		c = getchar();
+		c = bgetc();
 	} while(isspace(c));
 
 	while (isdigit(c)) {
 		line = 10 * line + c - '0';
-		c = getchar();
+		c = bgetc();
 	}
 	if (c == '\n')
 		return;
 		
 	/* Should be a quote next */
-	c = getchar();
+	c = bgetc();
 	if (c == '"') {
-		while ((c = getchar()) != EOF && c != '"') {
+		while ((c = bgetc()) != EOF && c != '"') {
 			/* Skip magic names */
 			if (p == filename && c == '<')
 				p = filename + 32;
@@ -173,7 +248,7 @@ static void directive(void)
 		filechange = 1;
 	}
 	*p = 0;
-	while((c = getchar()) != EOF) {
+	while((c = bgetc()) != EOF) {
 		if (c == '\n')
 			return;
 	}
@@ -261,11 +336,23 @@ static void write_symbol_table(void)
  *	which is strings.
  */
 
+static uint8_t outbuf[BLOCK];
+static uint8_t *outptr = outbuf;
 
-/* TODO: buffer this sensibly for speed */
 static void outbyte(unsigned char c)
 {
-	if (write(1, &c, 1) != 1)
+	*outptr++ = c;
+	if (outptr == outbuf + BLOCK) {
+		outptr = outbuf;
+		if (write(1, outbuf, BLOCK) != BLOCK)
+			error("I/O");
+	}
+}
+
+static void outflush(void)
+{
+	unsigned len = outptr - outbuf;
+	if (len && write(1, outbuf, len) != len)
 		error("I/O");
 }
 
@@ -935,6 +1022,8 @@ int main(int argc, char *argv[])
 		t = tokenize();
 		write_token(t);
 	} while (t != T_EOF);
+	/* Write the remaining decode */
+	outflush();
 	write_symbol_table();
 	return err;
 }
