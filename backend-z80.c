@@ -966,15 +966,6 @@ unsigned gen_direct(struct node *n)
 	case T_CLEANUP:
 		gen_cleanup(v);
 		return 1;
-	case T_BOOL:
-		if (s <= 2 && (n->flags & CCONLY)) {
-			if (s == 2)
-				printf("\tld a,h\n\tor l\n");
-			else
-				printf("\tld a,l\n\tor a\n");
-			return 1;
-		}
-		return 0;
 	case T_NSTORE:
 		if (s > 2)
 			return 0;
@@ -1343,6 +1334,30 @@ unsigned gen_shortcut(struct node *n)
  		/* Parent determines child node requirements */
 		codegen_lr(r);
 		r->flags |= nr;
+		return 1;
+	}
+	if (n->op == T_BOOL) {
+		codegen_lr(r);
+		if (r->flags & ISBOOL)
+			return 1;
+		s = get_size(r->type);
+		if (s <= 2 && (n->flags & CCONLY)) {
+			codegen_lr(r);
+			if (s == 2)
+				printf("\tld a,h\n\tor l\n");
+			else
+				printf("\tld a,l\n\tor a\n");
+			return 1;
+		}
+		if (IS_RABBIT && s <= 2) {
+			/* quick way to bool byte */
+			if (s == 1)
+				printf("\tld h,l\n");
+			printf("\tbool hl\n");
+		} else
+			/* Too big or value needed */
+			helper(n, "bool");
+		n->flags |= ISBOOL;
 		return 1;
 	}
 	/* Re-order assignments we can do the simple way */

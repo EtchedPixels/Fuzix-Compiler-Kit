@@ -877,15 +877,6 @@ unsigned gen_direct(struct node *n)
 	case T_CLEANUP:
 		gen_cleanup(v);
 		return 1;
-	case T_BOOL:
-		if (s <= 2 && (n->flags & CCONLY)) {
-			if (s == 2)
-				printf("\tmov a,h\n\tora l\n");
-			else
-				printf("\tmov a,l\n\tora a\n");
-			return 1;
-		}
-		return 0;
 	case T_NSTORE:
 		if (s > 2)
 			return 0;
@@ -1229,6 +1220,26 @@ unsigned gen_shortcut(struct node *n)
 		/* Parent determines child node requirements */
 		r->flags |= nr;
 		codegen_lr(r);
+		return 1;
+	}
+	/* We don't know if the result has set the condition flags
+	 * until we generate the subtree. So generate the tree, then
+	 * either do nice things or use the helper */
+	if (n->op == T_BOOL) {
+		codegen_lr(r);
+		if (r->flags & ISBOOL)
+			return 1;
+		s = get_size(r->type);
+		if (s <= 2 && (n->flags & CCONLY)) {
+			if (s == 2)
+				printf("\tmov a,h\n\tora l\n");
+			else
+				printf("\tmov a,l\n\tora a\n");
+			return 1;
+		}
+		/* Too big or value needed */
+		helper(n, "bool");
+		n->flags |= ISBOOL;
 		return 1;
 	}
 	/* Re-order assignments we can do the simple way */
