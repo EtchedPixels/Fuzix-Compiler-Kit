@@ -141,6 +141,7 @@
 ;
 	jnz %1
 =
+%1:
 	lxi h,0
 
 # Optimize repeated call pattern (the ; matters here)
