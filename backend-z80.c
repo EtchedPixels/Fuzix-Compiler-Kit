@@ -950,6 +950,15 @@ unsigned gen_direct(struct node *n)
 	case T_CLEANUP:
 		gen_cleanup(v);
 		return 1;
+	case T_BOOL:
+		if (s <= 2 && (n->flags & CCONLY)) {
+			if (s == 2)
+				printf("\tld a,h\n\tor l\n");
+			else
+				printf("\tld a,l\n\tor a\n");
+			return 1;
+		}
+		return 0;
 	case T_NSTORE:
 		if (s > 2)
 			return 0;
