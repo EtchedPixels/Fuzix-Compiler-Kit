@@ -66,6 +66,7 @@
 static unsigned frame_len;	/* Number of bytes of stack frame */
 static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned argbase;	/* Argument offset in current function */
+static unsigned unreachable;	/* Code after an unconditional jump */
 
 static const char *regnames[] = {	/* Register variable names */
 	NULL,
@@ -373,12 +374,14 @@ void gen_epilogue(unsigned size)
 
 void gen_label(const char *tail, unsigned n)
 {
+	unreachable = 0;
 	printf("L%d%s:\n", n, tail);
 }
 
 void gen_jump(const char *tail, unsigned n)
 {
 	printf("\tjr L%d%s\n", n, tail);
+	unreachable = 1;
 }
 
 void gen_jfalse(const char *tail, unsigned n)
@@ -457,13 +460,9 @@ void gen_switchdata(unsigned n, unsigned size)
 	printf("\t.word %d\n", size);
 }
 
-void gen_case(unsigned tag, unsigned entry)
-{
-	printf("Sw%d_%d:\n", tag, entry);
-}
-
 void gen_case_label(unsigned tag, unsigned entry)
 {
+	unreachable = 0;
 	printf("Sw%d_%d:\n", tag, entry);
 }
 
@@ -1305,6 +1304,10 @@ unsigned gen_shortcut(struct node *n)
  	struct node *l = n->left;
  	struct node *r = n->right;
 	unsigned nr = n->flags & NORETURN;
+
+	/* Don't generate unreachable blocks */
+	if (unreachable)
+		return 1;
 
 	/* The comma operator discards the result of the left side, then
 	   evaluates the right. Avoid pushing/popping and generating stuff
