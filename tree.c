@@ -597,6 +597,7 @@ struct node *constify(struct node *n)
 		/* TODO: We don't deal with the X && 0 case - we need an
 		   op for evaluate, throw away result and return 0. Maybe
 		   we can build a tree of expr,0 ?, ditto || 1 */
+		return NULL;
 	}
 	if (r) {
 		r = constify(r);
