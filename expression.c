@@ -778,7 +778,8 @@ unsigned expression(unsigned comma, unsigned mkbool, unsigned flags)
 		return VOID;
 	n = expression_tree(comma);
 	if (mkbool && !(flags & NORETURN)) {
-		if (!IS_INTARITH(n->type) && !PTR(n->type))
+		/* Float and double are valid */
+		if (!IS_ARITH(n->type) && !PTR(n->type))
 			typemismatch();
 		/* NORETURN CCONLY etc also apply both to the bool node and the original */
 		n->flags |= flags;
