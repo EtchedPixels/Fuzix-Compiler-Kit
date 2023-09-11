@@ -154,7 +154,7 @@ static unsigned is_simple(struct node *n)
 		return 0;
 
 	/* We can load these directly into a register */
-	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME || op == T_REG )
+	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME || op == T_REG || op == T_RREF || op == T_RDEREF)
 		return 10;
 	/* We can load this directly into a register but it may be a byte longer */
 	if (op == T_NREF || op == T_LBREF)
@@ -615,6 +615,9 @@ void gen_tree(struct node *n)
 /*
  *	Return 1 if the node can be turned into direct access. The VOID check
  *	is a special case we need to handle stack clean up of void functions.
+ *
+ *	TODO;  Add T_RREF here and teach the helpers to generate (ix) loads
+ *	via DE (and bc via ld a,(bc) ld e,a)
  */
 static unsigned access_direct(struct node *n)
 {
@@ -632,8 +635,6 @@ static unsigned access_direct(struct node *n)
 /*
  *	Get something that passed the access_direct check into de. Could
  *	we merge this with the similar hl one in the main table ?
- *
- *	TODO: pass reg as char *, can use BC unlike 8080
  */
 
 static unsigned load_r_with(const char *rp, struct node *n)
@@ -673,6 +674,10 @@ static unsigned load_r_with(const char *rp, struct node *n)
 			return 1;
 		}
 		printf("\tpush %s\n\tpop %s\n", regnames[n->value], rp);
+		return 1;
+	case T_RDEREF:
+		printf("\tld %c,(%s + %d)\n", *rp, regnames[n->value], n->val2);
+		printf("\tld %c,(%s + %d)\n", rp[1], regnames[n->value], n->val2+ 1);
 		return 1;
 	default:
 		return 0;
@@ -714,7 +719,14 @@ static unsigned load_a_with(struct node *n)
 			printf("\tld a,c\n");
 			break;
 		}
-		/* Fall through */
+		return 0;
+	case T_RDEREF:
+		if (n->value == 1) {
+			printf("\tld a,(bc)\n");
+			break;
+		}
+		printf("\tlod a,(%s+%d)\n", regnames[n->value], n->val2);
+		break;
 	default:
 		return 0;
 	}
@@ -1821,7 +1833,6 @@ unsigned gen_node(struct node *n)
 			printf("\tcall __%sw\n\t.word %d\n", name, v + 2);
 		return 1;
 	case T_RREF:
-		/* TODO: IX and IY */
 		if (nr)
 			return 1;
 		if (n->value == 1) {
