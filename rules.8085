@@ -541,3 +541,21 @@ L%1_n:
 =
 %1:
 	ret
+
+# Byte deref for condition shorteners (the ; check means the accumulator
+# is no longer live
+	mov l,m
+	mov a,h
+	ora l
+;
+=
+	mov a,m
+	ora a
+
+	mov l,m
+	mov a,l
+	ora a
+;
+=
+	mov a,m
+	ora a
