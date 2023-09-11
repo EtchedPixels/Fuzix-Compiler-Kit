@@ -630,6 +630,12 @@ struct node *constify(struct node *n)
 			free_node(n);
 			return r;
 		}
+		/* This works for FP for all the wrong reasons - FIXME */
+		if ((op == T_PLUS || op == T_MINUS) && r->type == T_CONSTANT && r->value == 0) {
+			free_node(n);
+			free_node(r);
+			return l;
+		}
 		if (l) {
 			l = constify(l);
 			if (l == NULL)
