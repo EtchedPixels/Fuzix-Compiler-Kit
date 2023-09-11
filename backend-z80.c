@@ -171,30 +171,73 @@ struct node *gen_rewrite_node(struct node *n)
 {
 	struct node *l = n->left;
 	struct node *r = n->right;
+	struct node *c;
 	unsigned op = n->op;
 	unsigned nt = n->type;
+	int val;
 
-	/* TODO
-		- rewrite some reg ops
-	*/
-
-	/* *regptr */
-	if (op == T_DEREF && r->op == T_RREF) {
-		n->op = T_RDEREF;
-		n->value = r->value;
-		n->right = NULL;
-		return n;
-	}
-	/* *regptr = */
-	/* TODO: spot the following tree
+	/* spot the following tree
+			T_DEREF
 			    T_PLUS
 		       T_RREF    T_CONSTANT -128-127-size
 	  so we can rewrite EQ/RDEREF off base + offset from pointer within range using ix offset */
-	if (op == T_EQ && l->op == T_RREF) {
-		n->op = T_REQ;
-		n->value = l->value;
-		n->left = NULL;
-		return n;
+	if (op == T_DEREF) {
+		if (r->op == T_PLUS) {
+			c = r->right;
+			if (r->left->op == T_RREF && c->op == T_CONSTANT) {
+				val = c->value;
+				/* For now - depends on size */
+				/* IX and IY only ranged, BC char * direct */
+				if (val == 0 || (val >= -128 && val < 125 && r->left->value != 1)) {
+					n->op = T_RDEREF;
+					n->val2 = val;
+					n->value = r->left->value;
+					n->right = NULL;
+					free_tree(r);
+					return n;
+				}
+			}
+		} else if (r->op == T_RREF) {
+			val = r->value;
+			if (val == 0 || (val >= -128 && val < 125 && r->value != 1)) {
+				n->op = T_RDEREF;
+				n->val2 = 0;
+				n->value = val;
+				n->right = NULL;
+				free_node(r);
+				return n;
+			}
+		}
+	}
+	if (op == T_EQ) {
+		if (l->op == T_PLUS) {
+			c = l->right;
+			if (l->left->op == T_RREF && c->op == T_CONSTANT) {
+				val = c->value;
+				/* For now - depends on size */
+				/* IX and IY only -  BC char * direct only */
+				if (val == 0 || (val >= -128 && val < 125 && l->left->value != 1)) {
+					n->op = T_REQ;
+					n->val2 = val;
+					n->value = l->left->value;
+					n->left = NULL;
+					free_tree(l);
+					return n;
+				}
+			}
+		} else if (l->op == T_RREF) {
+			val = l->value;
+			/* For now - depends on size */
+			/* IX and IY only -  BC char * direct only */
+			if (val == 0 || (val >= -128 && val < 125 && l->value != 1)) {
+				n->op = T_REQ;
+				n->val2 = 0;
+				n->value = val;
+				n->left = NULL;
+				free_node(l);
+				return n;
+			}
+		}
 	}
 	/* Rewrite references into a load operation */
 	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt)) {
@@ -215,6 +258,11 @@ struct node *gen_rewrite_node(struct node *n)
 			}
 			if (r->op == T_LABEL) {
 				squash_right(n, T_LBREF);
+				return n;
+			}
+			if (r->op == T_RREF) {
+				squash_right(n, T_RDEREF);
+				n->val2 = 0;
 				return n;
 			}
 		}
@@ -640,6 +688,11 @@ static unsigned load_bc_with(struct node *n)
 static unsigned load_de_with(struct node *n)
 {
 	return load_r_with("de", n);
+}
+
+static unsigned load_hl_with(struct node *n)
+{
+	return load_r_with("hl", n);
 }
 
 static unsigned load_a_with(struct node *n)
@@ -1342,7 +1395,6 @@ unsigned gen_shortcut(struct node *n)
 			return 1;
 		s = get_size(r->type);
 		if (s <= 2 && (n->flags & CCONLY)) {
-			codegen_lr(r);
 			if (s == 2)
 				printf("\tld a,h\n\tor l\n");
 			else
@@ -1395,7 +1447,7 @@ unsigned gen_shortcut(struct node *n)
 	if (n->op == T_RSTORE)
 		return load_r_with(regnames[n->value], r);
 
-	/* Assignment to *BC, byte pointer always */
+	/* Assignment to *BC is byte pointer always */
 	if (n->op == T_REQ) {
 		const char *rp = regnames[n->value];
 		switch(n->value) {
@@ -1414,23 +1466,20 @@ unsigned gen_shortcut(struct node *n)
 			if (s == 1) {
 				if (!load_a_with(r)) {
 					codegen_lr(r);
-					printf("\tld (%s),l\n", rp);
+					printf("\tld (%s + %d),l\n", rp, n->val2);
 					return 1;
 				}
-				/* TODO: fix asm */
 				if (*rp == 'i')
-					printf("\tld (%s + 0),a\n", rp);
+					printf("\tld (%s + %d),a\n", rp, n->val2);
 				else
 					printf("\tld (%s),a\n", rp);
 				return 1;
 			}
 			if (s == 2) {
-				if (!load_de_with(r)) {
+				if (!load_hl_with(r))
 					codegen_lr(r);
-					printf("\tex de,hl\n");
-				}
-				printf("\tld (%s + 0),e\n", rp);
-				printf("\tld (%s + 1),d\n", rp);
+				printf("\tld (%s + %d),l\n", rp, n->val2);
+				printf("\tld (%s + %d),h\n", rp, n->val2 + 1);
 				return 1;
 			}
 			return 0;
@@ -1903,14 +1952,14 @@ unsigned gen_node(struct node *n)
 				printf("\tld l,a\n");
 			return 1;
 		case 2:
-			printf("\tld l,(ix + 0)\n");	/* TODO: fix asm ? */
+			printf("\tld l,(ix + %d)\n", n->val2);
 			if (size == 2)
-				printf("\tld h,(ix + 1)\n");
+				printf("\tld h,(ix + %d)\n", n->val2 + 1);
 			return 1;
 		case 3:
-			printf("\tld l,(iy)\n");
+			printf("\tld l,(iy + %d)\n", n->val2);
 			if (size == 2)
-				printf("\tld h,(iy + 1)\n");
+				printf("\tld h,(iy + %d)\n", n->val2 + 1);
 			return 1;
 		}
 		return 0;
