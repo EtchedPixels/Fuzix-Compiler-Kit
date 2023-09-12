@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include "compiler.h"
 #include "backend.h"
 
@@ -32,6 +33,63 @@ static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned argbase;	/* Argument offset in current function */
 static unsigned unreachable;	/* Code following an unconditional jump */
 static unsigned func_cleanup;	/* Zero if we can just ret out */
+
+/*
+ *	Output side logic. For now dumb but route everything here so
+ *	we can do more useful stuff later
+ */
+
+#define OP_XCHG		1
+#define OP_PUSH		2
+#define OP_LXI		3
+#define OP_DAD		4
+#define OP_SPHL		5
+#define OP_INX		6
+#define OP_DCX		7
+#define OP_RET		8
+#define OP_POP		9
+#define OP_MOV		10
+#define OP_MVI		11
+#define OP_LHLD		12
+#define OP_SHLD		13
+#define OP_LDA		14
+#define OP_STA		15
+#define OP_ARHL		16
+#define OP_DSUB		17
+#define OP_LDAX		18
+#define OP_STAX		19
+#define OP_XTHL		20
+#define OP_LHLX		21
+#define OP_SHLX		22
+
+#define	R_A		1
+#define R_PSW		1		/* Unless we start CC tracking */
+#define R_B		2
+#define R_C		4
+#define R_BC		(R_B|R_C)
+#define R_D		8
+#define R_E		16
+#define R_DE		(R_D|R_E)
+#define R_H		32
+#define R_L		64
+#define R_HL		(R_H|R_L)
+#define R_M		128
+#define R_SP		256
+#define	R_MEM		512
+
+static void opcode(unsigned code, unsigned rs, unsigned rd, const char *p, ...)
+{
+	va_list v;
+	va_start(v, p);
+	putchar('\t');
+	vprintf(p, v);
+	putchar('\n');
+	va_end(v);
+}
+
+/*
+ *	Object sizes
+ */
 
 static unsigned get_size(unsigned t)
 {
@@ -266,27 +324,28 @@ void gen_frame(unsigned size)
 
 	argbase = ARGBASE;
 	if (func_flags & F_REG(1)) {
-		printf("\tpush b\n");
+		opcode(OP_PUSH, R_BC|R_SP, R_SP, "push b");
 		argbase += 2;
 	}
 	if (size > 10) {
-		printf("\tlxi h,%d\n", -size);
-		printf("\tdad sp\n");
-		printf("\tsphl\n");
+		opcode(OP_LXI, 0, R_HL, "lxi h,%d", -size);
+		opcode(OP_DAD, R_SP|R_HL, R_HL, "dad sp");
+		opcode(OP_SPHL, R_HL, R_SP, "sphl");
 		return;
 	}
 	if (size & 1) {
-		printf("\tdcx sp\n");
+		opcode(OP_DCX, R_SP, R_SP, "dcx sp");
 		size--;
 	}
 	while(size) {
-		printf("\tpush h\n");
+		opcode(OP_PUSH, R_HL|R_SP, R_SP, "push h");
 		size -= 2;
 	}
 }
 
 void gen_epilogue(unsigned size)
 {
+	unsigned x = func_flags & F_VOIDRET;
 	if (sp != 0)
 		error("sp");
 	/* Return in HL, does need care on stack. TOOD: flag void functions
@@ -294,31 +353,34 @@ void gen_epilogue(unsigned size)
 	sp -= size;
 	if (cpu == 8085 && size <= 255 && size > 4) {
 		printf("\tldsi %d\n", size);
-		printf("\txchg\n");
-		printf("\tsphl\n");
-		printf("\txchg\n");
+		opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+		opcode(OP_SPHL, R_HL, R_SP, "sphl");
+		opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 	} else if (size > 10) {
-		unsigned x = func_flags & F_VOIDRET;
 		if (!x)
-			printf("\txchg\n");
-		printf("\tlxi h,0x%x\n", (uint16_t)size);
-		printf("\tdad sp\n");
-		printf("\tsphl\n");
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+		opcode(OP_LXI, 0, R_HL, "lxi h,0x%x", (uint16_t)size);
+		opcode(OP_DAD, R_SP|R_HL, R_HL, "dad sp");
+		opcode(OP_SPHL, R_HL, R_SP, "sphl");
 		if (!x)
-			printf("\txchg\n");
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 	} else {
 		if (size & 1) {
-			printf("\tinx sp\n");
+			opcode(OP_INX, R_SP, R_SP, "inx sp");
 			size--;
 		}
 		while (size) {
-			printf("\tpop d\n");
+			opcode(OP_POP, R_SP, R_SP|R_DE, "pop d");
 			size -= 2;
 		}
 	}
 	if (func_flags & F_REG(1))
-		printf("\tpop b\n");
-	printf("\tret\n");
+		opcode(OP_POP, R_SP, R_SP|R_BC, "pop b");
+	/* TODO: make this a little "ret" func as it has several users */
+	if (x)
+		opcode(OP_RET, 0, 0, "ret");
+	else
+		opcode(OP_RET, R_HL, 0, "ret");
 }
 
 void gen_label(const char *tail, unsigned n)
@@ -333,8 +395,8 @@ void gen_exit(const char *tail, unsigned n)
 {
 	if (func_cleanup)
 		gen_jump(tail, n);
-	else
-		printf("\tret\n");
+	else	/* FIXME: R_HL depends on func != void */
+		opcode(OP_RET, R_HL, 0, "ret");
 }
 
 void gen_jump(const char *tail, unsigned n)
@@ -361,18 +423,18 @@ static void gen_cleanup(unsigned v)
 		/* This is more expensive, but we don't often pass that many
 		   arguments so it seems a win to stay in HL */
 		/* TODO: spot void function and skip xchg */
-		printf("\txchg\n");
-		printf("\tlxi h,%d\n", v);
-		printf("\tdad sp\n");
-		printf("\tsphl\n");
-		printf("\txchg\n");
+		opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+		opcode(OP_LXI, 0, R_HL, "lxi h,%d", v);
+		opcode(OP_DAD, R_SP|R_HL, R_HL, "dad sp");
+		opcode(OP_SPHL, R_HL, R_SP, "sphl");
+		opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 	} else {
 		while(v >= 2) {
-			printf("\tpop d\n");
+			opcode(OP_POP, R_SP, R_DE|R_SP, "pop d");
 			v -= 2;
 		}
 		if (v)
-			printf("\tinx sp\n");
+			opcode(OP_INX, R_SP, R_SP, "inx sp");
 	}
 }
 
@@ -407,7 +469,7 @@ void gen_helpclean(struct node *n)
 
 void gen_switch(unsigned n, unsigned type)
 {
-	printf("\tlxi d,Sw%d\n", n);
+	opcode(OP_LXI, 0, R_DE, "lxi d,Sw%d", n);
 	printf("\tjmp __switch");
 	helper_type(type, 0);
 	printf("\n");
@@ -541,34 +603,34 @@ static unsigned access_direct_b(struct node *n)
  *	we merge this with the similar hl one in the main table ?
  */
 
-static unsigned load_r_with(const char r, struct node *n)
+static unsigned load_r_with(const char r, struct node *n, unsigned mask)
 {
 	unsigned v = WORD(n->value);
 	const char *name;
 
 	switch(n->op) {
 	case T_NAME:
-		printf("\tlxi %c,_%s+%d\n", r, namestr(n->snum), v);
+		opcode(OP_LXI, 0, mask, "lxi %c,_%s+%d", r, namestr(n->snum), v);
 		return 1;
 	case T_LABEL:
-		printf("\tlxi %c,T%d+%d\n", r, n->val2, v);
+		opcode(OP_LXI, 0, mask, "lxi %c,T%d+%d", r, n->val2, v);
 		return 1;
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
-		printf("\tlxi %c,%d\n", r, v);
+		opcode(OP_LXI, 0, mask, "lxi %c,%d", r, v);
 		return 1;
 	case T_NREF:
 		name = namestr(n->snum);
 		if (r == 'b')
 			return 0;
 		else if (r == 'h') {
-			printf("\tlhld _%s+%d\n", name, v);
+			opcode(OP_LHLD, R_MEM, R_HL, "lhld _%s+%d", name, v);
 			return 1;
 		} else if (r == 'd') {
 			/* We know it is int or pointer */
-			printf("\txchg\n");
-			printf("\tlhld _%s+%d\n", name, v);
-			printf("\txchg\n");
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+			opcode(OP_LHLD, R_MEM, R_HL, "lhld _%s+%d\n", name, v);
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 			return 1;
 		}
 		break;
@@ -577,21 +639,24 @@ static unsigned load_r_with(const char r, struct node *n)
 		if (r == 'b')
 			return 0;
 		else if (r == 'h') {
-			printf("\tlhld T%d+%d\n", n->val2, v);
+			opcode(OP_LHLD, R_MEM, R_HL, "lhld T%d+%d", n->val2, v);
 			return 1;
 		} else if (r == 'd') {
 			/* We know it is int or pointer */
-			printf("\txchg\n");
-			printf("\tlhld T%d+%d\n", n->val2, v);
-			printf("\txchg\n");
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+			opcode(OP_LHLD, R_MEM, R_HL, "lhld T%d+%d", n->val2, v);
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 			return 1;
 		}
 		break;
 	case T_RREF:
-		if (r == 'd')
-			printf("\tmov d,b\n\tmov e,c\n");
-		else if (r == 'h')
-			printf("\tmov l,c\n\tmov h,b\n");
+		if (r == 'd') {
+			opcode(OP_MOV, R_B, R_D, "mov d,b");
+			opcode(OP_MOV, R_C, R_E, "mov e,c\n");
+		} else if (r == 'h') {
+			opcode(OP_MOV, R_B, R_H, "mov h,b");
+			opcode(OP_MOV, R_C, R_L, "mov l,c\n");
+		}
 		/* Assumes that BC isn't corrupted yet so is already the right value. Use
 		   this quirk with care (eg T_MINUS) */
 		return 1;
@@ -603,17 +668,17 @@ static unsigned load_r_with(const char r, struct node *n)
 
 static unsigned load_bc_with(struct node *n)
 {
-	return load_r_with('b', n);
+	return load_r_with('b', n, R_BC);
 }
 
 static unsigned load_de_with(struct node *n)
 {
-	return load_r_with('d', n);
+	return load_r_with('d', n, R_DE);
 }
 
 static unsigned load_hl_with(struct node *n)
 {
-	return load_r_with('h', n);
+	return load_r_with('h', n, R_HL);
 }
 
 static unsigned load_a_with(struct node *n)
@@ -621,16 +686,16 @@ static unsigned load_a_with(struct node *n)
 	switch(n->op) {
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
-		printf("\tmvi a,%d\n", BYTE(n->value));
+		opcode(OP_MVI, 0, R_A, "mvi a,%d", BYTE(n->value));
 		break;
 	case T_NREF:
-		printf("\tlda _%s+%d\n", namestr(n->snum), WORD(n->value));
+		opcode(OP_LDA, R_MEM, R_A, "lda _%s+%d", namestr(n->snum), WORD(n->value));
 		break;
 	case T_LBREF:
-		printf("\tlda T%d+%d\n", n->val2, WORD(n->value));
+		opcode(OP_LDA, R_MEM, R_A, "lda T%d+%d", n->val2, WORD(n->value));
 		break;
 	case T_RREF:
-		printf("\tmov a,c\n");
+		opcode(OP_MOV, R_C, R_A, "mov a,c");
 		break;
 	default:
 		return 0;
@@ -638,6 +703,7 @@ static unsigned load_a_with(struct node *n)
 	return 1;
 }
 
+/* TODO: needs a format change */
 static void repeated_op(const char *o, unsigned n)
 {
 	while(n--)
@@ -648,16 +714,16 @@ static void loadhl(struct node *n, unsigned s)
 {
 	if (n && (n->flags & NORETURN))
 		return;
-	printf("\tmov l,c\n");
+	opcode(OP_MOV, R_C, R_L, "mov l,c");
 	if (s == 2)
-		printf("\tmov h,b\n");
+		opcode(OP_MOV, R_B, R_H, "mov h,b");
 }
 
 static void loadbc(unsigned s)
 {
-	printf("\tmov c,l\n");
+	opcode(OP_MOV, R_L, R_C, "mov c,l");
 	if (s == 2)
-		printf("\tmov b,h\n");
+		opcode(OP_MOV, R_H, R_B, "mov b,h");
 }
 
 /* We use "DE" as a name but A as register for 8bit ops... probably ought to rework one day */
@@ -723,19 +789,21 @@ static void write_mul(unsigned n)
 {
 	unsigned pops = 0;
 	if ((n & 0xFF) == 0) {
-		printf("\tmov h,l\n\tmvi l,0\n");
+		opcode(OP_MOV, R_L, R_H, "mov h,l");
+		opcode(OP_MVI, 0, R_L, "mvi l,0");
 		n >>= 8;
 	}
 	while(n > 1) {
 		if (n & 1) {
 			pops++;
-			printf("\tpush h\n");
+			opcode(OP_PUSH, R_SP|R_HL, R_SP, "push h");
 		}
-		printf("\tdad h\n");
+		opcode(OP_DAD, R_HL, R_HL, "dad h");
 		n >>= 1;
 	}
 	while(pops--) {
-		printf("\tpop d\n\tdad d\n");
+		opcode(OP_POP, R_SP, R_SP|R_DE, "pop d");
+		opcode(OP_DAD, R_DE|R_HL, R_HL, "dad d");
 	}
 }
 
@@ -758,7 +826,7 @@ static void gen_fast_mul(unsigned s, unsigned n)
 {
 
 	if (n == 0)
-		printf("\tlxi h,0\n");
+		opcode(OP_LXI, 0, R_HL, "lxi h,0");
 	else
 		write_mul(n);
 }
@@ -770,7 +838,8 @@ static unsigned gen_fast_div(unsigned n, unsigned s)
 	if (n == 1)
 		return 1;
 	if (n == 256) {
-		printf("\tmov l,h\n\tmvi h,0\n");
+		opcode(OP_MOV, R_H, R_L, "mov l,h");
+		opcode(OP_MVI, 0, R_H, "mvi h,0");
 		return 1;
 	}
 	if (cpu != 8085)
@@ -780,7 +849,7 @@ static unsigned gen_fast_div(unsigned n, unsigned s)
 		return 0;
 
 	while(n > 1) {
-		printf("\tarhl\n");
+		opcode(OP_ARHL, R_HL,  R_HL, "arhl");
 		n >>= 1;
 	}
 	return 1;
@@ -803,23 +872,27 @@ static unsigned gen_logicc(struct node *n, unsigned s, const char *op, unsigned 
 	if (s == 2) {
 		if (h == 0) {
 			if (code == 1)
-				printf("\tmvi h,0\n");
+				opcode(OP_MVI, 0, R_H, "mvi h,0");
 		}
 		else if (h == 255 && code != 3) {
 			if (code == 2)
-				printf("\tmvi h,255\n");
+				opcode(OP_MVI, 0, R_H, "mvi h,255");
 		} else {
-			printf("\tmov a,h\n\t%s %d\n\tmov h,a\n", op, h);
+			opcode(OP_MOV, R_H, R_A, "mov a,h");
+			printf("\t%s %d", op, h);
+			opcode(OP_MOV, R_A, R_H, "mov h,a");
 		}
 	}
 	if (l == 0) {
 		if (code == 1)
-			printf("\tmvi l,0\n");
+			opcode(OP_MVI, 0, R_L, "mvi l,0");
 	} else if (l == 255 && code != 3) {
 		if (code == 2)
-			printf("\tmvi l,255\n");
+			opcode(OP_MVI, 0, R_L, "mvi l,255");
 	} else {
-		printf("\tmov a,l\n\t%s %d\n\tmov l,a\n", op, l);
+		opcode(OP_MOV, R_L, R_A, "mov a,l");
+		printf("t%s %d\n", op, l);
+		opcode(OP_MOV, R_A, R_L, "mov l,a");
 	}
 	return 1;
 }
@@ -830,11 +903,11 @@ static unsigned gen_fast_remainder(unsigned n, unsigned s)
 	if (s != 2)
 		return 0;
 	if (n == 1) {
-		printf("\tlxi h,0\n");
+		opcode(OP_LXI, 0, R_HL, "lxi h,0");
 		return 1;
 	}
 	if (n == 256) {
-		printf("\tmvi h,0\n");
+		opcode(OP_MVI, 0, R_H, "mvi h,0\n");
 		return 1;
 	}
 	if (n & (n - 1))
@@ -903,7 +976,7 @@ unsigned gen_direct(struct node *n)
 	case T_EQ:
 		/* The address is in HL at this point */
 		if (cpu == 8085 && s == 2 ) {
-			printf("\txchg\n");
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 			if (load_hl_with(r) == 0)
 				error("teq");
 			printf("\tshlx\n");
@@ -913,13 +986,13 @@ unsigned gen_direct(struct node *n)
 			/* We need to end up with the value in l if this is not NORETURN, also
 			   we can optimize constant a step more */
 			if (r->op == T_CONSTANT && (n->flags & NORETURN))
-				printf("\tmvi m,%d\n", ((unsigned)r->value) & 0xFF);
+				opcode(OP_MVI, R_HL, R_MEM, "mvi m,%d", ((unsigned)r->value) & 0xFF);
 			else {
 				if (load_a_with(r) == 0)
 					return 0;
-				printf("\tmov m,a\n");
+				opcode(OP_MOV, R_A|R_HL, R_MEM, "mov m,a");
 				if (!(n->flags & NORETURN))
-					printf("\tmov l,a\n");
+					opcode(OP_MOV, R_A, R_L, "mov l,a");
 			}
 			return 1;
 		}
@@ -942,16 +1015,16 @@ unsigned gen_direct(struct node *n)
 			if (s == 1) {
 				if (load_a_with(r) == 0)
 					return 0;
-				printf("\tmov e,a\n");
+				opcode(OP_MOV, R_A, R_E, "mov e,a");
 			}
 			/* Short cut register case */
 			if (r->op == T_REG) {
-				printf("\tdad b\n");
+				opcode(OP_DAD, R_HL|R_BC, R_HL, "dad b");
 				return 1;
 			}
 			if (s > 2 || load_de_with(r) == 0)
 				return 0;
-			printf("\tdad d\n");
+			opcode(OP_DAD, R_HL|R_DE, R_HL, "dad d");
 			return 1;
 		}
 		return 0;
@@ -966,30 +1039,31 @@ unsigned gen_direct(struct node *n)
 					repeated_op("dcx h", v);
 				return 1;
 			}
-			printf("\tlxi d,%d\n", 65536 - v);
-			printf("\tdad d\n");
+			opcode(OP_LXI, 0, R_DE, "lxi d,%d", 65536 - v);
+			opcode(OP_DAD, R_HL|R_DE, R_HL, "dad d");
 			return 1;
 		}
 		if (cpu == 8085 && s <= 2)  {
 			/* Shortcut subtracting register from working value */
 			if (r->op == T_REG) {
-				printf("\tdsub\n");
+				opcode(OP_DSUB, R_BC|R_HL, R_HL, "dsub");
 				return 1;
 			}
 			if (access_direct_b(r)) {
-				printf("\tpush b\n");
+				opcode(OP_PUSH, R_SP|R_BC, R_SP, "push b");
 				sp += 2;
 				/* Must not corrupt B before we are ready */
 				/* LHS is in HL at the moment, end up with the result in HL */
 				if (s == 1) {
 					if (load_a_with(r) == 0)
 						error("min1");
-					printf("\tmov c,a\n");
+					opcode(OP_MOV, R_A, R_C, "mov c,a");
 				} else {
 					if (load_bc_with(r) == 0)
 						error("min2");
 				}
-				printf("\tdsub  ; b\n\tpop b\n");
+				opcode(OP_DSUB, R_BC|R_HL, R_HL, "dsub");
+				opcode(OP_POP, R_SP, R_BC, "pop b");
 				sp -= 2;
 				return 1;
 			}
@@ -998,7 +1072,7 @@ unsigned gen_direct(struct node *n)
 	case T_STAR:
 		if (r->op == T_CONSTANT) {
 			if (s <= 2 && can_fast_mul(s, r->value)) {
-				 gen_fast_mul(s, r->value);
+				gen_fast_mul(s, r->value);
 				return 1;
 			}
 		}
@@ -1044,15 +1118,18 @@ unsigned gen_direct(struct node *n)
 		if (s <= 2 && r->op == T_CONSTANT && r->value <= 8) {
 			if (r->value < 8)
 				repeated_op("dad h", r->value);
-			else
-				printf("\tmov h,l\n\tmvi l,0\n");
+			else {
+				opcode(OP_MOV, R_L, R_H, "mov h,l");
+				opcode(OP_MVI, 0, R_L, "mvi l,0");
+			}
 			return 1;
 		}
 		return gen_deop("shlde", n, r, 0);
 	case T_GTGT:
 		/* >> by 8 unsigned */
 		if (s == 2 && (n->type & UNSIGNED) && r->op == T_CONSTANT && r->value == 8) {
-			printf("\tmov l,h\n\tmvi h,0\n");
+			opcode(OP_MOV, R_H, R_L, "mov l,h");
+			opcode(OP_MVI, 0, R_H, "mvi h,0");
 			return 1;
 		}
 		/* 8085 has a signed right shift 16bit */
@@ -1282,14 +1359,16 @@ unsigned gen_shortcut(struct node *n)
 	}
 	/* Assignment to *BC, byte pointer always */
 	if (n->op == T_REQ) {
+		unsigned in_l = 0;
 		/* Try and get the value into A */
 		if (!load_a_with(r)) {
 			codegen_lr(r);		/* If not then into HL */
-			printf("\tmov a,l\n");
+			in_l = 1;
+			opcode(OP_MOV, R_L, R_A, "mov a,l");
 		}
 		printf("\tstax b\n");	/* Do in case volatile */
-		if (!nr)
-			printf("\tmov l,a\n");
+		if (!nr && !in_l)
+			opcode(OP_MOV, R_A, R_L, "mov l,a");
 		return 1;
 	}
 	/* ?? LBSTORE */
@@ -1320,13 +1399,13 @@ unsigned gen_shortcut(struct node *n)
 			} else {
 				/* Amount to add into HL */
 				codegen_lr(r);
-				printf("\tdad b\n");
-				printf("\tmov c,l\n");
+				opcode(OP_DAD, R_HL|R_BC, R_HL, "dad b");
+				opcode(OP_MOV, R_L, R_C, "mov c,l");
 				if (s == 2)
-					printf("\tmov b,h\n");
+					opcode(OP_MOV, R_H, R_B, "mov b,h");
 			}
 			if (n->op == T_PLUSPLUS && !(n->flags & NORETURN)) {
-				printf("\tpop h\n");
+				opcode(OP_POP, R_SP, R_HL|R_SP, "pop h");
 				sp -= 2;
 			}
 			return 1;
@@ -1482,8 +1561,10 @@ unsigned gen_push(struct node *n)
 	case 4:
 		if (optsize)
 			printf("\tcall __pushl\n");
-		else
-			printf("\txchg\n\tlhld __hireg\n\tpush h\n\tpush d\n");
+		else {
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+			printf("\tlhld __hireg\n\tpush h\n\tpush d\n");
+		}
 		return 1;
 	default:
 		return 0;
@@ -1584,6 +1665,13 @@ unsigned gen_node(struct node *n)
 				printf("\tldax d\n\tmov l,a\n");
 			return 1;
 		}
+		if (v == 2 && size == 2) {
+			opcode(OP_POP, R_SP, R_DE|R_SP, "pop d");
+			opcode(OP_POP, R_SP, R_HL|R_SP, "pop h");
+			opcode(OP_POP, R_SP, R_DE|R_SP, "push h");
+			opcode(OP_POP, R_SP, R_HL|R_SP, "pop d");
+			return 1;
+		}
 		/* Byte load is shorter inline for most cases */
 		if (size == 1 && (!optsize || v >= LWDIRECT)) {
 			printf("lxi h,%d\n\tdad sp\n\tmov l,m\n", v);
@@ -1592,9 +1680,10 @@ unsigned gen_node(struct node *n)
 		/* Word load is long winded on 8080 */
 		if (size == 2 && (cpu == 8085 || opt > 2)) {
 			printf("\tlxi h,%d\n\tdad sp\n", WORD(v));
-			if (cpu == 8085)
-				printf("\txchg\nlhlx\n");
-			else
+			if (cpu == 8085) {
+				opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+				printf("\tlhlx\n");
+			} else
 				printf("\tmov a,m\n\tinx h\n\tmov h,m\n\tmov l,a\n");
 			return 1;
 		}
@@ -1623,8 +1712,10 @@ unsigned gen_node(struct node *n)
 	case T_NSTORE:
 		if (size == 4) {
 			printf("\tshld %s+%d\n", namestr(n->snum), v);
-			printf("\txchg\n\tlhld __hireg\nshld %s+%d\n\txchg\n",
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+			printf("\tlhld __hireg\nshld %s+%d\n",
 				namestr(n->snum), v + 2);
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 			return 1;
 		}
 		if (size == 1)
@@ -1636,8 +1727,10 @@ unsigned gen_node(struct node *n)
 	case T_LBSTORE:
 		if (size == 4) {
 			printf("\tshld T%d+%d\n", n->val2, v);
-			printf("\txchg\n\tlhld __hireg\n\tshld T%d+%d\n\txchg\n",
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+			printf("\tlhld __hireg\n\tshld T%d+%d\n",
 				n->val2, v + 2);
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 			return 1;
 		}
 		if (size == 1)
@@ -1651,23 +1744,39 @@ unsigned gen_node(struct node *n)
 		v += sp;
 		if (v == 0 && size == 2 ) {
 			if (nr)
-				printf("\txthl\n");
-			else
-				printf("\tpop psw\n\tpush h\n");
+				opcode(OP_XTHL, R_SP|R_M|R_HL, R_SP|R_M|R_HL, "xthl");
+			else {
+				opcode(OP_POP, R_SP, R_PSW|R_SP, "pop psw");
+				opcode(OP_PUSH, R_SP|R_HL, R_SP, "push h");
+			}
 			return 1;
 		}
 		if (cpu == 8085 && v <= 255) {
 			printf("\tldsi %d\n", v);
 			if (size == 2)
 				printf("\tshlx\n");
-			else
-				printf("\tmov a,l\n\tstax d\n");
+			else {
+				opcode(OP_MOV, R_L, R_A, "mov a,l");
+				opcode(OP_STAX, R_DE|R_A, R_M, "stax d\n");
+			}
+			return 1;
+		}
+		if (v == 2 && size == 2) {
+			opcode(OP_POP, R_SP, R_DE|R_SP, "pop d");
+			if (nr)
+				opcode(OP_XTHL, R_SP|R_M|R_HL, R_SP|R_M|R_HL, "xthl");
+			else {
+				opcode(OP_POP, R_SP, R_PSW|R_SP, "pop psw");
+				opcode(OP_PUSH, R_SP|R_HL, R_SP, "push h");
+			}
+			opcode(OP_PUSH, R_SP, R_DE|R_SP, "push d");
 			return 1;
 		}
 		/* Large offsets for word on 8085 are 7 bytes, a helper call is 5 (3 with rst hacks)
 		   and much slower. As these are fairly rare just inline it */
 		if (cpu == 8085 && size == 2) {
-			printf("\txchg\n\tlxi h,%d\n\tdad sp\n\txchg\n\tshlx\n", WORD(v));
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+			printf("\tlxi h,%d\n\tdad sp\n\txchg\n\tshlx\n", WORD(v));
 			return 1;
 		}
 		if (size == 1 && (!optsize || v >= LWDIRECT)) {
@@ -1679,10 +1788,11 @@ unsigned gen_node(struct node *n)
 		/* For -O3 they asked for it so inline the lot */
 		/* We dealt with size one above */
 		if (opt > 2 && size == 2) {
-			printf("\txchg\n\tlxi h,%d\n\tdad sp\n\tmov m,e\n\tinx h\n", WORD(v));
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+			printf("\tlxi h,%d\n\tdad sp\n\tmov m,e\n\tinx h\n", WORD(v));
 			printf("\tmov m,d\n");
 			if (!nr)
-				printf("\txchg\n");
+				opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 			return 1;
 		}
 		/* Via helper magic for compactness on 8080 */
@@ -1715,16 +1825,17 @@ unsigned gen_node(struct node *n)
 			if (cpu == 8085)
 				printf("\tpop d\n\tshlx\n");
 			else {
-				printf("\txchg\n\tpop h\n\tmov m,e\n\tinx h\n\tmov m,d\n");
+				opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+				printf("\tpop h\n\tmov m,e\n\tinx h\n\tmov m,d\n");
 				if (!(nr))
-					printf("\txchg\n");
+					opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 			}
 			return 1;
 		}
 		if (size == 1) {
 			printf("\tpop d\n\txchg\n\tmov m,e\n");
 			if (!(n->flags & NORETURN))
-				printf("\txchg\n");
+				opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 			return 1;
 		}
 		break;
@@ -1736,10 +1847,13 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_DEREF:
 		if (size == 2) {
-			if (cpu == 8085)
-				printf("\txchg\n\tlhlx\n");
-			else
-				printf("\tmov e,m\n\tinx h\n\tmov d,m\n\txchg\n");
+			if (cpu == 8085) {
+				opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+				opcode(OP_LHLX, R_DE|R_MEM, R_HL, "lhlx");
+			} else {
+				printf("\tmov e,m\n\tinx h\n\tmov d,m\n");
+				opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+			}
 			return 1;
 		}
 		if (size == 1) {
@@ -1747,7 +1861,8 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (size == 4 && cpu == 8085 && !optsize) {
-			printf("\txchg\n\tinx d\n\tinx d\n\tlhlx\n\tshld __hireg\t\n\tdcx d\n\tdcx d\n\tlhlx\n");
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+			printf("\tinx d\n\tinx d\n\tlhlx\n\tshld __hireg\t\n\tdcx d\n\tdcx d\n\tlhlx\n");
 			return 1;
 		}
 		break;
@@ -1789,10 +1904,10 @@ unsigned gen_node(struct node *n)
 /*		printf(";LO sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
 		if (cpu == 8085 && v <= 255) {
 			printf("\tldsi %d\n", v);
-			printf("\txchg\n");
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 		} else {
 			printf("\tlxi h,%d\n", v);
-			printf("\tdad sp\n");
+			opcode(OP_DAD, R_SP|R_HL, R_HL, "dad sp");
 		}
 		return 1;
 	case T_ARGUMENT:
@@ -1802,10 +1917,10 @@ unsigned gen_node(struct node *n)
 /*		printf(";AR sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
 		if (cpu == 8085 && v <= 255) {
 			printf("\tldsi %d\n", v);
-			printf("\txchg\n");
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 		} else {
 			printf("\tlxi h,%d\n", v);
-			printf("\tdad sp\n");
+			opcode(OP_DAD, R_SP|R_HL, R_HL, "dad sp");
 		}
 		return 1;
 	case T_REG:
