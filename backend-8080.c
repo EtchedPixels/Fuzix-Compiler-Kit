@@ -1445,7 +1445,7 @@ unsigned gen_shortcut(struct node *n)
 					printf("\tmov a,c\n\tsub l\n\tmov l,c\n\tmov c,a\n");
 					return 1;
 				}
-				/* TODO: can we inline constants by doing an add of negative ? */
+				/* Not worth messing with inlined constants as we need the original value */
 				helper(n, "bcsub");
 				return 1;
 			}
@@ -1455,6 +1455,12 @@ unsigned gen_shortcut(struct node *n)
 			if (reg_canincdec(r, s, -v)) {
 				reg_incdec(s, -v);
 				loadhl(n, s);
+				return 1;
+			}
+			if (r->op == T_CONSTANT) {
+				opcode(OP_LXI, 0, R_HL, "lxi h,%d", -v);
+				opcode(OP_DAD, R_HL|R_BC, R_HL, "dad b");
+				loadbc(s);
 				return 1;
 			}
 			/* Get the subtraction value into HL */

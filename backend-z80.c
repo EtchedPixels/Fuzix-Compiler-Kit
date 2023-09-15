@@ -1552,9 +1552,17 @@ unsigned gen_shortcut(struct node *n)
 					reg_incdec(reg, s, -v);
 					return 1;
 				}
-				/* We can do subtracts between IX or IY and DE */
-				if (reg != 1 && load_de_with(r)) {
-					printf("\tor a\n\tsbc %s,de\n", regnames[reg]);
+				/* Z80 has no 16bit subtract for IX or IT */
+				if (reg != 1) {
+					if (r->op == T_CONSTANT) {
+						printf("\tld de,%d\n", -v);
+						printf("\tadd %s,de\n", regnames[reg]);
+						return 1;
+					}
+					codegen_lr(r);
+					helper(n, "negate");
+					printf("\tex de,hl\n");
+					printf("\tadd %s,de\n", regnames[reg]);
 					return 1;
 				}
 				codegen_lr(r);
@@ -1575,8 +1583,18 @@ unsigned gen_shortcut(struct node *n)
 			}
 			/* Get the subtraction value into HL */
 			codegen_lr(r);
-			/* TODO: can we inline constants by doing an add of negative ? */
-			reghelper(n, "bcsub");
+			if (reg != 1) {
+				if (r->op == T_CONSTANT) {
+					printf("\tlxi d,%d\n", -v);
+					printf("\tadd %s,de\n", regnames[reg]);
+				} else {
+					codegen_lr(r);
+					helper(n, "negate");
+					printf("\tex de,hl\n");
+					printf("\tadd %s,de\n", regnames[reg]);
+				}
+			} else
+				reghelper(n, "bcsub");
 			/* Result is only left in reg var reload if needed */
 			get_regvar(reg, n, s);
 			return 1;
