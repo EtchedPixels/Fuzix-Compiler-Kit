@@ -1,7 +1,7 @@
-all: cc85 ccz80 ccthread ccbyte cc0 \
-     cc1.8080 cc1.6803 cc1.z80 cc1.thread cc1.byte \
+all: cc85 ccz80 ccthread ccbyte cc6502 cc0 \
+     cc1.8080 cc1.6803 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread cc2.byte \
-     copt support8080 support8085 supportz80
+     cc2.6502 copt support8080 support8085 supportz80
 
 .PHONY: support8080 support8085 supportz80
 
@@ -20,6 +20,7 @@ OBJS7 = backend.o backend-6803.o
 OBJS8 = backend.o backend-8070.o
 OBJS9 = backend.o backend-threadcode.o
 OBJS10 = backend.o backend-bytecode.o
+OBJS11 = backend.o backend-6502.o
 
 CFLAGS = -Wall -pedantic -g3
 
@@ -68,6 +69,9 @@ cc1.thread:$(OBJS1) target-threadcode.o
 cc1.byte:$(OBJS1) target-bytecode.o
 	gcc -g3 $(OBJS1) target-bytecode.o -o cc1.byte
 
+cc1.6502:$(OBJS1) target-6502.o
+	gcc -g3 $(OBJS1) target-6502.o -o cc1.6502
+
 cc2:	$(OBJS2)
 	gcc -g3 $(OBJS2) -o cc2
 
@@ -95,6 +99,9 @@ cc2.thread:	$(OBJS9)
 cc2.byte:	$(OBJS10)
 	gcc -g3 $(OBJS10) -o cc2.byte
 
+cc2.6502:	$(OBJS11)
+	gcc -g3 $(OBJS11) -o cc2.6502
+
 support8080:
 	(cd support8080; make)
 
@@ -116,6 +123,17 @@ clean:
 # Hack for now
 # assumes a suitable cpp, as, libs and includes are present
 install: all
+	# 6502
+	mkdir -p /opt/cc6502/bin
+	mkdir -p /opt/cc6502/lib
+	mkdir -p /opt/cc6502/include
+	cp cc6502 /opt/cc6502/bin/cc6502
+	cp cpp6502 /opt/cc6502/lib/cpp
+	cp cc0 /opt/cc6502/lib
+	cp cc1.6502 /opt/cc6502/lib
+	cp cc2.6502 /opt/cc6502/lib
+	cp copt /opt/cc6502/lib
+	cp rules.6502 /opt/cc6502/lib
 	# 8080/8085
 	mkdir -p /opt/cc85/bin
 	mkdir -p /opt/cc85/lib
