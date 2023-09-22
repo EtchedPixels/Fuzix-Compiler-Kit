@@ -96,6 +96,42 @@ void write_tmpop(const char *op, const char *pre)
     fclose(f);
 }
 
+/* This writes all the usual word forms of
+        a += b
+   We don't do <<= or >>= here as they are a bit different.
+   We don't do -= because it needs to be done the other way around
+
+   On entry @tmp is the left side (addr), and the value is the modifier.
+   On exit XA is the result
+*/
+
+void write_eqtmpop(const char *op, const char *pre)
+{
+    char buf[64];
+    FILE *f;
+    snprintf(buf, 64, "__%seqtmp.s", op);
+
+    f = fopen(buf, "w");
+    if (f == NULL) {
+        perror(buf);
+        exit(1);
+    }
+    
+    fprintf(f, "\t.text\n\n");
+    fprintf(f, "\t.export __%stmp\n\t.export __%stmps\n", op, op);
+    fprintf(f, "__%stmp:\n", op);
+    fprintf(f, "__%stmps:\n", op);
+    fprintf(f, "\tldy #0\n");
+    if (pre)
+        fprintf(f, "\t%s\n", pre);
+    fprintf(f, "\t%s (@tmp),y\n", op);
+    fprintf(f, "\tsta (@tmp),y\n");
+    fprintf(f, "\tpha\n\ttxa\n\tiny\n");
+    fprintf(f, "\t%s (@tmp),y\n", op);
+    fprintf(f, "\tsta (@tmp),y\n");
+    fprintf(f, "\ttax\n\tpla\n\trts\n");
+    fclose(f);
+}
 
 int main(int argc, char *argv[])
 {
@@ -112,5 +148,13 @@ int main(int argc, char *argv[])
     write_tmpop("and", NULL);
     write_tmpop("ora", NULL);
     write_tmpop("eor", NULL);
+
+    write_eqtmpop("adc", "clc");
+    /* sbc is not commutive */
+    write_eqtmpop("sbc", "sec");
+    write_eqtmpop("and", NULL);
+    write_eqtmpop("ora", NULL);
+    write_eqtmpop("eor", NULL);
+    
     return 0;
 }
