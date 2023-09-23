@@ -112,3 +112,4 @@ PARTDONE - Whilst we need to be careful for side effects on * 0, we don't for an
   fast 1 << n (lookup table ?)
 DONE - Walk subtrees of logic ops to try and optimize bools if value not used and subnodes just
   need cc
+- Turn !! (NOT NOT) into BOOL
