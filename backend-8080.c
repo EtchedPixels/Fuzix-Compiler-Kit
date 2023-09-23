@@ -68,6 +68,9 @@ static unsigned func_cleanup;	/* Zero if we can just ret out */
 #define OP_DATA		27
 #define OP_COMMENT	28
 #define OP_LABEL	29
+#define OP_INC		30
+#define OP_DEC		31
+#define OP_ADD		32
 
 #define	R_A		1
 #define R_PSW		1		/* Unless we start CC tracking */
@@ -90,7 +93,8 @@ static void opcode(unsigned code, unsigned rs, unsigned rd, const char *p, ...)
 {
 	va_list v;
 	va_start(v, p);
-	putchar('\t');
+	if (code != OP_LABEL && code != OP_COMMENT)
+		putchar('\t');
 	vprintf(p, v);
 	putchar('\n');
 	va_end(v);
@@ -217,12 +221,18 @@ struct node *gen_rewrite_node(struct node *n)
 	if (op == T_DEREF && r->op == T_RREF) {
 		n->op = T_RDEREF;
 		n->right = NULL;
+		n->val2 = 0;
+		n->value = r->value;
+		free_node(r);
 		return n;
 	}
 	/* *regptr = */
 	if (op == T_EQ && l->op == T_RREF) {
 		n->op = T_REQ;
+		n->val2 = 0;
+		n->value = l->value;
 		n->left = NULL;
+		free_node(l);
 		return n;
 	}
 	/* Rewrite references into a load operation */
@@ -496,6 +506,7 @@ void gen_switch(unsigned n, unsigned type)
 	/* Nothing is preserved over a switch */
 	printf("\tjmp __switch");
 	helper_type(type, 0);
+	putchar('\n');
 }
 
 void gen_switchdata(unsigned n, unsigned size)
@@ -962,6 +973,7 @@ unsigned gen_direct(struct node *n)
 	unsigned s = get_size(n->type);
 	struct node *r = n->right;
 	unsigned v;
+	unsigned nr = n->flags & NORETURN;
 
 	/* We only deal with simple cases for now */
 	if (r) {
@@ -1009,13 +1021,13 @@ unsigned gen_direct(struct node *n)
 		if (s == 1) {
 			/* We need to end up with the value in l if this is not NORETURN, also
 			   we can optimize constant a step more */
-			if (r->op == T_CONSTANT && (n->flags & NORETURN))
+			if (r->op == T_CONSTANT && nr)
 				opcode(OP_MVI, R_HL, R_MEM, "mvi m,%d", ((unsigned)r->value) & 0xFF);
 			else {
 				if (load_a_with(r) == 0)
 					return 0;
 				opcode(OP_MOV, R_A|R_HL, R_MEM, "mov m,a");
-				if (!(n->flags & NORETURN))
+				if (!nr)
 					opcode(OP_MOV, R_A, R_L, "mov l,a");
 			}
 			return 1;
@@ -1171,16 +1183,27 @@ unsigned gen_direct(struct node *n)
 			return 0;
 	case T_PLUSEQ:
 		if (s == 1) {
-			if (r->op == T_CONSTANT && r->value < 4 && (n->flags & NORETURN))
+			if (r->op == T_CONSTANT && r->value < 4 && nr)
 				repeated_op("inr m", r->value);
 			else {
 				if (load_a_with(r) == 0)
 					return 0;
 				printf("\tadd m\n\tmov m,a\n");
-				if (!(n->flags & NORETURN))
+				if (!nr)
 					printf("\tmov l,a\n");
 			}
 			return 1;
+		}
+		if (s == 2 && nr && r->op == T_CONSTANT && (r->value & 0x00FF) == 0) {
+			opcode(OP_INC, R_HL, R_HL, "inx h");
+			if ((r->value >> 8) < 4) {
+				repeated_op("inr m", r->value >> 8);
+				return 1;
+			}
+			opcode(OP_MVI, 0, R_A, "mvi a,%d", r->value >> 8);
+			opcode(OP_ADD, R_MEM|R_HL|R_A, R_A, "add m");
+			opcode(OP_MOV, R_A|R_HL, R_MEM, "mov m,a");
+			/* TODO - port to z80 tree */
 		}
 		return gen_deop("pluseqde", n, r, 0);
 	case T_MINUSMINUS:
@@ -1703,8 +1726,8 @@ unsigned gen_node(struct node *n)
 		if (v == 2 && size == 2) {
 			opcode(OP_POP, R_SP, R_DE|R_SP, "pop d");
 			opcode(OP_POP, R_SP, R_HL|R_SP, "pop h");
-			opcode(OP_POP, R_SP, R_DE|R_SP, "push h");
-			opcode(OP_POP, R_SP, R_HL|R_SP, "pop d");
+			opcode(OP_PUSH, R_SP, R_DE|R_SP, "push h");
+			opcode(OP_PUSH, R_SP, R_HL|R_SP, "push d");
 			return 1;
 		}
 		/* Byte load is shorter inline for most cases */
