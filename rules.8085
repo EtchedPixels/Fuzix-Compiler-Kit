@@ -507,18 +507,6 @@ L%1_n:
 # Useful trick - a load does not disturb flags
 # Don't do it for memory loads as they might be side effects
 # until we add some better magic for volatile
-	jz %1
-	lxi h,%2
-;
-	jmp %3
-%1:
-	lxi h,%4
-=
-	lxi h,%4
-	jz %1
-	lxi h,%2
-%1:
-
 # Func exit variant
 	jz %1
 	lxi h,%2
