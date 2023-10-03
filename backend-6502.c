@@ -256,7 +256,7 @@ static void set_xa_node(struct node *n)
 		printf("; invalidate xa\n");
 		return;
 	}
-	printf("; set XA %x, %d\n", op, value);
+;	printf("; set XA %x, %d\n", op, value);
 	reg[R_X].state = op;
 	reg[R_A].state = op;
 	reg[R_A].value = value;
@@ -270,7 +270,7 @@ static void set_xa_node(struct node *n)
 
 static unsigned xa_contains(struct node *n)
 {
-	printf(";xa contains? %x %ld\n", n->op, n->value);
+//	printf(";xa contains? %x %ld\n", n->op, n->value);
 	if (n->op == T_NREF)
 		return 0;
 	if (reg[R_A].state != n->op || reg[R_X].state != n->op)
@@ -549,10 +549,11 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *n))
 	case T_LREF:
 		if (r->value < 255) {
 			pre(n);
+			load_y(r->value + 1);
+			output("%sa (@sp),y", op);
+			output("tax");
 			load_y(r->value);
 			output("%sa (@sp),y", op);
-			load_y(r->value + 1);
-			output("%sx (@sp),y", op);
 			return 1;
 		}
 		/* For now punt */
@@ -721,129 +722,12 @@ static int leftop_memc(struct node *n, const char *op)
 	case T_ARGUMENT:
 		v += argbase + frame_len;
 	case T_LOCAL:
-		if (v > 256 - sz)
-			return 0;
-		if (cpu != NMOS_6502 && v == 0) {
-			if (sz == 2)
-				load_y(1);
-			while(count--) {
-				output("%s (@sp)", op);
-				if (sz == 2) {
-					output("beq X%d", ++xlabel);
-					output("%s (@sp),y", op);
-					label("X%d", xlabel);
-				}
-			}
-			if (!nr) {
-				output("lda (&sp)");
-				invalidate_a();
-				if (sz == 2) {
-					output("ldx (@sp),y");
-					invalidate_x();
-				}
-			}
-			return 1;
-		}
-		load_y(v);
-		while(count--) {
-			output("%s (@sp),y", op);
-			if (sz == 2) {
-				output("beq X%d", ++xlabel);
-				load_y(v+1);
-				output("%s (@sp),y", op);
-				load_y(v);
-				label("X%d", xlabel);
-			}
-		}
-		if (!nr) {
-			load_y(v);
-			output("lda (&sp),y");
-			invalidate_a();
-			if (sz == 2) {
-				load_y(v+1);
-				output("ldx (@sp),y");
-				invalidate_x();
-			}
-		}
-		return 1;
+		return 0;
+		/* Don't seem to have a suitable addressing mode */
 	}
 	return 0;
 }
 
-/* Do ma memory op like inc or dec const on @tmp. Used when the left
-   is complex and the right is not as is common */
-
-static int leftop_tmp(struct node *n, const char *op)
-{
-	unsigned sz = get_size(n->type);
-	struct node *r = n->right;
-	unsigned count;
-	unsigned nr = n->flags & NORETURN;
-
-	if (sz > 2)
-		return 0;
-
-	if (sz == 2 && optsize)
-		return 0;
-
-	/* Being super clever doesn't help if we need the value anyway */
-	if (!nr && (n->op == T_PLUSPLUS || n->op == T_MINUSMINUS))
-		return 0;
-
-	if (r->op != T_CONSTANT || r->value > 2)
-		return 0;
-	else
-		count = r->value;
-
-	output("sta @tmp");
-	output("stx @tmp+1");
-
-	count = r->value;
-	if (cpu != NMOS_6502) {
-		if (sz == 2)
-			load_y(1);
-		while(count--)  {
-			output("%d (@tmp)", op);
-			if (sz == 2) {
-				output("bcc X%d", ++xlabel);
-				output("%s (@tmp),y", op);
-				label("X%d", xlabel);
-			}
-		}
-		if (!nr) {
-			output("lda (@tmp)");
-			invalidate_a();
-			if (sz == 2) {
-				load_y(1);
-				output("ldx (@tmp),y");
-				invalidate_x();
-			}
-		}
-		return 1;
-	}
-	load_y(0);
-	while(count--) {
-		output("%d (@tmp),y", op);
-		if (sz == 2) {
-			output("bcc X%d", ++xlabel);
-			load_y(1);
-			output("%s (@tmp),y", op);
-			load_y(0);
-			label("X%d", xlabel);
-		}
-	}
-	if (!nr) {
-		load_y(0);
-		output("lda (@tmp),y");
-		invalidate_a();
-		if (sz == 2) {
-			load_y(1);
-			output("ldx (@tmp),y");
-			invalidate_x();
-		}
-	}
-	return 1;
-}
 
 /* Do a 16bit operation upper half by switching X into A */
 static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct node *))
@@ -853,14 +737,14 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 		unsigned rop = r->op;
 		if (rop == T_LREF) {
 			if (r->value == 0) { 
-				output("jsr __%ssp0");
+				output("jsr __%ssp0", op);
 				set_reg(R_Y, 1);
 				invalidate_x();
 				invalidate_a();
 				return 1;
 			} else if (r->value < 255) {
 				output("ldy #%d", r->value);
-				output("jsr __%spy");
+				output("jsr __%spy", op);
 				const_y_set(reg[R_Y].value + 1);
 				invalidate_x();
 				invalidate_a();
@@ -1044,7 +928,7 @@ void gen_segment(unsigned s)
 {
 	switch(s) {
 	case A_CODE:
-		output(".text");
+		output(".code");
 		break;
 	case A_DATA:
 		output(".data");
@@ -1556,9 +1440,6 @@ unsigned gen_direct(struct node *n)
 	   addressible and fold them so we can generate inc _reg, bcc, inc _reg+1 etc */
 	/* TODO: look at push/pop for nr in leftop_tmp as option when need result - esp on C02 */
 	case T_PLUSPLUS:
-		/* Left is complex, right is simple */
-		if (nr && leftop_tmp(n, "inc"))
-			return 1;
 		if (r->op == T_CONSTANT) {
 			if (r->value == 1) {
 				gen_internal("plusplus1");
@@ -1575,8 +1456,6 @@ unsigned gen_direct(struct node *n)
 		}
 		return pri_help(n, "plusplustmp");
 	case T_MINUSMINUS:
-		if (nr && leftop_tmp(n, "dec"))
-			return 1;
 		if (r->op == T_CONSTANT) {
 			if (r->value == 1) {
 				gen_internal("minusminus1");
@@ -1593,23 +1472,6 @@ unsigned gen_direct(struct node *n)
 		}
 		return pri_help(n, "minusminustmp");
 	case T_PLUSEQ:
-		if (leftop_tmp(n, "inc")) {
-			if (nr) {
-				if (cpu != NMOS_6502) {
-					output("lda (@tmp");
-					if (s == 2) {
-						load_y(1);
-						output("ldx (@tmp),y");
-					}
-					return 1;
-				}
-				load_y(0);
-				output("lda (@tmp),y");
-				load_y(1);
-				output("ldx (@tmp),y");
-			}
-			return 1;
-		}
 		if (r->op == T_CONSTANT) {
 			if (r->value == 1) {
 				gen_internal("pluseq1");
@@ -1631,23 +1493,6 @@ unsigned gen_direct(struct node *n)
 		}
 		return pri_help(n, "pluseqtmp");
 	case T_MINUSEQ:
-		if (leftop_tmp(n, "dec")) {
-			if (nr) {
-				if (cpu != NMOS_6502) {
-					output("lda (@tmp");
-					if (s == 2) {
-						load_y(1);
-						output("ldx (@tmp),y");
-					}
-					return 1;
-				}
-				load_y(0);
-				output("lda (@tmp),y");
-				load_y(1);
-				output("ldx (@tmp),y");
-			}
-			return 1;
-		}
 		if (r->op == T_CONSTANT) {
 			if (r->value == 1) {
 				gen_internal("minuseq1");
