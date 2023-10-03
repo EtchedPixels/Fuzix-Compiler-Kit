@@ -1,9 +1,9 @@
 all: cc85 ccz80 ccthread ccbyte cc6502 cc0 \
      cc1.8080 cc1.6803 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread cc2.byte \
-     cc2.6502 copt support8080 support8085 supportz80
+     cc2.6502 copt support6502 support8080 support8085 supportz80
 
-.PHONY: support8080 support8085 supportz80
+.PHONY: support6502 support8080 support8085 supportz80
 
 OBJS0 = frontend.o
 
@@ -102,6 +102,9 @@ cc2.byte:	$(OBJS10)
 cc2.6502:	$(OBJS11)
 	gcc -g3 $(OBJS11) -o cc2.6502
 
+support6502:
+	(cd support6502; make)
+
 support8080:
 	(cd support8080; make)
 
@@ -116,6 +119,7 @@ clean:
 	rm -f cc1.8080 cc1.z80 cc1.6803 cc1.thread
 	rm -f  cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.8070 cc2.thread
 	rm -f *~ *.o
+	(cd support6502; make clean)
 	(cd support8080; make clean)
 	(cd support8085; make clean)
 	(cd supportz80; make clean)
@@ -134,6 +138,10 @@ install: all
 	cp cc2.6502 /opt/cc6502/lib
 	cp copt /opt/cc6502/lib
 	cp rules.6502 /opt/cc6502/lib
+	cp support6502/crt0.o /opt/cc6502/lib
+	cp support6502/lib6502.a /opt/cc6502/lib/lib6502.a
+#	cp support6502/lib65c02.a /opt/cc6502/lib/lib65c02.a
+	ar cq /opt/cc6502/lib/libc.a
 	# 8080/8085
 	mkdir -p /opt/cc85/bin
 	mkdir -p /opt/cc85/lib
