@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __adctmpy0
 	.export __adctmpy0s

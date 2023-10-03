@@ -2,9 +2,9 @@
 ;	XA is the pointer, add the amount given. The other 8bit cases are
 ;	not such a hot path
 ;
-	.globl	__plusplus4
-	.globl	__plusplusy
-	.text
+	.export	__plusplus4
+	.export	__plusplusy
+	.code
 
 __plusplus4:
 	ldy	#4
@@ -13,17 +13,17 @@ __plusplusy:
 	sta	@tmp
 	stx	@tmp+1
 	ldy	#1
-	ldx	(@tmp),y
+	lda	(@tmp),y
+	tax
 	dey
 	lda	(@tmp),y
 	pha
 	clc
-	adc	(@tmp1),y
+	adc	@tmp1
 	sta	(@tmp),y
-	bcc	l1
-	inx
-	iny
-	inc	(@tmp1),y
 	dey
-l1:	pla
+	txa
+	adc	#0
+	sta	(@tmp),y
+	pla
 	rts

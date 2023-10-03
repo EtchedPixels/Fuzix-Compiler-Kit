@@ -9,6 +9,8 @@
 	.export __pushl0a
 	.export __pushlw
 
+	.code
+
 __pushl:
 	sta	@tmp1
 	lda	@sp
@@ -22,9 +24,10 @@ l1:	ldy	#3
 	sta	(@sp),y
 	dey
 	lda	@__hireg
-	sta	(@sy),y
+	sta	(@sp),y
 	dey
-	stx	(@sp),y
+	txa
+	sta	(@sp),y
 	lda	@tmp1
 	dey
 	sta	(@sp),y
@@ -49,15 +52,16 @@ __pushlw:
 	sec
 	sbc	#4
 	sta	@sp
-	bcc	l1
+	bcc	l2
 	dec	@sp+1
-l1:	ldy	#3
+l2:	ldy	#3
 	lda	#0
 	sta	(@sp),y
 	dey
 	sta	(@sp),y
 	dey
-	stx	(@sp),y
+	txa
+	sta	(@sp),y
 	lda	@tmp1
 	sta	(@sp),y
 	rts			; XA is value Y is 0

@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __eortmp
 	.export __eortmps

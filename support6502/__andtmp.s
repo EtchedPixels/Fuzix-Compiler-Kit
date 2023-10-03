@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __and
 	.export __ands

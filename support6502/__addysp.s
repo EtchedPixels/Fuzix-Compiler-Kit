@@ -8,10 +8,10 @@
 ; CC65 runtime: Increment the stackpointer by value in y
 ;
 
-	.export	__ addysp1
+	.export	__addysp1
 	.export __addysp
 
-	.text
+	.code
 
 __addysp1:
 	iny

@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __eor
 	.export __eors

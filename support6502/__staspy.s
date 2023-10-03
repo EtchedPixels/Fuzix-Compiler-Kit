@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __staspy0
 	.export __staspy0s

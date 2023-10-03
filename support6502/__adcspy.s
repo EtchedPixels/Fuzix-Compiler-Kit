@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __adcspy0
 	.export __adcspy0s

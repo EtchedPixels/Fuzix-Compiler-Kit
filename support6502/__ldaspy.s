@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __ldaspy0
 	.export __ldaspy0s

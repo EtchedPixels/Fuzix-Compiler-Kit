@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __oratmpy0
 	.export __oratmpy0s

@@ -10,6 +10,8 @@
 	.export __pushc0
 	.export __pushc
 
+	.code
+
 ; It's surprisingly common to push 0 or 1
 __pushc1:
 	lda	#1
@@ -17,9 +19,9 @@ __pushc1:
 __pushc0:
 	lda	#0
 __pushc:
-	ldy	sp
-	beq	@l1
-	dec	sp
+	ldy	@sp
+	beq	l1
+	dec	@sp
 	ldy	#0
 	sta	(@sp),y
 	rts
@@ -31,4 +33,3 @@ l1:
 
 ; The compiler knows that this routine does not damage XA and returns
 ; Y = 0
-

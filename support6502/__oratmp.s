@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __ora
 	.export __oras

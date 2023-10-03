@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __andtmp
 	.export __andtmps

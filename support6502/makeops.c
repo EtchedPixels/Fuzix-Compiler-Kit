@@ -10,7 +10,7 @@ void write_ysubop(const char *path, const char *op, const char *end, const char 
         exit(1);
     }
     
-    fprintf(f, "\t.text\n\n");
+    fprintf(f, "\t.code\n\n");
     fprintf(f, "\t.export __%s%sy0\n\t.export __%s%sy0s\n", op, end, op, end);
     fprintf(f, "\t.export __%s%sy\n\t.export __%s%sys\n", op, end, op, end);
     fprintf(f, "__%s%sy0:\n", op, end);
@@ -46,7 +46,7 @@ void write_c8_op(const char *op, const char *pre)
         perror(buf);
         exit(1);
     }
-    fprintf(f, "\t.text\n\n");
+    fprintf(f, "\t.code\n\n");
     fprintf(f, "\t.export __%sc8\n\t.export __%sc8s\n", op, op);
     fprintf(f, "__%sc8:\n", op);
     fprintf(f, "__%sc8s:\n", op);
@@ -79,7 +79,7 @@ void write_tmpop(const char *op, const char *pre)
         exit(1);
     }
     
-    fprintf(f, "\t.text\n\n");
+    fprintf(f, "\t.code\n\n");
     fprintf(f, "\t.export __%s\n\t.export __%ss\n", op, op);
     fprintf(f, "\t.export __%stmp\n\t.export __%stmps\n", op, op);
     fprintf(f, "__%s:\n", op);
@@ -117,7 +117,7 @@ void write_eqtmpop(const char *op, const char *pre)
         exit(1);
     }
     
-    fprintf(f, "\t.text\n\n");
+    fprintf(f, "\t.code\n\n");
     fprintf(f, "\t.export __%stmp\n\t.export __%stmps\n", op, op);
     fprintf(f, "__%stmp:\n", op);
     fprintf(f, "__%stmps:\n", op);
@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
 
     write_eqtmpop("adc", "clc");
     /* sbc is not commutive */
-    write_eqtmpop("sbc", "sec");
+/*    write_eqtmpop("sbc", "sec"); */
     write_eqtmpop("and", NULL);
     write_eqtmpop("ora", NULL);
     write_eqtmpop("eor", NULL);

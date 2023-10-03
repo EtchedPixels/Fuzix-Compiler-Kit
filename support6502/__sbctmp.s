@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __sbc
 	.export __sbcs

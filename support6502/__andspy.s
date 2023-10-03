@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __andspy0
 	.export __andspy0s

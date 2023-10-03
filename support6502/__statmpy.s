@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __statmpy0
 	.export __statmpy0s

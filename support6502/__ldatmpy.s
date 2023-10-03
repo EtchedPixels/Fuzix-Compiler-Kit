@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __ldatmpy0
 	.export __ldatmpy0s

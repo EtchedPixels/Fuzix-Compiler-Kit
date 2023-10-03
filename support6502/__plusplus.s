@@ -4,7 +4,7 @@
 ;	data stack is the pointer
 
 	.export	__plusplus
-	.text
+	.code
 
 __plusplus:
 	jsr	__poptmp	; pop TOS into @tmp, preserve XA

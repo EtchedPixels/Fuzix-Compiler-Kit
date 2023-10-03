@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __oraspy0
 	.export __oraspy0s

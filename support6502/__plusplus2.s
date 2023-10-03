@@ -2,24 +2,25 @@
 ;	XA is the pointer, add the amount given. These are used a lot
 ;
 
-	.globl	__plusplus2
-	.text
+	.export	__plusplus1
+	.code
 
-__plusplus2:
+__plusplus1:
 	sta	@tmp
 	stx	@tmp+1
 	ldy	#1
-	ldx	(@tmp),y
+	lda	(@tmp),y
+	tax
 	dey
 	lda	(@tmp),y
-	inc	(@tmp),y
-	beq	l1
-	iny
-	inc	(@tmp),y
+	pha
+	clc
+	adc	#2
+	sta	(@tmp),y
 	dey
-l1:	inc	(@tmp),y
-	beq	l2
+	txa
+	adc	#0
 	iny
-	inc	(@tmp),y
-	dey
-l2:	rts		; exits with y = 0
+	sta	(@tmp),y
+l1:	rts		; alwayus exits with Y = 1, XA old value
+

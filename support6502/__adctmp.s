@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __adc
 	.export __adcs

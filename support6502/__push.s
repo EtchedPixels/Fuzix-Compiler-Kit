@@ -30,7 +30,8 @@ __push:
 	bcc	l1
 	dec	@sp+1
 l1:	ldy	#1
-	stx	(@sp),y
+	txa
+	sta	(@sp),y
 	lda	@tmp1
 	dey
 	sta	(@sp),y

@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __oratmp
 	.export __oratmps

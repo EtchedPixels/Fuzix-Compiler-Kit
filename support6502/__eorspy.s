@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __eorspy0
 	.export __eorspy0s

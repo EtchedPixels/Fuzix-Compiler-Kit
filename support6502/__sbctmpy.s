@@ -1,4 +1,4 @@
-	.text
+	.code
 
 	.export __sbctmpy0
 	.export __sbctmpy0s

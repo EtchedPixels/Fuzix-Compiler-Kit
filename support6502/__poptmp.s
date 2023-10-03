@@ -5,7 +5,7 @@
 ;
 	.export __poptmp
 	.export __incsp2
-	.text
+	.code
 
 __poptmp:
 	pha
