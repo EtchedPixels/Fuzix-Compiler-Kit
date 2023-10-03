@@ -16,7 +16,7 @@ __poptmp:
 	lda	(@sp),y
 	sta	@tmp
 	pla
-__addsp2:
+__incsp2:
 	; +2 can only overflow once
 	inc	@sp
 	beq	l1
