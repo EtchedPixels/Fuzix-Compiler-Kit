@@ -237,6 +237,7 @@ static unsigned compile_expression(void)
 
 static unsigned func_ret;
 static unsigned frame_len;
+static unsigned argframe_len;
 static unsigned func_ret_used;
 unsigned func_flags;
 
@@ -286,12 +287,15 @@ static void process_header(void)
 	case H_FRAME:
 		frame_len = h.h_name;
 		func_flags = h.h_data;
-		gen_frame(h.h_name);
+		gen_frame(h.h_name, argframe_len);
+		break;
+	case H_ARGFRAME:
+		argframe_len = h.h_name;
 		break;
 	case H_FUNCTION | H_FOOTER:
 		if (func_ret_used)
 			gen_label("_r", h.h_name);
-		gen_epilogue(frame_len);
+		gen_epilogue(frame_len, argframe_len);
 		pop_area();
 		break;
 	case H_FOR:
@@ -383,10 +387,11 @@ static void process_header(void)
 			gen_label("_e", h.h_name);
 		break;
 	case H_RETURN:
-		func_ret_used = 1;
+//		func_ret_used = 1;
 		break;
 	case H_RETURN | H_FOOTER:
-		gen_exit("_r", func_ret);
+		if (gen_exit("_r", func_ret) == 0)
+			func_ret_used = 1;
 		break;
 	case H_LABEL:
 		sprintf(tbuf, "_g%d", h.h_data);

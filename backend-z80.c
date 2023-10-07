@@ -350,7 +350,7 @@ void gen_prologue(const char *name)
 
 /* Generate the stack frame */
 /* TODO: defer this to statements so we can ld/push initializers */
-void gen_frame(unsigned size)
+void gen_frame(unsigned size,  unsigned aframe)
 {
 	frame_len = size;
 	sp = 0;
@@ -390,7 +390,7 @@ void gen_frame(unsigned size)
 	}
 }
 
-void gen_epilogue(unsigned size)
+void gen_epilogue(unsigned size, unsigned argsize)
 {
 	if (sp != 0)
 		error("sp");
@@ -434,12 +434,16 @@ void gen_label(const char *tail, unsigned n)
 
 /* A return statement. We can sometimes shortcut this if we have
    no cleanup to do */
-void gen_exit(const char *tail, unsigned n)
+unsigned gen_exit(const char *tail, unsigned n)
 {
-	if (func_cleanup)
+	if (func_cleanup) {
 		gen_jump(tail, n);
-	else
+		return 0;
+	}
+	else {
 		printf("\tret\n");
+		return 1;
+	}
 }
 
 void gen_jump(const char *tail, unsigned n)

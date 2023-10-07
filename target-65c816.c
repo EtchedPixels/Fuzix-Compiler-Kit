@@ -69,24 +69,11 @@ unsigned target_type_remap(unsigned type)
 	return type;
 }
 
-static unsigned bc_free;
-
-/* Use BC for a register char pointer or integer/char type. Don't use it for any
-  other pointer type because we have ldax b bot lhlx with b */
 unsigned target_register(unsigned type)
 {
-	if (!bc_free || type >= CLONG)
-		return 0;
-	if (PTR(type) == 0 || (PTR(type) == 1 && type < CSHORT)) {
-		bc_free = 0;
-		/* Tell the backend */
-		func_flags |= F_REG(1);
-		return 1;
-	}
 	return 0;
 }
 
 void target_reginit(void)
 {
-	bc_free = 1;
 }

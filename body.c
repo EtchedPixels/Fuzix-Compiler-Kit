@@ -376,6 +376,7 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	init_labels();
 
 	statement_block(1);
+
 	footer(H_FUNCTION, func_tag, name);
 
 	rewrite_header(hrw, H_FRAME, frame_size(), func_flags);

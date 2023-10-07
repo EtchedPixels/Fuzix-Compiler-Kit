@@ -145,7 +145,7 @@ void gen_prologue(const char *name)
 }
 
 /* Generate the stack frame */
-void gen_frame(unsigned size)
+void gen_frame(unsigned size, unsigned aframe)
 {
 	frame_len = size + 2;	/* 2 for the return addr */
 	if (size) {
@@ -158,7 +158,7 @@ void gen_frame(unsigned size)
 	}
 }
 
-void gen_epilogue(unsigned size)
+void gen_epilogue(unsigned size, unsigned argsize)
 {
 	if (sp != size) {
 		error("sp");
@@ -179,9 +179,10 @@ void gen_label(const char *tail, unsigned n)
 	printf("L%d%s:\n", n, tail);
 }
 
-void gen_exit(const char *tail, unsigned n)
+unsigned gen_exit(const char *tail, unsigned n)
 {
 	printf("\tjump L%d%s\n", n, tail);
+	return 0;
 }
 
 void gen_jump(const char *tail, unsigned n)

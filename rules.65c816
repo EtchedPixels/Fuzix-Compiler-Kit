@@ -1,0 +1,14 @@
+# fetch/store rules when we need X
+	lda %1
+	tax
+	lda %2,x
+=
+	ldx %1
+	lda %2,x
+
+	lda %1
+	tax
+	sta %2,x
+=
+	ldx %1
+	sta %2,x

@@ -951,7 +951,7 @@ void gen_prologue(const char *name)
 }
 
 /* Generate the stack frame */
-void gen_frame(unsigned size)
+void gen_frame(unsigned size, unsigned aframe)
 {
 	frame_len = size;
 	if (size == 0)
@@ -970,13 +970,13 @@ void gen_frame(unsigned size)
 	gen_internal("enter16");
 }
 
-void gen_epilogue(unsigned size)
+void gen_epilogue(unsigned size, unsigned argsize)
 {
 	if (sp != size) {
 		error("sp");
 	}
 	sp -= size;
-
+	/* TODO arg removal */
 	if (size > 256) {
 		/* Ugly as we need to preserve AX */
 		output("pha");
@@ -1000,13 +1000,16 @@ void gen_label(const char *tail, unsigned n)
 	invalidate_regs();
 }
 
-void gen_exit(const char *tail, unsigned n)
+unsigned gen_exit(const char *tail, unsigned n)
 {
 	/* Want to use BRA/BRL if we have it */
-	if (frame_len == 0)
+	if (frame_len == 0) {
 		output("rts");
-	else
+		return 1;
+	} else {
 		output("jmp L%d%s", n, tail);
+		return 0;
+	}
 }
 
 void gen_jump(const char *tail, unsigned n)
