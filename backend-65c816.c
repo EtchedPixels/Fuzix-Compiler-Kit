@@ -1548,7 +1548,7 @@ unsigned gen_shortcut(struct node *n)
 	/* Need to do optimization cases */
 	if (n->op == T_ARGCOMMA) {
 		codegen_lr(l);
-		if (size <= 2) {
+		if (get_size(n->type) <= 2) {
 			output("dey");
 			output("dey");
 			output("sta 0,y");
