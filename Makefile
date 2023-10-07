@@ -1,9 +1,11 @@
-all: cc85 ccz80 ccthread ccbyte cc6502 cc0 \
-     cc1.8080 cc1.6803 cc1.z80 cc1.thread cc1.byte cc1.6502 \
-     cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread cc2.byte \
-     cc2.6502 copt support6502 support8080 support8085 supportz80
+all: cc85 ccz80 ccthread ccbyte cc6502 cc65c816 cc0 \
+     cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
+     cc1.65c816 \
+     cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
+     cc2.byte cc2.6502 \
+     copt support6502 support65c816 support8080 support8085 supportz80
 
-.PHONY: support6502 support8080 support8085 supportz80
+.PHONY: support6502 support65c816 support8080 support8085 supportz80
 
 OBJS0 = frontend.o
 
@@ -21,6 +23,7 @@ OBJS8 = backend.o backend-8070.o
 OBJS9 = backend.o backend-threadcode.o
 OBJS10 = backend.o backend-bytecode.o
 OBJS11 = backend.o backend-6502.o
+OBJS12 = backend.o backend-65c816.o
 
 CFLAGS = -Wall -pedantic -g3
 
@@ -51,6 +54,12 @@ ccbyte: ccbyte.o
 ccthread: ccthread.o
 	gcc -g3 ccthread.o -o ccthread
 
+cc6502: cc6502.o
+	gcc -g3 cc6502.o -o cc6502
+
+cc65c816: cc65c816.o
+	gcc -g3 cc65c816.o -o cc65c816
+
 cc0:	$(OBJS0)
 	gcc -g3 $(OBJS0) -o cc0
 
@@ -63,6 +72,9 @@ cc1.z80:$(OBJS1) target-z80.o
 cc1.6803:$(OBJS1) target-6803.o
 	gcc -g3 $(OBJS1) target-6803.o -o cc1.6803
 
+cc1.6809:$(OBJS1) target-6809.o
+	gcc -g3 $(OBJS1) target-6809.o -o cc1.6809
+
 cc1.thread:$(OBJS1) target-threadcode.o
 	gcc -g3 $(OBJS1) target-threadcode.o -o cc1.thread
 
@@ -71,6 +83,9 @@ cc1.byte:$(OBJS1) target-bytecode.o
 
 cc1.6502:$(OBJS1) target-6502.o
 	gcc -g3 $(OBJS1) target-6502.o -o cc1.6502
+
+cc1.65c816:$(OBJS1) target-65c816.o
+	gcc -g3 $(OBJS1) target-65c816.o -o cc1.65c816
 
 cc2:	$(OBJS2)
 	gcc -g3 $(OBJS2) -o cc2
@@ -83,9 +98,6 @@ cc2.6809:	$(OBJS4)
 
 cc2.z80:	$(OBJS5)
 	gcc -g3 $(OBJS5) -o cc2.z80
-
-cc2.65c816:	$(OBJS6)
-	gcc -g3 $(OBJS6) -o cc2.65c816
 
 cc2.6803:	$(OBJS7)
 	gcc -g3 $(OBJS7) -o cc2.6803
@@ -102,8 +114,14 @@ cc2.byte:	$(OBJS10)
 cc2.6502:	$(OBJS11)
 	gcc -g3 $(OBJS11) -o cc2.6502
 
+cc2.65c816:	$(OBJS12)
+	gcc -g3 $(OBJS12) -o cc2.65c816
+
 support6502:
 	(cd support6502; make)
+
+support65c816:
+	(cd support65c816; make)
 
 support8080:
 	(cd support8080; make)
@@ -120,13 +138,12 @@ clean:
 	rm -f  cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.8070 cc2.thread
 	rm -f *~ *.o
 	(cd support6502; make clean)
+	(cd support65c816; make clean)
 	(cd support8080; make clean)
 	(cd support8085; make clean)
 	(cd supportz80; make clean)
 
-# Hack for now
-# assumes a suitable cpp, as, libs and includes are present
-install: all
+doinstall:
 	# 6502
 	mkdir -p /opt/cc6502/bin
 	mkdir -p /opt/cc6502/lib
@@ -142,6 +159,20 @@ install: all
 	cp support6502/lib6502.a /opt/cc6502/lib/lib6502.a
 #	cp support6502/lib65c02.a /opt/cc6502/lib/lib65c02.a
 	ar cq /opt/cc6502/lib/libc.a
+	# 65c816
+	mkdir -p /opt/cc65c816/bin
+	mkdir -p /opt/cc65c816/lib
+	mkdir -p /opt/cc65c816/include
+	cp cc65c816 /opt/cc65c816/bin/cc65c816
+	cp cpp65c816 /opt/cc65c816/lib/cpp
+	cp cc0 /opt/cc65c816/lib
+	cp cc1.65c816 /opt/cc65c816/lib
+	cp cc2.65c816 /opt/cc65c816/lib
+	cp copt /opt/cc65c816/lib
+	cp rules.65c816 /opt/cc65c816/lib
+	cp support65c816/crt0.o /opt/cc65c816/lib
+	cp support65c816/lib65c816.a /opt/cc65c816/lib/lib65c816.a
+	ar cq /opt/cc65c816/lib/libc.a
 	# 8080/8085
 	mkdir -p /opt/cc85/bin
 	mkdir -p /opt/cc85/lib
@@ -197,3 +228,7 @@ install: all
 #	cp supportthread/crt0.o /opt/ccthread/lib
 #	cp supportthread/libthread.a /opt/ccthread/lib/libthread.a
 #	ar cq /opt/ccthread/lib/libc.a
+
+# assumes a suitable cpp, as, libs and includes are present
+# doinstall does a bootstrap install
+install: all doinstall
