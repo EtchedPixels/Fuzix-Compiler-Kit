@@ -580,9 +580,7 @@ static void pre_taxlda(struct node *n)
 
 static void pre_tax(struct node *n)
 {
-	if (!a_contains(n)) {
-		move_a_x();
-	}
+	move_a_x();
 }
 
 static int pri(struct node *n, const char *op)
@@ -593,7 +591,8 @@ static int pri(struct node *n, const char *op)
 /* Load the right side into X directly, then use the helper */
 static int pri_help(struct node *n, char *helper)
 {
-	if (do_pri(n, "ldx", pre_none, 1)) {
+	/* We can't do indirections this way because there is no ldx n,x */
+	if (do_pri(n, "ldx", pre_none, 0)) {
 		invalidate_mem();
 		helper_s(n, helper);
 		return 1;
@@ -1430,6 +1429,8 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		return pri_help_bool(n, "eqeqx");
+	/* Might make sense to only generate two ops and invert the
+	   j flags ? */
 	case T_GTEQ:
 		return pri_help_bool(n, "gteqx");
 	case T_GT:
@@ -1480,6 +1481,17 @@ unsigned gen_direct(struct node *n)
 			invalidate_a();
 			return 1;
 		}
+		if (s <= 2  && !optsize && do_pri(n, "ldx", pre_none, 0)) {
+			setsize(s);
+			output("bra X%d", xlabel + 2);
+			label("X%d", ++xlabel);
+			output("asl a");
+			label("X%d", ++xlabel);
+			output("dex");
+			output("bne X%d", xlabel -1);
+			set16bit();
+			return 1;
+		}
 		return pri_help(n, "lsx");
 	case T_GTGT:
 		val = r->value & 15;
@@ -1493,13 +1505,9 @@ unsigned gen_direct(struct node *n)
 				repeated_op(val, "lsr a");
 				invalidate_a();
 				return 1;
-			} else if (s <= 6) {
-				repeated_op(val, "asr a");
-				invalidate_a();
-				return 1;
 			}
+			/* No quick asr */
 		}
-		/* No easy way to do signed right on 65C816 */
 		return pri_help(n, "rsx");
 		/* The left was complex (or we'd have used the shortcut path. The
 		   right will be a constant. */
@@ -1597,6 +1605,14 @@ unsigned gen_direct(struct node *n)
 			set16bit();
 		}
 		return pri_help(n, "minuseqx");
+	case T_STAREQ:
+		/* There are some weird cases we can do clever stuff
+		    but not many - eg * 2 result not needed is ALS addr TODO */
+		return pri_help(n, "muleqx");
+	case T_SLASHEQ:
+		return pri_help(n, "diveqx");
+	case T_PERCENTEQ:
+		return pri_help(n, "diveqx");
 	case T_ANDEQ:
 		if (s <= 2) {
 			setsize(s);
@@ -1635,7 +1651,7 @@ unsigned gen_direct(struct node *n)
 			}
 			set16bit();
 		}
-		return pri_help(n, "oreqx");
+		return pri_help(n, "xoreqx");
 	case T_SHLEQ:
 		if (s <= 2) {
 			setsize(s);
@@ -2139,6 +2155,12 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		return 0;
+	case T_STAREQ:
+		return pop_help(n, "rsx");
+	case T_SLASHEQ:
+		return pop_help(n, "rsx");
+	case T_PERCENTEQ:
+		return pop_help(n, "rsx");
 	case T_ANDEQ:
 		return op_eq(n, "and", NULL, size);
 	case T_OREQ:
