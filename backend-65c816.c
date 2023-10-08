@@ -106,7 +106,7 @@ static unsigned cursize = 2;	/* 16bit mode currently set */
 
 
 /*
- *	6502 specifics. We need to track some register values to produce
+ *	65C816 specifics. We need to track some register values to produce
  *	bearable code
  */
 
@@ -115,7 +115,7 @@ static void output(const char *p, ...)
 	va_list v;
 	va_start(v, p);
 	if (cursize != livesize) {
-		if (cursize == 1)
+		if (livesize == 1)
 			printf("\trep #0x20\n");
 		else
 			printf("\tsep #0x20\n");
@@ -661,7 +661,7 @@ static int leftop_memc(struct node *n, const char *op)
 		setsize(sz);
 		while (count--)
 			output("%s T%d+%d", op, (unsigned) l->val2, v);
-		if (nr == 1) {
+		if (!nr) {
 			output("lda T%d+%d", (unsigned) l->val2, v);
 			set_a_node(l);
 		}
@@ -671,16 +671,21 @@ static int leftop_memc(struct node *n, const char *op)
 		v += argbase + frame_len;
 	case T_LOCAL:
 		/* We can do ,x but not ,y */
+		printf("; op %d off %d count %d size %d\n",
+			l->op, v, count, sz);
 		invalidate_x();
 		output("tyx");
 		setsize(sz);
-		while (count--)
-			output("%s %d,x", op, l->value);
-		if (nr == 1) {
-			output("lda %d,x", l->value);
+		while (count--) {
+			output("%s %d,x", op, v);
+			invalidate_a();
+		}
+		if (!nr) {
+			output("lda %d,x", v);
 			set_a_node(l);
 		}
 		set16bit();
+		printf(";done\n");
 		return 1;
 
 	}
@@ -689,7 +694,7 @@ static int leftop_memc(struct node *n, const char *op)
 
 /* Pull the left side into X and call the same helper we use for
    the direct forms where we loaded X directly */
-static int pop_help(struct node *n, const char *helper)
+static unsigned pop_help(struct node *n, const char *helper)
 {
 	unsigned size = get_size(n->type);
 	if (size > 2)
@@ -698,6 +703,14 @@ static int pop_help(struct node *n, const char *helper)
 	invalidate_mem();
 	helper_s(n, helper);
 	return 1;
+}
+
+static unsigned pop_help_bool(struct node *n, const char *helper)
+{
+	unsigned r = pop_help(n, helper);
+	if (r)
+		n->flags |= ISBOOL;
+	return r;
 }
 
 static void squash_node(struct node *n, struct node *o)
@@ -984,8 +997,8 @@ unsigned gen_exit(const char *tail, unsigned n)
 
 void gen_jump(const char *tail, unsigned n)
 {
-	/* Want to use BRA/BRL if we have it */
-	output("jmp L%d%s", n, tail);
+	/* The assembler auto converts these if needed */
+	output("bra L%d%s", n, tail);
 	unreachable = 1;
 }
 
@@ -1002,13 +1015,13 @@ static void setjflags(struct node *n, const char *us, const char *s)
 
 void gen_jfalse(const char *tail, unsigned n)
 {
-	output("j%c%c L%d%s", jflags[2], jflags[3], n, tail);
+	output("b%c%c L%d%s", jflags[2], jflags[3], n, tail);
 	jflags = "neeq";
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
-	output("j%c%c L%d%s", jflags[0], jflags[1], n, tail);
+	output("b%c%c L%d%s", jflags[0], jflags[1], n, tail);
 	jflags = "neeq";
 }
 
@@ -1200,18 +1213,18 @@ unsigned gen_direct(struct node *n)
 	case T_CLEANUP:
 		if (n->val2) {
 			if (!(func_flags & F_VOIDRET))
-				output("pha");
+				move_a_x();
 			output("tya");
 			output("clc");
 			output("adc #%d", n->right->value);
 			output("tay");
 			if (!(func_flags & F_VOIDRET))
-				output("pla");
+				move_x_a();
 			else
 				invalidate_a();
-			return 1;
 		}
 		sp -= n->right->value;
+		printf(";sp offset reduced by %d\n", n->right->value);
 		return 1;
 	case T_EQ:		/* address in A. See if right simple */
 		if (s <= 2 && do_pri(n, "lda", pre_tax, 0)) {
@@ -1426,6 +1439,7 @@ unsigned gen_direct(struct node *n)
 		}
 		if (r->op == T_CONSTANT && r->value == 0) {
 			helper(n, "not");
+			n->flags |= ISBOOL;
 			return 1;
 		}
 		return pri_help_bool(n, "eqeqx");
@@ -1708,12 +1722,13 @@ unsigned gen_uni_direct(struct node *n)
 
 static void argstack(struct node *n)
 {
-	if (get_size(n->type) <= 2) {
+	unsigned sz = get_stack_size(n->type);
+	if (sz == 2) {
 		output("dey");
 		output("dey");
 		output("sta 0,y");
 		sp += 2;
-	} else {
+	} else if (sz == 4 ) {
 		output("dey");
 		output("dey");
 		output("dey");
@@ -1722,7 +1737,8 @@ static void argstack(struct node *n)
 		output("lda @hireg");
 		output("sta 2,y");
 		sp += 4;
-	}
+	} else
+		error("astk");
 }
 
 /*
@@ -1751,13 +1767,20 @@ unsigned gen_shortcut(struct node *n)
 	/* Need to do optimization cases */
 	/* Could also maybe leave last arg in regs ? */
 	if (n->op == T_ARGCOMMA) {
+		printf(";argcomma left\n");
+		codegen_lr(l);
 		printf(";argcomma\n");
 		argstack(l);
+		printf(";argcomma pushed\n");
 		codegen_lr(r);
+		printf(";argcomma done\n");
 		return 1;
 	}
 	if (n->op == T_FUNCCALL) {
-		argstack(l);
+		if (l) {
+			codegen_lr(l);
+			argstack(l);
+		}
 		codegen_lr(r);
 		move_a_x();
 		invalidate_mem();
@@ -1768,7 +1791,11 @@ unsigned gen_shortcut(struct node *n)
 		return 1;
 	}
 	if (n->op == T_CALLNAME) {
-		argstack(l);
+		/* Might be (void) */
+		if (l) {
+			codegen_lr(l);
+			argstack(l);
+		}
 		invalidate_regs();
 		invalidate_mem();
 		output("jsr _%s+%d", namestr(n->snum), n->value);
@@ -1794,6 +1821,7 @@ static unsigned gen_cast(struct node *n)
 	unsigned ls;
 	unsigned rs;
 
+	/* Casting from rt to lt */
 	if (PTR(rt))
 		rt = USHORT;
 	if (PTR(lt))
@@ -1808,9 +1836,10 @@ static unsigned gen_cast(struct node *n)
 	/* Size shrink is free */
 	if ((lt & ~UNSIGNED) <= (rt & ~UNSIGNED))
 		return 1;
+	/* extending a signed object */
 	if (!(rt & UNSIGNED)) {
 		/* Signed */
-		if (ls == 2) {
+		if (ls == 1) {
 			/* TODO */
 			output("ora #0");
 			output("bmi X%d", ++xlabel);
@@ -1821,12 +1850,12 @@ static unsigned gen_cast(struct node *n)
 		}
 		return 0;
 	}
+	/* Casting unsigned */
 	if (ls == 4) {
 		rs = get_size(rt);
 		if (rs == 1)
 			output("and #0xFF");
-		load_x(0);
-		output("stx @hireg");
+		output("stz @hireg");
 		return 1;
 	}
 	if (ls == 2) {
@@ -1907,6 +1936,7 @@ unsigned gen_node(struct node *n)
 {
 	unsigned size = get_size(n->type);
 	unsigned nr = n->flags & NORETURN;
+	unsigned v = n->value;
 
 #if 0
 	/* Temporaries are on the CPU stack */
@@ -1921,23 +1951,28 @@ unsigned gen_node(struct node *n)
 		/* We need to do bytes properly in case they have side
 		   effects on hardware */
 		/* Need to avoid optimising existing loads until volatile is sorted */
-		if (size == 1) {
-#if 0
-			if (a_contains(n))
-				return 1;
-			if (x_contains(n)) {
-				set_a_x();
-				return 1;
-			}
-#endif
+		if (size <= 2) {
 			if (pri(n, "lda")) {
 				set_a_node(n);
 				return 1;
 			}
 		}
-		/* FIXME: need to do 4 byte forms ?? */
-		return 0;
 	case T_LBREF:
+		if (size <= 2) {
+			if (a_contains(n))
+				return 1;
+			if (x_contains(n)) {
+				move_x_a();
+				return 1;
+			}
+			if (pri(n, "lda")) {
+				invalidate_mem();
+				set_a_node(n);
+				return 1;
+			}
+		}
+		/* TODO 4 byte forms and enable in rewrite */
+		return 0;
 	case T_LREF:
 		if (size <= 2) {
 			if (a_contains(n))
@@ -1946,14 +1981,15 @@ unsigned gen_node(struct node *n)
 				move_a_x();
 				return 1;
 			}
-			output("lda %d,y", n->value);
+			output("lda %d,y", v);
 			set_a_node(n);
 			return 1;
 		}
+		/* TODO: enable 4 byte form in rewrite */
 		if (size == 4) {
-			output("lda %d,y", n->value + 2);
+			output("lda %d,y", v + 2);
 			output("sta @hireg");
-			output("lda %d,y", n->value);
+			output("lda %d,y", v);
 			return 1;
 		}
 		return 0;
@@ -1971,9 +2007,14 @@ unsigned gen_node(struct node *n)
 	case T_CALLNAME:
 		invalidate_regs();
 		invalidate_mem();
-		output("jsr _%s+%d", namestr(n->snum), n->value);
+		output("jsr _%s+%d", namestr(n->snum), v);
 		return 1;
 	case T_BOOL:
+		/* Already boolified ? */
+		if (n->right->flags & ISBOOL) {
+			n->flags |= ISBOOL;
+			return 1;
+		}
 		if (n->flags & CCONLY) {
 			if (size == 1) {
 				output("and #0xFF");
@@ -2047,25 +2088,25 @@ unsigned gen_node(struct node *n)
 		   one where we can update the contents info TODO */
 		move_a_x();
 		if (size > 2) {
-			output("lda %d,x", n->value + 2);
+			output("lda %d,x", v + 2);
 			output("sta @hireg");
-			output("lda %d,x", n->value);
+			output("lda %d,x", v);
 			invalidate_a();
 			return 1;
 		}
 		/* TODO: need to look at volatile propogation and volatile
 		   plus hardware I/O for optimizing opportunities */
 		setsize(size);
-		output("lda %d,x", n->value);
+		output("lda %d,x", v);
 		set16bit();
 		invalidate_a();
 		return 1;
 	case T_CONSTANT:
 		if (size > 2) {
-			load_a(n->value >> 16);
+			load_a(v >> 16);
 			output("sta @hireg");
 		}
-		load_a(n->value);
+		load_a(v);
 		return 1;
 	case T_NAME:
 		/* For correctness we need to byte op the loads, annoyingly
@@ -2082,7 +2123,13 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		return 0;
-		/* Local and argument are more complex so helper them */
+	case T_ARGUMENT:
+		v += argbase + frame_len;
+	case T_LOCAL:
+		output("tya");
+		output("clc");
+		output("adc #%d", v);
+		return 1;
 	case T_CAST:
 		return gen_cast(n);
 		/* Negate A */
@@ -2099,6 +2146,14 @@ unsigned gen_node(struct node *n)
 			output("eor #0xFFFF");
 			output("sta @hireg");
 			move_x_a();
+			return 1;
+		}
+		return 0;
+	case T_NEGATE:
+		if (size <= 2) {
+			output("eor #0xFFFF");
+			output("inc a");
+			const_a_set(-reg[R_A].value);
 			return 1;
 		}
 		return 0;
@@ -2119,17 +2174,17 @@ unsigned gen_node(struct node *n)
 	case T_PERCENT:
 		return pop_help(n, "remx");
 	case T_EQEQ:
-		return pop_help(n, "eqeqx");
+		return pop_help_bool(n, "eqeqx");
 	case T_GTEQ:
-		return pop_help(n, "gtx");
+		return pop_help_bool(n, "gtx");
 	case T_GT:
-		return pop_help(n, "gtx");
+		return pop_help_bool(n, "gtx");
 	case T_LTEQ:
-		return pop_help(n, "lteqx");
+		return pop_help_bool(n, "lteqx");
 	case T_LT:
-		return pop_help(n, "ltx");
+		return pop_help_bool(n, "ltx");
 	case T_BANGEQ:
-		return pop_help(n, "nex");
+		return pop_help_bool(n, "nex");
 	case T_LTLT:
 		return pop_help(n, "lsx");
 	case T_GTGT:

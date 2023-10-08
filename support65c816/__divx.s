@@ -27,7 +27,7 @@ zerobit:
 	rts
 
 __remxu:
-	jsr	__divux
+	jsr	__divxu
 	lda	@dividend
 	rts
 

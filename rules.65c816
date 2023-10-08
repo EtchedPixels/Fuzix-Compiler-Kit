@@ -12,3 +12,24 @@
 =
 	ldx %1
 	sta %2,x
+
+# Kill some bool tests
+	lda %1
+	inc a
+	dec a
+;:
+	b%2 %3
+=
+	lda %1
+	b%2 %3
+
+	lda %1
+	sep #0x20
+	inc a
+	dec a
+;:
+	b%2 %3
+=
+	lda %1
+	sep #0x20
+	b%2 %3
