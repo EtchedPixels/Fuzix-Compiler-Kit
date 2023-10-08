@@ -8,9 +8,7 @@ __gtequx:
 	stx @tmp
 	sec
 	sbc @tmp
-	bcs false
-	lda #1
-	rts
-false:	lda #0
+	lda #0		; move carry into A
+	rol a
 	rts
 

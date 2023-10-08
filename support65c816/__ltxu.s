@@ -7,7 +7,7 @@ __ltxu:
 	stx @tmp
 	sec
 	sbc @tmp
-	bcs true
+	bcc true
 	lda #0
 	rts
 true:	lda #1

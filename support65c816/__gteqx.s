@@ -8,7 +8,7 @@ __gteqx:
 	stx @tmp
 	sec
 	sbc @tmp
-	bvs false
+	bvc false
 	lda #1
 	rts
 false:	lda #0
