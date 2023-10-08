@@ -8,7 +8,8 @@ OBJ = __andeqx.o __diveqx.o __diveqxu.o __divx.o __eqeqx.o __gteqx.o \
       __andeqxc.o __diveqxc.o __minuseqxc.o __muleqxc.o __oreqxc.o \
       __pluseqxc.o __remeqxc.o __remeqxuc.o __shleqxc.o __shreqxc.o \
       __shreqxcu.o \
-      __plusl.o __minusl.o __booll.o __notl.o
+      __plusl.o __minusl.o __booll.o __notl.o \
+      __shll.o
     
 .s.o:
 	cc65c816 -c $<

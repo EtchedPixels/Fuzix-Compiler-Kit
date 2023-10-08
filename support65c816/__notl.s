@@ -5,8 +5,7 @@
 	.export __notl
 
 __notl:
-	ldx #0
-	stx @hireg
+	stz @hireg
 	ora @hireg
 	beq true
 	lda #0

@@ -5,8 +5,7 @@
 	.export __booll
 
 __booll:
-	ldx #0
-	stx @hireg
+	stz @hireg
 	ora @hireg
 	beq done		; A already zero
 	lda #1
