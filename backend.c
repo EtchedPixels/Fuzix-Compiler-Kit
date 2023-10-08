@@ -729,9 +729,8 @@ void make_node(struct node *n)
 		return;
 	case T_BOOL:
 		/* Check if we know it's already bool */
-		if (n->right && (n->right->flags & ISBOOL))
-			break;
-		helper(n, "bool");
+		if (!(n->right && (n->right->flags & ISBOOL)))
+			helper(n, "bool");
 		n->flags |= ISBOOL;
 		break;
 	case T_NAME:
