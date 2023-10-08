@@ -5,8 +5,8 @@
 	.export __eqeqx
 	.export __eqeqxu
 
-_eqeqx:
-_eqeqxu:
+__eqeqx:
+__eqeqxu:
 	stx @tmp
 	sec
 	sbc @tmp

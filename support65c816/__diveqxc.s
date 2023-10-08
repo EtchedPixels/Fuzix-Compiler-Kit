@@ -2,10 +2,10 @@
 	.a16
 	.i16
 
-	.export __diveqx
+	.export __diveqxc
 
 	; A is ptr X is a value to divide by
-__diveqx:
+__diveqxc:
 	stx @tmp
 	tax
 	rep #0x20

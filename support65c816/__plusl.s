@@ -3,7 +3,6 @@
 	.i16
 
 	.export __plusl
-	.export __popret
 
 __plusl:
 	plx

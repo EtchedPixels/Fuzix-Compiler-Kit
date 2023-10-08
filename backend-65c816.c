@@ -936,7 +936,7 @@ void gen_epilogue(unsigned size, unsigned argsize)
 		cost -= 2;
 	/* Use the helper for small cases */
 	if (optsize && size > 3 && size < 12) {
-		output("jmp ___fnexit%d", size);
+		output("jmp __fnexit%d", size);
 		unreachable = 1;
 		return;
 	}
@@ -972,7 +972,7 @@ unsigned gen_exit(const char *tail, unsigned n)
 		unreachable = 1;
 		return 1;
 	} else if (frame_len + arg_len <= 9) {
-		output("jmp ___fnexit%d", frame_len + arg_len);
+		output("jmp __fnexit%d", frame_len + arg_len);
 		unreachable =1;
 		return 1;
 	}
@@ -1989,7 +1989,7 @@ unsigned gen_node(struct node *n)
 			}
 		}
 		/* Non condition code cases via helpers */
-		return 0
+		return 0;
 	case T_BANG:
 		if (n->flags & CCONLY) {
 			if (size == 1) {

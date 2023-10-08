@@ -3,7 +3,7 @@
 	.i16
 
 	.export __muleqxc
-	.export __mulxeqcu
+	.export __muleqxcu
 
 	; A is ptr X is a value
 __muleqxcu:
