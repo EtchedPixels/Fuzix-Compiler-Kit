@@ -6,6 +6,8 @@
 	.i16
 
 	.export tmp
+	.export tmp2
+	.export tmp3
 	.export hireg
 	.export divisor
 	.export dividend
@@ -16,8 +18,10 @@
 
 tmp:	.word 0
 hireg:	.word 0
+tmp2:
 divisor:
 sum:	.word 0
+tmp3:
 dividend:
 	.word 0
 sign:

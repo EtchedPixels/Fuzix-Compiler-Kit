@@ -2,12 +2,12 @@
 	.a16
 	.i16
 
-	.export __mulxeq
-	.export __mulxequ
+	.export __muleqx
+	.export __muleqxu
 
 	; A is ptr X is a value
-__mulxequ:
-__mulxeq:
+__muleqxu:
+__muleqx:
 	stx @tmp
 	tax
 	lda 0,x
