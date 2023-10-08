@@ -591,6 +591,9 @@ static int pri(struct node *n, const char *op)
 /* Load the right side into X directly, then use the helper */
 static int pri_help(struct node *n, char *helper)
 {
+	unsigned s = get_size(n->type);
+	if (s > 2)
+		return 0;
 	/* We can't do indirections this way because there is no ldx n,x */
 	if (do_pri(n, "ldx", pre_none, 0)) {
 		invalidate_mem();
@@ -1027,12 +1030,14 @@ void gen_jtrue(const char *tail, unsigned n)
 
 void gen_switch(unsigned n, unsigned type)
 {
-	/* TODO: fix to work with output */
-	gen_helpcall(NULL);
-	printf("switch");
+	invalidate_x();
+	invalidate_mem();
+	output("ldx #Sw%d", n);
+	/* FIXME: to work with output */
+	printf("\tjmp __switch");
 	helper_type(type, 0);
-	printf("\n");
-	output(".word Sw%d\n", n);
+	putchar('\n');
+	unreachable = 1;
 }
 
 void gen_switchdata(unsigned n, unsigned size)
