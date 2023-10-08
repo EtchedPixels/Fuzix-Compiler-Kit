@@ -1761,6 +1761,8 @@ unsigned gen_shortcut(struct node *n)
 		codegen_lr(r);
 		move_a_x();
 		invalidate_mem();
+		/* TODO: check if this jumps in current bank or if we need
+		   to do inx/rts hacks etc FIXME */
 		output("jsr (0,x)");
 		invalidate_regs();
 		return 1;
@@ -1985,6 +1987,22 @@ unsigned gen_node(struct node *n)
 				output("ora @hireg");
 				return 1;
 			}
+		}
+		/* Non condition code cases via helpers */
+		return 0
+	case T_BANG:
+		if (n->flags & CCONLY) {
+			if (size == 1) {
+				output("and #0xFF");
+			} else if (size == 2) {
+				/* Cheapest 'is it 0 set flags' */
+				output("inc a");
+				output("dec a");
+			} else {
+				output("ora @hireg");
+			}
+			setjflags(n, "eqne", "eqne");
+			return 1;
 		}
 		/* Non condition code cases via helpers */
 		return 0;
