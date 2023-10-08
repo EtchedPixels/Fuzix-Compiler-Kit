@@ -267,7 +267,6 @@ void type_parse_function(unsigned ptr)
 
 	mark_storage(&argsave, &locsave);
 	parse_function_arguments(tplt);
-	fprintf(stderr, "argsize %d\n", arg_size());
 	header(H_ARGFRAME, arg_size(), 0);
 	pop_storage(&argsave, &locsave);
 
