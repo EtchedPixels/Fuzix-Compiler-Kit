@@ -2,9 +2,9 @@
 	.a16
 	.i16
 
-	.export __gtequx
+	.export __gteqxu
 
-__gtequx:
+__gteqxu:
 	stx @tmp
 	sec
 	sbc @tmp

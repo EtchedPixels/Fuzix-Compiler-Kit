@@ -3,6 +3,7 @@
 	.i16
 
 	.export __not
+	.export __notc
 
 __notc:
 	and #0xFF

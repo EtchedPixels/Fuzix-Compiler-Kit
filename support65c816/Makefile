@@ -10,11 +10,11 @@ OBJ = __andeqx.o __diveqx.o __diveqxu.o __divx.o __eqeqx.o __gteqx.o \
       __pluseqxc.o __remeqxc.o __remeqxcu.o __shleqxc.o __shreqxc.o \
       __shreqxcu.o __diveqxcu.o \
       __plusl.o __minusl.o __booll.o __notl.o \
-      __shll.o __cast_l.o __negatel.o \
-      __divlu.o __divl.o \
+      __shll.o __cast_l.o __negatel.o __longcmp.o \
+      __divul.o __divl.o \
       dp.o __push0.o __fnexit.o \
       __switchc.o __switch.o __switchl.o \
-      __div32x32.o
+      __div32x32.o __mull.o
     
 .s.o:
 	cc65c816 -c $<

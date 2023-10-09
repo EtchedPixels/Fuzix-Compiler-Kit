@@ -3,7 +3,24 @@
 	.i16
 
 	.export __divl
-	.export __modl
+	.export __reml
+	.export __diveqxl
+	.export __remeqxl
+
+;
+;	We handle divide specially to get the stack layout
+;	convenient. The backend pushes the left to the data stack
+;	instead.
+;
+divsetup:
+	dey
+	dey
+	dey
+	dey
+	sta 0,y		; save the working register
+	lda @hireg
+	sta 2,y
+	rts
 
 __divl:
 	stz @sign		; clear sign flag
@@ -11,15 +28,9 @@ __divl:
 	bpl signfixed
 	jsr __negatel		; negate it if so
 	inc @sign		; and count the negation
-	bra signfixed
 signfixed:
-	dey			; make space on the stack
-	dey
-	dey
-	dey
-	sta 0,y			; save the working register
-	lda @hireg
-	sta 2,y
+	phy
+	jsr divsetup
 	lda 6,y			; get the stacked high word
 	bpl nocarry		; are we negative
 	inc @sign		; remember negation
@@ -46,10 +57,7 @@ nocarry:
 	bne popout		; and done
 	inc @hireg		; carried so an extra inc needed
 popout:
-	dey			; clean up stack
-	dey
-	dey
-	dey
+	ply
 	dey			; clean up passed stack argument
 	dey
 	dey
@@ -66,19 +74,14 @@ nosignfix3:
 ;
 ;	Same basic idea but the sign is determined solely by hireg
 ;
-__modl:
+__reml:
 	ldx @hireg
 	stx @sign		; save word that determines sign
 	bpl msignfixed
 	jsr __negatel
 msignfixed:
-	dey
-	dey
-	dey
-	dey
-	sta 0,y
-	lda @hireg
-	sta 2,y
+	phy
+	jsr divsetup
 	lda 6,y
 	bpl mnocarry
 	eor #0xffff
@@ -99,3 +102,52 @@ mnocarry:
 	bpl popout
 	jsr __negatel
 	bra popout
+
+;
+;	X is the pointer. Build the stack and call the main operation
+;
+;	(X) / hireg:A
+;
+__diveqxl:
+	dey
+	dey
+	dey
+	dey
+	pha
+	lda 2,x
+	sta 2,y
+	lda 0,x
+	sta 0,y
+	pla
+	phx
+	jsr __divl
+	plx
+	; it did all our cleanup on the data stack
+	sta 0,x
+	pha
+	lda @hireg
+	sta 2,x
+	pla
+	rts
+
+__remeqxl:
+	dey
+	dey
+	dey
+	dey
+	pha
+	lda 2,x
+	sta 2,y
+	lda 0,x
+	sta 0,y
+	pla
+	phx
+	jsr __reml
+	plx
+	; it did all our cleanup on the data stack
+	sta 0,x
+	pha
+	lda @hireg
+	sta 2,x
+	pla
+	rts
