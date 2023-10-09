@@ -2,20 +2,20 @@
 	.a16
 	.i16
 
-	.export __diveqxcu
+	.export __remeqxuc
 
 	; A is ptr X is a value to divide by
-__diveqxcu:
+__remeqxuc:
 	stx @tmp
 	tax
-	rep #$20
+	rep #0x20
 	lda 0,x
-	sep #$20
+	sep #0x20
 	phx
 	ldx @tmp
-	jsr __divxu
+	jsr __remxu
 	plx
-	rep #$20
+	rep #0x20
 	sta 0,x
-	sep #$20
+	sep #0x20
 	rts

@@ -2,16 +2,16 @@
 	.a16
 	.i16
 
-	.export __shreqxcu
+	.export __shreqxuc
 
-__shreqxcu:
+__shreqxuc:
 	; Shift [A] X times
 	stx @tmp
 	tax
 	lda 0,x
 	ldx @tmp
 	phx
-	jsr __shrxcu
+	jsr __shrxuc
 	plx
 	sta 0,x
 	rts

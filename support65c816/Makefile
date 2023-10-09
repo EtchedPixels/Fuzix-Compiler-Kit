@@ -7,11 +7,14 @@ OBJ = __andeqx.o __diveqx.o __diveqxu.o __divx.o __eqeqx.o __gteqx.o \
       __lteqx.o __lteqxu.o \
       __bool.o __not.o \
       __andeqxc.o __diveqxc.o __minuseqxc.o __muleqxc.o __oreqxc.o \
-      __pluseqxc.o __remeqxc.o __remeqxcu.o __shleqxc.o __shreqxc.o \
-      __shreqxcu.o __diveqxcu.o \
+      __pluseqxc.o __remeqxc.o __remeqxuc.o __shleqxc.o __shreqxc.o \
+      __shreqxuc.o __diveqxuc.o \
       __plusl.o __minusl.o __booll.o __notl.o \
       __shll.o __cast_l.o __negatel.o __longcmp.o \
-      __divul.o __divl.o \
+      __divul.o __divl.o __pluseqxl.o __minuseqxl.o __ltxl.o __gtxul.o \
+      __bandl.o __orl.o __xorl.o __cpll.o \
+      __shrxl.o __shlxl.o \
+      __postdecl.o __postincl.o  __postdecxl.o __postincxl.o \
       dp.o __push0.o __fnexit.o \
       __switchc.o __switch.o __switchl.o \
       __div32x32.o __mull.o
