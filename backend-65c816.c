@@ -63,6 +63,11 @@
  *	  each frame and to pass upper word back in X for this format)
  *	- Use stz.
  *	- fold a + b + 1 to use sec adc, ditto a - b - 1 and clc
+ *
+ *	Need a ccvalid flag of 0 = no 1 = yes 2 = backwards so we can shorten
+ *	stuff like  lda 2,y and #1 jsr __bool beq by spotting ccvalid when
+ *	we bool or not and setting it for the code paths that keep eq/ne right
+ *	(of which there are many)
  */
 
 #include <stdio.h>
@@ -475,12 +480,12 @@ static int do_pri(struct node *n, const char *op, void (*pre)(struct node *n), u
 	switch (n->op) {
 	case T_LABEL:
 		pre(n);
-		output("%s #<T%d+%d", op, n->val2, (unsigned) n->value);
+		output("%s #T%d+%d", op, n->val2, (unsigned) n->value);
 		return 1;
 	case T_NAME:
 		pre(n);
 		name = namestr(n->snum);
-		output("%s #<_%s+%d", op, name, (unsigned) n->value);
+		output("%s #_%s+%d", op, name, (unsigned) n->value);
 		return 1;
 	case T_CONSTANT:
 		/* These had the right squashed into them */
@@ -507,7 +512,7 @@ static int do_pri(struct node *n, const char *op, void (*pre)(struct node *n), u
 			/* TODO: use zp hacks stack tracking */
 		}
 		setsize(s);
-		output("%s %d,y", op, r->value);
+		output("%s %d,y", op, r->value + sp);
 		set16bit();
 		return 1;
 	case T_NREF:
@@ -1226,7 +1231,7 @@ unsigned gen_direct(struct node *n)
 				move_a_x();
 			output("tya");
 			output("clc");
-			output("adc #%d", n->right->value);
+			output("adc #%d", r->value);
 			output("tay");
 			if (!(func_flags & F_VOIDRET))
 				move_x_a();
@@ -1235,10 +1240,19 @@ unsigned gen_direct(struct node *n)
 		}
 		sp -= n->right->value;
 		return 1;
-	case T_EQ:		/* address in A. See if right simple */
+	case T_EQ:
+		if (s <= 2 && nr && r->op == T_CONSTANT && r->value == 0) {
+			setsize(s);
+			invalidate_mem();
+			output("stz 0,x");
+			set16bit();
+			return 1;
+		}
+		/* address in A. See if right simple */
 		if (s <= 2 && do_pri(n, "lda", pre_tax, 0)) {
 			invalidate_a();
 			setsize(s);
+			invalidate_mem();
 			output("sta 0,x");
 			set16bit();
 			return 1;
@@ -1454,9 +1468,28 @@ unsigned gen_direct(struct node *n)
 		return pri_help_bool(n, "eqeqx");
 	/* Might make sense to only generate two ops and invert the
 	   j flags ? */
-	case T_GTEQ:
-		return pri_help_bool(n, "gteqx");
 	case T_GT:
+		if ((n->flags & CCONLY) && (n->type & UNSIGNED)) {
+			/* > 0 is != 0 */
+			if (r->op == T_CONSTANT && r->value == 0) {
+				/* Check == 0 */
+				invalidate_x();
+				move_a_x();
+				n->flags |= ISBOOL;
+				jflags = "neeq";
+				return 1;
+			}
+		}
+		return pri_help_bool(n, "gtx");
+	case T_GTEQ:
+		if (r->op == T_CONSTANT && r->value == 0 &&  !(n->type & UNSIGNED)) {
+			if (n->flags & CCONLY) {
+				output("asl a");
+				jflags = "cccs";
+				invalidate_a();
+				return 1;
+			}
+		}
 		/* True of cs or vs, false if vc or sc */
 		if (n->flags & CCONLY) {
 			if (pri(n, "cmp")) {
@@ -1465,8 +1498,20 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		return pri_help_bool(n, "gtx");
-	case T_LTEQ:
+		return pri_help_bool(n, "gteqx");
+	case T_LT:
+		if (r->op == T_CONSTANT && r->value == 0 &&  !(n->type & UNSIGNED)) {
+			if (n->flags & CCONLY) {
+				output("asl a");
+				jflags = "cscc";
+				return 1;
+			} else {
+				output("asl a");
+				output("lda #0");
+				output("rol a");
+				return 1;
+			}
+		}
 		/* True if cc or vc */
 		if (n->flags & CCONLY) {
 			if (pri(n, "cmp")) {
@@ -1475,9 +1520,9 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		return pri_help_bool(n, "lteqx");
-	case T_LT:
 		return pri_help_bool(n, "ltx");
+	case T_LTEQ:
+		return pri_help_bool(n, "lteqx");
 	case T_BANGEQ:
 		if (n->flags & CCONLY) {
 			if (pri(n, "cmp")) {
@@ -1729,9 +1774,19 @@ unsigned gen_uni_direct(struct node *n)
 	return 0;
 }
 
+/* Need some supporting code elsewhere to generate push0 etc shorts */
 static void argstack(struct node *n)
 {
 	unsigned sz = get_stack_size(n->type);
+	if (optsize) {
+			/* Do this directly as it preserves A and X */
+		if (sz == 4)
+			output("jsr __pushal");
+		else
+			output("jsr __pusha");
+		sp += sz;
+		return;
+	}
 	if (sz == 2) {
 		output("dey");
 		output("dey");
@@ -2033,6 +2088,7 @@ unsigned gen_node(struct node *n)
 	unsigned size = get_size(n->type);
 	unsigned nr = n->flags & NORETURN;
 	unsigned v = n->value;
+	struct node *r = n->right;
 
 #if 0
 	/* Temporaries are on the CPU stack */
@@ -2070,6 +2126,7 @@ unsigned gen_node(struct node *n)
 		/* TODO 4 byte forms and enable in rewrite */
 		return 0;
 	case T_LREF:
+		v += sp;
 		if (size <= 2) {
 			if (a_contains(n))
 				return 1;
@@ -2091,7 +2148,22 @@ unsigned gen_node(struct node *n)
 		return 0;
 	case T_NSTORE:
 	case T_LBSTORE:
+		if (size <= 2 && r->op == T_CONSTANT && r->value == 0) {
+			pri(n, "stz");
+			invalidate_mem();
+			set_a_node(n);
+			return 1;
+		}
+		if (size <= 2 && pri(n, "sta")) {
+			invalidate_mem();
+			set_a_node(n);
+			return 1;
+		}
+		/* Need to teach pri 4 byte or have a pri4 */
+		/* TODO: 4 byte */
+		return 0;
 	case T_LSTORE:
+		/* Can't stz n,y so no stz check */
 		if (size <= 2 && pri(n, "sta")) {
 			invalidate_mem();
 			set_a_node(n);
@@ -2110,7 +2182,7 @@ unsigned gen_node(struct node *n)
 		if (nr)
 			return 1;
 		/* Already boolified ? */
-		if (n->right->flags & ISBOOL) {
+		if (r->flags & ISBOOL) {
 			n->flags |= ISBOOL;
 			return 1;
 		}
@@ -2206,8 +2278,11 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_CONSTANT:
 		if (size > 2) {
-			load_a(v >> 16);
-			output("sta @hireg");
+			if (v >> 16) {
+				load_a(v >> 16);
+				output("sta @hireg");
+			} else
+				output("stz @hireg");
 		}
 		load_a(v);
 		return 1;

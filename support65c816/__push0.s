@@ -7,26 +7,53 @@
 	.export __push2
 	.export __push3
 	.export __push4
-	.export __pushx
+	.export __pusha
+	.export __pushal
+	.export __pushl0
+	.export __pushl0a
 
 __push0:
-	ldx #0
-__pushx:
-	tya
-	sec
-	sbc #2
-	tay
-	stx 0,y
+	lda #0
+	; Pusha must preserve A and X (the compiler knows this)
+__pusha:
+	dey
+	dey
+	sta 0,y
 	rts
 __push1:
-	ldx #1
-	bra __pushx
+	lda #1
+	bra __pusha
 __push2:
-	ldx #2
-	bra __pushx
+	lda #2
+	bra __pusha
 __push3:
-	ldx #3
-	bra __pushx
+	lda #3
+	bra __pusha
 __push4:
-	ldx #4
-	bra __pushx
+	lda #4
+	bra __pusha
+
+__pushal:
+	; Preserves A and X
+	dey
+	dey
+	dey
+	dey
+	sta 0,y
+	pha
+	lda @hireg
+	sta 2,y
+	pla
+	rts
+
+__pushl0:
+	lda #0
+__pushl0a:
+	; preserves A and X
+	dey
+	dey
+	dey
+	dey
+	stz 2,y
+	sta 0,y
+	rts
