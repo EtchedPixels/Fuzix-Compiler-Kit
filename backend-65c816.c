@@ -535,7 +535,13 @@ static int do_pri(struct node *n, const char *op, void (*pre)(struct node *n), u
 	case T_DEREF:
 	case T_DEREFPLUS:
 		if (can_pri(r->right) && via_x) {
-			do_pri(r->right, "ldx", pre_none, via_x);
+			/* No ldx n,x so can't ldx 0,x to chain derefs.
+				Could possibly
+				pha
+				do_pri lda
+				tax
+				pla ?? */
+			do_pri(r->right, "ldx", pre_none, 0);
 			invalidate_x();
 			/* X now holds our pointer */
 			setsize(s);
@@ -1784,6 +1790,7 @@ unsigned gen_shortcut(struct node *n)
 	struct node *r = n->right;
 	unsigned nr = n->flags & NORETURN;
 	const char *p;
+	unsigned size = get_size(n->type);
 
 	/* Unreachable code we can shortcut into nothing whee.be.. */
 	if (unreachable)
@@ -1831,7 +1838,7 @@ unsigned gen_shortcut(struct node *n)
 	 *	stack not the CPU one. We could even do fp in C this way
 	 *	if we needed to.
 	 */
-	if (get_size(n->type) == 4 && (p = longfn(n)) != NULL) {
+	if (size == 4 && (p = longfn(n)) != NULL) {
 		codegen_lr(l);
 		argstack(l);
 		codegen_lr(r);
@@ -1850,7 +1857,20 @@ unsigned gen_shortcut(struct node *n)
 		output("jsr _%s+%d", namestr(n->snum), n->value);
 		return 1;
 	}
-	/* The left nay be a complex expression but also may be something
+	/* Shifts we evaluate the count last so we can go via x */
+	if (size == 4 &&(n->op == T_LTLT || n->op == T_GTGT)) {
+		codegen_lr(r);
+		output("pha");
+		codegen_lr(l);
+		output("plx");
+		if (n->op == T_LTLT)
+			helper(n, "shlx");
+		else
+			helper_s(n, "shrx");
+		return 1;
+	}
+
+	/* The left may be a complex expression but also may be something
 	   we can directly reference. The right is the amount */
 	if (n->op == T_PLUSPLUS && leftop_memc(n, "inc"))
 		return 1;
@@ -2201,7 +2221,9 @@ unsigned gen_node(struct node *n)
 		/* A label is an internal object so we don't care if we pull
 		   an extra byte: TODO optimize this and local cases */
 	case T_LABEL:
-		if (size <= 2 && pri(n, "lda")) {
+		if (pri(n, "lda")) {
+			if (size == 4)
+				output("stz @hireg");
 			set_a_node(n);
 			return 1;
 		}
@@ -2212,14 +2234,17 @@ unsigned gen_node(struct node *n)
 		output("tya");
 		output("clc");
 		output("adc #%d", v);
+		if (size == 4)
+			output("stz @hireg");
 		return 1;
 	case T_CAST:
 		return gen_cast(n);
 		/* Negate A */
 	case T_TILDE:
 		if (size <= 2) {
-			output("eor #0xFFFF");
+			output("eor #0xFFFF; cpl");
 			const_a_set(~reg[R_A].value);
+			return 1;
 		}
 		if (size == 4 && !optsize) {
 			output("eor #0xFFFF");
@@ -2280,10 +2305,18 @@ unsigned gen_node(struct node *n)
 	 *	xxEQ ops have a pointer sized left so can go via X thus
 	 *	we pass a size of 2 to pop_help
 	 */
+	case T_PLUSPLUS:
+		if (nr == 0)
+			return pop_help(n, "postincx", 2);
+		/* Fall through */
 	case T_PLUSEQ:
 		if (op_eq(n, "adc", "clc", size))
 			return 1;
 		return pop_help(n, "pluseqx", 2);
+	case T_MINUSMINUS:
+		if (nr == 0)
+			return pop_help(n, "postdecx", 2);
+		/* Fall through */
 	case T_MINUSEQ:
 		/* This one is a bit different because order matters */
 		if (size <= 2) {

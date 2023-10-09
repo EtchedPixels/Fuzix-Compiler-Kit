@@ -1,17 +1,33 @@
 # fetch/store rules when we need X
-	lda %1
+# Need rules for each form except ,x as we can't ldx ,x
+	lda #%1
 	tax
 	lda %2,x
 =
-	ldx %1
+	ldx #%1
 	lda %2,x
 
-	lda %1
+	lda _%1
+	tax
+	lda %2,x
+=
+	ldx _%1
+	lda %2,x
+
+	lda T%1
 	tax
 	sta %2,x
 =
-	ldx %1
+	ldx T%1
 	sta %2,x
+
+	lda %1,y
+	tax
+	lda %2,x
+=
+	ldx %1,y
+	lda %2,x
+
 
 # Kill some bool tests
 	lda %1
