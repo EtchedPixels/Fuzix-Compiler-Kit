@@ -39,6 +39,16 @@
 		for stuff like if (*p) we can spot the boolc with FLAGSONLY and optimise it to
 		stuff like ld a,h or l and ld a,l or a (and peep can fix some of the other bits)
   [Part done CCONLY exists now to use it more]
+
+- 	char v;
+	char *ptr = &v
+	int x = 400;
+	return *ptr = x;
+
+	Should return a rounded value but does it in our case ? And can
+	we suppress a noreturn cast if we need to
+
+
 - hash array and function type lookup
 - hash name lookup
 - rewrite x = x + .. and x = x -... etc as += -=

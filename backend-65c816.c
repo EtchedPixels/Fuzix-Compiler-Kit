@@ -697,9 +697,8 @@ static int leftop_memc(struct node *n, const char *op)
 
 /* Pull the left side into X and call the same helper we use for
    the direct forms where we loaded X directly */
-static unsigned pop_help(struct node *n, const char *helper)
+static unsigned pop_help(struct node *n, const char *helper, unsigned size)
 {
-	unsigned size = get_size(n->type);
 	if (size > 2)
 		return 0;
 	output("plx");
@@ -708,9 +707,9 @@ static unsigned pop_help(struct node *n, const char *helper)
 	return 1;
 }
 
-static unsigned pop_help_bool(struct node *n, const char *helper)
+static unsigned pop_help_bool(struct node *n, const char *helper, unsigned size)
 {
-	unsigned r = pop_help(n, helper);
+	unsigned r = pop_help(n, helper, size);
 	if (r)
 		n->flags |= ISBOOL;
 	return r;
@@ -1229,7 +1228,6 @@ unsigned gen_direct(struct node *n)
 				invalidate_a();
 		}
 		sp -= n->right->value;
-		printf(";sp offset reduced by %d\n", n->right->value);
 		return 1;
 	case T_EQ:		/* address in A. See if right simple */
 		if (s <= 2 && do_pri(n, "lda", pre_tax, 0)) {
@@ -1747,6 +1745,37 @@ static void argstack(struct node *n)
 }
 
 /*
+ *	Some internal helpers work best if we use the data stack for long
+ *	values
+ */
+const char *longfn(struct node *n)
+{
+	switch(n->op) {
+	case T_SLASH:
+		return "div";
+	case T_PERCENT:
+		return "rem";
+	case T_STAR:
+		return "mul";
+	case T_LT:
+		return "cclt";
+	case T_GT:
+		return "ccgt";
+	case T_LTEQ:
+		return "cclteq";
+	case T_GTEQ:
+		return "ccgteq";
+	case T_BANGEQ:
+		return "ccne";
+	case T_EQEQ:	/* Maybe - need to decide */
+		return "cceq";
+	/* Shifts etc TBD - might make more sense to generate l/r backwards
+	   and take the shift value via x */
+	}
+	return NULL;
+}
+
+/*
  *	Allow the code generator to shortcut trees it knows
  */
 unsigned gen_shortcut(struct node *n)
@@ -1754,6 +1783,7 @@ unsigned gen_shortcut(struct node *n)
 	struct node *l = n->left;
 	struct node *r = n->right;
 	unsigned nr = n->flags & NORETURN;
+	const char *p;
 
 	/* Unreachable code we can shortcut into nothing whee.be.. */
 	if (unreachable)
@@ -1793,6 +1823,20 @@ unsigned gen_shortcut(struct node *n)
 		   to do inx/rts hacks etc FIXME */
 		output("jsr (0,x)");
 		invalidate_regs();
+		return 1;
+	}
+	/*
+	 *	For some internal functions it is easier to handle them
+	 *	as if we C like function calls with values on the data
+	 *	stack not the CPU one. We could even do fp in C this way
+	 *	if we needed to.
+	 */
+	if (get_size(n->type) == 4 && (p = longfn(n)) != NULL) {
+		codegen_lr(l);
+		argstack(l);
+		codegen_lr(r);
+		helper_s(n, p);
+		sp -= 4;	/* The helper cleans up */
 		return 1;
 	}
 	if (n->op == T_CALLNAME) {
@@ -1837,22 +1881,49 @@ static unsigned gen_cast(struct node *n)
 		return 0;
 
 	ls = get_size(lt);
+	rs = get_size(rt);
 
 	/* Size shrink is free */
 	if ((lt & ~UNSIGNED) <= (rt & ~UNSIGNED))
 		return 1;
 	/* extending a signed object */
 	if (!(rt & UNSIGNED)) {
-		/* Signed */
-		if (ls == 1) {
-			/* TODO */
-			output("ora #0");
-			output("bmi X%d", ++xlabel);
+		/* Signed char to int or uint */
+		if (rs == 1 && ls == 2) {
+			invalidate_x();
+			/* Cheapest way to ensure N flag is set right */
+			move_a_x();
+			output("bpl X%d", ++xlabel);
 			output("ora #0xFF00");
 			label("X%d", xlabel);
 			invalidate_a();
 			return 1;
 		}
+		if (rs == 1 && ls == 4) {
+			output("stz @hireg");
+			invalidate_x();
+			/* Cheapest way to ensure N flag is set right */
+			move_a_x();
+			output("bpl X%d", ++xlabel);
+			output("ora #0xFF00");
+			output("dec @hireg");
+			label("X%d", xlabel);
+			invalidate_a();
+			return 1;
+		}
+		/* 2 to 4 */
+		if (rs == 2 && ls == 4) {
+			output("stz @hireg");
+			invalidate_x();
+			/* Cheapest way to ensure N flag is set right */
+			move_a_x();
+			output("bpl X%d", ++xlabel);
+			output("dec @hireg");
+			label("X%d", xlabel);
+			invalidate_a();
+			return 1;
+		}
+		/* Can't happen ? */
 		return 0;
 	}
 	/* Casting unsigned */
@@ -2015,6 +2086,9 @@ unsigned gen_node(struct node *n)
 		output("jsr _%s+%d", namestr(n->snum), v);
 		return 1;
 	case T_BOOL:
+		/* A cast to nowhere is no cast at all */
+		if (nr)
+			return 1;
 		/* Already boolified ? */
 		if (n->right->flags & ISBOOL) {
 			n->flags |= ISBOOL;
@@ -2025,11 +2099,13 @@ unsigned gen_node(struct node *n)
 				output("and #0xFF");
 				return 1;
 			} else if (size == 2) {
-				/* Cheapest 'is it 0 set flags' */
-				output("inc a");
-				output("dec a");
+				/* Cheapest 'is it 0 set flags' is to
+				   just tax and throw it away */
+				invalidate_x();
+				move_a_x();
 				return 1;
 			} else {
+				/* 32bit - check both halves */
 				output("ora @hireg");
 				return 1;
 			}
@@ -2041,12 +2117,14 @@ unsigned gen_node(struct node *n)
 			if (size == 1) {
 				output("and #0xFF");
 			} else if (size == 2) {
-				/* Cheapest 'is it 0 set flags' */
-				output("inc a");
-				output("dec a");
+				/* Cheapest 'is it 0 set flags' is to
+				   just tax and throw it away */
+				invalidate_x();
+				move_a_x();
 			} else {
 				output("ora @hireg");
 			}
+			/* Basically eq with the flags reversed */
 			setjflags(n, "eqne", "eqne");
 			return 1;
 		}
@@ -2173,29 +2251,39 @@ unsigned gen_node(struct node *n)
 	case T_MINUS:
 		return op(n, "sbc", "sec", size);
 	case T_STAR:
-		return pop_help(n, "mulx");
+		return pop_help(n, "mulx", size);
 	case T_SLASH:
-		return pop_help(n, "divx");
+		return pop_help(n, "divx", size);
 	case T_PERCENT:
-		return pop_help(n, "remx");
+		return pop_help(n, "remx", size);
 	case T_EQEQ:
-		return pop_help_bool(n, "eqeqx");
+		return pop_help_bool(n, "eqeqx", size);
 	case T_GTEQ:
-		return pop_help_bool(n, "gtx");
+		return pop_help_bool(n, "gtx", size);
 	case T_GT:
-		return pop_help_bool(n, "gtx");
+		return pop_help_bool(n, "gtx", size);
 	case T_LTEQ:
-		return pop_help_bool(n, "lteqx");
+		return pop_help_bool(n, "lteqx", size);
 	case T_LT:
-		return pop_help_bool(n, "ltx");
+		return pop_help_bool(n, "ltx", size);
 	case T_BANGEQ:
-		return pop_help_bool(n, "nex");
+		return pop_help_bool(n, "nex", size);
+	/*
+	 *	Need to look at these. Left is 4 byte right is only
+	 *	really 2 so we might be able to do a better job TODO
+	 */
 	case T_LTLT:
-		return pop_help(n, "lsx");
+		return pop_help(n, "lsx", size);
 	case T_GTGT:
-		return pop_help(n, "rsx");
+		return pop_help(n, "rsx", size);
+	/*
+	 *	xxEQ ops have a pointer sized left so can go via X thus
+	 *	we pass a size of 2 to pop_help
+	 */
 	case T_PLUSEQ:
-		return op_eq(n, "adc", "clc", size);
+		if (op_eq(n, "adc", "clc", size))
+			return 1;
+		return pop_help(n, "pluseqx", 2);
 	case T_MINUSEQ:
 		/* This one is a bit different because order matters */
 		if (size <= 2) {
@@ -2232,23 +2320,23 @@ unsigned gen_node(struct node *n)
 				invalidate_a();
 			return 1;
 		}
-		return 0;
+		return pop_help(n, "minuseqx", 2);
 	case T_STAREQ:
-		return pop_help(n, "rsx");
+		return pop_help(n, "muleqx", 2);
 	case T_SLASHEQ:
-		return pop_help(n, "rsx");
+		return pop_help(n, "diveqx", 2);
 	case T_PERCENTEQ:
-		return pop_help(n, "rsx");
+		return pop_help(n, "remeqx", 2);
 	case T_ANDEQ:
-		return op_eq(n, "and", NULL, size);
+		return op_eq(n, "and", NULL, 2);
 	case T_OREQ:
-		return op_eq(n, "ora", NULL, size);
+		return op_eq(n, "ora", NULL, 2);
 	case T_HATEQ:
-		return op_eq(n, "eor", NULL, size);
+		return op_eq(n, "eor", NULL, 2);
 	case T_SHLEQ:
-		return pop_help(n, "shleqx");
+		return pop_help(n, "shleqx", 2);
 	case T_SHREQ:
-		return pop_help(n, "shreqx");
+		return pop_help(n, "shreqx", 2);
 	}
 	return 0;
 }
