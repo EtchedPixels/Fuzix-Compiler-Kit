@@ -13,7 +13,7 @@ __shleqxu:
 	lda 0,x
 	ldx @tmp
 	phx
-	jsr __shlx
+	jsr __lsx
 	plx
 	sta 0,x
 	rts

@@ -13,7 +13,7 @@ __shreqxc:
 	sep #0x20
 	ldx @tmp
 	phx
-	jsr __shrx
+	jsr __rsx
 	plx
 	rep #0x20
 	sta 0,x

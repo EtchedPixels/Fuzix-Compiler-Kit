@@ -17,7 +17,7 @@ __shleqxcu:
 	sep #0x20
 	ldx @tmp
 	phx
-	jsr __shlx
+	jsr __lsx
 	plx
 	rep #0x20
 	sta 0,x

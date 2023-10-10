@@ -17,7 +17,8 @@ OBJ = __andeqx.o __diveqx.o __diveqxu.o __divx.o __eqeqx.o __gteqx.o \
       __postdecl.o __postincl.o  __postdecxl.o __postincxl.o \
       dp.o __push0.o __fnexit.o \
       __switchc.o __switch.o __switchl.o \
-      __div32x32.o __mull.o
+      __div32x32.o __mull.o \
+      _memcpy.o _memset.o _strlen.o
     
 .s.o:
 	cc65c816 -c $<

@@ -11,7 +11,7 @@ __shreqx:
 	lda 0,x
 	ldx @tmp
 	phx
-	jsr __shrx
+	jsr __rsx
 	plx
 	sta 0,x
 	rts
