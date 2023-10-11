@@ -37,3 +37,71 @@
 	lda %1
 	jsr __cc%2z
 
+# Maths we didn't manage to clean up at tree level
+	pha
+	lda %1
+	sta @tmp
+	pla
+	clc
+	adc @tmp
+=
+	clc
+	adc %1
+
+# the rep clears the other half of A for free
+	rep #0x20
+	and #0xff
+=
+	rep #0x20
+
+# Remove double and masking cases (eg >> 8 and cast is the usual)
+	and #0xff
+	and #0xff
+=
+	and #0xff
+
+# Flip simple x operations around. Should do this in the compiler for
+# such cases (eg << >> )
+	lda %1,y
+	pha
+	lda %2
+	plx
+;invalregs
+	jsr %3
+=
+	ldx %1,y
+	lda %2
+	jsr %3
+
+	lda #%1
+	pha
+	lda %2
+	plx
+;invalregs
+	jsr %3
+=
+	ldx #%1
+	lda %2
+	jsr %3
+
+	lda _%1
+	pha
+	lda %2
+	plx
+;invalregs
+	jsr %3
+=
+	ldx T%1
+	lda %2
+	jsr %3
+
+	lda #%1
+	pha
+	lda %2
+	plx
+;invalregs
+	jsr %3
+=
+	ldx T%1
+	lda %2
+	jsr %3
