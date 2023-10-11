@@ -28,24 +28,12 @@
 	ldx %1,y
 	lda %2,x
 
-
-# Kill some bool tests
+# Optimize 32:16 compare
+	stz @hireg
 	lda %1
-	inc a
-	dec a
-;:
-	b%2 %3
+;invalregs
+	jsr __cc%2
 =
 	lda %1
-	b%2 %3
+	jsr __cc%2z
 
-	lda %1
-	sep #0x20
-	inc a
-	dec a
-;:
-	b%2 %3
-=
-	lda %1
-	sep #0x20
-	b%2 %3
