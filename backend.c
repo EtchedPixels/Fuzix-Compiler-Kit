@@ -361,18 +361,19 @@ static void process_header(void)
 		gen_label("_b", h.h_name);
 		break;
 	case H_DO:
-		gen_label("_c", h.h_name);
+		gen_label("_t", h.h_name);
 		break;
 	case H_DO | H_FOOTER:
-		gen_jump("_c", h.h_name);
+		gen_jump("_t", h.h_name);
 		gen_label("_b", h.h_name);
 		break;
 	case H_DOWHILE:
+		gen_label("_c", h.h_name);
 		if (h.h_data == -1) {
 			compile_expression();
-			gen_jtrue("_c", h.h_name);
+			gen_jtrue("_t", h.h_name);
 		} else if (h.h_data == 1)
-			gen_jump("_c", h.h_name);
+			gen_jump("_t", h.h_name);
 		/* For while(0) just drop out */
 		break;
 	case H_DOWHILE | H_FOOTER:
