@@ -91,7 +91,7 @@
 ;invalregs
 	jsr %3
 =
-	ldx T%1
+	ldx _%1
 	lda %2
 	jsr %3
 
@@ -102,6 +102,6 @@
 ;invalregs
 	jsr %3
 =
-	ldx T%1
+	ldx #%1
 	lda %2
 	jsr %3
