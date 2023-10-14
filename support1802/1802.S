@@ -55,7 +55,7 @@ __push:
 
 	.export __pushl
 
-_pushl:
+__pushl:
 	sex SP
 	ghi HI
 	stxd
@@ -524,6 +524,8 @@ negdone:
 ;
 	.export __const
 	.export __loadn
+	.export __loadl
+
 __const:
 __loadn:
 	ldxa
@@ -532,8 +534,8 @@ __loadn:
 	phi AC
 	sep RUN
 
-	.export __constl
-__constl:
+	.export __loadl
+__loadl:
 	ldxa
 	plo AC
 	ldxa
@@ -572,10 +574,10 @@ __notl:
 	bnz set0
 	ghi HI
 	bnz set0
-not:
+__not:
 	ghi AC
 	bnz set0
-notc:
+__notc:
 	glo AC
 	bnz set0
 	; is 0 should be 1
@@ -633,12 +635,12 @@ __local:
 ;
 ;	Typecasting of HI:AC as needed
 ;
-	.export _castc_
-	.export _castc_l
-	.export _castuc_
-	.export _castuc_l
-	.export _cast_l
-	.export _castu_l
+	.export __castc_
+	.export __castc_l
+	.export __castuc_
+	.export __castuc_l
+	.export __cast_l
+	.export __castu_l
 
 __castc_l1:
 	ldi 255
@@ -1002,8 +1004,8 @@ __xoreql:
 ;
 ;	Call a function. Saves BPC and FP
 ;
-	.export __callfunc
-__callfunc:
+	.export __callfn
+__callfn:
 	sex SP
 	lda BPC
 	plo TMP
@@ -1025,10 +1027,37 @@ __callfunc:
 	sep RUN
 
 ;
+;	Call function whose address is TOS
+;
+	.export __callfunc
+
+__callfunc:
+	sex SP
+	inc SP
+	lda SP
+	plo TMP
+	ldn SP
+	phi TMP
+	ghi BPC
+	stxd
+	glo BPC
+	stxd
+	ghi FP
+	stxd
+	glo FP
+	stxd
+	glo TMP
+	plo BPC
+	ghi TMP
+	phi BPC
+	sex BPC
+	sep RUN
+
+;
 ;	Function entry helper, builds stack frame and sets FP
 ;
-	.export __fnentry
-__fnentry:
+	.export __fnenter
+__fnenter:
 	glo SP
 	add
 	plo FP
@@ -1043,8 +1072,8 @@ __fnentry:
 ;
 ;	Return from a function. Restores BPC and FP
 ;
-	.export __ret	
-__ret:
+	.export __fnexit
+__fnexit:
 	inc SP
 	lda SP
 	plo FP
@@ -1057,10 +1086,10 @@ __ret:
 	sep RUN
 
 ;
-;	Adjust the stack pointer to clean up after a functionc all
+;	Adjust the stack pointer to clean up after a function call
 ;
 	.export __cleanup
-cleanup:
+__cleanup:
 	sex BPC
 	glo SP
 	add
@@ -1173,7 +1202,7 @@ shleq_none:
 	.export __shrequc
 	.export __shrequ
 
-shrequc:; shift (TOS) by AC
+__shrequc:; shift (TOS) by AC
 	glo AC
 	ani 15
 	bz shleq_none
@@ -1198,7 +1227,7 @@ shreqlpc:
 ;
 ;	(TOS) >>= AC.lo
 ;
-shreq:	; shift (TOS) by AC
+__shrequ:	; shift (TOS) by AC
 	glo AC
 	ani 15
 	bz shleq_none
@@ -1444,7 +1473,7 @@ cclt_2:
 	sep RUN
 
 	.export __cclteq
-cclteq:
+__cclteq:
 	; TOS < AC
 	sex SP
 	inc SP
@@ -1491,3 +1520,146 @@ setleq:
 	sex BPC
 	sep RUN
 
+	.export __lbrefc
+	.export __nrefc
+	.export __lrefc
+	.export __lbref
+	.export __nref
+	.export __lref
+	.export __nstorec
+	.export __nstore
+	.export __lbstorec
+	.export __lbstore
+	.export __lstorec
+	.export __lstore
+
+__nrefc:
+__lbrefc:
+	ldxa
+	plo TMP
+	ldxa
+	phi TMP
+	lda TMP
+	plo AC
+	sep RUN
+
+__nref:
+__lbref:
+	ldxa
+	plo TMP
+	ldxa
+	phi TMP
+	lda TMP
+	plo AC
+	ldn TMP
+	phi AC
+	sep RUN
+
+__nstorec:
+__lbstorec:
+	ldxa
+	plo TMP
+	ldxa
+	phi TMP
+	glo AC
+	str TMP
+	sep RUN
+
+__nstore:
+__lbstore:
+	ldxa
+	plo TMP
+	ldxa
+	phi TMP
+	glo AC
+	str TMP
+	inc TMP
+	ghi AC
+	str TMP
+	sep RUN
+
+; Could do refl stuff easily enough
+
+__lrefc:
+	glo FP
+	add
+	plo TMP
+	irx
+	ghi FP
+	adc
+	phi TMP
+	ldn TMP
+	plo AC
+	sep RUN
+
+__lref:
+	glo FP
+	add
+	plo TMP
+	irx
+	ghi FP
+	adc
+	phi TMP
+	lda TMP
+	plo AC
+	ldn TMP
+	plo AC
+	sep RUN
+
+__lstorec:
+	glo FP
+	add
+	plo TMP
+	irx
+	ghi FP
+	adc
+	phi TMP
+	glo AC
+	str TMP
+	sep RUN
+
+__lstore:
+	glo FP
+	add
+	plo TMP
+	irx
+	ghi FP
+	adc
+	phi TMP
+	glo AC
+	str TMP
+	inc TMP
+	ghi AC
+	str TMP
+	sep RUN
+
+; Optimizer rule generated heleprs
+
+	.export __plus4
+	.export __plus3
+	.export __plus2
+	.export __plus1
+	.export __minus4
+	.export __minus3
+	.export __minus2
+	.export __minus1
+
+__plus4:
+	inc AC
+__plus3:
+	inc AC
+__plus2:
+	inc AC
+__plus1:
+	inc AC
+	sep RUN
+
+__minus4:
+	dec AC
+__minus3:
+	dec AC
+__minus2:
+	dec AC
+__minus1:
+	dec AC
+	sep RUN
