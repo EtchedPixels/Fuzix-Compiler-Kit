@@ -2540,7 +2540,7 @@ unsigned gen_node(struct node *n)
 		if (size == 4) {
 			if (!nr)
 				outputnc("pha");
-			if (n->op == T_LBREF) {
+			if (n->op == T_LBSTORE) {
 				outputnc("sta T%d+%u", n->val2, (unsigned)n->value);
 				outputnc("lda @hireg");
 				output("sta T%d+%u", n->val2, (unsigned)n->value + 2);
