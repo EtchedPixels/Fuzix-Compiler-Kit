@@ -40,26 +40,32 @@ __execute:
 __pushc:
 	glo AC
 	str SP
+	dec SP
 	sep RUN
 
 	.export __push
 __push:
+	sex SP
 	ghi AC
-	str SP
+	stxd
 	glo AC
-	str SP
+	stxd
+	sex BPC
 	sep RUN
 
 	.export __pushl
 
+_pushl:
+	sex SP
 	ghi HI
-	str SP
+	stxd
 	glo HI
-	str SP
+	stxd
 	ghi AC
-	str SP
+	stxd
 	glo AC
-	str SP
+	stxd
+	sex BPC
 	sep RUN
 
 ;
@@ -146,7 +152,7 @@ lslloop:
 lslnext:
 	dec TMP
 	glo TMP
-	bnz lsrloop
+	bnz lslloop
 	sep RUN
 
 ;
@@ -184,7 +190,7 @@ lsllloop:
 lsllnext:
 	dec TMP
 	glo TMP
-	bnz lsrloop
+	bnz lsllloop
 	sep RUN
 
 ;
@@ -533,9 +539,9 @@ __constl:
 	ldxa
 	phi AC
 	ldxa
-	plo HIGH
+	plo HI
 	ldxa
-	phi HIGH
+	phi HI
 	sep RUN
 
 ;
@@ -707,7 +713,7 @@ __pluseq:
 	glo AC
 	add
 	plo AC
-	str TMP
+	stxd
 	ghi AC
 	adc
 	phi AC
@@ -718,27 +724,29 @@ __pluseq:
 __pluseql:
 	; AC = value
 	; TOS = ptr
+	sex SP
 	inc SP
 	lda SP
 	plo TMP
 	ldn SP
 	phi TMP
+	dec SP
 	sex TMP
 	glo AC
 	add
 	plo AC
-	str TMP
+	stxd
 	ghi AC
 	adc
 	phi AC
-	str TMP
+	stxd
 	glo HI
 	adc
-	phi HI
-	str TMP
+	plo HI
+	stxd
 	ghi HI
 	adc
-	phi AC
+	phi HI
 	str TMP
 	sex BPC
 	sep RUN
@@ -769,16 +777,15 @@ __minuseqc:
 __minuseq:
 	; AC = value
 	; TOS = ptr
+	sex SP
 	inc SP
-	lda SP
-	plo TMP
-	ldn SP
+
 	phi TMP
 	sex TMP
 	glo AC
 	sdb
 	plo AC
-	str TMP
+	stxd
 	ghi AC
 	sdb
 	phi AC
@@ -798,18 +805,18 @@ __minuseql:
 	glo AC
 	sd
 	plo AC
-	str TMP
+	stxd
 	ghi AC
 	sdb
 	phi AC
-	str TMP
+	stxd
 	glo HI
 	sdb
-	phi HI
-	str TMP
+	plo HI
+	stxd
 	ghi HI
 	sdb
-	phi AC
+	phi HI
 	str TMP
 	sex BPC
 	sep RUN
@@ -1014,7 +1021,7 @@ __callfunc:
 	plo BPC
 	ghi TMP
 	phi BPC
-	sep BPC
+	sex BPC
 	sep RUN
 
 ;
