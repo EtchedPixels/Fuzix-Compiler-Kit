@@ -3,6 +3,12 @@
 ;	as a threadcode generator for 1802/5/6 (there's a lot of
 ;	possible optimizing for 1805/6)
 ;
+;	We make some assumptions for simplicity
+;	- Our working stack is not R2. We leave that for asm helpers and
+;	  interrupts as we don't always keep SP safe to directly use
+;	- Our interrupt entry switches threadcode stacks so the state of the
+;	  user SP isn't that important and can be briefly slightly invalid
+;
 	.abs
 	.org 0x100
 
@@ -1663,3 +1669,164 @@ __minus2:
 __minus1:
 	dec AC
 	sep RUN
+
+;
+;	Now the fun stuff - 16bit divide
+;
+__rem:
+	sex SP
+	ghi AC
+	shl
+	lbz __remu	; Remainder sign matches divisor
+			; so low means same as unsigned
+	ldi 0x80	; Remember to invert the sign
+	lbr negates
+__div:
+	sex SP
+	ghi AC
+	inc SP
+	inc SP		; point at high byte
+	xor
+	shl		; DF tells us resulting sign
+	dec SP
+	dec SP		; fix the stack
+	ldi 0x01
+	lsnf
+	ldi 0x81
+	phi HI		; Remember what we are doing
+negates:
+	; Now turn both halves +ve
+	ghi AC
+	shl
+	bnf no_neg_1
+	glo AC
+	xri 0xFF
+	plo AC
+	ghi AC
+	xri 0xFF
+	phi AC
+	inc AC
+no_neg_1:
+	inc SP
+	lda SP
+	plo TMP
+	ldn SP
+	phi TMP
+	shl
+	bnf no_neg_2
+	glo TMP
+	xri 0xFF
+	plo TMP
+	ghi TMP
+	xri 0xFF
+	phi TMP
+	inc TMP
+	; Now put it back on the stack and SP back as it should be
+	ghi TMP
+	stxd
+	glo TMP
+	stxd
+no_neg_2:
+	br __div16x16
+
+__remu:
+	ldi 0
+	lskp
+__divu:
+	ldi 1
+	phi HI
+;
+;	This point is entered with HI.hi indicating if the remainder
+;	or quotient should be returned and whether to invert the result
+;
+;	This allows it to be entered for all the 16bit divide/remainder
+; forms
+;
+__div16x16:
+	; TOS / AC -> AC
+	; need to shuffle stuff around so divisor is in memory
+
+	inc SP
+	ldn SP
+	plo TMP		; tmp is the dividend
+	glo AC		; Swap with our extra register save
+	str SP
+	inc SP
+	ldn SP
+	phi TMP
+	ghi AC
+	str SP		; leave sp pointing at high byte of divisor
+	ldi 16
+	plo HI
+
+	ldi 0		; working register
+	plo AC
+	phi AC
+
+
+loop:
+	glo TMP
+	shl
+	plo TMP
+	ghi TMP
+	shlc
+	phi TMP
+	; Now do we set the low bit on the working reg ?
+	inc TMP		; guess yes
+	ghi AC
+	sm
+	bdf next_loop
+	bnz do_adjust
+	; Might be work to do
+	glo AC
+	dec SP		; divisor low
+	sm
+	inc SP		; back to divisor high
+	bdf next_loop
+	bz  next_loop
+do_adjust:
+	dec SP		; divisior low
+	glo AC
+	add
+	plo AC
+	inc SP		; divisor high
+	ghi AC
+	adc
+	dec TMP		; we guessed wrong
+next_loop:
+	dec HI
+	glo HI
+	bnz loop
+
+	; State at this point
+	; HI = 0
+	; AC holds the remainder
+	; (TMP) holds the dividend
+	; Our callers stuck info in HI.HI about what to return
+	ghi HI
+	ani 1
+	bz divide
+	; Remainder. AC is good
+chksign:
+	ghi HI
+	ani 0x80
+	bz done
+	glo AC
+	; Negate requested
+	xri 0xFF
+	plo AC
+	ghi AC
+	xri 0xFF
+	phi AC
+	inc AC
+done:
+	; Now clean up  (SP already points to upper byte we work with)
+	inc SP
+	sex BPC
+	sep RUN
+divide:
+	glo TMP
+	plo AC
+	ghi TMP
+	phi AC
+	br chksign
