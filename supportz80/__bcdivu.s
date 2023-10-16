@@ -1,5 +1,5 @@
 		.export __bcdivu
-		.export __bcmodu
+		.export __bcremu
 
 		; We compute HL/DE but righh now we have BC / HL
 __bcdivu:
@@ -11,7 +11,7 @@ __bcdivu:
 		ld h,b
 		ret
 
-__bcmodu:
+__bcremu:
 		ex de,hl
 		ld e,c
 		ld d,b

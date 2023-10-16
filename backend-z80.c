@@ -680,6 +680,9 @@ static unsigned load_r_with(const char *rp, struct node *n)
 		printf("\tpush %s\n\tpop %s\n", regnames[n->value], rp);
 		return 1;
 	case T_RDEREF:
+		/* One oddity here - we can't load IX or IY from (ix) or (iy) */
+		if (*rp == 'i')
+			return 0;
 		printf("\tld %c,(%s + %d)\n", *rp, regnames[n->value], n->val2);
 		printf("\tld %c,(%s + %d)\n", rp[1], regnames[n->value], n->val2+ 1);
 		return 1;
@@ -729,7 +732,7 @@ static unsigned load_a_with(struct node *n)
 			printf("\tld a,(bc)\n");
 			break;
 		}
-		printf("\tlod a,(%s+%d)\n", regnames[n->value], n->val2);
+		printf("\tld a,(%s+%d)\n", regnames[n->value], n->val2);
 		break;
 	default:
 		return 0;
@@ -1241,7 +1244,7 @@ unsigned gen_direct(struct node *n)
 					if (r->value == 1)
 						printf("\tld a,(hl)\n\tdec a\n\tld (hl),a");
 					else
-						printf("\tld a,(hl)\n\tsub a,%d\n\tld (hl),a",
+						printf("\tld a,(hl)\n\tsub %d\n\tld (hl),a",
 							(int)r->value);
 				} else {
 					if (load_a_with(r) == 0)
@@ -1358,7 +1361,7 @@ static void reghelper(struct node *n, const char *p)
 		x[1] = 'y';
 		break;
 	}
-	helper_s(n, p);
+	helper(n, p);
 }
 
 static void reg_logic(struct node *n, unsigned s, unsigned op, const char *i)
@@ -1498,8 +1501,19 @@ unsigned gen_shortcut(struct node *n)
 				printf("\tld (%s + %d),h\n", rp, n->val2 + 1);
 				return 1;
 			}
-			return 0;
+			if (s == 4) {
+				if (!load_hl_with(r))
+					codegen_lr(r);
+				printf("\tld (%s + %d),l\n", rp, n->val2);
+				printf("\tld (%s + %d),h\n", rp, n->val2 + 1);
+				printf("\tld de, (__hireg)\n");
+				printf("\tld (%s + %d),e\n", rp, n->val2 + 2);
+				printf("\tld (%s + %d),d\n", rp, n->val2 + 3);
+				return 1;
+			}
 		}
+		fprintf(stderr, "req s %x r % o %d\n",
+			s, n->value, n->val2);
 		return 0;
 	}
 	/* Register targetted ops. These are totally different to the normal EQ ops because

@@ -69,7 +69,7 @@
 #define CMD_CC2		LIBPATH"cc2.z80"
 #define CMD_COPT	LIBPATH"copt"
 #define CMD_CPP		LIBPATH"cpp"
-#define CMD_LD		BINPATH"ld85"
+#define CMD_LD		BINPATH"ldz80"
 #define CRT0		LIBPATH"crt0.o"
 #define LIBC		LIBPATH"libc.a"
 #define LIBCPU_Z80	LIBPATH"libz80.a"
@@ -477,7 +477,7 @@ void link_phase(void)
 	if (strcmp(cpu, "z180") == 0)
 		append_obj(&liblist, LIBCPU_Z180, TYPE_A);
 	else
-		append_obj(&liblist, LIBCPU_Z180, TYPE_A);
+		append_obj(&liblist, LIBCPU_Z80, TYPE_A);
 	add_argument_list(NULL, &objlist);
 	resolve_libraries();
 	run_command();
@@ -759,6 +759,11 @@ int main(int argc, char *argv[]) {
 			usage();
 		}
 	}
+
+	if (strcmp(cpu, "z80") == 0)
+		append_obj(&deflist, "__z80__", 0);
+	else
+		append_obj(&deflist, "__z180__", 0);
 
 	if (!standalone)
 		add_system_include(INCPATH);
