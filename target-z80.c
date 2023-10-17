@@ -77,7 +77,7 @@ unsigned target_register(unsigned type)
 {
 	if (type >= CLONG && !PTR(type))
 		return 0;
-#if 0		
+#if 1
 	/* For now only use IX/IY for pointers */
 	if (PTR(type)) {
 		if (ix_free) {

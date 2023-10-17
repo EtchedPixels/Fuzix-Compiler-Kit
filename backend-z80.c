@@ -1567,7 +1567,7 @@ unsigned gen_shortcut(struct node *n)
 		if (n->value + sp == 0 && s == 2) {
 			/* The one case Z80 is worth doing */
 			codegen_lr(n->right);
-			if (n->flags & NORETURN)
+			if (nr)
 				printf("\tex (sp),hl\n");
 			else
 				printf("\tpop af\n\tpush hl\n");
@@ -1576,7 +1576,7 @@ unsigned gen_shortcut(struct node *n)
 	}
 	/* Shortcut any initialization of BC/IX/IY we can do directly */
 	if (n->op == T_RSTORE) {
-		if (s == 2 && !nr) 
+		if (s == 2 && nr)
 			return load_r_with(regnames[n->value], r);
 		/* Can in theory do byte sized shortcuts but need a suitable
 		   helper adding for the few we can - notably c,(ix+n) */
