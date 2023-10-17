@@ -68,6 +68,7 @@ static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned argbase;	/* Argument offset in current function */
 static unsigned unreachable;	/* Code after an unconditional jump */
 static unsigned func_cleanup;	/* Zero if we can just ret out */
+static char *ccflags = "nzz";	/* True, False flags */
 
 static const char *regnames[] = {	/* Register variable names */
 	NULL,
@@ -454,12 +455,14 @@ void gen_jump(const char *tail, unsigned n)
 
 void gen_jfalse(const char *tail, unsigned n)
 {
-	printf("\tjr z,L%d%s\n", n, tail);
+	printf("\tjr %s,L%d%s\n", ccflags + 2, n, tail);
+	ccflags = "nzz";
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
-	printf("\tjr nz,L%d%s\n", n, tail);
+	printf("\tjr %c%c,L%d%s\n", ccflags[0], ccflags[1], n, tail);
+	ccflags = "nzz";
 }
 
 static void gen_cleanup(unsigned v)
@@ -840,6 +843,20 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 			return 1;
 		}
 	}
+	if (0 && n->op == T_EQEQ && (n->flags & CCONLY)) {
+		if (s == 1 && load_a_with(r) == 1) {
+			printf("\tcp l\n");
+			ccflags = "z nz";
+			return 1;
+		}
+		if (s == 2 && load_de_with(r) == 1) {
+			printf("\tor a\n\tsbc hl,de\n");
+			ccflags = "z nz";
+			return 1;
+		}
+	}
+	/* TODO: unsigned gt and lt etc including moving const by one to
+	   get easy to inline form */
 	if (gen_deop(op, n, r, sign)) {
 		n->flags |= ISBOOL;
 		return 1;
@@ -960,7 +977,6 @@ static unsigned gen_logicc(struct node *n, unsigned s, const char *op, unsigned 
 	if (optsize && ((h != 0 && h != 255) || (l != 0 && l != 255)))
 		return 0;
 
-	/* TODO: use set/res for single bit cases */
 	if (s == 2) {
 		if (h == 0) {
 			if (code == 1)
@@ -1008,6 +1024,79 @@ static unsigned gen_fast_remainder(unsigned n, unsigned s)
 	return 0;
 }
 
+static int bitcheckb0(uint8_t n)
+{
+	unsigned m = 1;
+	unsigned i;
+
+	for (i = 0; i < 8; i++) {
+		if (!(n & m)) {
+			if ((n |m ) != 0xFF)
+				return -1;
+			return i;
+		}
+		m <<= 1;
+		i--;
+	}
+	return -1;
+}
+
+static int bitcheck0(unsigned n, unsigned s)
+{
+	unsigned m = 1;
+	unsigned i;
+
+	if (s == 1)
+		return bitcheckb0(n);
+	for (i = 0; i < 16; i++) {
+		if (!(n & m)) {
+			if ((n |m ) != 0xFFFF)
+				return -1;
+			return i;
+		}
+		m <<= 1;
+		i--;
+	}
+	return -1;
+}
+
+static int bitcheckb1(uint8_t n)
+{
+	unsigned m = 1;
+	unsigned i;
+
+	for (i = 0; i < 8; i++) {
+		if (n & m) {
+			if (!(n & ~m))
+				return -1;
+			return i;
+		}
+		m <<= 1;
+		i--;
+	}
+	return -1;
+}
+
+static int bitcheck1(unsigned n, unsigned s)
+{
+	unsigned m = 1;
+	unsigned i;
+
+	if (s == 1)
+		return bitcheckb1(n);
+	for (i = 0; i < 16; i++) {
+		if (n & m) {
+			if (!(n & ~m))
+				return -1;
+			return i;
+		}
+		m <<= 1;
+		i--;
+	}
+	return -1;
+}
+
+
 /*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
@@ -1026,6 +1115,7 @@ unsigned gen_direct(struct node *n)
 	unsigned s = get_size(n->type);
 	struct node *r = n->right;
 	unsigned v;
+	unsigned nr = n->flags & NORETURN;
 
 	/* We only deal with simple cases for now */
 	if (r) {
@@ -1071,20 +1161,20 @@ unsigned gen_direct(struct node *n)
 			if (load_de_with(r) == 0)
 				return 0;
 			printf("\tld (hl),de\n");
-			if (!(n->flags & NORETURN))
+			if (!nr)
 				printf("\tex de,hl\n");
 			return 1;
 		}
 		if (s == 1) {
 			/* We need to end up with the value in l if this is not NORETURN, also
 			   we can optimize constant a step more */
-			if (r->op == T_CONSTANT && (n->flags & NORETURN))
+			if (r->op == T_CONSTANT && nr)
 				printf("\tld (hl),%d\n", ((unsigned)r->value) & 0xFF);
 			else {
 				if (load_a_with(r) == 0)
 					return 0;
 				printf("\tld (hl),a\n");
-				if (!(n->flags & NORETURN))
+				if (!nr)
 					printf("\tld l,a\n");
 			}
 			return 1;
@@ -1171,10 +1261,32 @@ unsigned gen_direct(struct node *n)
 	case T_AND:
 		if (gen_logicc(r, s, "and", r->value, 1))
 			return 1;
+		if (r->op == T_CONSTANT && s <= 2) {
+			int b = bitcheck0(r->value, s);
+			if (b >= 0) {
+				/* Single clear bit */
+				if (b < 8)
+					printf("\tres %d,l\n", b);
+				else
+					printf("\tres %d,h\n", b - 8);
+				return 1;
+			}
+		}
 		return gen_deop("bandde", n, r, 0);
 	case T_OR:
 		if (gen_logicc(r, s, "or", r->value, 2))
 			return 1;
+		if (r->op == T_CONSTANT && s <= 2) {
+			int b = bitcheck1(r->value, s);
+			if (b >= 0) {
+				/* Single set bit */
+				if (b < 8)
+					printf("\tset %d,l\n", b);
+				else
+					printf("\tset %d,h\n", b - 8);
+				return 1;
+			}
+		}
 		return gen_deop("borde", n, r, 0);
 	case T_HAT:
 		if (gen_logicc(r, s, "xor", r->value, 3))
@@ -1516,8 +1628,6 @@ unsigned gen_shortcut(struct node *n)
 				return 1;
 			}
 		}
-		fprintf(stderr, "req s %x r % o %d\n",
-			s, n->value, n->val2);
 		return 0;
 	}
 	/* Register targetted ops. These are totally different to the normal EQ ops because
@@ -2095,6 +2205,19 @@ unsigned gen_node(struct node *n)
 			printf("\tpop de\n\tor a\n\tex de,hl\n\tsbc hl,de\n");
 			return 1;
 		}
+		break;
+	case T_BANG:
+		if (n->flags & CCONLY) {
+			if (size == 4)
+				return 0;
+			if (size == 1)
+				printf("\tld a,l\n\tor a\n");
+			else if (size == 2)
+				printf("\tld a,h\n\tor l\n");
+			ccflags = "z nz";
+			return 1;
+		}
+		break;
 	}
 	return 0;
 }
