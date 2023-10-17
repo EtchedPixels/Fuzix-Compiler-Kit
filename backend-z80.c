@@ -153,13 +153,14 @@ static unsigned is_simple(struct node *n)
 	/* Multi-word objects are never simple */
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
-
 	/* We can load these directly into a register */
-	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME || op == T_REG || op == T_RREF || op == T_RDEREF)
+	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME || op == T_REG)
 		return 10;
 	/* We can load this directly into a register but it may be a byte longer */
 	if (op == T_NREF || op == T_LBREF)
-		return 10;
+		return 9;
+	if (op == T_RREF || op == T_RDEREF)
+		return 5;
 	return 0;
 }
 
@@ -623,16 +624,19 @@ void gen_tree(struct node *n)
  *	Return 1 if the node can be turned into direct access. The VOID check
  *	is a special case we need to handle stack clean up of void functions.
  *
- *	TODO;  Add T_RREF here and teach the helpers to generate (ix) loads
- *	via DE (and bc via ld a,(bc) ld e,a)
+ *	Note that we think of RDEREF as accessible. There is a specific case
+ *	it is not which is loading IX or IY indirect from a pointer. The
+ *	register callers must handle the fact this returns 1 and load_r_with
+ *	then says 0
  */
+
 static unsigned access_direct(struct node *n)
 {
 	unsigned op = n->op;
 
 	/* We can direct access integer or smaller types that are constants
 	   global/static or string labels */
-	if (op != T_CONSTANT && op != T_NAME && op != T_LABEL && op != T_NREF && op != T_LBREF && op != T_REG)
+	if (op != T_CONSTANT && op != T_NAME && op != T_LABEL && op != T_NREF && op != T_LBREF && op != T_REG && op != T_RREF && op != T_RDEREF)
 		return 0;
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
 		return 0;
