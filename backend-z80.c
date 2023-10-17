@@ -2104,7 +2104,6 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_RDEREF:
-		/* TODO: long pointers will need more work */
 		switch(n->value) {
 		case 1:
 			/* BC is never anything but a byte sized ptr */
@@ -2113,14 +2112,24 @@ unsigned gen_node(struct node *n)
 				printf("\tld l,a\n");
 			return 1;
 		case 2:
-			printf("\tld l,(ix + %d)\n", n->val2);
-			if (size == 2)
+			if (size == 4) {
+				printf("\tld h,(ix + %d)\n", n->val2 + 3);
+				printf("\tld l,(ix + %d)\n", n->val2 + 2);
+				printf("\tld (__hireg),hl\n");
+			}
+			if (size > 1)
 				printf("\tld h,(ix + %d)\n", n->val2 + 1);
+			printf("\tld l,(ix + %d)\n", n->val2);
 			return 1;
 		case 3:
-			printf("\tld l,(iy + %d)\n", n->val2);
-			if (size == 2)
+			if (size == 4) {
+				printf("\tld h,(iy + %d)\n", n->val2 + 3);
+				printf("\tld l,(iy + %d)\n", n->val2 + 2);
+				printf("\tld (__hireg),hl\n");
+			}
+			if (size > 1)
 				printf("\tld h,(iy + %d)\n", n->val2 + 1);
+			printf("\tld l,(iy + %d)\n", n->val2);
 			return 1;
 		}
 		return 0;
