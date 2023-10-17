@@ -401,6 +401,8 @@ static struct node *hier10(void)
 		return r;
 	case T_AND:
 		r = hier10();
+		if (r->op == T_REG)
+			error("can't take address of register");
 		/* If it's an lvalue then just stop being an lvalue */
 		if (r->flags & LVAL) {
 			r->flags &= ~LVAL;
