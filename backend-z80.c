@@ -683,8 +683,8 @@ static unsigned load_r_with(const char *rp, struct node *n)
 		/* One oddity here - we can't load IX or IY from (ix) or (iy) */
 		if (*rp == 'i')
 			return 0;
-		printf("\tld %c,(%s + %d)\n", *rp, regnames[n->value], n->val2);
-		printf("\tld %c,(%s + %d)\n", rp[1], regnames[n->value], n->val2+ 1);
+		printf("\tld %c,(%s + %d)\n", rp[1], regnames[n->value], n->val2);
+		printf("\tld %c,(%s + %d)\n", *rp, regnames[n->value], n->val2 + 1);
 		return 1;
 	default:
 		return 0;
@@ -1056,7 +1056,7 @@ unsigned gen_direct(struct node *n)
 			return 0;
 		if (s == 1)
 			printf("\tld a,l\n");
-		printf("ld (T%d+%d), ", n->val2, v);
+		printf("\tld (T%d+%d), ", n->val2, v);
 		if (s == 1)
 			printf("a\n");
 		else
@@ -1463,8 +1463,12 @@ unsigned gen_shortcut(struct node *n)
 		}
 	}
 	/* Shortcut any initialization of BC/IX/IY we can do directly */
-	if (n->op == T_RSTORE)
-		return load_r_with(regnames[n->value], r);
+	if (n->op == T_RSTORE) {
+		if (s == 2 && !nr) 
+			return load_r_with(regnames[n->value], r);
+		/* Can in theory do byte sized shortcuts but need a suitable
+		   helper adding for the few we can - notably c,(ix+n) */
+	}
 
 	/* Assignment to *BC is byte pointer always */
 	if (n->op == T_REQ) {
