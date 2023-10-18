@@ -348,6 +348,7 @@ void gen_segment(unsigned segment)
 void gen_prologue(const char *name)
 {
 	printf("_%s:\n", name);
+	unreachable = 0;
 }
 
 /* Generate the stack frame */
@@ -377,7 +378,7 @@ void gen_frame(unsigned size,  unsigned aframe)
 	}
 
 	if (size > 10) {
-		printf("\tld hl,%d\n", -size);
+		printf("\tld hl,0x%x\n", -size);
 		printf("\tadd hl,sp\n");
 		printf("\tld sp,hl\n");
 		return;
@@ -400,6 +401,12 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	/* Return in HL, does need care on stack. TOOD: flag void functions
 	   where we can burn the return */
 	sp -= size;
+
+	/* This can happen if the function never returns or the only return
+	   is a by a ret directly (ie from a function without locals) */
+	if (unreachable)
+		return;
+
 	if (size > 10) {
 		unsigned x = func_flags & F_VOIDRET;
 		if (!x)
@@ -426,6 +433,7 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	if (func_flags & F_REG(1))
 		printf("\tpop bc\n");
 	printf("\tret\n");
+	unreachable = 1;
 }
 
 void gen_label(const char *tail, unsigned n)
@@ -444,6 +452,7 @@ unsigned gen_exit(const char *tail, unsigned n)
 	}
 	else {
 		printf("\tret\n");
+		unreachable = 1;
 		return 1;
 	}
 }
@@ -475,7 +484,7 @@ static void gen_cleanup(unsigned v)
 		   arguments so it seems a win to stay in HL */
 		/* TODO: spot void function and skip ex de,hl */
 		printf("\tex de,hl\n");
-		printf("\tld hl,%d\n", v);
+		printf("\tld hl,0x%x\n", v);
 		printf("\tadd hl,sp\n");
 		printf("\tld sp,hl\n");
 		printf("\tex de,hl\n");
@@ -524,6 +533,7 @@ void gen_switch(unsigned n, unsigned type)
 	printf("\tjp __switch");
 	helper_type(type, 0);
 	printf("\n");
+	unreachable = 1;
 }
 
 void gen_switchdata(unsigned n, unsigned size)
@@ -621,6 +631,86 @@ void gen_tree(struct node *n)
  */
 
 /*
+ *	Locals are complicated on the Z80. There is no simply cheap way
+ *	to access them so put all the gunk in a helper we can refine
+ *	over time for different CPU variants and frame pointers etc
+ *
+ *	Given a size and offset on the stack, write the code to put
+ *	the value into HL without trashing BC or DE
+ *
+ *	If to_de is set we want the result in de, otherwise HL
+ */
+unsigned generate_lref(unsigned v, unsigned size, unsigned to_de)
+{
+	const char *name;
+
+	if (size == 4)
+		return 0;
+
+	/* Correct for current SP location */
+	v += sp;
+	/* Rabbit amd Z280 have LD HL,(SP + n) */
+	if (HAS_LDHLSP && v <= 255 && !to_de) {
+		/* FIXME: We will load an extra byte for 16bit, so hopefully non MMIO TODO */
+		printf("\tld hl,(sp+%d)\n", v);
+		return 1;
+	}
+	if (v == 0 && size == 2) {
+		if (to_de)
+			printf("\tpop de\n\tpush de\n");
+		else
+			printf("\tpop hl\n\tpush hl\n");
+		return 1;
+	}
+	/* Byte load is shorter inline for most cases */
+	if (size == 1 && (!optsize || v >= LWDIRECT)) {
+		if (to_de)
+			printf("\tex de,hl\n");
+		printf("\tld hl,0x%x\n\tadd hl,sp\n\tld l,(hl)\n", v);
+		if (to_de)
+			printf("\tex de,hl\n");
+		return 1;
+	}
+	/* Word load is long winded on Z80 */
+	if (size == 2 && opt > 2) {
+		printf("\tld hl,0x%x\n\tadd hl,sp\n", WORD(v));
+		if (IS_RABBIT)
+			printf("\tld hl,(hl + %d\n)\n", 0);
+		else if (IS_EZ80 && to_de)
+			printf("\tld de,(hl)\n");
+		else if (to_de)
+			printf("\tld e,(hl)\n\tinc hl\n\tld d,(hl)\n");
+		else
+			printf("\tld a,(hl)\n\tinc hl\n\tld h,(hl)\n\tld l,a\n");
+		return 1;
+	}
+	/* Via helper magic for compactness on Z80 */
+	if (size == 1)
+		name = "ldbyte";
+	else
+		name = "ldword";
+	/* Check for lref out of range. Our long form helpers currently
+	   trash DE so can't be used when we are loading DE */
+	if (to_de && v >= 253)
+		error("lrr");
+	/* We do a call so the stack offset is two bigger */
+	if (to_de)
+		printf("\tex de,hl\n");
+
+	if (v < LWDIRECT)
+		printf("\tcall __%s%d\n", name, v + 2);
+	else if (v < 253)
+		printf("\tcall __%s\n\t.byte %d\n", name, v + 2);
+	else
+		printf("\tcall __%sw\n\t.word %d\n", name, v + 2);
+
+	if (to_de)
+		printf("\tex de,hl\n");
+
+	return 1;
+}
+
+/*
  *	Return 1 if the node can be turned into direct access. The VOID check
  *	is a special case we need to handle stack clean up of void functions.
  *
@@ -636,6 +726,10 @@ static unsigned access_direct(struct node *n)
 
 	/* We can direct access integer or smaller types that are constants
 	   global/static or string labels */
+
+	 /* For now we only do word sized lrefs FIXME */
+	if (op == T_LREF && get_size(n->type) == 2 && n->value + sp < 253)
+		return 1;
 	if (op != T_CONSTANT && op != T_NAME && op != T_LABEL && op != T_NREF && op != T_LBREF && op != T_REG && op != T_RREF && op != T_RDEREF)
 		return 0;
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
@@ -663,7 +757,7 @@ static unsigned load_r_with(const char *rp, struct node *n)
 		return 1;
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
-		printf("\tld %s,%d\n", rp, v);
+		printf("\tld %s,0x%x\n", rp, v);
 		return 1;
 	case T_NREF:
 		/* We know it is int or pointer */
@@ -699,18 +793,22 @@ static unsigned load_r_with(const char *rp, struct node *n)
 	return 1;
 }
 
-static unsigned load_bc_with(struct node *n)
-{
-	return load_r_with("bc", n);
-}
-
 static unsigned load_de_with(struct node *n)
 {
+	/* DE we can lref because our helpers don't touch DE so we can
+	   ex de,hl around it */
+	if (n->op == T_LREF) {
+		generate_lref(n->value, 2, 1);
+		return 1;
+	}
 	return load_r_with("de", n);
 }
 
 static unsigned load_hl_with(struct node *n)
 {
+	/* An HL lref is fine as we can trash HL and A to get HL */
+	if (n->op == T_LREF)
+		return generate_lref(n->value, 2, 0);
 	return load_r_with("hl", n);
 }
 
@@ -719,7 +817,7 @@ static unsigned load_a_with(struct node *n)
 	switch(n->op) {
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
-		printf("\tld a,%d\n", BYTE(n->value));
+		printf("\tld a,0x%x\n", BYTE(n->value));
 		break;
 	case T_NREF:
 		printf("\tld a,(_%s+%d)\n", namestr(n->snum), WORD(n->value));
@@ -925,7 +1023,7 @@ static void gen_fast_mul(unsigned s, unsigned n)
 {
 
 	if (n == 0)
-		printf("\tld hl,0\n");
+		printf("\tld hl,0x0\n");
 	else
 		write_mul(n);
 }
@@ -938,7 +1036,7 @@ static unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 	if (n == 1)
 		return 1;
 	if (n == 256) {
-		printf("\tld l,h\n\tld h,0\n");
+		printf("\tld l,h\n\tld h,0x0\n");
 		return 1;
 	}
 	if (n & (n - 1))
@@ -984,23 +1082,23 @@ static unsigned gen_logicc(struct node *n, unsigned s, const char *op, unsigned 
 	if (s == 2) {
 		if (h == 0) {
 			if (code == 1)
-				printf("\tld h,0\n");
+				printf("\tld h,0x0\n");
 		}
 		else if (h == 255 && code != 3) {
 			if (code == 2)
-				printf("\tld h,255\n");
+				printf("\tld h,0xff\n");
 		} else {
-			printf("\tld a,h\n\t%s %d\n\tld h,a\n", op, h);
+			printf("\tld a,h\n\t%s 0x%x\n\tld h,a\n", op, h);
 		}
 	}
 	if (l == 0) {
 		if (code == 1)
-			printf("\tld l,0\n");
+			printf("\tld l,0x0\n");
 	} else if (l == 255 && code != 3) {
 		if (code == 2)
-			printf("\tld l,255\n");
+			printf("\tld l,0xff\n");
 	} else {
-		printf("\tld a,l\n\t%s %d\n\tld l,a\n", op, l);
+		printf("\tld a,l\n\t%s 0x%x\n\tld l,a\n", op, l);
 	}
 	return 1;
 }
@@ -1011,11 +1109,11 @@ static unsigned gen_fast_remainder(unsigned n, unsigned s)
 	if (s != 2)
 		return 0;
 	if (n == 1) {
-		printf("\tld hl,0\n");
+		printf("\tld hl,0x00\n");
 		return 1;
 	}
 	if (n == 256) {
-		printf("\tld h,0\n");
+		printf("\tld h,0x0\n");
 		return 1;
 	}
 	if (n & (n - 1))
@@ -1173,7 +1271,7 @@ unsigned gen_direct(struct node *n)
 			/* We need to end up with the value in l if this is not NORETURN, also
 			   we can optimize constant a step more */
 			if (r->op == T_CONSTANT && nr)
-				printf("\tld (hl),%d\n", ((unsigned)r->value) & 0xFF);
+				printf("\tld (hl),0x%x\n", ((unsigned)r->value) & 0xFF);
 			else {
 				if (load_a_with(r) == 0)
 					return 0;
@@ -1226,7 +1324,7 @@ unsigned gen_direct(struct node *n)
 					repeated_op("dec hl", v);
 				return 1;
 			}
-			printf("\tld de,%d\n", 65536 - v);
+			printf("\tld de,0x%x\n", 65536 - v);
 			printf("\tadd hl,de\n");
 			return 1;
 		}
@@ -1360,7 +1458,7 @@ unsigned gen_direct(struct node *n)
 					if (r->value == 1)
 						printf("\tld a,(hl)\n\tdec a\n\tld (hl),a");
 					else
-						printf("\tld a,(hl)\n\tsub %d\n\tld (hl),a",
+						printf("\tld a,(hl)\n\tsub 0x%x\n\tld (hl),a",
 							(int)r->value);
 				} else {
 					if (load_a_with(r) == 0)
@@ -1489,7 +1587,7 @@ static void reg_logic(struct node *n, unsigned s, unsigned op, const char *i)
 		/* TODO - can avoid the reload into HL if NORETURN */
 		/* TODO: check we never end up with IX or IY here */
 		if (s == 2)
-			printf("\tld a,b\n\t%s h\n\tmld b,a\nld h,a\n", i + 2);
+			printf("\tld a,b\n\t%s h\n\tld b,a\nld h,a\n", i + 2);
 		printf("\tld a,c\n\t%s c\n\tld c,a\nld l,a\n", i + 2);
 	} else {
 		reghelper(n, i);
@@ -1553,9 +1651,9 @@ unsigned gen_shortcut(struct node *n)
 		/* Expression result is now in HL */
 		if (s == 1) {
 			printf("\tld a,l\n");
-			printf("ld (_%s+%d), a\n", namestr(n->snum), WORD(n->value));
+			printf("\tld (_%s+%d), a\n", namestr(n->snum), WORD(n->value));
 		} else {
-			printf("ld (_%s+%d), hl\n", namestr(n->snum), WORD(n->value));
+			printf("\tld (_%s+%d), hl\n", namestr(n->snum), WORD(n->value));
 		}
 		return 1;
 	}
@@ -1763,7 +1861,7 @@ unsigned gen_shortcut(struct node *n)
 			/* TODO IX and IY for the simple cases */
 			if (r->op == T_CONSTANT && reg == 1) {
 				if (s == 1 && v >= 8) {
-					printf("\tld c,0\n");
+					printf("\tld c,0x0\n");
 					get_regvar(reg, n, s);
 					return 1;
 				}
@@ -1776,19 +1874,19 @@ unsigned gen_shortcut(struct node *n)
 				}
 				/* 16 bit */
 				if (v >= 16) {
-					printf("\tld bc,0\n");
+					printf("\tld bc,0x0\n");
 					get_regvar(reg, n, s);
 					return 1;
 				}
 				if (v == 8) {
-					printf("\tld b,c\n\tld c,0\n");
+					printf("\tld b,c\n\tld c,0x0\n");
 					get_regvar(reg, n, s);
 					return 1;
 				}
 				if (v > 8) {
 					printf("\tld a,c\n");
 					repeated_op("add a", v - 8);
-					printf("\tld b,a\nld c,0\n");
+					printf("\tld b,a\nld c,0x0\n");
 					get_regvar(reg, n, s);
 					return 1;
 				}
@@ -1804,17 +1902,17 @@ unsigned gen_shortcut(struct node *n)
 		case T_SHREQ:
 			if (r->op == T_CONSTANT && reg == 1) {
 				if (v >= 8 && s == 1) {
-					printf("\tld c,0\n");
+					printf("\tld c,0x0\n");
 					get_regvar(reg, n, s);
 					return 1;
 				}
 				if (v >= 16) {
-					printf("\tld bc,0\n");
+					printf("\tld bc,0x0\n");
 					get_regvar(reg, n, s);
 					return 1;
 				}
 				if (v == 8 && (n->type & UNSIGNED)) {
-					printf("\tld c,b\nld b,0\n");
+					printf("\tld c,b\nld b,0x0\n");
 					get_regvar(reg, n, s);
 					return 1;
 				}
@@ -1886,7 +1984,7 @@ static unsigned gen_cast(struct node *n)
 	/* Don't do the harder ones */
 	if (!(rt & UNSIGNED) || ls > 2)
 		return 0;
-	printf("\tld h,0\n");
+	printf("\tld h,0x0\n");
 	return 1;
 }
 
@@ -1946,46 +2044,10 @@ unsigned gen_node(struct node *n)
 		if (nr)
 			return 1;
 /*		printf(";L sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
-		v += sp;
-		/* Rabbit amd Z280 have LD HL,(SP + n) */
-		if (HAS_LDHLSP && v <= 255) {
-			/* We will load an extra byte for 16bit, so hopefully non MMIO TODO */
-			printf("\tld hl,(sp+%d)\n", v);
+		if (generate_lref(v, size, 0))
 			return 1;
-		}
-		if (v == 0 && size == 2) {
-			printf("\tpop hl\n\tpush hl\n");
-			return 1;
-		}
-		/* Byte load is shorter inline for most cases */
-		if (size == 1 && (!optsize || v >= LWDIRECT)) {
-			printf("ld hl,%d\n\tadd hl,sp\n\tld l,(hl)\n", v);
-			return 1;
-		}
-		/* Word load is long winded on Z80 */
-		if (size == 2 && opt > 2) {
-			printf("\tld hl,%d\n\tadd hl,sp\n", WORD(v));
-			if (IS_RABBIT)
-				printf("\tld hl,(hl + %d\n)\n", 0);
-			else if (IS_EZ80)
-				printf("\tld de,(hl)\n\t ex de,hl\n");
-			else
-				printf("\tld e,(hl)\n\tinc hl\n\tld d,(hl)\n\tex de,hl\n");
-			return 1;
-		}
-		/* Via helper magic for compactness on 8080 */
-		if (size == 1)
-			name = "ldbyte";
-		else
-			name = "ldword";
-		/* We do a call so the stack offset is two bigger */
-		if (v < LWDIRECT)
-			printf("\tcall __%s%d\n", name, v + 2);
-		else if (v < 253)
-			printf("\tcall __%s\n\t.byte %d\n", name, v + 2);
-		else
-			printf("\tcall __%sw\n\t.word %d\n", name, v + 2);
-		return 1;
+		error("lrb");
+		return 0;
 	case T_RREF:
 		if (nr)
 			return 1;
@@ -2008,7 +2070,7 @@ unsigned gen_node(struct node *n)
 			return 0;
 		if (size == 1)
 			printf("\tld a,l\n");
-		printf("ld (_%s+%d),", namestr(n->snum), v);
+		printf("\tld (_%s+%d),", namestr(n->snum), v);
 		if (size == 1)
 			printf("a\n");
 		else
@@ -2050,7 +2112,7 @@ unsigned gen_node(struct node *n)
 		}
 		/* Rabbit can LD HL,(HL + 0) so we can construct a load fairly ok */
 		if (IS_RABBIT && size == 2) {
-			printf("\tld hl,%d\n\tadd hl,sp\n\tld hl,(hl + 0)\n", v);
+			printf("\tld hl,0x%x\n\tadd hl,sp\n\tld hl,(hl + 0)\n", v);
 			return 1;
 		}
 		if (size == 1 && (!optsize || v >= LWDIRECT)) {
@@ -2062,7 +2124,7 @@ unsigned gen_node(struct node *n)
 		/* For -O3 they asked for it so inline the lot */
 		/* We dealt with size one above */
 		if (opt > 2 && size == 2) {
-			printf("\tex de,hl\n\tld hl,%d\n\tadd hl,sp\n\tld (hl),e\n\tinc hl\n", WORD(v));
+			printf("\tex de,hl\n\tld hl,0x%x\n\tadd hl,sp\n\tld (hl),e\n\tinc hl\n", WORD(v));
 			printf("\tld (hl),d\n");
 			if (!(n->flags & NORETURN))
 				printf("\tex de,hl\n");
@@ -2167,10 +2229,10 @@ unsigned gen_node(struct node *n)
 			printf("\tld hl,%u\n", ((v >> 16) & 0xFFFF));
 			printf("\tld (__hireg),hl\n");
 		case 2:
-			printf("\tld hl,%d\n", (v & 0xFFFF));
+			printf("\tld hl,0x%x\n", (v & 0xFFFF));
 			return 1;
 		case 1:
-			printf("\tld l,%d\n", (v & 0xFF));
+			printf("\tld l,0x%x\n", (v & 0xFF));
 			return 1;
 		}
 		break;
@@ -2182,13 +2244,13 @@ unsigned gen_node(struct node *n)
 	case T_LOCAL:
 		v += sp;
 /*		printf(";LO sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
-		printf("\tld hl,%d\n", v);
+		printf("\tld hl,0x%x\n", v);
 		printf("\tadd hl,sp\n");
 		return 1;
 	case T_ARGUMENT:
 		v += frame_len + argbase + sp;
 /*		printf(";AR sp %d spval %d %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
-		printf("\tld hl,%d\n", v);
+		printf("\tld hl,0x%x\n", v);
 		printf("\tadd hl,sp\n");
 		return 1;
 	case T_REG:
