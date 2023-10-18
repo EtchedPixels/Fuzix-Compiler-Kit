@@ -1,0 +1,122 @@
+# Branches
+	jp %1
+%1:
+=
+%1:
+
+	jp %2
+%1:
+%2:
+=
+%1:
+%2:
+
+	jp %1
+	jp %2
+=
+	jp %1
+
+# Trivial
+	ex de,hl
+	ex de,hl
+=
+
+	ex de,hl
+;
+	ex de,hl
+=
+
+	push hl
+	pop hl
+=
+
+	push hl
+;
+	pop hl
+=
+
+# HL reloads. TODO track HL in the core code so we can eliminate them
+# properly and for more than constants
+	ld hl,0x%1
+	ld (%2),hl
+;
+	ld hl,0x%1
+=
+	ld hl,0x%1
+	ld (%2),hl
+
+        ld hl,0x%1
+        ld (%2),hl
+;
+        ld hl,0x%1
+=
+	ld hl,0x%1
+	ld (%2),hl
+
+	ex de,hl
+	pop de
+	ex de,hl
+=
+	pop hl
+
+# Clean up trivial multiple loads - often from assignments
+	ld hl,0x%1
+	ld (%2),hl
+	ld hl,0x%1
+=
+	ld hl,0x%1
+	ld (%2),hl
+
+	ld hl,0x%1
+	ld (%2),hl
+;
+	ld hl,0x%1
+=
+	ld hl,0x%1
+	ld (%2),hl
+
+	ld hl,0x%1
+	ld (%2),hl
+	ld (%3),hl
+;
+	ld hl,0x%1
+=
+	ld hl,0x%1
+	ld (%2),hl
+	ld (%3),hl
+
+# Trivial byte cleanup
+	ld a,0x0
+	ld (hl),a
+	ld l,a
+=
+	xor a
+	ld (hl),a
+	ld l,a
+
+# Simple stack optimize for pushes of same
+	ld hl,0x%1
+	push hl
+	ld hl,0x%1
+=
+	ld hl,0x%1
+	push hl
+
+	ld hl,0x%1
+	push hl
+;
+	ld hl,0x%1
+=
+	ld hl,0x%1
+	push hl
+;
+
+# Function entry frame setup
+# we may rework this if we build args as we go, but in the mean time
+	push hl
+	ld hl,%1
+	pop af
+	push hl
+=
+	ld hl,%1
+	push hl
