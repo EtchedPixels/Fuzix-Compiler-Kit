@@ -1,3 +1,12 @@
+Z80:
+-	parse arg code from 65C816 but probably just use it to
+	deal with reg args as push ix/iy/bc directly
+-	track HL ?
+
+
+8080
+-	Import Z80 trick for locals via DE
+
 
 	shld %1
 	shld %2

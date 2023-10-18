@@ -891,6 +891,19 @@ static unsigned gen_deop(const char *op, struct node *n, struct node *r, unsigne
 	unsigned s = get_size(n->type);
 	if (s > 2)
 		return 0;
+	/* Generate ld e, forms of de helpers if the value is below 256 as
+	   is often the case */
+	if (optsize && s == 2 && r->op == T_CONSTANT) {
+		unsigned v= r->value;
+		if (v < 256) {
+			printf("\tld e,%d\n", v);
+			printf("\tcall __%s", op);
+			if (sign)
+				helper_type(n->type, sign);
+			printf("0d\n");
+			return 1;
+		}
+	}
 	if (s == 2) {
 		if (load_de_with(r) == 0)
 			return 0;
@@ -1453,20 +1466,35 @@ unsigned gen_direct(struct node *n)
 			if (r->value < 8)
 				repeated_op("add hl,hl", v);
 			else
-				printf("\tld h,l\n\tld l,0\n");
+				printf("\tld h,l\n\tld l,0x0\n");
 			return 1;
 		}
 		return gen_deop("shlde", n, r, 0);
 	case T_GTGT:
 		/* >> by 8 unsigned */
 		if (s == 2 && (n->type & UNSIGNED) && r->op == T_CONSTANT && r->value == 8) {
-			printf("\tld l,h\n\tld h,0\n");
+			printf("\tld l,h\n\tld h,0x0\n");
 			return 1;
 		}
 		return gen_deop("shrde", n, r, 1);
 	/* Shorten post inc/dec if result not needed - in which case it's the same as
 	   pre inc/dec */
 	case T_PLUSPLUS:
+		/* This occurs a lot with pointers */
+		if (s == 2 && r->op == T_CONSTANT) {
+			if (v <= 4) {
+				printf("\tcall __postinc%d\n", v);
+				return 1;
+			}
+			if (v <= 255) {
+				printf("\tld e,0x%x\n", v);
+				printf("\tcall __postince\n");
+				return 1;
+			}
+			printf("\tld de,0x%x\n", v);
+			printf("\tcall __postincde\n");
+			return 1;
+		}
 		if (!(n->flags & NORETURN))
 			return 0;
 	case T_PLUSEQ:
@@ -1496,6 +1524,21 @@ unsigned gen_direct(struct node *n)
 		}
 		return gen_deop("pluseqde", n, r, 0);
 	case T_MINUSMINUS:
+		/* This occurs a lot with pointers */
+		if (s == 2 && r->op == T_CONSTANT) {
+			if (v <= 4) {
+				printf("\tcall __postdec%d\n", v);
+				return 1;
+			}
+			if (v <= 255) {
+				printf("\tld e,0x%x\n", v);
+				printf("\tcall __postdece\n");
+				return 1;
+			}
+			printf("\tld de,0x%x\n", v);
+			printf("\tcall __postdecde\n");
+			return 1;
+		}
 		if (!(n->flags & NORETURN))
 			return 0;
 	case T_MINUSEQ:

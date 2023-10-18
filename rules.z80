@@ -120,3 +120,45 @@
 =
 	ld hl,%1
 	push hl
+
+# This happens a lot. Fix it up here until we add a layer of byte op
+# spotting to the compiler backends.
+	ld h,0x0
+	ld e,%1
+	call __bandde0d
+=
+	ld h,0x0
+	ld a,%1
+	and l
+	ld l,a
+
+	ld h,0x0
+	ld e,%1
+	call __orde0d
+=
+	ld h,0x0
+	ld a,%1
+	or l
+	ld l,a
+
+	ld h,0x0
+	ld e,%1
+	call __xorde0d
+=
+	ld h,0x0
+	ld a,%1
+	xor l
+	ld l,a
+
+# Byte load and then store to local without data then being needed
+# TODO: might be able to fix this up in the backend pass as tree match
+	ld l,0x%1
+	ld a,l
+	ld hl,%2
+	add hl,sp
+	ld (hl),a
+=
+	ld hl,%2
+	add hl,sp
+	ld (hl),0x%1
+	

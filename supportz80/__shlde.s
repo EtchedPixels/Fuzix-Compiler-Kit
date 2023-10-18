@@ -1,8 +1,10 @@
 		.export __shlde
+		.export __shlde0d
 		.export __shldec
 		.code
 
 ; Shift HL left by E
+__shlde0d:
 __shlde:
 		ld	a,e
 __shldec:
