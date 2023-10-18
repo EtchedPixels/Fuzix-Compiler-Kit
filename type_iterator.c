@@ -11,7 +11,7 @@ unsigned is_modifier(void)
 	/* Track volatile hints */
 	if (token == T_VOLATILE)
 		voltrack++;
-	return (token == T_CONST || token == T_VOLATILE);
+	return (token == T_CONST || token == T_VOLATILE || token == T_RESTRICT);
 }
 
 unsigned is_type_word(void)
