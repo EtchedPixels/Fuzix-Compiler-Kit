@@ -4,7 +4,7 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __switchl.o __pushl.o __sex.o 
       __ldwordw.o \
       __and.o __andeq.o __or.o __oreq.o __xor.o __xoreq.o \
       __andeqde.o __oreqde.o __xoreqde.o \
-      __minuseq.o __pluseq.o __pluseqn.o __minuseqn.o __pluseqde.o __minuseqde.o \
+      __minuseq.o __pluseq.o __pluseqde.o __minuseqde.o \
       __diveq.o __divequ.o __modeq.o __modequ.o __muleq.o \
       __bool.o __cpl.o __not.o \
       __boolc.o __cplc.o __notc.o \

@@ -241,6 +241,16 @@ struct node *gen_rewrite_node(struct node *n)
 			}
 		}
 	}
+	/* Merge offset to object into a  single direct reference */
+	if (op == T_PLUS && r->op == T_CONSTANT &&
+		(l->op == T_LOCAL || l->op == T_NAME || l->op == T_LABEL || l->op == T_ARGUMENT)) {
+		/* We don't care if the right offset is 16bit or 32 as we've
+		   got 16bit pointers */
+		l->value += r->value;
+		free_node(r);
+		free_node(n);
+		return l;
+	}
 	/* Rewrite references into a load operation */
 	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt)) {
 		if (op == T_DEREF) {
@@ -378,7 +388,7 @@ void gen_frame(unsigned size,  unsigned aframe)
 	}
 
 	if (size > 10) {
-		printf("\tld hl,0x%x\n", -size);
+		printf("\tld hl,0x%x\n", (uint16_t) -size);
 		printf("\tadd hl,sp\n");
 		printf("\tld sp,hl\n");
 		return;
@@ -1281,6 +1291,36 @@ unsigned gen_direct(struct node *n)
 			}
 			return 1;
 		}
+		if (s == 2 && r->op == T_CONSTANT) {
+			if (nr)	{ /* usual case */
+				printf("\tld (hl),0x%x\n", v & 0xFF);
+				printf("\tinc hl\n");
+				printf("\tld (hl),0x%x\n", v >> 8);
+			} else {
+				printf("\tld de,0x%x\n", v);
+				printf("\tld (hl),e\n");
+				printf("\tinc hl\n");
+				printf("\tld (hl),d\n");
+				printf("\tex de,hl\n");
+			}
+			return 1;
+		}
+		if (s == 4 && r->op == T_CONSTANT) {
+			if (v < 0x02) {
+				printf("\tcall __assign%dl\n", v);
+				return 1;
+			}
+			if (v <= 0xFF) {
+				printf("\tld a,%d\n", v);
+				helper(n, "assign0la");
+				return 1;
+			}
+			if (v <= 0xFFFF) {
+				printf("\tld de,%d\n", v);
+				helper(n, "assignl0de");
+				return 1;
+			}
+		}
 		return 0;
 	case T_PLUS:
 		/* Zero should be eliminated in cc1 FIXME */
@@ -1409,9 +1449,9 @@ unsigned gen_direct(struct node *n)
 		return gen_compc("cmpne", n, r, 0);
 	case T_LTLT:
 		/* TODO: Z80N has some shift helpers */
-		if (s <= 2 && r->op == T_CONSTANT && r->value <= 8) {
+		if (s <= 2 && r->op == T_CONSTANT && v <= 8) {
 			if (r->value < 8)
-				repeated_op("add hl,hl", r->value);
+				repeated_op("add hl,hl", v);
 			else
 				printf("\tld h,l\n\tld l,0\n");
 			return 1;
@@ -1431,8 +1471,8 @@ unsigned gen_direct(struct node *n)
 			return 0;
 	case T_PLUSEQ:
 		if (s == 1) {
-			if (r->op == T_CONSTANT && r->value < 4 && (n->flags & NORETURN)) {
-				repeated_op("inc (hl)", r->value);
+			if (r->op == T_CONSTANT && v < 4 && (n->flags & NORETURN)) {
+				repeated_op("inc (hl)", v);
 			} else {
 				if (load_a_with(r) == 0)
 					return 0;
@@ -1441,6 +1481,18 @@ unsigned gen_direct(struct node *n)
 					printf("\tld l,a\n");
 			}
 			return 1;
+		}
+		/* These are very common */
+		if (s == 2 && r->op == T_CONSTANT) {
+			if (v <= 4) {
+				printf("\tcall __pluseq%d\n", v);
+				return 1;
+			}
+			if (v < 256) {
+				printf("\tld e,%d\n", v);
+				printf("\tcall __pluseqe\n");
+				return 1;
+			}
 		}
 		return gen_deop("pluseqde", n, r, 0);
 	case T_MINUSMINUS:
@@ -1470,6 +1522,18 @@ unsigned gen_direct(struct node *n)
 					printf("\tld l,a\n");
 			}
 			return 1;
+		}
+		/* These are very common */
+		if (s == 2 && r->op == T_CONSTANT) {
+			if (v <= 4) {
+				printf("\tcall __minuseq%d\n", v);
+				return 1;
+			}
+			if (v < 256) {
+				printf("\tld e,%d\n", v);
+				printf("\tcall __minuseqe\n");
+				return 1;
+			}
 		}
 		return gen_deop("minuseqde", n, r, 0);
 	case T_ANDEQ:
