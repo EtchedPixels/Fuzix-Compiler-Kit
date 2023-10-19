@@ -35,6 +35,25 @@
 	pop hl
 =
 
+	inc hl
+	dec hl
+=
+
+	dec hl
+	inc hl
+=
+
+# Trivial perverse assignment and usage pattern
+# Really we need reg tracking for ix iy hl and maybe bc de
+	push hl
+	pop i%1
+;
+	push i%1
+	pop hl
+=
+	push hl
+	pop i%1
+
 # HL reloads. TODO track HL in the core code so we can eliminate them
 # properly and for more than constants
 	ld hl,0x%1
@@ -161,4 +180,16 @@
 	ld hl,%2
 	add hl,sp
 	ld (hl),0x%1
-	
+
+# Use ex (sp),hl for some setups. Needs a big match as we use pop af to get the
+# byte 1 offset byte sized argument now and then
+	ld hl,%1
+	pop af
+	push hl
+;
+	ld hl,%2
+=
+	ld hl,%1
+	ex (sp),hl
+;
+	ld hl,%2
