@@ -665,7 +665,9 @@ unsigned generate_lref(unsigned v, unsigned size, unsigned to_de)
 		printf("\tld hl,(sp+%d)\n", v);
 		return 1;
 	}
-	if (v == 0 && size == 2) {
+	/* This has to be a local so if it is byte sized we will load the
+	   low byte and crap above and all is good */
+	if (v == 0 && size <= 2) {
 		if (to_de)
 			printf("\tpop de\n\tpush de\n");
 		else
@@ -717,6 +719,34 @@ unsigned generate_lref(unsigned v, unsigned size, unsigned to_de)
 	if (to_de)
 		printf("\tex de,hl\n");
 
+	return 1;
+}
+
+/* Get an lref value into A without destroying HL. DE is fair game. This one
+   is allowed to fail */
+unsigned generate_lref_a(unsigned v)
+{
+	/* Correct for current SP location */
+	v += sp;
+
+	/* Sadly pop af gets us the wrong byte and sneakily adjusting
+	   sp kills us in an interrupt handler. This is is still cheaper
+	   than messing around */
+	if (v == 0) {
+		printf("\tpop de\n\tpush de\n");
+		printf("\tld a,e\n");
+		return 1;
+	}
+	/* Offset 1 does work however, although we almost never get that */
+	if (v == 1) {
+		printf("\tpop af\n\tpush af\n");
+		return 1;
+	}
+	/* Byte load and inlien are about the same size so inline for
+	   speed */
+	printf("\tex de,hl\n");
+	printf("\tld hl,0x%x\n\tadd hl,sp\n\tld a,(hl)\n", v);
+	printf("\tex de,hl\n");
 	return 1;
 }
 
@@ -849,6 +879,8 @@ static unsigned load_a_with(struct node *n)
 		}
 		printf("\tld a,(%s+%d)\n", regnames[n->value], n->val2);
 		break;
+	case T_LREF:
+		return generate_lref_a(n->value);
 	default:
 		return 0;
 	}
@@ -968,7 +1000,7 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 			return 1;
 		}
 	}
-	if (0 && n->op == T_EQEQ && (n->flags & CCONLY)) {
+	if (n->op == T_EQEQ && (n->flags & CCONLY)) {
 		if (s == 1 && load_a_with(r) == 1) {
 			printf("\tcp l\n");
 			ccflags = "z nz";
@@ -1161,7 +1193,6 @@ static int bitcheckb0(uint8_t n)
 			return i;
 		}
 		m <<= 1;
-		i--;
 	}
 	return -1;
 }
@@ -1180,7 +1211,6 @@ static int bitcheck0(unsigned n, unsigned s)
 			return i;
 		}
 		m <<= 1;
-		i--;
 	}
 	return -1;
 }
@@ -1197,7 +1227,6 @@ static int bitcheckb1(uint8_t n)
 			return i;
 		}
 		m <<= 1;
-		i--;
 	}
 	return -1;
 }
@@ -1216,7 +1245,6 @@ static int bitcheck1(unsigned n, unsigned s)
 			return i;
 		}
 		m <<= 1;
-		i--;
 	}
 	return -1;
 }
