@@ -4,8 +4,8 @@
 		; We compute HL/DE but righh now we have BC / HL
 __bcdivu:
 		ex de,hl
-		ld e,c
-		ld d,b
+		ld l,c
+		ld h,b
 		call __divdeu
 		ld c,l
 		ld h,b
@@ -13,10 +13,9 @@ __bcdivu:
 
 __bcremu:
 		ex de,hl
-		ld e,c
-		ld d,b
-		call __divdeu
-		ex de,hl
+		ld l,c
+		ld h,b
+		call __remdeu
 		ld c,l
 		ld h,b
 		ret
