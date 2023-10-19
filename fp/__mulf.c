@@ -23,7 +23,7 @@ uint32_t __mulf(uint32_t a1, uint32_t a2)
 {
 	uint32_t result;
 	int exp;
-	uint_fast8_t sign;
+	uint32_t sign;
 
 	if (!a1 || !a2)
 		return (0);
@@ -57,7 +57,7 @@ uint32_t __mulf(uint32_t a1, uint32_t a2)
 
 	/* pack up and go home */
 	if (exp >= 0x100)
-		a1 = (sign ? SIGNBIT : 0) | __INFINITY;
+		a1 = (sign ? SIGNBIT : 0) | INFINITY;
 	else if (exp < 0)
 		a1 = 0;
 	else

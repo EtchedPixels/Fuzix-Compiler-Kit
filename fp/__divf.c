@@ -25,7 +25,7 @@ uint32_t __divf(uint32_t a1, uint32_t a2)
 	uint32_t mask;
 	uint32_t mant1, mant2;
 	int exp;
-	uint_fast8_t sign;
+	uint32_t sign;
 
 	/* subtract exponents */
 	exp = EXP(a1);
@@ -77,7 +77,7 @@ uint32_t __divf(uint32_t a1, uint32_t a2)
 
 	/* pack up and go home */
 	if (exp >= 0x100)
-		a1 = (sign ? SIGNBIT : 0) | __INFINITY;
+		a1 = (sign ? SIGNBIT : 0) | INFINITY;
 	else if (exp < 0)
 		a1 = 0;
 	else

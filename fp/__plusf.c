@@ -24,9 +24,9 @@ uint32_t __plusf(uint32_t a1, uint32_t a2)
 {
 	uint32_t mant1, mant2;
 	int exp1, exp2, expd;
-	uint_fast8_t sign = false;
+	uint32_t sign = 0;
 
-	exp2 = EXP(*a2);
+	exp2 = EXP(a2);
 	mant2 = MANT(a2) << 4;
 	if (SIGN(a2))
 		mant2 = -mant2;
@@ -36,7 +36,7 @@ uint32_t __plusf(uint32_t a1, uint32_t a2)
 
 	exp1 = EXP(a1);
 	mant1 = MANT(a1) << 4;
-	if (SIGN(*a1))
+	if (SIGN(a1))
 		if (a1 & 0x80000000UL)
 			mant1 = -mant1;
 	/* check for zero args */
@@ -58,11 +58,11 @@ uint32_t __plusf(uint32_t a1, uint32_t a2)
 	}
 	mant1 += mant2;
 
-	sign = false;
+	sign = 0;
 
-	if (mant1 < 0) {
+	if (mant1 & 0x80000000UL) {
 		mant1 = -mant1;
-		sign = true;
+		sign = 1;
 	} else if (!mant1)
 		return (0);
 
@@ -85,7 +85,7 @@ uint32_t __plusf(uint32_t a1, uint32_t a2)
 
 	/* pack up and go home */
 	if (exp1 >= 0x100)
-		a1 = (sign ? (SIGNBIT | __INFINITY) : __INFINITY);
+		a1 = (sign ? (SIGNBIT | INFINITY) : INFINITY);
 	else if (exp1 < 0)
 		a1 = 0;
 	else
