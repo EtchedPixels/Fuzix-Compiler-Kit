@@ -610,7 +610,7 @@ void gen_tree(struct node *n)
  *
  *	Loading into HL may not fail (return 0 is a compiler abort) but may
  *	trash DE as well. Loading into DE may fail and is not permitted
- *	to trash DE>
+ *	to trash HL.
  */
 unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 {
@@ -652,10 +652,14 @@ unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 		return 1;
 	}
 	/* Byte load is shorter inline for most cases */
-	if (size == 1 && (!optsize || v >= LWDIRECT)) {
+	if (size == 1 && (!optsize || v >= LWDIRECT || to_de)) {
+		if (to_de)
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 		opcode(OP_LXI, 0, R_HL, "lxi h,%d", v);
 		opcode(OP_DAD, R_SP|R_HL, R_HL, "dad sp");
 		opcode(OP_MOV, R_HL|R_M, R_L, "mov l,m");
+		if (to_de)
+			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 		return 1;
 	}
 	/* Longer reach for 8085 is via addition games, but only for HL
@@ -724,8 +728,9 @@ static unsigned access_direct(struct node *n)
 	unsigned op = n->op;
 
 	/* The 8080 we can reliably access stuff within 253 bytes of the
-	   current stack pointer. 8085 we need to make some changes yet TODO */
-	if (cpu == 8080 && op == T_LREF && n->value + sp < 253)
+	   current stack pointer. 8085 we don't have the short helpers as they
+	   are not worth it for this case, but we can do it via the 4 byte one */
+	if (op == T_LREF && n->value + sp < 253)
 		return 1;
 	/* We can direct access integer or smaller types that are constants
 	   global/static or string labels */
@@ -1149,7 +1154,10 @@ unsigned gen_direct(struct node *n)
 		return 1;
 	case T_EQ:
 		/* The address is in HL at this point */
-		if (cpu == 8085 && s == 2 ) {
+		/* We have to avoid the right being an LREF because we need
+		   HL and DE to resolve that sometimes, and the overhead
+		   is worse than push/pop the non shortcut way */
+		if (cpu == 8085 && s == 2 && r->op != T_LREF) {
 			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 			if (load_hl_with(r) == 0)
 				error("teq");
