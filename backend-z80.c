@@ -566,7 +566,9 @@ static void gen_cleanup(unsigned v)
  */
 void gen_helpcall(struct node *n)
 {
-	if (n->type == FLOAT)
+	/* Check both N and right because we handle casts to/from float in
+	   C call format */
+	if (n->type == FLOAT || (n->right && n->right->type == FLOAT))
 		gen_push(n->right);
 	printf("\tcall __");
 }
@@ -575,18 +577,17 @@ void gen_helpclean(struct node *n)
 {
 	unsigned s;
 
-	if (n->type != FLOAT)
-		return;
-
-	s = 0;
-	if (n->left) {
-		s += get_size(n->left->type);
-		/* gen_node already accounted for removing this thinking
-		   the helper did the work, adjust it back as we didn't */
-		sp += s;
+	if (n->type == FLOAT || (n->right && n->right->type == FLOAT)) {
+		s = 0;
+		if (n->left) {
+			s += get_size(n->left->type);
+			/* gen_node already accounted for removing this thinking
+			   the helper did the work, adjust it back as we didn't */
+			sp += s;
+			}
+		s += get_size(n->right->type);
+		gen_cleanup(s);
 	}
-	s += get_size(n->right->type);
-	gen_cleanup(s);
 }
 
 void gen_switch(unsigned n, unsigned type)
@@ -889,10 +890,8 @@ static unsigned load_de_with(struct node *n)
 {
 	/* DE we can lref because our helpers don't touch DE so we can
 	   ex de,hl around it */
-	if (n->op == T_LREF) {
-		generate_lref(n->value, 2, 1);
-		return 1;
-	}
+	if (n->op == T_LREF)
+		return generate_lref(n->value, 2, 1);
 	return load_r_with("de", n);
 }
 
@@ -1587,6 +1586,18 @@ unsigned gen_direct(struct node *n)
 			if (v < 256) {
 				printf("\tld e,%d\n", v);
 				printf("\tcall __pluseqe\n");
+				return 1;
+			}
+			/* High only */
+			if ((v & 0x00FF) == 0) {
+				printf("\tinc hl\n");
+				if (v < (4 << 8))
+					repeated_op("inc (hl)", v >> 8);
+				else {
+					printf("\tld a,0x%x\n", v >> 8);
+					printf("\tadd a,(hl)\n");
+					printf("\tld (hl),a\n");
+				}
 				return 1;
 			}
 		}
