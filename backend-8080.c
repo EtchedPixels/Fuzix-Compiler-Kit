@@ -71,6 +71,8 @@ static unsigned func_cleanup;	/* Zero if we can just ret out */
 #define OP_INC		30
 #define OP_DEC		31
 #define OP_ADD		32
+#define OP_ANA		33
+#define OP_ORA		34
 
 #define	R_A		1
 #define R_PSW		1		/* Unless we start CC tracking */
@@ -1567,6 +1569,62 @@ unsigned gen_shortcut(struct node *n)
 		if (!nr && !in_l)
 			opcode(OP_MOV, R_A, R_L, "mov l,a");
 		return 1;
+	}
+	if (n->op == T_AND && l->op == T_RREF) {
+		if (s == 1) {
+			if (!load_a_with(r))
+				return 0;
+			opcode(OP_ANA, R_A|R_C, R_A, "ana c");
+			opcode(OP_MOV, R_A, R_L, "mov l,a");
+			return 1;
+		}
+		/* And of register and constant */
+		if (s == 2 && r->op == T_CONSTANT) {
+			v = r->value;
+			if ((v & 0xFF00) == 0x0000)
+				opcode(OP_MVI, 0, R_H, "mvi h,0");
+			else if ((v & 0xFF00) != 0xFF00) {
+				opcode(OP_MVI, 0, R_A, "mvi a, %d", v >> 8);
+				opcode(OP_ANA, R_B, R_A, "ana b");
+				opcode(OP_MOV, R_A, R_H, "mov h,a");
+			}
+			if ((v & 0xFF) == 0x00)
+				opcode(OP_MVI, 0, R_L, "mvi l,0");
+			else if ((v & 0xFF) != 0xFF) {
+				opcode(OP_MVI, 0, R_A, "mvi a, %d", v & 0xFF);
+				opcode(OP_ANA, R_C, R_A, "ana c");
+				opcode(OP_MOV, R_A, R_L, "mov l,a");
+			}
+			return 1;
+		}
+	}
+	if (n->op == T_OR && l->op == T_RREF) {
+		if (s == 1) {
+			if (!load_a_with(r))
+				return 0;
+			opcode(OP_ORA, R_A|R_C, R_A, "ora c");
+			opcode(OP_MOV, R_A, R_L, "mov l,a");
+			return 1;
+		}
+		/* or of register and constant */
+		if (s == 2 && r->op == T_CONSTANT) {
+			v = r->value;
+			if ((v & 0xFF00) == 0xFF00)
+				opcode(OP_MVI, 0, R_H, "mvi h,0xff");
+			else if (v & 0xFF00) {
+				opcode(OP_MVI, 0, R_A, "mvi a, %d", v >> 8);
+				opcode(OP_ORA, R_B, R_A, "ora b");
+				opcode(OP_MOV, R_A, R_H, "mov h,a");
+			}
+			if ((v & 0xFF) == 0xFF)
+				opcode(OP_MVI, 0, R_L, "mvi l,0xff");
+			else if (v & 0xFF) {
+				opcode(OP_MVI, 0, R_A, "mvi a, %d", v & 0xFF);
+				opcode(OP_ORA, R_C, R_A, "ana c");
+				opcode(OP_MOV, R_A, R_L, "mov l,a");
+			}
+			return 1;
+		}
 	}
 	/* ?? LBSTORE */
 	/* Register targetted ops. These are totally different to the normal EQ ops because
