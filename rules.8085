@@ -547,3 +547,9 @@ L%1_n:
 =
 	mov a,m
 	ora a
+
+#	Reloads between A and L
+	mov l,a
+	mov a,l
+=
+	mov l,a

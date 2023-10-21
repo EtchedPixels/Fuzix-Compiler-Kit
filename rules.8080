@@ -514,3 +514,9 @@ L%1_n:
 =
 	mov a,l
 	out <%1
+
+#	Reloads between A and L
+	mov l,a
+	mov a,l
+=
+	mov l,a
