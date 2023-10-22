@@ -1002,7 +1002,7 @@ static void gen_fast_mul(unsigned s, unsigned n)
 		write_mul(n);
 }
 
-static unsigned gen_fast_div(unsigned n, unsigned s)
+static unsigned gen_fast_div(unsigned s, unsigned n)
 {
 	if (cpu != 8085)
 		return 0;
@@ -1264,10 +1264,10 @@ unsigned gen_direct(struct node *n)
 	case T_SLASH:
 		if (r->op == T_CONSTANT && s <= 2) {
 			if (n->type & UNSIGNED) {
-				if (gen_fast_udiv(s, r->value))
+				if (gen_fast_udiv(s, v))
 					return 1;
 			} else {
-				if (gen_fast_div(s, r->value))
+				if (gen_fast_div(s, v))
 					return 1;
 			}
 		}
@@ -1321,9 +1321,9 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		/* 8085 has a signed right shift 16bit */
-		if (cpu == 8085 && (!(n->type & UNSIGNED)) && s == 2) {
-			if (s <= 2 && r->op == T_CONSTANT && r->value < 8) {
-				repeated_op("arhl", r->value);
+		if (cpu == 8085 && (!(n->type & UNSIGNED))) {
+			if (s == 2 && r->op == T_CONSTANT && v < 8) {
+				repeated_op("arhl", v);
 				return 1;
 			}
 		}
@@ -1783,7 +1783,7 @@ unsigned gen_shortcut(struct node *n)
 					loadhl(n, s);
 					return 1;
 				}
-				if (!(n->type & UNSIGNED) && cpu == 8085 && v < 2 + 4 * opt) {
+				if (s == 2 && !(n->type & UNSIGNED) && cpu == 8085 && v < 2 + 4 * opt) {
 					loadhl(NULL,s);
 					repeated_op("arhl", v);
 					loadbc(s);
