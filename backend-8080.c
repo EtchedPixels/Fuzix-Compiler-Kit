@@ -1551,7 +1551,7 @@ unsigned gen_shortcut(struct node *n)
 		}
 	}
 	/* Shortcut any initialization of BC we can do directly */
-	if (n->op == T_RSTORE) {
+	if (n->op == T_RSTORE && nr) {
 		if (load_bc_with(r))
 			return 1;
 		return 0;
