@@ -47,5 +47,7 @@ int main(int argc, char *argv[])
         return 8;
     if (lshift(0x01020304, 0) != 0x01020304)
         return 9;
+    if (rshifts(0x10001, 9) != 0x80)
+        return 10;
     return 0;
 }
