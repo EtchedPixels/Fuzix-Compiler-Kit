@@ -10,7 +10,7 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __switchl.o __pushl.o __sex.o 
       __boolc.o __cplc.o __notc.o \
       __minus.o __plus.o \
       __postinc.o __postdec.o __postincn.o __postdecn.o \
-      __shl.o __shr.o \
+      __shr.o \
       __shleq.o __shrequ.o __shreq.o \
       __shlde.o \
       __divdeu.o __divde.o \
