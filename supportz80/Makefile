@@ -60,7 +60,7 @@ makeldst: makeldst.c
 
 libz80.a: makeldst $(OBJ)
 	rm -f libz80.a
-	ar qc libz80.a $(OBJ)
+	ar qc libz80.a `../lorderz80 $(OBJ) | tsort`
 
 clean:
 	rm -f *.o *.a
