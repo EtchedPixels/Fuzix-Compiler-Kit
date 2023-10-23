@@ -1501,15 +1501,17 @@ unsigned gen_direct(struct node *n)
 	case T_HAT:
 		/* For small values it's more efficient to do this inline even
 		   in -Os */
-		if (v == 0)
-			return 1;
-		if (!(v & 0xFF00)) {
-			printf("\tld a,0x%x\n\txor l\nld l,a\n", v);
-			return 1;
-		}
-		if (!(v & 0x00FF)) {
-			printf("\tld a,0x%x\n\txor h\nld h,a\n", v >> 8);
-			return 1;
+		if (r->op == T_CONSTANT && s <= 2) {
+			if (v == 0)
+				return 1;
+			if (!(v & 0xFF00)) {
+				printf("\tld a,0x%x\n\txor l\nld l,a\n", v);
+				return 1;
+			}
+			if (!(v & 0x00FF)) {
+				printf("\tld a,0x%x\n\txor h\nld h,a\n", v >> 8);
+				return 1;
+			}
 		}
 		if (gen_logicc(r, s, "xor", r->value, 3))
 			return 1;
