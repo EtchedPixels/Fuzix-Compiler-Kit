@@ -8,8 +8,8 @@ __shleql:
 		; HL is now the lval, A is the shift
 		and	31
 		jr	z,done
-		push	af
 		push	hl
+		push	af
 		ld	e,(hl)
 		inc	hl
 		ld	d,(hl)
