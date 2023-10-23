@@ -53,9 +53,9 @@ store:
 	xchg
 	lhld	__hireg
 	xchg
-	mov	m,d
-	inx	h
 	mov	m,e
+	inx	h
+	mov	m,d
 	xchg
 	pop	h		; get low back
 	pop	b
