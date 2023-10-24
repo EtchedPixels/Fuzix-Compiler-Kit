@@ -59,6 +59,8 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
+#define HAS_RELOC
+
 #define BINPATH		"/opt/ccz80/bin/"
 #define LIBPATH		"/opt/ccz80/lib/"
 #define INCPATH		"/opt/ccz80/include/"
@@ -70,6 +72,7 @@
 #define CMD_COPT	LIBPATH"copt"
 #define CMD_CPP		LIBPATH"cpp"
 #define CMD_LD		BINPATH"ldz80"
+#define CMD_RELOC	LIBPATH"relocz80"
 #define CRT0		LIBPATH"crt0.o"
 #define LIBC		LIBPATH"libc.a"
 #define LIBCPU_Z80	LIBPATH"libz80.a"
@@ -117,10 +120,10 @@ int c_files;
 int standalone;
 char *cpu = "z80";
 int mapfile;
-/* TODO: OS_FUZIX won't work until ld is taught about literal segments */
+
 #define OS_NONE		0
 #define OS_FUZIX	1
-int targetos = OS_NONE;
+int targetos = OS_FUZIX;
 int fuzixsub;
 char optimize = '0';
 char *codeseg;
@@ -431,11 +434,16 @@ void preprocess_c(char *path)
 
 void link_phase(void)
 {
+	char *relocs = NULL;
 	build_arglist(CMD_LD);
 	switch (targetos) {
 		case OS_FUZIX:
 			switch(fuzixsub) {
 			case 0:
+#ifdef HAS_RELOC
+				relocs = xstrdup(target, 4);
+				strcat(relocs, ".rel");
+#endif
 				break;
 			case 1:
 				add_argument("-b");
@@ -463,10 +471,14 @@ void link_phase(void)
 	if (mapfile) {
 		/* For now output a map file. One day we'll have debug symbols
 		   nailed to the binary */
-		char *n = malloc(strlen(target) + 5);
-		sprintf(n, "%s.map", target);
+		char *n = xstrdup(target, 4);
+		strcat(n, ".map");
 		add_argument("-m");
 		add_argument(n);
+	}
+	if (relocs) {
+		add_argument("-R");
+		add_argument(relocs);
 	}
 	if (!standalone) {
 		/* Start with crt0.o, end with libc.a and support libraries */
@@ -481,6 +493,15 @@ void link_phase(void)
 	add_argument_list(NULL, &objlist);
 	resolve_libraries();
 	run_command();
+
+	if (relocs) {
+		/* The unlink will free it not us */
+		*rmptr++ = relocs;
+		build_arglist(CMD_RELOC);
+		add_argument(target);
+		add_argument(relocs);
+		run_command();
+	}
 }
 
 void sequence(struct obj *i)
