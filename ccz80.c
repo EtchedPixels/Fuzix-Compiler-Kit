@@ -72,7 +72,7 @@
 #define CMD_COPT	LIBPATH"copt"
 #define CMD_CPP		LIBPATH"cpp"
 #define CMD_LD		BINPATH"ldz80"
-#define CMD_RELOC	LIBPATH"relocz80"
+#define CMD_RELOC	BINPATH"relocz80"
 #define CRT0		LIBPATH"crt0.o"
 #define LIBC		LIBPATH"libc.a"
 #define LIBCPU_Z80	LIBPATH"libz80.a"
