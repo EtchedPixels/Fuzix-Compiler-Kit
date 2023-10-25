@@ -1,237 +1,694 @@
-/*
- *	Small peephole optimizer. Tweaked and ANSIfied from
- *
- * DDS MICRO-C Optimizer
- *
- * This post-processor optimizes by reading the assembly source
- * code produced by the compiler, and recognizing specific instruction
- * sequences which it replaces with more efficient ones. It is entirely
- * table driven, making it fairly easy to port to any processor.
- *
- * ?COPY.TXT 1989-2005 Dave Dunfield
- *
- * The files contained is this archive are hereby released for anyone to use
- * for any reasonable purpose.
- *
- * If used for any reason resulting in published material, I request that you:
- * - Acknowlege the original author (Dave Dunfield)
- * - I do NOT require that you release derived source code, but please do
- *  provide information on where this original material may be obtained:
- *    https://dunfield.themindfactory.com
- *   "Daves Old Computers"
- */
+/* copt version 1.00 (C) Copyright Christopher W. Fraser 1984 */
+/* Added out of memory checking and ANSI prototyping. DG 1999 */
+/* Added %L - %N variables, %activate, regexp, %check. Zrin Z. 2002 */
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <ctype.h>
 
-extern const char *peep_table[];  /* Processor specific optimization table */
+int rpn_eval(const char* expr, char** vars);
 
-/* Values all chosen so they multiply easily by addition.. */
+#define HSIZE 107
+#define MAXLINE 128
+#define MAXFIRECOUNT 65535L
+#define MAX_PASS 16
 
-#define	PEEP_SIZE	16		/* size of peephole buffer must be power of 2 */
-#define PEEP_MASK	(PEEP_SIZE - 1)
-#define	LINE_SIZE	128		/* maximum size of input line */
-#define SYMBOL_SIZE	48		/* maximum size of symbol */
-#define SYMBOLS		8		/* maximum # symbols per peep */
-/* Bit defintions in "special" table characters */
-#define	SYMMASK		007		/* Mask for symbol number */
-#define	SYMNUM		030		/* Symbol must be numeric */
-#define	SYMNOT		040		/* Complement symbol */
+int debug = 0;
 
-/* circular peep hole buffer & read/write pointers */
-static char peep_buffer[PEEP_SIZE][LINE_SIZE];
-static unsigned peep_read;
-static unsigned peep_write;
+int global_again = 0; /* signalize that rule set has changed */
+#define FIRSTLAB 'L'
+#define LASTLAB 'N'
+int nextlab = 1; /* unique label counter */
+int labnum[LASTLAB - FIRSTLAB + 1]; /* unique label numbers */
 
-/* Symbol table */
-static char symbols[SYMBOLS][SYMBOL_SIZE];
-static char sym_used[SYMBOLS];
+struct lnode {
+    char* l_text;
+    struct lnode *l_prev, *l_next;
+};
 
-/* misc variables */
-static char debug;
+struct onode {
+    struct lnode *o_old, *o_new;
+    struct onode* o_next;
+    long firecount;
+}* opts = 0, *activerule = 0;
 
-/*
- * Read a line into the peephole buffer from the input file.
- */
-static unsigned read_line(void)
+void printlines(struct lnode* beg, struct lnode* end, FILE* out)
 {
-	if(fgets(peep_buffer[peep_write], LINE_SIZE, stdin)) {
-		peep_write = (peep_write + 1) & PEEP_MASK;
-		return 1; }
-	return 0;
+    struct lnode* p;
+    for (p = beg; p != end; p = p->l_next)
+        fputs(p->l_text, out);
 }
 
-/*
- * Write a line from the peephole buffer to the output file.
- */
-static void write_line(void)
+void printrule(struct onode* o, FILE* out)
 {
-	puts(peep_buffer[peep_read]);
-	peep_read = (peep_read + 1) & PEEP_MASK;
+    struct lnode* p = o->o_old;
+    while (p->l_prev)
+        p = p->l_prev;
+    printlines(p, 0, out);
+    fputs("=\n", out);
+    printlines(o->o_new, 0, out);
 }
 
-/*
- * Compare an optimization table entry with a series of
- * instructions in the peephole buffer.
- * Return:	0	= No match
- *			-1	= Partial match
- *			n	= Full match ending at entry 'n'
- */
-static int compare(char *ptr, unsigned peep)
+/* error - report error and quit */
+void error(char* s)
 {
-	unsigned i, j;
-	register char *ptr1, *ptr2, *ptr3;
-	register char c, d;
-#ifdef	LIMIT1
-	unsigned x;
-#endif
+    fputs(s, stderr);
+    if (activerule) {
+        fputs("active rule:\n", stderr);
+        printrule(activerule, stderr);
+    }
+    exit(1);
+}
 
-	for(i=0; i < SYMBOLS; ++i)
-		sym_used[i] = 0;
+/* connect - connect p1 to p2 */
+void connect(struct lnode* p1, struct lnode* p2)
+{
+    if (p1 == 0 || p2 == 0)
+        error("connect: can't happen\n");
+    p1->l_next = p2;
+    p2->l_prev = p1;
+}
 
-	ptr1 = peep_buffer[peep];
-	while((c = *ptr) != 0) {
-		if(c == '\n') {				/* end of line */
-			if(*ptr1)
-				return 0;
-			if((peep = (peep + 1) & PEEP_MASK) == peep_write)
-				return -1;
-			ptr1 = peep_buffer[peep];
-		} else if(c == ' ' || c == '\t') {	/* spaces */
-			if(!isspace(*ptr1))
-				return 0;
-			while(isspace(*ptr1))
-				++ptr1;
-		}
-		else if (c & 0x80) {			/* symbol name */
-			ptr2 = ptr3 = symbols[i = c & SYMMASK];
-			d = *(ptr + 1);			/* Get terminator character */
-			if(sym_used[i]) {		/* Symbol is already defined */
-				while(*ptr1 && (*ptr1 != d))
-					if(*ptr1++ != *ptr2++)
-						return 0;
-				if(*ptr2)
-					return 0;
-			} else {					/* new symbol definition */
-				while(*ptr1 && (*ptr1 != d))
-					*ptr2++ = *ptr1++;
-				*ptr2 = 0;
-				if(c & SYMNUM) {		/* Numbers only */
-					while(*ptr3)
-						if(!isdigit(*ptr3++))
-							return 0;
-#ifdef LIMIT1
-					x = atoi(symbols[i]);
-					switch(c & SYMNUM) {
-						case 020: if(x > LIMIT1) return 0; break;
-						case 030: if(x > LIMIT2) return 0; }
-#endif
+/* install - install str in string table */
+char* install(char* str)
+{
+    register struct hnode* p;
+    register char *p1, *p2, *s;
+    register int i;
+    static struct hnode {
+        char* h_str;
+        struct hnode* h_ptr;
+    } * htab[HSIZE] = { 0 };
+
+    s = str;
+    for (i = 0; *s; i += *s++)
+        ;
+    i = abs(i) % HSIZE;
+
+    for (p = htab[i]; p; p = p->h_ptr)
+        for (p1 = str, p2 = p->h_str; *p1++ == *p2++;)
+            if (p1[-1] == '\0')
+                return (p->h_str);
+
+    p = (struct hnode*)malloc(sizeof *p);
+    if (p == NULL)
+        error("install 1: out of memory\n");
+    p->h_str = (char*)malloc((s - str) + 1);
+    if (p->h_str == NULL)
+        error("install 2: out of memory\n");
+    strcpy(p->h_str, str);
+    p->h_ptr = htab[i];
+    htab[i] = p;
+    return (p->h_str);
+}
+
+/* insert - insert a new node with text s before node p */
+void insert(char* s, struct lnode* p)
+{
+    struct lnode* n;
+
+    n = (struct lnode*)malloc(sizeof *n);
+    if (n == NULL)
+        error("insert: out of memory\n");
+    n->l_text = s;
+    connect(p->l_prev, n);
+    connect(n, p);
+}
+
+/* getlst - link lines from fp in between p1 and p2 */
+void getlst(FILE* fp, char* quit, struct lnode* p1, struct lnode* p2)
+{
+    char lin[MAXLINE];
+
+    connect(p1, p2);
+    while (fgets(lin, MAXLINE, fp) != NULL && strcmp(lin, quit)) {
+        insert(install(lin), p2);
+    }
+}
+
+/* getlst_1 - link lines from fp in between p1 and p2 */
+/* skip blank lines and comments at the start */
+void getlst_1(FILE* fp, char* quit, struct lnode* p1, struct lnode* p2)
+{
+    char lin[MAXLINE];
+    int firstline = 1;
+
+    connect(p1, p2);
+    while (fgets(lin, MAXLINE, fp) != NULL && strcmp(lin, quit)) {
+        if (firstline) {
+            char* p = lin;
+            if (lin[0] == '#')
+                continue;
+            while (isspace(*p))
+                ++p;
+            if (!*p)
+                continue;
+            firstline = 0;
+        }
+        insert(install(lin), p2);
+    }
+}
+
+/* init - read patterns file */
+void init(FILE* fp)
+{
+    struct lnode head, tail;
+    struct onode *p, **next;
+
+    next = &opts;
+    while (*next)
+        next = &((*next)->o_next);
+    while (!feof(fp)) {
+        p = (struct onode*)malloc((unsigned)sizeof(struct onode));
+        if (p == NULL)
+            error("init: out of memory\n");
+        p->firecount = MAXFIRECOUNT;
+        getlst_1(fp, "=\n", &head, &tail);
+        head.l_next->l_prev = 0;
+        if (tail.l_prev)
+            tail.l_prev->l_next = 0;
+        p->o_old = tail.l_prev;
+        if (p->o_old == NULL) { /* do not create empty rules */
+            free(p);
+            continue;
+        }
+        getlst(fp, "\n", &head, &tail);
+        tail.l_prev->l_next = 0;
+        if (head.l_next)
+            head.l_next->l_prev = 0;
+        p->o_new = head.l_next;
+
+        *next = p;
+        next = &p->o_next;
+    }
+    *next = 0;
+}
+
+/* match - check conditions in rules */
+/* format: %check min <= %n <= max */
+int check(char* pat, char** vars)
+{
+    int low, high, x;
+    char v;
+    x = sscanf(pat, "%d <= %%%c <= %d", &low, &v, &high);
+    if (x != 3 || !('0' <= v && v <= '9')) {
+        fprintf(stderr, "warning: invalid use of '%%check' in \"%s\"\n", pat);
+        fprintf(stderr, "format is '%%check min <= %%n <= max'\n");
+        return 0;
+    }
+    if (vars[v - '0'] == 0) {
+        fprintf(stderr, "error in pattern \"%s\"\n", pat);
+        error("variable is not set\n");
+    }
+    if (sscanf(vars[v - '0'], "%d", &x) != 1)
+        return 0;
+    return low <= x && x <= high;
+}
+
+int check_eval(char* pat, char** vars)
+{
+    char expr[1024];
+    int expected,  x;
+
+    x = sscanf(pat, "%d = %[^\n]s", &expected, expr);
+    if (x != 2) {
+        fprintf(stderr, "warning: invalid use of '%%check_eval' in \"%s\"\n", pat);
+        fprintf(stderr, "format is '%%check_eval result = expr");
+        return 0;
+    }
+    return expected == rpn_eval(expr, vars);
+}
+
+/* match - match ins against pat and set vars */
+int match(char* ins, char* pat, char** vars)
+{
+    char *p, lin[MAXLINE], *start = pat;
+
+    while (*ins && *pat)
+        if (pat[0] == '%') {
+            switch (pat[1]) {
+            case '%':
+                if (*pat != *ins++)
+                    return 0;
+                pat += 2;
+                break;
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+                if (pat[2] == '%' && pat[3] != '%') {
+                    fprintf(stderr, "error in \"%s\": ", start);
+                    error("input pattern %n% is not allowed\n");
+                }
+                for (p = lin; *ins && *ins != pat[2];)
+                    *p++ = *ins++;
+                *p = 0;
+                p = install(lin);
+                if (vars[pat[1] - '0'] == 0)
+                    vars[pat[1] - '0'] = p;
+                else if (vars[pat[1] - '0'] != p)
+                    return 0;
+                pat += 2;
+                continue;
+
+            default:
+                break;
+            }
+            if (*pat++ != *ins++)
+                return 0;
+        } else if (*pat++ != *ins++)
+            return 0;
+
+    return *pat == *ins; /* compare end of string */
+}
+
+/* subst_imp - return result of substituting vars into pat */
+char* subst_imp(char* pat, char** vars)
+{
+    static char errormsg[80];
+    static char lin[MAXLINE];
+    char num[30];
+    char *s, *start = pat;
+    int i;
+
+    i = 0;
+    for (;;) {
+        if (pat[0] == '%' && pat[1] == '%') {
+            if (i < MAXLINE) {
+                lin[i] = '%';
+                ++i;
+            }
+            pat += 2;
+        } else if (pat[0] == '%' && pat[1] >= FIRSTLAB && pat[1] <= LASTLAB) {
+            int il = pat[1] - FIRSTLAB;
+            if (!labnum[il])
+                labnum[il] = nextlab++;
+            sprintf(num, "%d", labnum[il]);
+            for (s = num; i < MAXLINE && (lin[i] = *s++) != 0; ++i)
+                ;
+            pat += 2;
+        } else if (pat[0] == '%' && strncmp(pat,"%eval(", 6) == 0 ) {
+            char expr[1024];
+            int  x = 0, r;
+            pat += 6;
+            while (*pat != ')') {
+                expr[x++] = *pat++;
+            }
+            expr[x] = 0;
+            pat++;
+            r = rpn_eval(expr, vars);
+            sprintf(expr, "%d", r);
+            for ( s = expr; i <MAXLINE && *s; i++ )
+                lin[i] = *s++;
+        } else if (pat[0] == '%' && isdigit(pat[1])) {
+            if (vars[pat[1] - '0'] == 0) {
+                sprintf(errormsg, "error: variable %c is not set in \"%s\"",
+                    pat[1], start);
+                error(errormsg);
+            }
+            for (s = vars[pat[1] - '0']; i < MAXLINE && (lin[i] = *s++) != 0; i++)
+                ;
+            pat += 2;
+        } else if (i >= MAXLINE)
+            error("line too long\n");
+        else if (!(lin[i++] = *pat++))
+            return &lin[0];
+    }
+}
+
+/* subst - return install(result of substituting vars into pat) */
+char* subst(char* pat, char** vars)
+{
+    return install(subst_imp(pat, vars));
+}
+
+/* rep - substitute vars into new and replace lines between p1 and p2 */
+struct lnode* rep(
+    struct lnode* p1, struct lnode* p2, struct lnode* new, char** vars)
+{
+    int i;
+    struct lnode *p, *psav;
+
+    for (i = 0; i < LASTLAB - FIRSTLAB + 1; ++i)
+        labnum[i] = 0;
+
+    for (p = p1->l_next; p != p2; p = psav) {
+        psav = p->l_next;
+        if (debug)
+            fputs(p->l_text, stderr);
+        free(p);
+    }
+    connect(p1, p2);
+    if (debug)
+        fputs("=\n", stderr);
+    for (; new; new = new->l_next) {
+        insert(subst(new->l_text, vars), p2);
+        if (debug)
+            fputs(p2->l_prev->l_text, stderr);
+    }
+    if (debug)
+        putc('\n', stderr);
+    return p1->l_next;
+}
+
+/* copylist - copy activated rule; substitute variables */
+struct lnode* copylist(
+    struct lnode* source, struct lnode** pat, struct lnode** sub, char** vars)
+{
+    struct lnode head, tail, *more = 0;
+    int pattern = 1; /* allow nested rules */
+    int i;
+    connect(&head, &tail);
+    head.l_prev = tail.l_next = 0;
+
+    for (i = 0; i < LASTLAB - FIRSTLAB + 1; ++i)
+        labnum[i] = 0;
+
+    for (; source; source = source->l_next) {
+        if (pattern && strcmp(source->l_text, "=\n") == 0) {
+            pattern = 0;
+            if (head.l_next == &tail)
+                error("error: empty pattern\n");
+            *pat = tail.l_prev;
+            head.l_next->l_prev = 0;
+            tail.l_prev->l_next = 0;
+            connect(&head, &tail);
+            continue;
+        }
+        if (strcmp(source->l_text, "%activate\n") == 0) {
+            if (pattern)
+                error("error: %activate in pattern (before '=')\n");
+            more = source->l_next;
+            break;
+        }
+        insert(subst(source->l_text, vars), &tail);
+    }
+    if (head.l_next == &tail)
+        *sub = 0;
+    else {
+        head.l_next->l_prev = 0;
+        tail.l_prev->l_next = 0;
+        *sub = head.l_next;
+    }
+    return more;
+}
+
+/* opt - replace instructions ending at r if possible */
+struct lnode* opt(struct lnode* r)
+{
+    char* vars[10];
+    int i, lines;
+    struct lnode *c, *p;
+    struct onode* o;
+    static char* activated = "%activated ";
+
+    for (o = opts; o; o = o->o_next) {
+        activerule = o;
+        if (o->firecount < 1)
+            continue;
+        c = r;
+        p = o->o_old;
+        if (debug) {
+            fprintf(stderr, "Trying rule: ");
+            printrule(o, stderr);
+        }
+        if (p == 0)
+            continue; /* skip empty rules */
+        for (i = 0; i < 10; i++)
+            vars[i] = 0;
+        lines = 0;
+        while (p && c) {
+            if (strncmp(p->l_text, "%check", 6) == 0) {
+                if (!check(p->l_text + 6, vars))
+                    break;
+            } else if ( strncmp(p->l_text, "%eval", 5) == 0 ) {
+                if (!check_eval(p->l_text + 5, vars))
+                    break;
+            } else {
+//                fprintf(stderr, "Matching '%s', '%s'.\n",
+//                    c->l_text, p->l_text);
+                if (!match(c->l_text, p->l_text, vars))
+                    break;
+                c = c->l_prev;
+                ++lines;
+            }
+            p = p->l_prev;
+        }
+        if (p != 0)
+            continue;
+
+        /* decrease firecount */
+        --o->firecount;
+
+        /* check for %once */
+        if (o->o_new && strcmp(o->o_new->l_text, "%once\n") == 0) {
+            struct lnode* tmp = o->o_new; /* delete the %once line */
+            o->o_new = o->o_new->l_next;
+            o->o_new->l_prev = 0;
+            free(tmp);
+            o->firecount = 0; /* never again */
+        }
+
+        /* check for activation rules */
+        if (o->o_new && strcmp(o->o_new->l_text, "%activate\n") == 0) {
+            /* we have to prevent repeated activation of rules */
+            char signature[300];
+            struct lnode* lnp;
+            struct onode *nn, *last;
+            int skip = 0;
+            /* since we 'install()' strings, we can compare pointers */
+            sprintf(signature, "%s%p%p%p%p%p%p%p%p%p%p\n",
+                activated,
+                vars[0], vars[1], vars[2], vars[3], vars[4],
+                vars[5], vars[6], vars[7], vars[8], vars[9]);
+            lnp = o->o_new->l_next;
+            while (lnp && strncmp(lnp->l_text, activated, strlen(activated)) == 0) {
+                if (strcmp(lnp->l_text, signature) == 0) {
+                    skip = 1;
+                    break;
+                }
+                lnp = lnp->l_next;
+            }
+            if (!lnp || skip)
+                continue;
+            insert(install(signature), lnp);
+
+            if (debug) {
+                fputs("matched pattern:\n", stderr);
+                for (p = o->o_old; p->l_prev; p = p->l_prev)
+                    ;
+                printlines(p, 0, stderr);
+                fputs("with:\n", stderr);
+                printlines(c->l_next, r->l_next, stderr);
+            }
+            /* allow creation of several rules */
+            last = o;
+            while (lnp) {
+                nn = (struct onode*)
+                    malloc((unsigned)sizeof(struct onode));
+                if (nn == NULL)
+                    error("activate: out of memory\n");
+                nn->o_old = 0, nn->o_new = 0;
+                nn->firecount = MAXFIRECOUNT;
+                lnp = copylist(lnp, &nn->o_old, &nn->o_new, vars);
+                nn->o_next = last->o_next;
+                last->o_next = nn;
+                last = nn;
+                if (debug) {
+                    fputs("activated rule:\n", stderr);
+                    printrule(nn, stderr);
+                }
+            }
+            if (debug)
+                fputs("\n", stderr);
+            /* step back to allow (shorter) activated rules to match
+               in the order they appear */
+            while (--lines && r->l_prev)
+                r = r->l_prev;
+            global_again = 1; /* signalize changes */
+            continue;
+        }
+
+        /* fire the rule */
+        r = rep(c, r->l_next, o->o_new, vars);
+        activerule = 0;
+        return r;
+    }
+    activerule = 0;
+    return r->l_next;
+}
+
+/* #define _TESTING */
+
+/* main - peephole optimizer */
+int main(int argc, char** argv)
+{
+    FILE* fp;
+
+    int i, pass;
+    struct lnode head, *p, tail;
+
+    for (i = 1; i < argc; i++)
+        if (strcasecmp(argv[i], "-D") == 0)
+            debug = 1;
+        else if ((fp = fopen(argv[i], "r")) == NULL)
+            error("copt: can't open patterns file\n");
+        else
+            init(fp);
+
+    getlst(stdin, "", &head, &tail);
+
+    head.l_text = tail.l_text = "";
+
+    pass = 0;
+    do {
+        ++pass;
+        if (debug)
+            fprintf(stderr, "\n--- pass %d ---\n", pass);
+        global_again = 0;
+        for (p = head.l_next; p != &tail; p = opt(p))
+            ;
+    } while (global_again && pass < MAX_PASS);
+
+    if (global_again) {
+        fprintf(stderr, "error: maximum of %d passes exceeded\n", MAX_PASS);
+        error("       check for recursive substitutions");
+    }
+
+    printlines(head.l_next, &tail, stdout);
+    exit(0);
+    return 1; /* make compiler happy */
+}
+
+#define STACKSIZE 20
+
+int sp;
+int stack[STACKSIZE];
+
+void push(int l)
+{
+    if (sp < STACKSIZE)
+        stack[sp++] = l;
+    ;
+}
+
+int pop(void)
+{
+    if (sp > 0)
+        return stack[--sp];
+    return 0;
+}
+
+int top(void)
+{
+    if (sp > 0)
+        return stack[sp - 1];
+    return 0;
+}
+
+int rpn_eval(const char* expr, char** vars)
+{
+    const char* ptr = expr;
+    char* endptr;
+    int op2;
+    int n;
+
+    sp = 0;
+
+    while (*ptr) {
+        switch (*ptr++) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            n = strtol(ptr - 1, &endptr, 0);
+            if ( endptr == ptr - 1 ) {
+                fprintf(stderr,"Optimiser error, cannot parse number: %s\n",ptr-1);
+                exit(1);
+            }
+            ptr = endptr;
+            push(n);
+            break;
+        case '+':
+            {
+                int a = pop();
+                int b = pop();
+                int c = a + b;
+                push(c);
+            }
+            break;
+        case '*':
+            push(pop() * pop());
+            break;
+        case '-':
+            op2 = pop();
+            push(pop() - op2);
+            break;
+        case '|':
+            op2 = pop();
+            push(pop() | op2);
+            break;
+        case '&':
+            op2 = pop();
+            push(pop() & op2);
+            break;
+        case '>':
+            op2 = pop();
+            push(pop() >> op2);
+            break;
+        case '<':
+            op2 = pop();
+            push(pop() << op2);
+            break;
+        case '/':
+            op2 = pop();
+            if (op2 != 0)
+                push(pop() / op2);
+            else
+                return 0; // Divide by zero
+            break;
+        case '%':
+            if ( isdigit(*ptr) ) {
+                // It's a variable
+                char v = *ptr++;
+                char *endpt2;
+                char *val = vars[v-'0'];
+                n = strtol(val, &endpt2, 0);
+                if ( endpt2 == val ) {
+                    fprintf(stderr,"Optimiser error, cannot parse variable: %s\n",val);
+                    exit(1);
+                }
+                push(n);
+            } else if ( *ptr++ == '%' ) {
+                op2 = pop();
+                if (op2 != 0) {
+                    push(pop() % op2);
+                } else {
+                    return 0; // Divide by zero
 				}
-				if(c & SYMNOT) {		/* Must be a NOT symbol */
-					j = 0;
-					do {
-						if(!(ptr2 = not_table[j++]))
-							return 0;
-					}
-					while(strcmp(ptr2, ptr3));
-				}
-				sym_used[i] = -1;
-			}
-		} else if(c != *ptr1++)		/* normal character */
-			return 0;
-		++ptr;
-	}
-	return (*ptr1) ? 0 : peep + 1;
-}
-
-/*
- * Exchange new code for old code in the peephole buffer.
- */
-static void exchange(unsigned old, char *ptr)
-{
-	int i, j;
-	register char *ptr1, *ptr2, c;
-
-	/* if debugging, display instruction removed by optimizer */
-	if(debug) {
-		j = old & PEEP_MASK;
-		for(i=peep_read; i != j; i = (i+1) & PEEP_MASK)
-			fprintf(stdout,"Take: %s\n", peep_buffer[i]); }
-
-	ptr2 = peep_buffer[peep_read = (old + PEEP_MASK) & PEEP_MASK];
-	while((c = *ptr++) != 0) {
-		if(c & 0x80) {
-			ptr1 = symbols[c & SYMMASK];
-			if(c & SYMNOT) {	 		/* Notted symbol */
-				for(i=0; not_table[i]; ++i)
-					if (!strcmp(ptr1, not_table[i])) {
-						ptr1 = not_table[i ^ 0x01];
-						break;
-					}
-				}
-			while(*ptr1)
-				*ptr2++ = *ptr1++;
-		} else if(c == '\n') {
-			*ptr2 = 0;
-			ptr2 = peep_buffer[peep_read = (peep_read + (PEEP_SIZE-1)) % PEEP_SIZE];
-		} else
-			*ptr2++ = c;
-	}
-	*ptr2 = 0;
-
-	/* if debugging, display instruction given by the optimizer */
-	if(debug) {
-		for(i=peep_read; i != j; i = (i+1) & PEEP_MASK)
-			fprintf(stdout,"Give: %s\n", peep_buffer[i]);
-	}
-}
-
-/*
- * Main program, read & optimize assembler source
- */
-
-void usage(void)
-{
-	fputs("copt [-d] <input >output\n", stderr);
-	exit(1);
-}
-
-int main(int argc, char *argv[])
-{
-	int i, j;
-	register char *ptr;
-
-	int opt;
-
-	while ((opt = getopt(argc, argv, "d")) != -1) {
-		if (opt == 'd')
-			debug = 1;
-		else
-			usage();
-	}
-	if (optind <= argc)
-		usage();		
-
-	for(;;) {
-		if((peep_read == peep_write) || (j == -1)) {
-			if(!read_line()) {		/* End of file */
-				while(peep_read != peep_write)
-					write_line();
-				exit(0);
-			}
-		}
-		for(i = 0; (ptr = peep_table[i]) != 0; i += 2) {
-			if((j = compare(ptr, peep_read)) != 0) {	/* we have a match */
-				if(j == -1)						/* partial, wait */
-					break;
-				exchange(j, peep_table[i+1]);
-				break;
-			}
-		}
-		if(!ptr)			/* no matches, flush this line */
-			write_line();
-	}
+            }
+            break;
+        }
+    }
+    if ( sp != 1 ) {
+        int i;
+        fprintf(stderr,"Exiting with a stack level of %d\n",sp);
+        for ( i = 0; i < sp; i++ ) { 
+            fprintf(stderr,"Stack level %d -> %d\n",i, stack[i]);
+        }
+    }
+    return top();
 }
