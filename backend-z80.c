@@ -154,6 +154,7 @@ static unsigned get_stack_size(unsigned t)
 #define T_RDEREF	(T_USER+9)		/* *regptr */
 #define T_REQ		(T_USER+10)		/* *regptr */
 #define T_BTST		(T_USER+11)		/* Use bit n, for and bit conditionals */
+#define T_CCINVERT	(T_USER+12)		/* Used for eliminating condition only BANGEQ */
 
 static void squash_node(struct node *n, struct node *o)
 {
@@ -180,8 +181,8 @@ static void squash_right(struct node *n, unsigned op)
 }
 
 /*
- *	Heuristic for guessing what to put on the right. This is very
- *	processor dependent. For Z80 we can fetch most global or static
+ *	Heuristic for guessing what to put on the right.  This is very
+ *	processor dependent.  For Z80 we can fetch most global or static
  *	objects but locals are problematic
  */
 
@@ -203,6 +204,14 @@ static unsigned is_simple(struct node *n)
 	return 0;
 }
 
+static unsigned cconly_down(unsigned op)
+{
+	/* We need to look at doing the other simple conditions */
+	if (op == T_EQEQ || op == T_BANGEQ)
+		return 1;
+	return 0;
+}
+
 /*
  *	Our chance to do tree rewriting. We don't do much for the 8080
  *	at this point, but we do rewrite name references and function calls
@@ -217,6 +226,20 @@ struct node *gen_rewrite_node(struct node *n)
 	unsigned nt = n->type;
 	int val;
 	unsigned sz = get_size(nt);
+
+	/* Try and propogate CCONLY down as best we can. For CC capable ops
+	   we can kill the T_BOOL */
+	if (n->op == T_BOOL && (n->flags & CCONLY) && cconly_down(r->op)) {
+		free_node(n);
+		r->flags |= CCONLY;
+		return r;
+	}
+	/* Inverted conditions, we add our own custom 'just flip the nz z' node */
+	if (n->op == T_BANG && (n->flags & CCONLY) && cconly_down(r->op)) {
+		n->op = T_CCINVERT;
+		r->flags |= CCONLY;
+		return r;
+	}
 
 	/* spot the following tree
 			T_DEREF
@@ -1049,12 +1072,31 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 					return 1;
 				}
 			}
-			if (r->value == 255 && s == 1) {
+			if (s == 1 && r->value == 255) {
 				printf("\tinc l\n");
 				return 1;
 			}
-			if (r->value == 0xFFFF && s == 2) {
+			if (s == 2 && r->value == 0xFFFF) {
 				printf("\tld a,h\n\tand l\n\tinc a\n");
+				return 1;
+			}
+			if (s == 2 && r->value <= 0xFF) {
+				/* The xor is a compare resulting in 0 if equal,
+				   and the or h then checks the high byte matches */
+				printf("\tld a,0x%x\n", (unsigned)r->value);
+				printf("\txor l\n");
+				printf("\tor h\n");
+				return 1;
+			}
+			if (s == 2 && (r->value & 0xFF) == 0) {
+				printf("\tld a,0x%x\n", (unsigned)r->value >> 8);
+				printf("\txor h\n");
+				printf("\tor l\n");
+				return 1;
+			}
+			if (s == 1) {
+				printf("\tld a,0x%x\n", (unsigned)r->value & 0xFF);
+				printf("\tcp l\n");
 				return 1;
 			}
 		}
@@ -1078,6 +1120,28 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 			}
 			if (r->value == 0xFFFF && s == 2) {
 				printf("\tld a,h\n\tand l\n\tinc a\n");
+				ccflags = "z nz";
+				return 1;
+			}
+			if (s == 2 && r->value <= 0xFF) {
+				/* The xor is a compare resulting in 0 if equal,
+				   and the or h then checks the high byte matches */
+				printf("\tld a,0x%x\n", (unsigned)r->value);
+				printf("\txor l\n");
+				printf("\tor h\n");
+				ccflags = "z nz";
+				return 1;
+			}
+			if (s == 2 && (r->value & 0xFF) == 0) {
+				printf("\tld a,0x%x\n", (unsigned)r->value >> 8);
+				printf("\txor h\n");
+				printf("\tor l\n");
+				ccflags = "z nz";
+				return 1;
+			}
+			if (s == 1) {
+				printf("\tld a,0x%x\n", (unsigned)r->value & 0xFF);
+				printf("\tcp l\n");
 				ccflags = "z nz";
 				return 1;
 			}
@@ -2513,7 +2577,7 @@ unsigned gen_node(struct node *n)
 	case T_CONSTANT:
 		switch(size) {
 		case 4:
-			printf("\tld hl,%u\n", ((v >> 16) & 0xFFFF));
+			printf("\tld hl,0x%x\n", ((v >> 16) & 0xFFFF));
 			printf("\tld (__hireg),hl\n");
 		case 2:
 			printf("\tld hl,0x%x\n", (v & 0xFFFF));
@@ -2586,6 +2650,14 @@ unsigned gen_node(struct node *n)
 			printf("\tbit %u, l\n", v);
 		else
 			printf("\tbit %u, h\n", v - 8);
+		return 1;
+	case T_CCINVERT:
+		/* Will need work when we add > >= and friends TODO */
+		/* Always CCONLY for eliminating T_BANG */
+		if (strcmp(ccflags, "z nz") == 0)
+			ccflags = "nzz ";
+		else
+			ccflags = "z nz";
 		return 1;
 	}
 	return 0;

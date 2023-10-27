@@ -236,3 +236,60 @@
 	and l
 	call __boolca
 
+# BC reg optimizations (again we need an '8bitifier' subtree analysis to use
+# A and byte ops)
+	ld l,c
+	ld h,b
+	ld h,0x0
+=
+	ld l,c
+	ld h,0x0
+
+	ld l,c
+	ld h,b
+	ld h,0x0
+=
+	ld l,c
+	ld h,0
+
+# char = regint >> 8
+	ld l,c
+	ld h,b
+	ld l,h
+	ld h,0x0
+=
+	ld l,b
+	ld h,0x0
+
+	ld l,(hl)
+	ld h,0x0
+	ld a,%1
+	and l
+	ld l,a
+=
+	ld a,%1
+	and (hl)
+	ld l,a
+	ld h,0
+
+	ld l,(hl)
+	ld h,0x0
+	ld a,%1
+	or l
+	ld l,a
+=
+	ld a,%1
+	or (hl)
+	ld l,a
+	ld h,0
+
+	ld l,(hl)
+	ld h,0x0
+	ld a,%1
+	xor l
+	ld l,a
+=
+	ld a,%1
+	xor (hl)
+	ld l,a
+	ld h,0
