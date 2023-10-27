@@ -340,7 +340,6 @@ static void set_x_node(struct node *n)
 	printf("; set X %x, %d\n", op, value);
 	reg[R_X].state = op;
 	reg[R_X].value = value;
-	reg[R_A].snum = n->snum;
 	reg[R_X].snum = n->snum;
 	return;
 }
@@ -1427,14 +1426,14 @@ unsigned gen_direct(struct node *n)
 				move_a_x();
 			output("tya");
 			outputnc("clc");
-			output("adc #%d", r->value);
+			output("adc #%d", (unsigned)r->value);
 			output("tay");
 			if (!(func_flags & F_VOIDRET))
 				move_x_a();
 			else
 				invalidate_a();
 		}
-		sp -= n->right->value;
+		sp -= r->value;
 		return 1;
 	case T_EQ:
 		if (s <= 2 && nr && r->op == T_CONSTANT && r->value == 0) {
@@ -2605,6 +2604,7 @@ unsigned gen_node(struct node *n)
 			} else {
 				/* 32bit - check both halves */
 				outputcc("ora @hireg");
+				invalidate_a();
 				return 1;
 			}
 		}
@@ -2622,6 +2622,7 @@ unsigned gen_node(struct node *n)
 				move_a_x();
 			} else {
 				outputcc("ora @hireg");
+				invalidate_a();
 			}
 			/* Basically eq with the flags reversed */
 			setjflags(n, "eqne", "eqne");
@@ -2800,6 +2801,7 @@ unsigned gen_node(struct node *n)
 			return pop_help(n, "postdecx", 2);
 		/* Fall through */
 	case T_MINUSEQ:
+		/* FIXME: review invaldates */
 		/* This one is a bit different because order matters */
 		if (size <= 2) {
 			output("plx");
