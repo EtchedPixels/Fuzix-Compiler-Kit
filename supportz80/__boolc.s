@@ -1,4 +1,5 @@
 		.export	__boolc
+		.export	__boolca
 		.export __cmpne0c
 
 		.code
@@ -9,6 +10,7 @@
 __cmpne0c:	; a compare to non zero is a bool op
 __boolc:
 		ld	a,l
+__boolca:
 		or	a	; Z if zero
 		ld	hl,0
 		ret	z

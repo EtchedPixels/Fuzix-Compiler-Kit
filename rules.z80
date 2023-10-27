@@ -54,6 +54,14 @@
 	push hl
 	pop i%1
 
+	push hl
+;
+	pop hl
+	push hl
+=
+	push hl
+;
+
 # HL reloads. TODO track HL in the core code so we can eliminate them
 # properly and for more than constants
 	ld hl,0x%1
@@ -193,3 +201,38 @@
 	ex (sp),hl
 ;
 	ld hl,%2
+
+# When in fp mode eliminate extra load/store of local indirect
+	ld (iy + %1), l
+	ld (iy + %2), h
+;
+	ld l,(iy + %1)
+	ld h,(iy + %2)
+=
+	ld (iy + %1), l
+	ld (iy + %2), h
+;
+
+# Some 8bit stuff
+	ld l,a
+	ld a,l
+=
+	ld l,a
+
+	ld a,%1
+	ld l,a
+	call __boolc
+=
+	ld a,%1
+	call __boolca
+
+        ld h,0x0
+        ld a,%1
+        and l
+        ld l,a
+        call __bool
+=
+	ld a,%1
+	and l
+	call __boolca
+

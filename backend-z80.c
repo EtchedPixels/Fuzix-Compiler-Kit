@@ -48,7 +48,7 @@
 
 /* Until we do more testing */
 #define IS_EZ80		0	/* EZ80 has ld de,(hl) and friends but not offset */
-#define IS_RABBIT	0	/* Has dl hl,(rr + n) and vice versa but only 16bit */
+#define IS_RABBIT	0	/* Has ld hl,(rr + n) and vice versa but only 16bit */
 #define HAS_LDHLSP	0	/* Can ld hl,(sp + n) and vice versa */
 #define HAS_LDASP	0	/* Can ld a,(sp + n) and vice versa */
 #define HAS_LDHLHL	0	/* Can ld hl,(hl) or hl,(hl + 0) */
@@ -68,6 +68,7 @@ static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned argbase;	/* Argument offset in current function */
 static unsigned unreachable;	/* Code after an unconditional jump */
 static unsigned func_cleanup;	/* Zero if we can just ret out */
+static unsigned use_fp;		/* Using a frame pointer this function */
 static char *ccflags = "nzz";	/* True, False flags */
 
 static const char *regnames[] = {	/* Register variable names */
@@ -419,6 +420,7 @@ void gen_frame(unsigned size,  unsigned aframe)
 {
 	frame_len = size;
 	sp = 0;
+	use_fp = 0;
 
 	if (size || (func_flags & (F_REG(1)|F_REG(2)|F_REG(3))))
 		func_cleanup = 1;
@@ -437,8 +439,23 @@ void gen_frame(unsigned size,  unsigned aframe)
 	if (func_flags & F_REG(3)) {
 		printf("\tpush iy\n");
 		argbase += 2;
+	} else {
+		/* IY is free use it as a frame pointer ? */
+		if (!optsize && size > 4) {
+			argbase += 2;
+			printf("\tpush iy\n");
+			/* Remember we need to restore IY */
+			func_flags |= F_REG(3);
+			use_fp = 1;
+		}
 	}
-
+	/* If we are building a frame pointer we need to do this work anyway */
+	if (use_fp) {
+		printf("\tld iy,0x%x\n", (uint16_t) - size);
+		printf("\tadd iy,sp\n");
+		printf("\tld sp,iy\n");
+		return;
+	}
 	if (size > 10) {
 		printf("\tld hl,0x%x\n", (uint16_t) -size);
 		printf("\tadd hl,sp\n");
@@ -706,27 +723,37 @@ void gen_tree(struct node *n)
 unsigned generate_lref(unsigned v, unsigned size, unsigned to_de)
 {
 	const char *name;
+	const char *rp = "hl";
+
+	if (to_de)
+		rp = "de";
 
 	if (size == 4)
 		return 0;
 
-	/* Correct for current SP location */
-	v += sp;
 	/* Rabbit amd Z280 have LD HL,(SP + n) */
-	if (HAS_LDHLSP && v <= 255 && !to_de) {
+	if (HAS_LDHLSP && v + sp <= 255 && !to_de) {
 		/* FIXME: We will load an extra byte for 16bit, so hopefully non MMIO TODO */
-		printf("\tld hl,(sp+%u)\n", v);
+		printf("\tld hl,(sp+%u)\n", v + sp);
 		return 1;
 	}
 	/* This has to be a local so if it is byte sized we will load the
 	   low byte and crap above and all is good */
-	if (v == 0 && size <= 2) {
-		if (to_de)
-			printf("\tpop de\n\tpush de\n");
-		else
-			printf("\tpop hl\n\tpush hl\n");
+	if (v + sp == 0 && size <= 2) {
+		printf("\tpop %s\n\tpush %s\n", rp, rp);
 		return 1;
 	}
+	/* Frame pointers */
+	if (use_fp && v < 128 - size) {
+		printf("\tld %c,(iy + %u)\n", rp[1], v);
+		if (size == 2)
+			printf("\tld %c,(iy + %u)\n", rp[0], v + 1);
+		return 1;
+	}
+
+	/* Correct for current SP location */
+	v += sp;
+
 	/* Byte load is shorter inline for most cases */
 	if (size == 1 && (!optsize || v >= LWDIRECT)) {
 		if (to_de)
@@ -793,6 +820,10 @@ unsigned generate_lref_a(unsigned v)
 	/* Offset 1 does work however, although we almost never get that */
 	if (v == 1) {
 		printf("\tpop af\n\tpush af\n");
+		return 1;
+	}
+	if (use_fp) {
+		printf("\tld a,(iy + %d)\n", v - sp);
 		return 1;
 	}
 	/* Byte load and inlien are about the same size so inline for
@@ -1632,7 +1663,7 @@ unsigned gen_direct(struct node *n)
 				   messier */
 				if (r->op == T_CONSTANT) {
 					if (r->value == 1)
-						printf("\tld a,(hl)\n\tdec a\n\tld (hl),a");
+						printf("\tld a,(hl)\n\tdec a\n\tld (hl),a\n");
 					else
 						printf("\tld a,(hl)\n\tsub 0x%x\n\tld (hl),a",
 							(int)r->value);
@@ -1852,27 +1883,50 @@ unsigned gen_shortcut(struct node *n)
 		return 1;
 	}
 	/* Re-order assignments we can do the simple way */
+	/* TODO: LBSTORE */
 	if (n->op == T_NSTORE && s <= 2) {
-		codegen_lr(n->right);
-		/* Expression result is now in HL */
-		if (s == 1) {
-			printf("\tld a,l\n");
-			printf("\tld (_%s+%u), a\n", namestr(n->snum), WORD(n->value));
+		/* Handle const nr specially */
+		if (s == 1 && r->op == T_CONSTANT && (n->flags & NORETURN)) {
+			printf("\tld a,%u\n", (uint8_t)r->value);
 		} else {
-			printf("\tld (_%s+%u), hl\n", namestr(n->snum), WORD(n->value));
+			codegen_lr(n->right);
+			if (s == 1)
+				printf("\tld a,l\n");
 		}
+		/* Expression result is now in HL or A or both as needed */
+		if (s == 1)
+			printf("\tld (_%s+%u), a\n", namestr(n->snum), WORD(n->value));
+		else
+			printf("\tld (_%s+%u), hl\n", namestr(n->snum), WORD(n->value));
 		return 1;
 	}
 	/* Locals we can do on some later processors, Z80 is doable but messy - so not worth it */
 	if (n->op == T_LSTORE && s <= 2) {
+		v = n->value;
+		if (use_fp && v < 128 - s && r->op == T_CONSTANT && (n->flags & NORETURN)) {
+			/* Constant assign odd case */
+			printf("\tld (iy + %u), %d\n",v ,
+				((unsigned)r->value) & 0xFF);
+			if (s == 2)
+				printf("\tld (iy + %u), %d\n", v + 1,
+					((unsigned)r->value) >> 8);
+			return 1;
+		}
 		/* Rabbit and Z280 */
-		if (HAS_LDHLSP && n->value + sp < 255 && s == 2) {
+		if (HAS_LDHLSP && v + sp < 255 && s == 2) {
 			codegen_lr(n->right);
-			printf("\tld (sp + %u),hl\n", WORD(n->value + sp));
+			printf("\tld (sp + %u),hl\n", v + sp);
+			return 1;
+		}
+		if (use_fp && v <= 128 - s) {
+			codegen_lr(n->right);
+			printf("\tld (iy + %u), l\n", v);
+			if (s == 2)
+				printf("\tld (iy + %u), h\n", v + 1);
 			return 1;
 		}
 		/* General case */
-		if (n->value + sp == 0 && s == 2) {
+		if (v + sp == 0 && s == 2) {
 			/* The one case Z80 is worth doing */
 			codegen_lr(n->right);
 			if (nr)
