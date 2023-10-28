@@ -1167,6 +1167,7 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 		if (s == 2 && n->op == T_EQEQ && (n->flags & CCONLY)) {
 			printf("\tor a\n\tsbc hl,bc\n");
 			ccflags = "z nz";
+			return 1;
 		}
 	}
 	/* We need to set a variable to the type of branch to use for the condition and then pick it up
