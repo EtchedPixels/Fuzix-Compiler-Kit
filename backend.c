@@ -229,6 +229,7 @@ static unsigned process_expression(void)
 	fprintf(stderr, ":load:\n");
 	dump_tree(n, 0);
 #endif
+	n = gen_rewrite(n);
 	n = rewrite_tree(n);
 #ifdef DEBUG
 	fprintf(stderr, ":rewritten:\n");
@@ -867,6 +868,15 @@ void codegen_lr(struct node *n)
 			codegen_lr(n->right);
 			gen_label("LC", lab);
 			return;
+		} else {
+/*			printf(";C %x F %x\n", n->op, n->flags); */
+			/* Can use CC but must not flip the CC direction as
+			   it will break our branch chains. TODO - fix this
+			   in the main compiler pass - but it's not trivial */
+			n->left->flags |= (n->flags & CCONLY);
+			n->left->flags |= CCFIXED;
+			n->right->flags |= (n->flags & CCONLY);
+			n->right->flags |= CCFIXED;
 		}
 		/* TODO ? shortcut && and || if one side is constant */
 		codegen_lr(n->left);
