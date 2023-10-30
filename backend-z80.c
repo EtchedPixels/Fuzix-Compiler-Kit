@@ -61,6 +61,12 @@
 #define LWDIRECT 24	/* Number of __ldword1 __ldword2 etc forms for fastest access */
 
 /*
+ *	Upper node flag fields are ours
+ */
+
+#define USECC	0x0100
+
+/*
  *	State for the current function
  */
 static unsigned frame_len;	/* Number of bytes of stack frame */
@@ -154,7 +160,8 @@ static unsigned get_stack_size(unsigned t)
 #define T_RDEREF	(T_USER+9)		/* *regptr */
 #define T_REQ		(T_USER+10)		/* *regptr */
 #define T_BTST		(T_USER+11)		/* Use bit n, for and bit conditionals */
-#define T_CCINVERT	(T_USER+12)		/* Used for eliminating condition only BANGEQ */
+#define T_BYTEEQ	(T_USER+12)		/* Until we handle 8bit better */
+#define T_BYTENE	(T_USER+13)
 
 static void squash_node(struct node *n, struct node *o)
 {
@@ -204,18 +211,111 @@ static unsigned is_simple(struct node *n)
 	return 0;
 }
 
-static unsigned cconly_down(unsigned op)
+/* Operators where we can push CCONLY downwards */
+static unsigned is_ccdown(struct node *n)
 {
-	/* We need to look at doing the other simple conditions */
-	if (op == T_EQEQ || op == T_BANGEQ)
+	register unsigned op = n->op;
+	if (op == T_ANDAND || op == T_OROR)
+		return 1;
+	if (op == T_BOOL)
+		return 1;
+	if (op == T_BANG && !(n->flags & CCFIXED))
+		return 1;
+	return 0;
+}
+
+/* Operators that we known to handle as CCONLY if possible
+   TODO: add logic ops as we can BIT many of them */
+static unsigned is_cconly(struct node *n)
+{
+	register unsigned op = n->op;
+	if (op == T_EQEQ || op == T_BANGEQ || op == T_BYTEEQ ||
+		op == T_BYTENE || op == T_ANDAND || op == T_OROR ||
+		op == T_BOOL || op == T_BTST)
+		return 1;
+	if (op == T_BANG && !(n->flags & CCFIXED))
 		return 1;
 	return 0;
 }
 
 /*
- *	Our chance to do tree rewriting. We don't do much for the 8080
+ *	Try and push CCONLY down through the tree
+ */
+static void propogate_cconly(struct node *n)
+{
+	register struct node *l, *r;
+	unsigned sz = get_size(n->type);
+	unsigned val;
+
+	l = n->left;
+	r = n->right;
+
+
+/*	printf("; considering %x %x\n", n->op, n->flags); */
+	/* Only do this for nodes that are CCONLY. For example if we hit
+	   an EQEQ (assign) then whilst the result of the assign may be
+	   CC only, the subtree of the assignment is most definitely not */
+	if (n->op != T_AND && !is_cconly(n) && !(n->flags & CCONLY))
+		return;
+
+	/* We have to special case BIT unfortunately, and this is ugly */
+
+	/* A common C idiom is if (a & bit) which we can rewrite into
+	   bit n,h or bit n,l */
+
+	if (n->op == T_AND) {
+/*		printf(";AND %x %x %x\n", n->op, r->op, n->flags); */
+		if (r->op == T_CONSTANT && sz <= 2) {
+			val = bitcheck1(r->value, sz);
+			if (val != -1) {
+				n->op = T_BTST;
+				n->value = val;
+				free_node(r);
+				n->right = l;
+				n->left = NULL;
+				r = l;
+				l = NULL;
+			}
+		} else
+			return;
+	}
+
+	n->flags |= CCONLY;
+	/* Deal with the CCFIXED limitations for now */
+	if (n->flags & CCFIXED) {
+		if (l)
+			l->flags |= CCFIXED;
+		if (r)
+			r->flags |= CCFIXED;
+	}
+/*	printf(";made cconly %x\n", n->op); */
+	/* Are we a node that can CCONLY downwards */
+	if (is_ccdown(n)) {
+/*		printf(";ccdown of %x L\n", n->op); */
+		if (l)
+			propogate_cconly(l);
+/*		printf(";ccdown cont %x R\n", n->op); */
+		if (r)
+			propogate_cconly(r);
+/*		printf(";ccdown done %x\n", n->op); */
+	}
+}
+
+/*
+ *	Allow aribtrary rewriting before the rewrite_node process is called
+ *	bottom up. Lets us do things like working out which tree sections
+ *	could be 8bit, or downward propagation of properties
+ */
+struct node *gen_rewrite(struct node *n)
+{
+	return n;
+}
+
+/*
+ *	Our chance to do tree rewriting. We don't do much for the Z80
  *	at this point, but we do rewrite name references and function calls
- *	to make them easier to process.
+ *	to make them easier to process. We also rewrite dereferences with
+ *	offsets so we can use ix and iy nicely.
  */
 struct node *gen_rewrite_node(struct node *n)
 {
@@ -225,20 +325,34 @@ struct node *gen_rewrite_node(struct node *n)
 	unsigned op = n->op;
 	unsigned nt = n->type;
 	int val;
-	unsigned sz = get_size(nt);
 
-	/* Try and propogate CCONLY down as best we can. For CC capable ops
-	   we can kill the T_BOOL */
-	if (n->op == T_BOOL && (n->flags & CCONLY) && cconly_down(r->op)) {
-		free_node(n);
-		r->flags |= CCONLY;
-		return r;
+	/* Squash some byte comparisons down into byte ops */
+/*	if (n->op == T_EQEQ && l->op == T_CAST) {
+		printf(";EQEQ %x L %x T %x R %x V %lx\n",
+			n->flags,
+			l->op, l->right->type,
+			r->op, r->value);
+	} */
+	if (n->op == T_EQEQ && l->op == T_CAST && l->right->type == UCHAR &&
+		r->op == T_CONSTANT && r->value <= 0xFF) {
+		n->op = T_BYTEEQ;
+		n->value = r->value;
+		n->right = l->right;
+		n->left = NULL;
+		free_node(l);	/* Dump the cast */
+		free_node(r);
+		return n;
 	}
-	/* Inverted conditions, we add our own custom 'just flip the nz z' node */
-	if (n->op == T_BANG && (n->flags & CCONLY) && cconly_down(r->op)) {
-		n->op = T_CCINVERT;
-		r->flags |= CCONLY;
-		return r;
+	/* Squash some byte comparisons down into byte ops */
+	if (n->op == T_BANGEQ && l->op == T_CAST && l->right->type == UCHAR &&
+		r->op == T_CONSTANT && r->value <= 0xFF) {
+		n->op = T_BYTENE;
+		n->value = r->value;
+		n->right = l->right;
+		n->left = NULL;
+		free_node(l);	/* Dump the cast */
+		free_node(r);
+		return n;
 	}
 
 	/* spot the following tree
@@ -368,19 +482,6 @@ struct node *gen_rewrite_node(struct node *n)
 		 (PTR(nt) && PTR(r->type))) {
 			free_node(n);
 			return r;
-		}
-	}
-	/* A common C idiom is if (a & bit) which we can rewrite into
-	   bit n,h or bit n,l */
-	if (op == T_AND && (n->flags & CCONLY) && r->op == T_CONSTANT && sz <= 2) {
-		val = bitcheck1(r->value, sz);
-		if (val != -1) {
-			n->op = T_BTST;
-			n->value = val;
-			free_node(r);
-			n->right = l;
-			n->left = NULL;
-			return n;			
 		}
 	}
 	/* Rewrite function call of a name into a new node so we can
@@ -715,7 +816,8 @@ void gen_value(unsigned type, unsigned long value)
 
 void gen_start(void)
 {
-	printf(";\t.setcpu %u\n", cpu);
+	/* For now.. */
+	printf("\t.z80\n");
 }
 
 void gen_end(void)
@@ -1065,19 +1167,23 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 			if (r->value == 0) {
 				if (s == 1) {
 					printf("\txor a\n\tcp l\n");
+					n->flags |= USECC;
 					return 1;
 				}
 				if (s == 2) {
 					printf("\tld a,h\n\tor l\n");
+					n->flags |= USECC;
 					return 1;
 				}
 			}
 			if (s == 1 && r->value == 255) {
 				printf("\tinc l\n");
+				n->flags |= USECC;
 				return 1;
 			}
 			if (s == 2 && r->value == 0xFFFF) {
 				printf("\tld a,h\n\tand l\n\tinc a\n");
+				n->flags |= USECC;
 				return 1;
 			}
 			if (s == 2 && r->value <= 0xFF) {
@@ -1086,12 +1192,14 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 				printf("\tld a,0x%x\n", (unsigned)r->value);
 				printf("\txor l\n");
 				printf("\tor h\n");
+				n->flags |= USECC;
 				return 1;
 			}
 			if (s == 2 && (r->value & 0xFF) == 0) {
 				printf("\tld a,0x%x\n", (unsigned)r->value >> 8);
 				printf("\txor h\n");
 				printf("\tor l\n");
+				n->flags |= USECC;
 				return 1;
 			}
 			if (s == 1) {
@@ -1100,27 +1208,31 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 				return 1;
 			}
 		}
-		if (n->op == T_EQEQ && (n->flags & CCONLY)) {
+		if (n->op == T_EQEQ && (n->flags & CCONLY) && !(n->flags & CCFIXED)) {
 			if (r->value == 0) {
 				if (s == 1) {
 					printf("\txor a\n\tcp l\n");
 					ccflags = "z nz";
+					n->flags |= USECC;
 					return 1;
 				}
 				if (s == 2) {
 					printf("\tld a,h\n\tor l\n");
 					ccflags = "z nz";
+					n->flags |= USECC;
 					return 1;
 				}
 			}
 			if (r->value == 255 && s == 1) {
 				printf("\tinc l\n");
 				ccflags = "z nz";
+				n->flags |= USECC;
 				return 1;
 			}
 			if (r->value == 0xFFFF && s == 2) {
 				printf("\tld a,h\n\tand l\n\tinc a\n");
 				ccflags = "z nz";
+				n->flags |= USECC;
 				return 1;
 			}
 			if (s == 2 && r->value <= 0xFF) {
@@ -1130,6 +1242,7 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 				printf("\txor l\n");
 				printf("\tor h\n");
 				ccflags = "z nz";
+				n->flags |= USECC;
 				return 1;
 			}
 			if (s == 2 && (r->value & 0xFF) == 0) {
@@ -1137,12 +1250,14 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 				printf("\txor h\n");
 				printf("\tor l\n");
 				ccflags = "z nz";
+				n->flags |= USECC;
 				return 1;
 			}
 			if (s == 1) {
 				printf("\tld a,0x%x\n", (unsigned)r->value & 0xFF);
 				printf("\tcp l\n");
 				ccflags = "z nz";
+				n->flags |= USECC;
 				return 1;
 			}
 		}
@@ -1159,14 +1274,16 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 		}
 	}
 	/* Generate short cases with BC */
-	if (r->op == T_RREF && r->value == 1) {
-		if (s == 2 && n->op == T_BANGEQ && (n->flags & CCONLY)) {
+	if (r->op == T_RREF && s == 2 && r->value == 1 && (n->flags & CCONLY)) {
+		if (n->op == T_BANGEQ) {
 			printf("\tor a\n\tsbc hl,bc\n");
+			n->flags |= USECC;
 			return 1;
 		}
-		if (s == 2 && n->op == T_EQEQ && (n->flags & CCONLY)) {
+		if (n->op == T_EQEQ && !(n->flags & CCFIXED)) {
 			printf("\tor a\n\tsbc hl,bc\n");
 			ccflags = "z nz";
+			n->flags |= USECC;
 			return 1;
 		}
 	}
@@ -1175,22 +1292,26 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 	if (n->op == T_BANGEQ && (n->flags & CCONLY)) {
 		if (s == 1 && load_a_with(r) == 1) {
 			printf("\tcp l\n");
+			n->flags |= USECC;
 			return 1;
 		}
 		if (s == 2 && load_de_with(r) == 1) {
 			printf("\tor a\n\tsbc hl,de\n");
+			n->flags |= USECC;
 			return 1;
 		}
 	}
-	if (n->op == T_EQEQ && (n->flags & CCONLY)) {
+	if (n->op == T_EQEQ && (n->flags & CCONLY) && !(n->flags & CCFIXED)) {
 		if (s == 1 && load_a_with(r) == 1) {
 			printf("\tcp l\n");
 			ccflags = "z nz";
+			n->flags |= USECC;
 			return 1;
 		}
 		if (s == 2 && load_de_with(r) == 1) {
 			printf("\tor a\n\tsbc hl,de\n");
 			ccflags = "z nz";
+			n->flags |= USECC;
 			return 1;
 		}
 	}
@@ -1465,7 +1586,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 			if (v <= 0xFF) {
-				printf("\tld a,%u\n", v);
+				printf("\tld a,0x%x\n", v);
 				helper(n, "assign0la");
 				return 1;
 			}
@@ -1895,7 +2016,7 @@ static void reg_logic(struct node *n, unsigned s, unsigned op, const char *i)
 
 /*
  *	Allow the code generator to short cut any subtrees it can directly
- *	generate.
+ *	generate. Also our point to do any private tree mods downwards
  */
 unsigned gen_shortcut(struct node *n)
 {
@@ -1908,6 +2029,10 @@ unsigned gen_shortcut(struct node *n)
 	/* Don't generate unreachable blocks */
 	if (unreachable)
 		return 1;
+
+	/* Try and rewrite this node subtree for CC only */
+	if ((opt || optsize) && (n->flags & CCONLY))
+		propogate_cconly(n);
 
 	/* The comma operator discards the result of the left side, then
 	   evaluates the right. Avoid pushing/popping and generating stuff
@@ -1922,10 +2047,14 @@ unsigned gen_shortcut(struct node *n)
 	}
 	if (n->op == T_BOOL) {
 		codegen_lr(r);
-		/* TODO - need to work out how to propogate CCONLY up and down a bit more */
-		/* For now special case stuff */
-		if (r->op == T_BTST && (n->flags & CCONLY))
+		/* Condition code only doesn't need us to do anything if
+		   our child is already CCONLY */
+/*		printf("; N %x R %x NF %x RF %x\n",
+			n->op, r->op, n->flags, r->flags); */
+		/* If we want CC flags and the subtree is CC flags do nothing */
+		if ((n->flags & CCONLY) && (r->flags & USECC))
 			return 1;
+		/* If the result is bool do nothing */
 		if (r->flags & ISBOOL)
 			return 1;
 		s = get_size(r->type);
@@ -1952,7 +2081,7 @@ unsigned gen_shortcut(struct node *n)
 	if (n->op == T_NSTORE && s <= 2) {
 		/* Handle const nr specially */
 		if (s == 1 && r->op == T_CONSTANT && (n->flags & NORETURN)) {
-			printf("\tld a,%u\n", (uint8_t)r->value);
+			printf("\tld a,0x%x\n", (uint8_t)r->value);
 		} else {
 			codegen_lr(n->right);
 			if (s == 1)
@@ -2063,22 +2192,26 @@ unsigned gen_shortcut(struct node *n)
 		if (n->op == T_BANGEQ) {
 			if (s == 1) {
 				printf("\txor a\n\tcp c\n");
+				n->flags |= USECC;
 				return 1;
 			}
 			if (s == 2) {
 				printf("\tld a,c\n\tor b\n");
+				n->flags |= USECC;
 				return 1;
 			}
 		}
-		if (n->op == T_EQEQ) {
+		if (n->op == T_EQEQ && !(n->flags & CCFIXED)) {
 			if (s == 1) {
 				printf("\txor a\n\tcp c\n");
 				ccflags = "z nz";
+				n->flags |= USECC;
 				return 1;
 			}
 			if (s == 2) {
 				printf("\tld a,c\n\tor b\n");
 				ccflags = "z nz";
+				n->flags |= USECC;
 				return 1;
 			}
 		}
@@ -2121,7 +2254,7 @@ unsigned gen_shortcut(struct node *n)
 						printf("\tld b,h\n");
 				} else {
 					codegen_lr(r);
-					printf("\tex de,hl\nadd %s,de\n", regnames[reg]);
+					printf("\tex de,hl\n\tadd %s,de\n", regnames[reg]);
 					if (!(n->flags & NORETURN))
 						get_regvar(reg, n, s);
 				}
@@ -2346,6 +2479,8 @@ unsigned gen_node(struct node *n)
 	unsigned v;
 	char *name;
 	unsigned nr = n->flags & NORETURN;
+	register struct node *r = n->right;
+
 	/* We adjust sp so track the pre-adjustment one too when we need it */
 
 	v = n->value;
@@ -2592,7 +2727,6 @@ unsigned gen_node(struct node *n)
 		printf("\tld hl,");
 		printf("_%s+%u\n", namestr(n->snum), v);
 		return 1;
-	/* FIXME: LBNAME ?? */
 	case T_LOCAL:
 		v += sp;
 /*		printf(";LO sp %u spval %u %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
@@ -2627,38 +2761,79 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		break;
-	case T_MINUS:	/* TODO: check ordering */
+	case T_MINUS:
 		if (size <= 2) {
 			printf("\tpop de\n\tor a\n\tex de,hl\n\tsbc hl,de\n");
 			return 1;
 		}
 		break;
 	case T_BANG:
-		if (n->flags & CCONLY) {
-			if (size == 4)
-				return 0;
+		/* Always use the helper if we need the actual value */
+		if (!(n->flags & CCONLY))
+			return 0;
+		/* Already CC format */
+		if (r->flags & USECC) {
+			if (!(n->flags & CCFIXED)) {
+				/* Will need work when we add > >= and friends TODO */
+				if (strcmp(ccflags, "z nz") == 0)
+					ccflags = "nzz ";
+				else
+					ccflags = "z nz";
+				n->flags |= USECC;
+				return 1;
+			}
+			/*  We have a CC we want to invert it but we are not
+			    allowed to */
+			printf("\tcall __cctonot\n");
+			n->flags |= ISBOOL;
+			return 1;
+		}
+		if (size == 4)
+			return 0;
+		if (!(n->flags & CCFIXED)) {
+			/* Turn into CC format */
 			if (size == 1)
 				printf("\tld a,l\n\tor a\n");
 			else if (size == 2)
 				printf("\tld a,h\n\tor l\n");
 			ccflags = "z nz";
+			n->flags |= USECC;
 			return 1;
 		}
-		break;
+		return 0;
 	case T_BTST:
 		/* Always CCONLY */
 		if (v < 8)
 			printf("\tbit %u, l\n", v);
 		else
 			printf("\tbit %u, h\n", v - 8);
+		n->flags |= USECC;
 		return 1;
-	case T_CCINVERT:
-		/* Will need work when we add > >= and friends TODO */
-		/* Always CCONLY for eliminating T_BANG */
-		if (strcmp(ccflags, "z nz") == 0)
-			ccflags = "nzz ";
-		else
+	case T_BYTEEQ:
+		v = n->value;
+		/* Value is in L, just compare byte if we can */
+		printf("\tld a,0x%x\n", v & 0xFF);
+		if ((n->flags & CCONLY) && !(n->flags & CCFIXED)) {
+			printf("\tcp l\n");
 			ccflags = "z nz";
+			n->flags |= USECC;
+			return 1;
+		}
+		/* Couldn't short cut so do it direct */
+		printf("\tcall __cmpeqla\n");
+		n->flags |= ISBOOL;
+		return 1;
+	case T_BYTENE:
+		v = n->value;
+		/* Value is in L, just compare byte if we can */
+		printf("\tld a,0x%x\n", v & 0xFF);
+		if (n->flags & CCONLY) {
+			printf("\tcp l\n");
+			n->flags |= USECC;
+			return 1;
+		}
+		printf("\tcall __cmpnela\n");
+		n->flags |= ISBOOL;
 		return 1;
 	}
 	return 0;
