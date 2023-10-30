@@ -203,6 +203,14 @@ static unsigned is_simple(struct node *n)
 	return 0;
 }
 
+/* Chance to rewrite the tree from the top rather than none by node
+   upwards. We will use this for 8bit ops at some point and for cconly
+   propagation */
+struct node *gen_rewrite(struct node *n)
+{
+	return n;
+}
+
 /*
  *	Our chance to do tree rewriting. We don't do much for the 8080
  *	at this point, but we do rewrite name references and function calls
@@ -1587,14 +1595,18 @@ unsigned gen_shortcut(struct node *n)
 				opcode(OP_MVI, 0, R_A, "mvi a, %u", v >> 8);
 				opcode(OP_ANA, R_B, R_A, "ana b");
 				opcode(OP_MOV, R_A, R_H, "mov h,a");
-			}
+			} else
+				opcode(OP_MOV, R_B, R_H, "mov h,b");
+
 			if ((v & 0xFF) == 0x00)
 				opcode(OP_MVI, 0, R_L, "mvi l,0");
 			else if ((v & 0xFF) != 0xFF) {
 				opcode(OP_MVI, 0, R_A, "mvi a, %u", v & 0xFF);
 				opcode(OP_ANA, R_C, R_A, "ana c");
 				opcode(OP_MOV, R_A, R_L, "mov l,a");
-			}
+			} else
+				opcode(OP_MOV, R_C, R_L, "mov l,c");
+
 			return 1;
 		}
 	}
