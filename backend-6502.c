@@ -815,6 +815,14 @@ static unsigned is_simple(struct node *n)
 	return 0;
 }
 
+/* Chance to rewrite the tree from the top rather than none by node
+   upwards. We will use this for 8bit ops at some point and for cconly
+   propagation */
+struct node *gen_rewrite(struct node *n)
+{
+	return n;
+}
+
 /*
  *	Our chance to do tree rewriting. We don't do much for the 8080
  *	at this point, but we do rewrite name references and function calls

@@ -17,6 +17,7 @@ extern void helper_type(unsigned t, unsigned s);
 extern void codegen_lr(struct node *n);
 
 extern struct node *gen_rewrite_node(struct node *n);
+extern struct node *gen_rewrite(struct node *n);
 
 extern void gen_segment(unsigned segment);
 extern void gen_export(const char *name);

@@ -49,8 +49,16 @@ static void squash_right(struct node *n, unsigned op)
 	n->right = NULL;
 }
 
+/* Chance to rewrite the tree from the top rather than none by node
+   upwards. We will use this for 8bit ops at some point and for cconly
+   propagation */
+struct node *gen_rewrite(struct node *n)
+{
+	return n;
+}
+
 /*
- *	Our chance to do tree rewriting. We don't do much for the 8080
+ *	Our chance to do tree rewriting. We don't do much for the thread code
  *	at this point, but we do rewrite name references and function calls
  *	to make them easier to process.
  */
