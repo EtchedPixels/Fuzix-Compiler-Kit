@@ -7,8 +7,6 @@ __shleql:
 	pop	h
 	xthl
 	; HL is now the lval, A is the shift
-	ani	31
-	jz	done
 	push	h
 	push	psw
 	mov	e,m
@@ -20,6 +18,8 @@ __shleql:
 	mov	h,m
 	mov	l,a
 	pop	psw
+	ani	31
+	jz	done
 loop:
 	xchg
 	dad	h
