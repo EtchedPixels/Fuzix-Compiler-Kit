@@ -43,7 +43,7 @@
  *	Split I/D
  */
 
-#define DEBUG
+#undef DEBUG
 
 #include <stdio.h>
 #include <stdint.h>
