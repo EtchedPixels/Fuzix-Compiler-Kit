@@ -3,6 +3,7 @@
 		.export __cmpne0b
 		.export __cmpgt0u
 		.export __cmpgt0ub
+		.export __cctobool
 
 		.code
 
@@ -14,6 +15,7 @@ __cmpne0:	; a compare to non zero is a bool op
 __bool:
 		ld	a,h
 		or	l
+__cctobool:
 		ld	hl,0
 		ret	z
 		inc	l		; NZ
