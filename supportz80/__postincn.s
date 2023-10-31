@@ -1,12 +1,9 @@
-		.export __postinc1
-		.export __postinc2
 		.export __postinc1d
 		.export __postinc2d
 		.code
 
 __postinc1d:
 		ex	de,hl
-__postinc1:
 		ld	e,(hl)
 		inc	hl
 		ld	d,(hl)
@@ -20,7 +17,6 @@ __postinc1:
 
 __postinc2d:
 		ex	de,hl
-__postinc2:
 		ld	e,(hl)
 		inc	hl
 		ld	d,(hl)
