@@ -5,15 +5,16 @@
 		.code
 
 _strlen:
-		pop	hl
 		pop	de
-		push	de
+		pop	hl
 		push	hl
-		ld	hl,0
-loop:
-		ld	a,(de)
-		inc	de
-		or	a
-		ret	z
-		inc	hl
-		jr	loop
+		push	de
+		push	bc
+		xor	a
+		ld	b,a
+		ld	c,a
+		cpir
+		ld	hl,-1
+		sbc	hl,bc	; C is always clear here
+		pop	bc
+		ret
