@@ -66,15 +66,6 @@
 	push hl
 ;
 
-# Init of variables
-	push hl
-	call __ld%1
-	pop af
-	push hl
-=
-	call __ld%1
-	push hl
-
 # Bitops switch
 	ex de,hl
 	res %1,l
@@ -98,15 +89,15 @@
 	set %1,h
 	ex de,hl
 =
-	set %1,h
+	set %1,d
 
 # This will need reworking properly in the backend once we track HL
 	ld hl,%1
 	push hl
-	pop ix
+	pop i%2
 ;
 =
-	ld ix,%1
+	ld i%2,%1
 
 	ld c,l
 	ld b,h
