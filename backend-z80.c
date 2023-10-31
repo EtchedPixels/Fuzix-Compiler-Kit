@@ -2768,6 +2768,9 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_BANG:
+		/* Logic via jumping always uses CC in our case */
+		if (r->op == T_ANDAND || r->op == T_OROR)
+			r->flags |= USECC;
 		/* Always use the helper if we need the actual value */
 		if (!(n->flags & CCONLY))
 			return 0;
