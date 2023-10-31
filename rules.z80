@@ -43,6 +43,10 @@
 	inc hl
 =
 
+	ld a,0x0
+=
+	xor a
+
 # Trivial perverse assignment and usage pattern
 # Really we need reg tracking for ix iy hl and maybe bc de
 	push hl
@@ -62,6 +66,40 @@
 	push hl
 ;
 
+# Init of variables
+	push hl
+	call __ld%1
+	pop af
+	push hl
+=
+	call __ld%1
+	push hl
+
+# Bitops switch
+	ex de,hl
+	res %1,l
+	ex de,hl
+=
+	res %1,e
+
+	ex de,hl
+	set %1,l
+	ex de,hl
+=
+	set %1,e
+
+	ex de,hl
+	res %1,h
+	ex de,hl
+=
+	res %1,d
+
+	ex de,hl
+	set %1,h
+	ex de,hl
+=
+	set %1,h
+
 # This will need reworking properly in the backend once we track HL
 	ld hl,%1
 	push hl
@@ -69,6 +107,22 @@
 ;
 =
 	ld ix,%1
+
+	ld c,l
+	ld b,h
+;
+	ld l,c
+	ld h,b
+=
+	ld c,l
+	ld b,h
+
+	ld hl,%1
+	push hl
+	pop i%2
+;
+=
+	ld i%2,%1
 
 # HL reloads. TODO track HL in the core code so we can eliminate them
 # properly and for more than constants
@@ -308,6 +362,7 @@
 	or h
 ;
 =
+	ld h,0x0
 	ld a,%1
 	xor l
 
@@ -347,8 +402,9 @@
 	ld a,h
 	or l
 =
+	ld h,0
 	ld l,a
-	or a
+	or h
 
 # Squash messy compare and branches
 	ld a,%1
@@ -378,14 +434,23 @@
 	ld hl,%4
 
 # Until we tidy up arg push logic
-	push ix
+	push i%1
 	pop hl
 	push hl
 ;
-	call %1
+	call %2
 =
-	push ix
-	call %1
+	push i%1
+	call %2
+
+	push bc
+	pop hl
+	push hl
+;
+	call %2
+=
+	push bc
+	call %2
 
 # Bit op tidy - needs byte logic for byte ops and cc adding instead
 	ld h,0x0
@@ -412,3 +477,14 @@
 	bit %1, l
 	jr %2
 	ld h%3
+
+# IX/IY and DE avoiding over the top stuff
+	push hl
+;
+	ld h,(i%1 + 1)
+	ld l,(i%1 + 0)
+	ex de,hl
+	pop hl
+=
+	ld d,(i%1 + 1)
+	ld e,(i%1 + 0)
