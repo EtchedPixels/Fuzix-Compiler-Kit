@@ -46,7 +46,10 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __switchl.o __pushl.o __sex.o 
       __bcand.o __bcdiv.o __bcdivu.o __bcmul.o __bcor.o __bcshl.o __bcshr.o __bcsub.o __bcxor.o \
       __ixsub.o __iysub.o \
       _memcmp.o _memcpy.o _memset.o _strcmp.o _strlen.o _strncmp.o \
-      _strlcat.o _strcpy.o _strchr.o _strrchr.o _strlen.o
+      _strlcat.o _strcpy.o _strchr.o _strrchr.o _strlen.o \
+      __cast2f.o __castf.o __cceqf.o __ccgteqf.o __ccgtf.o __cclteqf.o \
+      __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o
+
 
 include ldst.mk
 
@@ -59,6 +62,8 @@ makeldst: makeldst.c
 
 .s.o:
 	ccz80 -c $<
+.c.o:
+	ccz80 -O -c $<
 
 libz80.a: makeldst $(OBJ)
 	rm -f libz80.a
