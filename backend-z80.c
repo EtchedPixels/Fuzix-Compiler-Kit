@@ -66,6 +66,9 @@
 
 #define USECC	0x0100
 
+static const char ccnormal[] = "nzz ";
+static const char ccinvert[] = "z nz";
+
 /*
  *	State for the current function
  */
@@ -75,7 +78,7 @@ static unsigned argbase;	/* Argument offset in current function */
 static unsigned unreachable;	/* Code after an unconditional jump */
 static unsigned func_cleanup;	/* Zero if we can just ret out */
 static unsigned use_fp;		/* Using a frame pointer this function */
-static char *ccflags = "nzz";	/* True, False flags */
+static const char *ccflags = ccnormal;/* True, False flags */
 
 static const char *regnames[] = {	/* Register variable names */
 	NULL,
@@ -253,7 +256,7 @@ static void propogate_cconly(struct node *n)
 
 /*	printf("; considering %x %x\n", n->op, n->flags); */
 	/* Only do this for nodes that are CCONLY. For example if we hit
-	   an EQEQ (assign) then whilst the result of the assign may be
+	   an EQ (assign) then whilst the result of the assign may be
 	   CC only, the subtree of the assignment is most definitely not */
 	if (n->op != T_AND && !is_cconly(n) && !(n->flags & CCONLY))
 		return;
@@ -669,13 +672,13 @@ void gen_jump(const char *tail, unsigned n)
 void gen_jfalse(const char *tail, unsigned n)
 {
 	printf("\tjr %s,L%u%s\n", ccflags + 2, n, tail);
-	ccflags = "nzz";
+	ccflags = ccnormal;
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
 	printf("\tjr %c%c,L%u%s\n", ccflags[0], ccflags[1], n, tail);
-	ccflags = "nzz";
+	ccflags = ccnormal;
 }
 
 static void gen_cleanup(unsigned v)
@@ -1212,26 +1215,26 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 			if (r->value == 0) {
 				if (s == 1) {
 					printf("\txor a\n\tcp l\n");
-					ccflags = "z nz";
+					ccflags = ccinvert;
 					n->flags |= USECC;
 					return 1;
 				}
 				if (s == 2) {
 					printf("\tld a,h\n\tor l\n");
-					ccflags = "z nz";
+					ccflags = ccinvert;
 					n->flags |= USECC;
 					return 1;
 				}
 			}
 			if (r->value == 255 && s == 1) {
 				printf("\tinc l\n");
-				ccflags = "z nz";
+				ccflags = ccinvert;
 				n->flags |= USECC;
 				return 1;
 			}
 			if (r->value == 0xFFFF && s == 2) {
 				printf("\tld a,h\n\tand l\n\tinc a\n");
-				ccflags = "z nz";
+				ccflags = ccinvert;
 				n->flags |= USECC;
 				return 1;
 			}
@@ -1241,7 +1244,7 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 				printf("\tld a,0x%x\n", (unsigned)r->value);
 				printf("\txor l\n");
 				printf("\tor h\n");
-				ccflags = "z nz";
+				ccflags = ccinvert;
 				n->flags |= USECC;
 				return 1;
 			}
@@ -1249,14 +1252,15 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 				printf("\tld a,0x%x\n", (unsigned)r->value >> 8);
 				printf("\txor h\n");
 				printf("\tor l\n");
-				ccflags = "z nz";
+				ccflags = ccinvert;
+				printf(";EQEQ z true z nz\n");
 				n->flags |= USECC;
 				return 1;
 			}
 			if (s == 1) {
 				printf("\tld a,0x%x\n", (unsigned)r->value & 0xFF);
 				printf("\tcp l\n");
-				ccflags = "z nz";
+				ccflags = ccinvert;
 				n->flags |= USECC;
 				return 1;
 			}
@@ -1282,7 +1286,7 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 		}
 		if (n->op == T_EQEQ && !(n->flags & CCFIXED)) {
 			printf("\tor a\n\tsbc hl,bc\n");
-			ccflags = "z nz";
+			ccflags = ccinvert;
 			n->flags |= USECC;
 			return 1;
 		}
@@ -1304,13 +1308,13 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 	if (n->op == T_EQEQ && (n->flags & CCONLY) && !(n->flags & CCFIXED)) {
 		if (s == 1 && load_a_with(r) == 1) {
 			printf("\tcp l\n");
-			ccflags = "z nz";
+			ccflags = ccinvert;
 			n->flags |= USECC;
 			return 1;
 		}
 		if (s == 2 && load_de_with(r) == 1) {
 			printf("\tor a\n\tsbc hl,de\n");
-			ccflags = "z nz";
+			ccflags = ccinvert;
 			n->flags |= USECC;
 			return 1;
 		}
@@ -2046,14 +2050,24 @@ unsigned gen_shortcut(struct node *n)
 		return 1;
 	}
 	if (n->op == T_BOOL) {
+		/* Logic via jumping always uses CC in our case */
+		if (r->op == T_ANDAND || r->op == T_OROR)
+			r->flags |= USECC;
 		codegen_lr(r);
 		/* Condition code only doesn't need us to do anything if
 		   our child is already CCONLY */
 /*		printf("; N %x R %x NF %x RF %x\n",
 			n->op, r->op, n->flags, r->flags); */
 		/* If we want CC flags and the subtree is CC flags do nothing */
-		if ((n->flags & CCONLY) && (r->flags & USECC))
+		if ((n->flags & CCONLY) && (r->flags & USECC)) {
+			n->flags |= USECC;
 			return 1;
+		}
+		if (r->flags & USECC) {
+			/* Should never happen */
+			printf("\t;BOTCH %04X:%04X\n", r->op, r->flags);
+			printf("\tcall __cctobool\n");
+		}
 		/* If the result is bool do nothing */
 		if (r->flags & ISBOOL)
 			return 1;
@@ -2204,13 +2218,13 @@ unsigned gen_shortcut(struct node *n)
 		if (n->op == T_EQEQ && !(n->flags & CCFIXED)) {
 			if (s == 1) {
 				printf("\txor a\n\tcp c\n");
-				ccflags = "z nz";
+				ccflags = ccinvert;
 				n->flags |= USECC;
 				return 1;
 			}
 			if (s == 2) {
 				printf("\tld a,c\n\tor b\n");
-				ccflags = "z nz";
+				ccflags = ccinvert;
 				n->flags |= USECC;
 				return 1;
 			}
@@ -2772,16 +2786,25 @@ unsigned gen_node(struct node *n)
 		if (r->op == T_ANDAND || r->op == T_OROR)
 			r->flags |= USECC;
 		/* Always use the helper if we need the actual value */
-		if (!(n->flags & CCONLY))
+		if (!(n->flags & CCONLY)) {
+			if (r->flags & USECC) {
+				/* Should never happen */
+				printf(";BOTCH %04x:%04X\n", r->op, r->flags);
+				printf("\tcall __cctonot\n");
+				return 1;
+			}
 			return 0;
+		}
 		/* Already CC format */
 		if (r->flags & USECC) {
 			if (!(n->flags & CCFIXED)) {
 				/* Will need work when we add > >= and friends TODO */
-				if (strcmp(ccflags, "z nz") == 0)
-					ccflags = "nzz ";
+				if (ccflags == ccinvert)
+					ccflags = ccnormal;
+				else if (ccflags == ccnormal)
+					ccflags = ccinvert;
 				else
-					ccflags = "z nz";
+					error("ccf");
 				n->flags |= USECC;
 				return 1;
 			}
@@ -2799,7 +2822,7 @@ unsigned gen_node(struct node *n)
 				printf("\tld a,l\n\tor a\n");
 			else if (size == 2)
 				printf("\tld a,h\n\tor l\n");
-			ccflags = "z nz";
+			ccflags = ccinvert;
 			n->flags |= USECC;
 			return 1;
 		}
@@ -2818,7 +2841,7 @@ unsigned gen_node(struct node *n)
 		printf("\tld a,0x%x\n", v & 0xFF);
 		if ((n->flags & CCONLY) && !(n->flags & CCFIXED)) {
 			printf("\tcp l\n");
-			ccflags = "z nz";
+			ccflags = ccinvert;
 			n->flags |= USECC;
 			return 1;
 		}
