@@ -51,4 +51,5 @@ lib8085.a: $(OBJ)
 	ar qc lib8085.a `../lorder85 $(OBJ) | tsort`
 
 clean:
-	rm -f *.o *.a
+	rm -f *.o *.a *~
+
