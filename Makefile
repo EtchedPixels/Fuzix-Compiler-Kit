@@ -195,7 +195,7 @@ doinstall:
 	mkdir -p /opt/ccz80/lib
 	mkdir -p /opt/ccz80/include
 	cp ccz80 /opt/ccz80/bin/ccz80
-	cp lorderz80 /opt/cc85/bin/lorderz80
+	cp lorderz80 /opt/ccz80/bin/lorderz80
 	cp cppz80 /opt/ccz80/lib/cpp
 	cp cc0 /opt/ccz80/lib
 	cp cc1.z80 /opt/ccz80/lib
