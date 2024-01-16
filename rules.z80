@@ -125,10 +125,10 @@
 	ld hl,0x%1
 	ld (%2),hl
 
-        ld hl,0x%1
-        ld (%2),hl
+	ld hl,0x%1
+	ld (%2),hl
 ;
-        ld hl,0x%1
+	ld hl,0x%1
 =
 	ld hl,0x%1
 	ld (%2),hl
@@ -278,11 +278,11 @@
 	ld a,%1
 	call __boolca
 
-        ld h,0x0
-        ld a,%1
-        and l
-        ld l,a
-        call __bool
+	ld h,0x0
+	ld a,%1
+	and l
+	ld l,a
+	call __bool
 =
 	ld a,%1
 	and l
@@ -446,10 +446,10 @@
 # Bit op tidy - needs byte logic for byte ops and cc adding instead
 	ld h,0x0
 	bit %1, l
-        call __cctonot
+	call __cctonot
 =
 	bit %1, l
-        call __cctonot
+	call __cctonot
 
 	ld h,0x0
 	bit %1, l
