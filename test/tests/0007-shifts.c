@@ -25,6 +25,11 @@ int rshifts(int x, unsigned y)
     return x >> y;
 }
 
+unsigned uint;
+int sint;
+unsigned char uchr;
+signed char chr;
+
 int main(int argc, char *argv[])
 {
     if (left4(2) != 32)
@@ -45,5 +50,50 @@ int main(int argc, char *argv[])
         return 8;
     if (lshift(0x55AA, 0) != 0x55AA)
         return 9;
+
+    sint = 4;
+    sint >>= 2;
+    if (sint != 1)
+        return 10;
+    sint = 0xFFFE;
+    sint >>= 1;
+    if (sint != 0xFFFF)
+        return 11;
+
+    uint = 0xC000;
+    uint >>= 4;
+    if (uint != 0x0C00)
+        return 12;
+    chr = 4;
+    chr >>= 2;
+    if (chr != 1)
+        return 13;
+    chr = -2;
+    chr >>= 1;
+    if (chr != -1)
+        return 14;
+    uchr = 0xC0;
+    uchr >>= 4;
+    if (uchr != 0x0C)
+        return 15;
     return 0;
+
+    sint = 4;
+    sint >>= 0;
+    if (sint != 4)
+        return 16;
+    uint = 0xC000;
+    uint >>= 0;
+    if (uint != 0xC000)
+        return 17;
+    chr = -2;
+    chr >>= 0;
+    if (chr != -2)
+        return 18;
+    uchr = 0xC0;
+    uchr >>= 0;
+    if (uchr != 0xC0)
+        return 19;
+    return 0;
+
 }
