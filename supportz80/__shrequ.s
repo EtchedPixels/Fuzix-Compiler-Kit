@@ -11,7 +11,7 @@ __shrequ:
 		ex	(sp),hl	; pointer into hl
 
 		ld	a,e	; save shift value
-		ex	de,hl
+
 		ld	e,(hl)
 		inc	hl
 		ld	d,(hl)

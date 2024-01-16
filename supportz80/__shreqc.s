@@ -7,7 +7,7 @@
 __shreqc:
 		ex	de,hl
 		pop	hl
-		ex	de,hl
+		ex	(sp),hl
 		ld	a,e
 		and	7
 		ld	e,a
