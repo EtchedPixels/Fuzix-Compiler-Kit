@@ -41,10 +41,14 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __switchl.o __pushl.o __sex.o 
       __bandde.o __borde.o __bxorde.o __mulde.o __shrdeu.o \
       __muldec.o \
       __bcand.o __bcdiv.o __bcdivu.o __bcmul.o __bcor.o __bcshl.o __bcshr.o __bcsub.o __bcxor.o \
-      _memcpy.o _memset.o _strlen.o
+      _memcpy.o _memset.o _strlen.o \
+      __cast2f.o __castf.o __cceqf.o __ccgteqf.o __ccgtf.o __cclteqf.o \
+      __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o
 
 .s.o:
 	cc85 -c $<
+.c.o:
+	cc85 -m8085 -O -c $<
 
 lib8085.a: $(OBJ)
 	rm -f lib8085.a

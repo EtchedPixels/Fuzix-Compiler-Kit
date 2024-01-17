@@ -1,11 +1,13 @@
 ;
 ;	Assign the value in hireg:HL to lval at tos.
 ;
+		.export __assignf
 		.export __assignl
 		.export	__assign0l
 		.setcpu 8085
 		.code
 
+__assignf:
 __assignl:
 		xchg			; hireg:de is our value
 		pop	h
