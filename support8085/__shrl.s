@@ -25,6 +25,7 @@ shrde:
 		mov	a,e
 		rar
 		mov	e,a
+shrdl:
 		dcr	b
 		jnz	shrlp
 		pop	b
@@ -55,4 +56,4 @@ __shrul:
 		mov	a,l
 		rar
 		mov	l,a
-		jp	shrde
+		jmp	shrdl
