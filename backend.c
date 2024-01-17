@@ -620,8 +620,8 @@ void make_node(struct node *n)
 			helper(n, "postdec");
 		break;
 	case T_EQEQ:
-		helper(n, "cceq");
 		n->flags |= ISBOOL;
+		helper(n, "cceq");
 		break;
 	case T_LTLT:
 		helper(n, "shl");
@@ -651,8 +651,8 @@ void make_node(struct node *n)
 		helper(n, "xoreq");
 		break;
 	case T_BANGEQ:
-		helper(n, "ccne");
 		n->flags |= ISBOOL;
+		helper(n, "ccne");
 		break;
 	case T_OREQ:
 		helper(n, "oreq");
@@ -690,20 +690,20 @@ void make_node(struct node *n)
 		helper(n, "xor");
 		break;
 	case T_LT:
-		helper_s(n, "cclt");
 		n->flags |= ISBOOL;
+		helper_s(n, "cclt");
 		break;
 	case T_GT:
-		helper_s(n, "ccgt");
 		n->flags |= ISBOOL;
+		helper_s(n, "ccgt");
 		break;
 	case T_LTEQ:
-		helper_s(n, "cclteq");
 		n->flags |= ISBOOL;
+		helper_s(n, "cclteq");
 		break;
 	case T_GTEQ:
-		helper_s(n, "ccgteq");
 		n->flags |= ISBOOL;
+		helper_s(n, "ccgteq");
 		break;
 	case T_OR:
 		helper(n, "or");
@@ -712,8 +712,8 @@ void make_node(struct node *n)
 		helper(n, "cpl");
 		break;
 	case T_BANG:
-		helper(n, "not");
 		n->flags |= ISBOOL;
+		helper(n, "not");
 		break;
 	case T_EQ:
 		helper(n, "assign");
@@ -755,9 +755,9 @@ void make_node(struct node *n)
 		return;
 	case T_BOOL:
 		/* Check if we know it's already bool */
+		n->flags |= ISBOOL;
 		if (!(n->right && (n->right->flags & ISBOOL)))
 			helper(n, "bool");
-		n->flags |= ISBOOL;
 		break;
 	case T_NAME:
 		helper(n, "loadn");
