@@ -18,6 +18,7 @@
 
 /* FIXME: sort out compiler supplied include */
 typedef unsigned long	uint32_t;
+typedef long		int32_t;
 
 #define HIDDEN		(1UL << 23)	/* Implied 1 bit in IEE float */
 #define SIGN(x)		(((x) >> 31) & 0x01)
@@ -35,31 +36,31 @@ typedef unsigned long	uint32_t;
  *	Routines provided to the compiler core (and to each other)
  */
 
-extern uint32_t __negatef(uint32_t);
-extern uint32_t __minusf(uint32_t, uint32_t);
-extern uint32_t __plusf(uint32_t, uint32_t);
-extern uint32_t __mulf(uint32_t, uint32_t);
-extern uint32_t __divf(uint32_t, uint32_t);
+extern uint32_t _negatef(uint32_t);
+extern uint32_t _minusf(uint32_t, uint32_t);
+extern uint32_t _plusf(uint32_t, uint32_t);
+extern uint32_t _mulf(uint32_t, uint32_t);
+extern uint32_t _divf(uint32_t, uint32_t);
 
-extern unsigned __cceqf(uint32_t, uint32_t);
-extern unsigned __ccnef(uint32_t, uint32_t);
-extern unsigned __ccltf(uint32_t, uint32_t);
-extern unsigned __ccgtf(uint32_t, uint32_t);
-extern unsigned __cclteqf(uint32_t, uint32_t);
-extern unsigned __ccgteqf(uint32_t, uint32_t);
+extern unsigned _cceqf(uint32_t, uint32_t);
+extern unsigned _ccnef(uint32_t, uint32_t);
+extern unsigned _ccltf(uint32_t, uint32_t);
+extern unsigned _ccgtf(uint32_t, uint32_t);
+extern unsigned _cclteqf(uint32_t, uint32_t);
+extern unsigned _ccgteqf(uint32_t, uint32_t);
 
-extern unsigned char __castf_uc(uint32_t);
-extern unsigned __castf_u(uint32_t);
-extern unsigned long __castf_ul(uint32_t);
+extern unsigned char _castf_uc(uint32_t);
+extern unsigned _castf_u(uint32_t);
+extern unsigned long _castf_ul(uint32_t);
 
-extern signed char __castf_c(uint32_t);
-extern int __castf_(uint32_t);
-extern long __castf_l(uint32_t);
+extern signed char _castf_c(uint32_t);
+extern int _castf_(uint32_t);
+extern long _castf_l(uint32_t);
 
-extern uint32_t __castuc_f(unsigned char);
-extern uint32_t __castu_f(unsigned int);
-extern uint32_t __castul_f(unsigned long);
+extern uint32_t _castuc_f(unsigned char);
+extern uint32_t _castu_f(unsigned int);
+extern uint32_t _castul_f(unsigned long);
 
-extern uint32_t __castc_f(signed char);
-extern uint32_t __cast_f(int);
-extern uint32_t __castl_f(long);
+extern uint32_t _castc_f(signed char);
+extern uint32_t _cast_f(int);
+extern uint32_t _castl_f(long);

@@ -18,11 +18,11 @@
 
 #include "libfp.h"
 
-/* add two floats. We express them entirely as 32bi unsigned as we don't
+/* add two floats. We express them entirely as 32bit unsigned as we don't
    want to cause any recursive fp ops! */
 uint32_t _plusf(uint32_t a2, uint32_t a1)
 {
-	uint32_t mant1, mant2;
+	int32_t mant1, mant2;
 	int exp1, exp2, expd;
 	uint32_t sign = 0;
 
@@ -31,14 +31,16 @@ uint32_t _plusf(uint32_t a2, uint32_t a1)
 	if (SIGN(a2))
 		mant2 = -mant2;
 	/* check for zero args */
+	/* FIXME: check -0 case */
 	if (!a2)
 		return (a1);
 
 	exp1 = EXP(a1);
 	mant1 = MANT(a1) << 4;
-	if (SIGN(a1))
-		if (a1 & 0x80000000UL)
-			mant1 = -mant1;
+
+	if (a1 & 0x80000000UL)
+		mant1 = -mant1;
+
 	/* check for zero args */
 	if (!a1)
 		return (a2);
@@ -73,7 +75,7 @@ uint32_t _plusf(uint32_t a2, uint32_t a1)
 	}
 
 	/* round off */
-	while (mant1 & 0xf0000000) {
+	while (mant1 & 0xf0000000UL) {
 		if (mant1 & 1)
 			mant1 += 2;
 		mant1 >>= 1;

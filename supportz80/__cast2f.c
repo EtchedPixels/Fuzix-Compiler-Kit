@@ -54,20 +54,20 @@ uint32_t __castuc_f(unsigned char a1)
 uint32_t __castl_f(long a1)
 {
     if (a1 < 0)
-        return __negatef(__castul_f(-a1));
+        return _negatef(__castul_f(-a1));
     return __castul_f(a1);
 }
 
 uint32_t __cast_f(int a1)
 {
     if (a1 < 0)
-        return __negatef(__castu_f(-a1));
+        return _negatef(__castu_f(-a1));
     return __castu_f(a1);
 }
 
 uint32_t __castc_f(signed char a1)
 {
     if (a1 < 0)
-        return __negatef(__castuc_f(-a1));
+        return _negatef(__castuc_f(-a1));
     return __castuc_f(a1);
 }

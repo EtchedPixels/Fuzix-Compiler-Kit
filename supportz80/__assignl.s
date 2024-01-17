@@ -1,6 +1,7 @@
 ;
 ;	Assign the value in hireg:HL to lval at tos.
 ;
+		.export __assignf
 		.export __assignl
 		.export	__assign0l
 		.export	__assign0la
@@ -9,6 +10,7 @@
 
 		.code
 
+__assignf:	; Same thing for an assign
 __assignl:
 		ex	de,hl		; hireg:de is our value
 		pop	hl
