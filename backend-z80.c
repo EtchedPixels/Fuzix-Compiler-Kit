@@ -708,11 +708,28 @@ static void gen_cleanup(unsigned v)
  *	Helper handlers. We use a tight format for integers but C
  *	style for float as we'll have C coded float support if any
  */
+
+/* True if the helper is to be called C style */
+static unsigned c_style(struct node *np)
+{
+	register struct node *n = np;
+	/* Assignment is done asm style */
+	if (n->op == T_EQ)
+		return 0;
+	/* Float ops otherwise are C style */
+	if (n->type == FLOAT)
+		return 1;
+	n = n->right;
+	if (n && n->type == FLOAT)
+		return 1;
+	return 0;
+}
+
 void gen_helpcall(struct node *n)
 {
 	/* Check both N and right because we handle casts to/from float in
 	   C call format */
-	if (n->type == FLOAT || (n->right && n->right->type == FLOAT))
+	if (c_style(n))
 		gen_push(n->right);
 	printf("\tcall __");
 }
@@ -721,7 +738,7 @@ void gen_helpclean(struct node *n)
 {
 	unsigned s;
 
-	if (n->type == FLOAT || (n->right && n->right->type == FLOAT)) {
+	if (c_style(n)) {
 		s = 0;
 		if (n->left) {
 			s += get_size(n->left->type);
@@ -731,6 +748,9 @@ void gen_helpclean(struct node *n)
 			}
 		s += get_size(n->right->type);
 		gen_cleanup(s);
+		/* C style ops that are ISBOOL didn't set the bool flags */
+		if (n->flags & ISBOOL)
+			printf("\txor a\n\tcp l\n");
 	}
 }
 
@@ -1265,7 +1285,8 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 				return 1;
 			}
 		}
-		if (r->value == 0) {
+		/* TODO : float helper */
+		if (r->value == 0 && r->type != FLOAT) {
 			char buf[10];
 			strcpy(buf, op);
 			strcat(buf, "0");
