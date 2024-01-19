@@ -1,4 +1,4 @@
-/*
+	/*
  *	It's easiest to think of what cc does as a sequence of four
  *	conversions. Each conversion produces the inputs to the next step
  *	and the number of types is reduced. If the step is the final
@@ -56,29 +56,39 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
-#define BINPATH		"/opt/cc85/bin/"
-#define LIBPATH		"/opt/cc85/lib/"
-#define INCPATH		"/opt/cc85/include/"
+/*
+ *	For all non native compilers the directories moved and the rules 
+ *	are
+ *
+ *	BINPATH
+ *		as
+ *		cc		(this)
+ *		ld		(try and share)
+ *		reloc		(try and share)
+ *
+ *	LIBPATH
+ *		cpp		(shared by all)
+ *		cc0		(possibly shared may need work)
+ *		cc1.cpuid
+ *		cc2.cpuid
+ *		copt		(shared by all)
+ *		copt.cpuname
+ *		cpuname/lib/
+ *		cpuname/include/
+ *		
+ *	For the native compiler it gets built single CPU supporting
+ *	as /bin/ccc /lib/cpp /lib/lib*.a /usr/include etc, but other processors
+ *	are scanned in the usual rule.
+ *
+ *	Naming is two part
+ *		cpuid		general naming for arch (eg 85, z80)
+ *		cpuname		mach specific (z80,z180,8080,8085)
+ */
 
-#define CMD_AS		BINPATH"as85"
-#define CMD_CC0		LIBPATH"cc0"
-#define CMD_CC1		LIBPATH"cc1.8080"
-#define CMD_CC2		LIBPATH"cc2.8080"
-#define CMD_COPT	LIBPATH"copt"
-#define CMD_CPP		LIBPATH"cpp"
-#define CMD_LD		BINPATH"ld85"
-#define CRT0		LIBPATH"crt0.o"
-#define LIBC		LIBPATH"libc.a"
-#define LIBCPU_8080	LIBPATH"lib8080.a"
-#define LIBCPU_8085	LIBPATH"lib8085.a"
-#define COPTRULES_8080	LIBPATH"rules.8080"
-#define COPTRULES_8085	LIBPATH"rules.8085"
-
-static char *cputab[] = {
-	"8080",
-	"8085",
-	NULL
-};
+#ifndef BINPATH
+#define BINPATH		"/opt/fuzixcc/bin/"
+#define LIBPATH		"/opt/fuzixcc/lib/"
+#endif
 
 struct obj {
 	struct obj *next;
@@ -105,6 +115,59 @@ struct objhead deflist;
 struct objhead libpathlist;
 struct objhead ccargs;		/* Arguments to pass on to the compiler */
 
+struct cpu_table {
+	const char *name;	/* Name to match */
+	const char *set;	/* Binary names in bin */
+	const char *cpudot;	/* .xxxx name for lib helpers */
+	const char *cpudir;	/* Directory for this CPU include etc (some may share) */
+	const char *lib;	/* System library path naming */
+	const char **defines;	/* CPU defines */
+};
+
+const char *def6502[] = { "__6502__", NULL };
+const char *def65c02[] = { "__6502__", "__65c02__", NULL };
+const char *def65c816[] = { "__65c816__", NULL };
+const char *def6303[] = { "__6803__", "__6303__", NULL };
+const char *def6803[] = { "__6803__", NULL };
+const char *def68hc11[] = { "__68hc11__", "__6803__", NULL };
+const char *def6809[] = { "__6809__", NULL };
+const char *def8080[] = { "__8080__", NULL };
+const char *def8085[] = { "__8085__", NULL };
+const char *defz80[] = { "__z80__", NULL };
+const char *defz180[] = { "__z80__", "__z180__", NULL };
+const char *defbyte[] = { "__byte__", NULL };
+const char *defthread[] = { "__thread__", NULL };
+
+struct cpu_table cpu_rules[] = {
+	{ "6502", "6502", ".6502", "lib6502.a", "6502", def6502 },
+	{ "65c02", "6502", ".6502", "lib65c02.a", "65c02", def65c02 },
+	{ "65c816", "65c816", ".65c816", "lib65c816.a", "65c816", def65c816 },
+	{ "6303", "6803", ".6803", "lib6303.a", "6303", def6303 },
+	{ "6803", "6803", ".6803", "lib6803.a", "6803", def6803 },
+	{ "6809", "6809", ".6809", "lib6809.a", "6809", def6809 },
+	{ "68hc11", "6803", ".6803", "lib68hc11.a", "68hc11", def68hc11 },
+	{ "8080", "85", ".8080", "lib8080.a", "8080", def8080 },
+	{ "8085", "85", ".8080", "lib8085.a", "8085", def8085 },
+	{ "z80", "z80", ".z80", "libz80.a", "z80", defz80 },
+	{ "z180", "z80", ".z80", "libz180.a", "z80", defz180 },
+	/* Other Z80 variants TODO */
+	/* This doen't quite work out. We need to know the native code or
+	   teach as/ld about some kind of "portable" type */
+	{ "byte", "byte", ".byte", "libbyte.a", "byte", defbyte },
+	/* Similar issues. We may end up making this a bunch of CPU specifics
+	   anyway because of endianness, alignment etc */
+	{ "thread", "thread", ".thread", "libthread.a", "thread", defthread },
+	{ NULL }
+};
+
+/* Need to set these via the cpu type lookup etc */
+int native;
+const char *cpuset;		/* Which binary compiler tool names */
+const char *cpudot;		/* Which internal tool names */
+const char *cpudir;		/* CPU specific directory */
+const char *cpulib;		/* Dir for this compiler */
+const char **cpudef;		/* List of defines */
+
 int keep_temp;
 int last_phase = 4;
 int only_one_input;
@@ -114,10 +177,10 @@ int c_files;
 int standalone;
 char *cpu = "8080";
 int mapfile;
-/* TODO: OS_FUZIX won't work until ld is taught about literal segments */
+
 #define OS_NONE		0
 #define OS_FUZIX	1
-int targetos = OS_NONE;
+int targetos = OS_FUZIX;
 int fuzixsub;
 char optimize = '0';
 char *codeseg;
@@ -160,6 +223,84 @@ static char *xstrdup(char *p, int extra)
 		memory();
 	strcpy(n, p);
 	return n;
+}
+
+#define CPATHSIZE	256
+
+static char pathbuf[CPATHSIZE];
+
+/* Binaries. Native ones in /bin, non-native ones in
+   <bindir>/app{.cpu} */
+static char *make_bin_name(const char *app, const char *t)
+{
+	/* TODO use strlcpy/cat */
+	if (native)
+		snprintf(pathbuf, CPATHSIZE, "/bin/%s", app);
+	else
+		snprintf(pathbuf, CPATHSIZE, "%s/%s%s", BINPATH, app, t);
+	return pathbuf;
+}
+
+/* Library area. Native ones in /lib, non-native ones in
+   <libdir>/app{.cpu} */
+static char *make_lib_name(const char *app, const char *tail)
+{
+	if (native)
+		snprintf(pathbuf, CPATHSIZE, "/lib/%s", app);
+	else
+		snprintf(pathbuf, CPATHSIZE, "%s/%s%s", LIBPATH, app, tail);
+	return pathbuf;
+}
+
+/* The library area for a target. For native this is /lib and /usr/include but
+   for non-native we use <libdir>/<cpu>/{include, lib, ..} */
+static char *make_lib_dir(const char *base, const char *tail)
+{
+	if (native)
+		snprintf(pathbuf, CPATHSIZE, "%s/%s", base, tail);
+	else
+		snprintf(pathbuf, CPATHSIZE, "%s/%s/%s", LIBPATH, cpudir, tail);
+	return pathbuf;
+}
+
+static char *make_lib_file(const char *base, const char *dir, const char *tail)
+{
+	if (native)
+		snprintf(pathbuf, CPATHSIZE, "%s/%s/%s", base, dir, tail);
+	else
+		snprintf(pathbuf, CPATHSIZE, "%s/%s/%s/%s", LIBPATH, cpudir, dir, tail);
+	return pathbuf;
+}
+
+/*
+ *	Work out what we actually need to run
+ */
+
+static void set_for_processor(struct cpu_table *r)
+{
+	cpuset = r->set;
+	cpudot = r->cpudot;
+	cpudir = r->cpudir;
+	cpulib = r->lib;	
+	cpudef = r->defines;
+}
+
+static void find_processor(const char *cpu)
+{
+	struct cpu_table *t = cpu_rules;
+#ifdef NATIVE_CPU
+	if (strcmp(cpu, NATIVE_CPU) == 0)
+		native = 1;
+#endif
+	while(t->name) {
+		if (strcmp(t->name, cpu) == 0) {
+			set_for_processor(t);
+			return;
+		}
+		t++;
+	}
+	fprintf(stderr, "cc: unknown CPU type '%s'.\n", cpu);
+	exit(1);
 }
 
 static void append_obj(struct objhead *h, char *p, uint8_t type)
@@ -340,9 +481,10 @@ static void build_arglist(char *p)
 	add_argument(p);
 }
 
+
 void convert_s_to_o(char *path)
 {
-	build_arglist(CMD_AS);
+	build_arglist(make_bin_name("as", cpuset));
 	add_argument(path);
 	run_command();
 	pathmod(path, ".s", ".o", 5);
@@ -350,10 +492,11 @@ void convert_s_to_o(char *path)
 
 void convert_c_to_s(char *path)
 {
-	char *tmp, *t;
+	char *tmp, *t, *p;
 	char optstr[2];
 
-	build_arglist(CMD_CC0);
+
+	build_arglist(make_lib_name("cc0", ""));
 	t = xstrdup(path, 0);
 	tmp = pathmod(t, ".c", ".%", 0);
 	redirect_in(tmp);
@@ -363,15 +506,20 @@ void convert_c_to_s(char *path)
 		memory();
 	redirect_out(tmp);
 	run_command();
-	build_arglist(CMD_CC1);
+
+	build_arglist(make_lib_name("cc1", cpudot));
 	redirect_in(tmp);
 	tmp = pathmod(path, ".@", ".#", 0);
 	redirect_out(tmp);
 	run_command();
-	build_arglist(CMD_CC2);
-	/* The sym stuff is a bit hackish right now */
+
+	build_arglist(make_lib_name("cc2", cpudot));
+	/* The sym stuff is a bit hackish right now FIXME: make pid based
+	   for make -j */
 	add_argument(".symtmp");
 	add_argument(cpu);
+	/* FIXME: need to change backend.c parsing for above and also
+	   add another arg when we do the new subcpu bits like -banked */
 	optstr[0] = optimize;
 	optstr[1] = '\0';
 	add_argument(optstr);
@@ -387,21 +535,22 @@ void convert_c_to_s(char *path)
 	tmp = pathmod(path, ".#", ".^", 0);
 	redirect_out(tmp);
 	run_command();
-	build_arglist(CMD_COPT);
-	if (strcmp(cpu, "8085") == 0)
-		add_argument(COPTRULES_8085);
-	else
-		add_argument(COPTRULES_8080);
+
+	/* TODO: with the new copt we may end up with a copt per cpu */
+	p = xstrdup(make_lib_name("copt", ""), 0);
+	build_arglist(p);
+	add_argument(make_lib_file("", "lib", "copt.rules"));
 	redirect_in(tmp);
 	redirect_out(pathmod(path, ".#", ".s", 2));
 	run_command();
 	free(t);
+	free(p);
 }
 
 void convert_S_to_s(char *path)
 {
 	char *tmp;
-	build_arglist(CMD_CPP);
+	build_arglist(make_lib_name("cpp", ""));
 	add_argument("-E");
 	add_argument(path);
 	tmp = xstrdup(path, 0);
@@ -413,7 +562,8 @@ void convert_S_to_s(char *path)
 void preprocess_c(char *path)
 {
 	char *tmp;
-	build_arglist(CMD_CPP);
+
+	build_arglist(make_lib_name("cpp", ""));
 
 	add_argument_list("-I", &inclist);
 	add_argument_list("-D", &deflist);
@@ -428,11 +578,19 @@ void preprocess_c(char *path)
 
 void link_phase(void)
 {
-	build_arglist(CMD_LD);
+	char *relocs = NULL;
+	char *p, *l, *c;
+	/* TODO: ld should be general if we get it right, but might not be able to */
+	p = xstrdup(make_bin_name("ld", cpuset), 0);
+	build_arglist(p);
 	switch (targetos) {
 		case OS_FUZIX:
 			switch(fuzixsub) {
 			case 0:
+#ifdef HAS_RELOC
+				relocs = xstrdup(target, 4);
+				strcat(relocs, ".rel");
+#endif
 				break;
 			case 1:
 				add_argument("-b");
@@ -460,24 +618,43 @@ void link_phase(void)
 	if (mapfile) {
 		/* For now output a map file. One day we'll have debug symbols
 		   nailed to the binary */
-		char *n = malloc(strlen(target) + 5);
-		sprintf(n, "%s.map", target);
+		char *n = xstrdup(target, 4);
+		strcat(n, ".map");
 		add_argument("-m");
 		add_argument(n);
 	}
+	if (relocs) {
+		add_argument("-R");
+		add_argument(relocs);
+	}
+	/* <root>/8080/lib/ */
+	l = xstrdup(make_lib_dir("", "lib"), 0);
+	c = NULL;
 	if (!standalone) {
 		/* Start with crt0.o, end with libc.a and support libraries */
-		add_argument(CRT0);
-		append_obj(&libpathlist, LIBPATH, 0);
-		append_obj(&liblist, LIBC, TYPE_A);
+		c = make_lib_file("", "lib", "crt0.o");
+		add_argument(c);
+		append_obj(&libpathlist, l, 0);
+		append_obj(&liblist, "libc.a", TYPE_A);
 	}
-	if (strcmp(cpu, "8085") == 0)
-		append_obj(&liblist, LIBCPU_8085, TYPE_A);
-	else
-		append_obj(&liblist, LIBCPU_8080, TYPE_A);
+	/* Will be <root>/8080/lib/lib8080.a etc */
+	append_obj(&liblist, make_lib_file("", "lib", cpulib), TYPE_A);
 	add_argument_list(NULL, &objlist);
 	resolve_libraries();
 	run_command();
+
+	free(c);
+	free(l);
+	free(p);
+
+	if (relocs) {
+		/* The unlink will free it not us */
+		*rmptr++ = relocs;
+		build_arglist(make_bin_name("reloc", cpuset));
+		add_argument(target);
+		add_argument(relocs);
+		run_command();
+	}
 }
 
 void sequence(struct obj *i)
@@ -541,7 +718,13 @@ void unused_files(void)
 
 void usage(void)
 {
-	fprintf(stderr, "usage...\n");
+	FILE *f = fopen(make_lib_name("cc.hlp", ""), "r");
+	if (f == NULL)
+		perror("cc.hlp");
+	else {
+		while(fgets(pathbuf, CPATHSIZE, f))
+			fputs(pathbuf, stdout);
+	}
 	fatal();
 }
 
@@ -582,9 +765,9 @@ char **add_includes(char **p)
 	return p;
 }
 
-void add_system_include(char *p)
+void add_system_include(void)
 {
-	append_obj(&inclist, p, 0);
+	append_obj(&inclist, make_lib_dir("usr", "include"), 0);
 }
 
 void dunno(const char *p)
@@ -630,17 +813,6 @@ void uniopt(char *p)
 {
 	if (p[2])
 		usage();
-}
-
-static unsigned valid_cpu(char *name)
-{
-	char **p = cputab;
-	while(*p) {
-		if (strcmp(name, *p) == 0)
-			return 1;
-		p++;
-	}
-	return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -723,10 +895,10 @@ int main(int argc, char *argv[]) {
 			keep_temp = 1;
 			break;
 		case 'm':
-			if (!valid_cpu(*p + 2)) {
-				fprintf(stderr, "cc: unknown CPU type.\n");
-				fatal();
-			}
+			/* TODO: allow cpu-prop-prop... eg
+				8080-banked-amdfp and generate both the
+				full cpu path name and options for the stages
+				from this + pass to stages needing it */
 			cpu = *p + 2;
 			break;	
 		case 'M':
@@ -756,9 +928,13 @@ int main(int argc, char *argv[]) {
 			usage();
 		}
 	}
+	find_processor(cpu);
+
+	while(*cpudef)
+		append_obj(&deflist, (char *)*cpudef++, 0);
 
 	if (!standalone)
-		add_system_include(INCPATH);
+		add_system_include();
 
 	if (target == NULL)
 		target = "a.out";
