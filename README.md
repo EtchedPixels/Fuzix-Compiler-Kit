@@ -18,13 +18,14 @@ trees from cc1.
 
 ## Status
 
-The compiler can parse and generate output for the full Fuzix codebase. The
-code generator being worked on first is for the 8080/5 and it's currently at
-the point it can build a kernel and user space that runs correctly, except
-for a couple of apps that need bugs chasing down. The code generator still
-needs some work, and the support libraries a bit of debugging. The front end
-and core compiler should now be reasonably stable although some bugs undoubtedly
-remain.
+The compiler is currently used to build the Fuzix OS for 8080, 8085 and Z80
+and can cross build itself to run natively on these systems. The core code
+should be reasonably stable. There is a lot of performance work to do on
+the compiler itself and there are still a couple of deviations from spec
+that would be nice to fix. The backends for 8080/5/Z80 should be fairly
+stable but are being used to experiment with improvements.
+
+The other processor trees are very much a work in progress.
 
 ## Installation
 
@@ -58,9 +59,10 @@ addressed.
 
 ### Storage classes
 
-auto, static, extern, typedef
+auto, static, extern, typedef, register
 
-register is accepted.
+register is dependent upon the backend and currently only used for local
+variables (register arguments will become auto).
 
 ### C Syntax
 
@@ -97,9 +99,24 @@ Known incompatibilities (some to be fixed)
 This is an early sketch only based upon the CC6303 code generation and
 support code.
 
+### 6502
+
+Early development code for a 6502/65C02 backend. Before this can be
+effective there will need to be some work on rewriting subtrees to use byte
+operations when possible.
+
+### 65C816
+
+Early code for a 65C816 native port. As this port is designed for Fuzix and
+run in any bank it uses Y as the C stack pointer and uses the CPU stack for
+temporary values during expression evaluation and the all actual call/return
+addresses. Split code/data is supported but not multiple data or code banks
+in one application (that is pointers are 16bit). Going beyond that gets very
+ugly very fast as on 8086.
+
 ### 8080/8085
 
-The compiler generates passable 8080 code and knows how to use call stubs
+The compiler generates reasonable 8080 code and knows how to use call stubs
 for argument fetching/storing to get compact code at a performance cost if
 requested. On the 8085 extensive use is made of LDSI, LHLX and SHLX to get
 good compact code generation.
@@ -119,16 +136,14 @@ This is an instruction set limitation.
 
 ### Z80 / Z180
 
-This is some initial work based upon the 8080 code generator. It has not at
-this point being significantly extended. The code generator knows how to
-load BC directly and some (but not all) support code has been optimized.
-There is not yet support for using IX or IY for struct access and for frame
-pointers. In fact IX and IY are not used at all. Register variables have not
-yet been added.
+The Z80 code generator will generate reasonable Z80 code. The processor
+itself is difficult to use for C as fetching objects from the stack is slow
+as on the 8080. The compiler will use BC, IX and IY for register variables
+and knows how to use offsets from IX or IY when working with structs.
 
-The Z80 is particularly horrible to work with because (IX) offset loads and
-stores are both slow and long winded, and there are a lack of other effective
-ways to generate stack references except the 8080 style.
+If IX or IY are free they will be used as a frame pointer, if not the
+compiler assumes the programmer knows what they are doing and will assign
+them as register variables whilst using helpers for the locals.
 
 The Z180 is not yet differentiated. This will only matter for the support
 library code and maybe inlining a few specific multiplication cases.
