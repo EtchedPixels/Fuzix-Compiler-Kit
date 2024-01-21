@@ -133,9 +133,9 @@ supportz80:
 	(cd supportz80; make)
 
 clean:
-	rm -f cc cc85 ccz80 ccthread cc0 copt
-	rm -f cc1.8080 cc1.z80 cc1.6803 cc1.thread
-	rm -f  cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.8070 cc2.thread
+	rm -f cc cc85 ccz80 cc6502 cc65c816 ccbyte ccthread cc0 copt
+	rm -f cc1.8080 cc1.6809 cc1.z80 cc1.6502 cc1.65c816 cc1.6803 cc1.byte cc1.thread
+	rm -f cc2 cc2.8080 cc2.6809 cc2.z80 cc2.6502 cc2.65c816 cc2.6803 cc2.8070 cc2.byte cc2.thread
 	rm -f *~ *.o
 	(cd support6502; make clean)
 	(cd support65c816; make clean)
