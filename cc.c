@@ -1,4 +1,4 @@
-	/*
+/*
  *	It's easiest to think of what cc does as a sequence of four
  *	conversions. Each conversion produces the inputs to the next step
  *	and the number of types is reduced. If the step is the final
@@ -43,7 +43,7 @@
  *	Split I/D
  */
 
-#undef DEBUG
+#define DEBUG
 
 #include <stdio.h>
 #include <stdint.h>
@@ -86,8 +86,8 @@
  */
 
 #ifndef BINPATH
-#define BINPATH		"/opt/fuzixcc/bin/"
-#define LIBPATH		"/opt/fuzixcc/lib/"
+#define BINPATH		"/opt/fcc/bin/"
+#define LIBPATH		"/opt/fcc/lib/"
 #endif
 
 struct obj {
@@ -119,8 +119,8 @@ struct cpu_table {
 	const char *name;	/* Name to match */
 	const char *set;	/* Binary names in bin */
 	const char *cpudot;	/* .xxxx name for lib helpers */
-	const char *cpudir;	/* Directory for this CPU include etc (some may share) */
 	const char *lib;	/* System library path naming */
+	const char *cpudir;	/* Directory for this CPU include etc (some may share) */
 	const char **defines;	/* CPU defines */
 };
 
@@ -268,7 +268,7 @@ static char *make_lib_file(const char *base, const char *dir, const char *tail)
 	if (native)
 		snprintf(pathbuf, CPATHSIZE, "%s/%s/%s", base, dir, tail);
 	else
-		snprintf(pathbuf, CPATHSIZE, "%s/%s/%s/%s", LIBPATH, cpudir, dir, tail);
+		snprintf(pathbuf, CPATHSIZE, "%s/%s/%s", LIBPATH, cpudir, tail);
 	return pathbuf;
 }
 
@@ -365,8 +365,10 @@ static char *resolve_library(char *p)
 	struct obj *o = libpathlist.head;
 	if (strchr(p, '/') || strchr(p, '.'))
 		return p;
+	printf("Scan %s\n", p);
 	while(o) {
 		snprintf(buf, 512, "%s/lib%s.a", o->name, p);
+		printf("Try '%s'\n", buf);
 		if (access(buf, 0) == 0)
 			return xstrdup(buf, 0);
 		o = o->next;
@@ -381,6 +383,7 @@ static void resolve_libraries(void)
 	struct obj *o = liblist.head;
 	while(o != NULL) {
 		char *p = resolve_library(o->name);
+		printf("Resolve %s\n", o->name);
 		if (p == NULL) {
 			fprintf(stderr, "cc: unable to find library '%s'.\n", o->name);
 			exit(1);
@@ -587,6 +590,8 @@ void link_phase(void)
 		case OS_FUZIX:
 			switch(fuzixsub) {
 			case 0:
+/* FIXME: Needs to move to a per target flag set, as do the various other
+   option defaults (eg -C 256 makes no sense for 6502 */
 #ifdef HAS_RELOC
 				relocs = xstrdup(target, 4);
 				strcat(relocs, ".rel");
@@ -628,14 +633,16 @@ void link_phase(void)
 		add_argument(relocs);
 	}
 	/* <root>/8080/lib/ */
-	l = xstrdup(make_lib_dir("", "lib"), 0);
+	l = xstrdup(make_lib_dir("", ""), 0);
+	printf("libpath '%s'\n", l);
 	c = NULL;
 	if (!standalone) {
 		/* Start with crt0.o, end with libc.a and support libraries */
-		c = make_lib_file("", "lib", "crt0.o");
+		c = xstrdup(make_lib_file("", "lib", "crt0.o"), 0);
 		add_argument(c);
 		append_obj(&libpathlist, l, 0);
-		append_obj(&liblist, "libc.a", TYPE_A);
+		append_obj(&libpathlist, ".", 0);
+		append_obj(&liblist, "c", TYPE_A);
 	}
 	/* Will be <root>/8080/lib/lib8080.a etc */
 	append_obj(&liblist, make_lib_file("", "lib", cpulib), TYPE_A);
@@ -767,7 +774,7 @@ char **add_includes(char **p)
 
 void add_system_include(void)
 {
-	append_obj(&inclist, make_lib_dir("usr", "include"), 0);
+	append_obj(&inclist, xstrdup(make_lib_dir("usr", "include"), 0), 0);
 }
 
 void dunno(const char *p)
