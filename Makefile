@@ -1,11 +1,20 @@
-all: cc85 ccz80 ccthread ccbyte cc6502 cc65c816 cc0 \
+all: cc cc85 ccz80 ccthread ccbyte cc6502 cc65c816 cc0 \
      cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 \
      cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
      cc2.byte cc2.6502 \
      copt support6502 support65c816 support8080 support8085 supportz80
 
+bootstuff: cc cc85 ccz80 ccthread ccbyte cc6502 cc65c816 cc0 \
+     cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
+     cc1.65c816 \
+     cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
+     cc2.byte cc2.6502 \
+     copt
+
 .PHONY: support6502 support65c816 support8080 support8085 supportz80
+
+CCROOT ?=/opt/fcc/
 
 OBJS0 = frontend.o
 
@@ -25,7 +34,7 @@ OBJS10 = backend.o backend-bytecode.o
 OBJS11 = backend.o backend-6502.o
 OBJS12 = backend.o backend-65c816.o
 
-CFLAGS = -Wall -pedantic -g3
+CFLAGS = -Wall -pedantic -g3 -DLIBPATH="\"$(CCROOT)/lib\"" -DBINPATH="\"$(CCROOT)/bin\""
 
 INC0 = token.h
 INC1 = body.h compiler.h declaration.h enum.h error.h expression.h header.h \
@@ -234,3 +243,106 @@ doinstall:
 # assumes a suitable cpp, as, libs and includes are present
 # doinstall does a bootstrap install
 install: all doinstall
+
+# New install version. This is used by both the install rules, as we need
+# to bootstrap build a toolchain with no support library to build the toolchain
+# with out.
+
+#
+#	Install the tools only
+#
+bootinst:
+	mkdir -p $(CCROOT)/bin
+	cp cc $(CCROOT)/bin/fcc
+	# 6502
+	mkdir -p $(CCROOT)/lib/6502
+	mkdir -p $(CCROOT)/lib/6502/include
+	cp cc6502 $(CCROOT)/bin/cc6502
+#	cp cpp6502 $(CCROOT)/lib/cpp
+	cp cc0 $(CCROOT)/lib
+	cp cc1.6502 $(CCROOT)/lib
+	cp cc2.6502 $(CCROOT)/lib
+	cp copt $(CCROOT)/lib
+	cp rules.6502 $(CCROOT)/lib
+	# 65c816
+	mkdir -p $(CCROOT)/lib/65c816
+	mkdir -p $(CCROOT)/lib/65c816/include
+	cp cc65c816 $(CCROOT)/bin/cc65c816
+#	cp cpp65c816 $(CCROOT)/lib/cpp
+#	cp cc0 $(CCROOT)/lib
+	cp cc1.65c816 $(CCROOT)/lib
+	cp cc2.65c816 $(CCROOT)/lib
+	cp copt $(CCROOT)/lib
+	cp rules.65c816 $(CCROOT)/lib
+		# 8080/8085
+	mkdir -p $(CCROOT)/lib/8080
+	mkdir -p $(CCROOT)/lib/8080/include
+	cp cc85 $(CCROOT)/bin/cc85
+	cp lorder85 $(CCROOT)/bin/lorder85
+#	cp cpp85 $(CCROOT)/lib/cpp
+#	cp cc0 $(CCROOT)/lib
+	cp cc1.8080 $(CCROOT)/lib
+	cp cc2.8080 $(CCROOT)/lib
+#	cp copt $(CCROOT)/lib
+	cp rules.8080 $(CCROOT)/lib
+	cp rules.8085 $(CCROOT)/lib
+	# Z80
+	mkdir -p $(CCROOT)/lib/z80/
+	mkdir -p $(CCROOT)/lib/z80/include
+	cp ccz80 $(CCROOT)/bin/ccz80
+	cp lorderz80 $(CCROOT)/bin/lorderz80
+#	cp cppz80 $(CCROOT)/lib/cpp
+#	cp cc0 $(CCROOT)/lib
+	cp cc1.z80 $(CCROOT)/lib
+	cp cc2.z80 $(CCROOT)/lib
+#	cp copt $(CCROOT)/lib
+	cp rules.z80 $(CCROOT)/lib
+	# Threadcode
+	mkdir -p $(CCROOT)/lib/threadcode
+	mkdir -p $(CCROOT)/lib/threadcode/include
+	cp ccthread $(CCROOT)/bin/ccthread
+#	cp cppthread $(CCROOT)/lib/cpp
+#	cp cc0 $(CCROOT)/lib
+	cp cc1.thread $(CCROOT)/lib
+	cp cc2.thread $(CCROOT)/lib
+#	cp copt $(CCROOT)/lib
+	cp rules.thread $(CCROOT)/lib
+	# Bytecode
+	mkdir -p $(CCROOT)/lib/bytecode
+	mkdir -p $(CCROOT)/lib/bytecode/include/
+	cp ccbyte $(CCROOT)/bin/ccbyte
+#	cp cppbyte $(CCROOT)/lib/cpp
+#	cp cc0 $(CCROOT)/lib
+	cp cc1.byte $(CCROOT)/lib
+	cp cc2.byte $(CCROOT)/lib
+#	cp copt $(CCROOT)/lib
+	cp rules.byte $(CCROOT)/lib
+
+#
+#	Install the support libraries
+#
+libinst:
+	cp support6502/crt0.o $(CCROOT)/lib/6502/
+	cp support6502/lib6502.a $(CCROOT)/lib/6502/lib6502.a
+#	cp support6502/lib65c02.a $(CCROOT)/lib/6502/lib65c02.a
+	ar cq $(CCROOT)/lib/6502/libc.a
+	cp support65c816/crt0.o $(CCROOT)/lib/65c816/
+	cp support65c816/lib65c816.a $(CCROOT)/lib/65c816/lib65c816.a
+	ar cq $(CCROOT)/lib/65c816/libc.a
+	cp support8085/crt0.o $(CCROOT)/lib/8080/
+	cp support8080/lib8080.a $(CCROOT)/lib/8080/lib8080.a
+	cp support8085/lib8085.a $(CCROOT)/lib/8080/lib8085.a
+	ar cq $(CCROOT)/lib/8080/libc.a
+	cp supportz80/crt0.o $(CCROOT)/lib/z80/
+	cp supportz80/libz80.a $(CCROOT)/lib/z80/libz80.a
+	ar cq $(CCROOT)/lib/z80/libc.a
+
+#
+#	Build the tools then install them
+#
+bootstrap: bootstuff bootinst
+
+#
+#	Build everything
+#
+newinstall: bootstuff bootinst all libinst
