@@ -542,7 +542,7 @@ void convert_c_to_s(char *path)
 	/* TODO: with the new copt we may end up with a copt per cpu */
 	p = xstrdup(make_lib_name("copt", ""), 0);
 	build_arglist(p);
-	add_argument(make_lib_file("", "lib", "copt.rules"));
+	add_argument(make_lib_name("rules", cpudot));
 	redirect_in(tmp);
 	redirect_out(pathmod(path, ".#", ".s", 2));
 	run_command();
