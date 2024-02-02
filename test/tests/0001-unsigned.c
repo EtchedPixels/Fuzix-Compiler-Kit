@@ -1,4 +1,4 @@
-/*
+#/*
  *	unsigned integer comparisons
  */
 int test_ult(unsigned int a, unsigned int b)
@@ -113,68 +113,68 @@ int main(int argc, char *argv[])
         return 30;
 
     if (test_ule(33, 11) == 1)
-        return 11;
+        return 31;
     if (test_ule(32769U, 11U) == 1)
-        return 12;
+        return 32;
     if (test_ule(49151U, 54545U) == 0)
-        return 13;
+        return 33;
     if (test_ule(17, 27) == 0)
-        return 14;
+        return 34;
     if (test_ule(12345,12345) == 0)
-        return 15;
+        return 35;
     if (test_ule8(33, 11) == 1)
-        return 16;
+        return 36;
     if (test_ule8(254, 11) == 1)
-        return 17;
+        return 37;
     if (test_ule8(231, 255) == 0)
-        return 18;
+        return 38;
     if (test_ule8(17, 27) == 0)
-        return 19;
+        return 39;
     if (test_ule8(12,12) == 0)
-        return 20;
+        return 40;
 
     /* cc tests */
     n = 12;
     if (n < 12)
-        return 21;
+        return 41;
     if (n > 12)
-        return 22;
+        return 42;
     if (n <= 11)
-        return 23;
+        return 43;
     if (n >= 13)
-        return 24;
+        return 44;
     /* Static cc tests */
     if (x > 12)
-        return 25;
+        return 45;
     if (x >= 13)
-        return 26;
+        return 46;
     if (x < 12)
-        return 27;
+        return 47;
     if (x <= 11)
-        return 28;
+        return 48;
 
     /* Byte */
 
     /* cc tests */
     m = 12;
-    if (m < 12)
-        return 29;
-    if (m > 12)
-        return 30;
-    if (m <= 11)
-        return 31;
-    if (m >= 13)
-        return 32;
+    if (m < 12U)
+        return 49;
+    if (m > 12U)
+        return 50;
+    if (m <= 11U)
+        return 51;
+    if (m >= 13U)
+        return 52;
 
     /* Static cc tests */
-    if (y > 12)
-        return 33;
-    if (y >= 13)
-        return 34;
-    if (y < 12)
-        return 35;
-    if (y <= 11)
-        return 36;
+    if (y > 12U)
+        return 53;
+    if (y >= 13U)
+        return 54;
+    if (y < 12U)
+        return 55;
+    if (y <= 11U)
+        return 56;
 
     return 0;
 }
