@@ -143,8 +143,11 @@ supportz80:
 
 clean:
 	rm -f cc cc85 ccz80 ccthread cc0 copt
+	rm -f ccbyte cc6502 cc65c816
 	rm -f cc1.8080 cc1.z80 cc1.6803 cc1.thread
-	rm -f  cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.8070 cc2.thread
+	rm -f cc1.6502 cc1.65c816 cc1.6809 cc1.byte
+	rm -f cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803
+	rm -f cc2.8070 cc2.thread cc2.byte cc2.6502
 	rm -f *~ *.o
 	(cd support6502; make clean)
 	(cd support65c816; make clean)
@@ -254,6 +257,7 @@ install: all doinstall
 bootinst:
 	mkdir -p $(CCROOT)/bin
 	cp cc $(CCROOT)/bin/fcc
+	cp cc.hlp $(CCROOT)/lib/cc.hlp
 	# 6502
 	mkdir -p $(CCROOT)/lib/6502
 	mkdir -p $(CCROOT)/lib/6502/include
