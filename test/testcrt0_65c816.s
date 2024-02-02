@@ -1,11 +1,3 @@
-	.export tmp
-	.export tmp1
-
-	.zp
-
-tmp:	.word	0
-tmp1:	.word	0
-
 	.65c816
 
 	.code ; (at 0x0200)
