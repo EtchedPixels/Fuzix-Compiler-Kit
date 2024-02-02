@@ -799,6 +799,7 @@ static int leftop_memc(struct node *n, const char *op)
 	char *name;
 	unsigned count;
 	unsigned nr = n->flags & NORETURN;
+	unsigned preload = 0;
 
 	if (sz > 2 || optsize)
 		return 0;
@@ -809,13 +810,20 @@ static int leftop_memc(struct node *n, const char *op)
 
 	v = l->value;
 
+	if (n->op == T_PLUSPLUS || n->op == T_MINUSMINUS)
+		preload = 1;
+
 	switch (l->op) {
 	case T_NAME:
 		name = namestr(l->snum);
 		setsize(sz);
+		if (!nr && preload) {
+			outputcc("lda _%s+%d", name, v);
+			set_a_node(l);
+		}
 		while (count--)
 			outputcc("%s _%s+%d", op, name, v);
-		if (!nr) {
+		if (!nr && !preload) {
 			outputcc("lda _%s+%d", name, v);
 			set_a_node(l);
 		}
@@ -823,9 +831,13 @@ static int leftop_memc(struct node *n, const char *op)
 		return 1;
 	case T_LABEL:
 		setsize(sz);
+		if (!nr && preload) {
+			outputcc("lda T%d+%d", (unsigned) l->val2, v);
+			set_a_node(l);
+		}
 		while (count--)
 			outputcc("%s T%d+%d", op, (unsigned) l->val2, v);
-		if (!nr) {
+		if (!nr && !preload) {
 			outputcc("lda T%d+%d", (unsigned) l->val2, v);
 			set_a_node(l);
 		}
@@ -835,14 +847,18 @@ static int leftop_memc(struct node *n, const char *op)
 		v += argbase + frame_len;
 	case T_LOCAL:
 		/* We can do ,x but not ,y */
+		v += sp;
 		invalidate_x();
 		output("tyx");
 		setsize(sz);
-		while (count--) {
-			outputcc("%s %d,x", op, v);
+		if (!nr && preload) {
+			outputcc("lda %d,x", v);
+			/* The value under it will promptly change */
 			invalidate_a();
 		}
-		if (!nr) {
+		while (count--)
+			outputcc("%s %d,x", op, v);
+		if (!nr && !preload) {
 			outputcc("lda %d,x", v);
 			set_a_node(l);
 		}
@@ -859,7 +875,10 @@ static unsigned pop_help(struct node *n, const char *helper, unsigned size)
 {
 	if (size > 2)
 		return 0;
-	output("plx");
+	/* TODO: would be nice to generate plx and use the reverse helper
+	   when we can */
+	output("tax");
+	output("pla");
 	invalidate_mem();
 	helper_s(n, helper);
 	return 1;
@@ -1122,7 +1141,7 @@ void gen_frame(unsigned size, unsigned argsize)
 	if (size == 0)
 		return;
 
-	sp += size;
+	sp = 0;
 	/* Maybe shortcut some common values ? */
 
 	if (size) {
@@ -1141,10 +1160,8 @@ void gen_epilogue(unsigned size, unsigned argsize)
 {
 	/* TODO: also clean up args for non vararg case */
 	unsigned cost = 8;
-	if (sp != size) {
+	if (sp != 0)
 		error("sp");
-	}
-	sp -= size;
 
 	/* Skip epilogue if it has no users */
 
@@ -1222,13 +1239,13 @@ static void setjflags(struct node *n, const char *us, const char *s)
 
 void gen_jfalse(const char *tail, unsigned n)
 {
-	outputnc("b%c%c L%d%s", jflags[2], jflags[3], n, tail);
+	outputnc("j%c%c L%d%s", jflags[2], jflags[3], n, tail);
 	jflags = "neeq";
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
-	outputnc("b%c%c L%d%s", jflags[0], jflags[1], n, tail);
+	outputnc("j%c%c L%d%s", jflags[0], jflags[1], n, tail);
 	jflags = "neeq";
 }
 
@@ -1677,29 +1694,36 @@ unsigned gen_direct(struct node *n)
 					/* Force a tax to set the flags as it's
 					   cheaper than a compare */
 					move_a_x();
+					jflags = "eqne";
 					return 1;
 				}
 				if (r->value == 1) {
 					outputcc("dec a");
+					jflags = "eqne";
 					return 1;
 				}
 				if (r->value == 2) {
 					outputcc("dec a");
 					outputcc("dec a");
+					jflags = "eqne";
 					return 1;
 				}
 				if (r->value == 65534) {
 					outputcc("inc a");
 					outputcc("inc a");
+					jflags = "eqne";
 					return 1;
 				}
 				if (r->value == 65535) {
 					outputcc("inc a");
+					jflags = "eqne";
 					return 1;
 				}
 			}
-			if (pri_cc(n, "cmp"))
+			if (pri_cc(n, "cmp")) {
+				jflags = "eqne";
 				return 1;
+			}
 		}
 		if (r->op == T_CONSTANT && r->value == 0) {
 			helper(n, "not");
@@ -1718,7 +1742,6 @@ unsigned gen_direct(struct node *n)
 					invalidate_x();
 					move_a_x();
 					n->flags |= ISBOOL;
-					jflags = "neeq";
 					return 1;
 				}
 				/* GT has harder than GTEQ so adjust */
@@ -1778,7 +1801,6 @@ unsigned gen_direct(struct node *n)
 		if (n->flags & CCONLY) {
 			if (r->op == T_CONSTANT) {
 				if (r->value == 0) {
-					jflags = "neeq";
 					if (!ccvalid) {
 						invalidate_x();
 						move_a_x();
@@ -1787,30 +1809,25 @@ unsigned gen_direct(struct node *n)
 				}
 				if (r->value == 1) {
 					outputcc("dec a");
-					jflags = "neeq";
 					return 1;
 				}
 				if (r->value == 2) {
 					outputcc("dec a");
 					outputcc("dec a");
-					jflags = "neeq";
 					return 1;
 				}
 				if (r->value == 65534) {
 					outputcc("inc a");
 					outputcc("inc a");
-					jflags = "neeq";
 					return 1;
 				}
 				if (r->value == 65535) {
 					outputcc("inc a");
-					jflags = "neeq";
 					return 1;
 				}
 			}
 			if (pri_cc(n, "cmp")) {
 				n->flags |= ISBOOL;
-				jflags = "neeq";
 				return 1;
 			}
 		}
@@ -1867,6 +1884,8 @@ unsigned gen_direct(struct node *n)
 		if (s <= 2) {
 			move_a_x();
 			setsize(s);
+			if (!nr)
+				outputcc("lda 0,x");
 			if (nr && r->value <= 4) {
 				repeated_op(r->value, "inc 0,x");
 				set16bit();
@@ -1894,6 +1913,8 @@ unsigned gen_direct(struct node *n)
 		if (s <= 2) {
 			move_a_x();
 			setsize(s);
+			if (!nr)
+				outputcc("lda 0,x");
 			if (nr && r->value <= 4) {
 				repeated_op(r->value, "dec 0,x");
 				set16bit();
@@ -2725,8 +2746,10 @@ unsigned gen_node(struct node *n)
 		v += argbase + frame_len;
 	case T_LOCAL:
 		output("tya");
-		output("clc");
-		outputcc("adc #%d", v);
+		if (v) {
+			output("clc");
+			outputcc("adc #%d", v);
+		}
 		if (size == 4)
 			outputnc("stz @hireg");
 		return 1;
@@ -2777,7 +2800,7 @@ unsigned gen_node(struct node *n)
 	case T_EQEQ:
 		return pop_help_bool(n, "eqeqx", size);
 	case T_GTEQ:
-		return pop_help_bool(n, "gtx", size);
+		return pop_help_bool(n, "gteqx", size);
 	case T_GT:
 		return pop_help_bool(n, "gtx", size);
 	case T_LTEQ:
