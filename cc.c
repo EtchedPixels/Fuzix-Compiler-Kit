@@ -122,6 +122,7 @@ struct cpu_table {
 	const char *lib;	/* System library path naming */
 	const char *cpudir;	/* Directory for this CPU include etc (some may share) */
 	const char **defines;	/* CPU defines */
+	const char **ldopts;	/* LD link rules */
 };
 
 const char *def6502[] = { "__6502__", NULL };
@@ -138,25 +139,32 @@ const char *defz180[] = { "__z80__", "__z180__", NULL };
 const char *defbyte[] = { "__byte__", NULL };
 const char *defthread[] = { "__thread__", NULL };
 
+const char *ld6502[] = { "-b", "-C", "512", "-Z", "0x00", NULL };
+const char *ld6800[] = { "-b", "-C", "256", "-Z", "0x40", NULL };
+const char *ld6809[] = { "-b", "-C", "256", NULL };
+const char *ld8080[] = { "-b", "-C", "256", NULL };
+const char *ldbyte[] =  { NULL };
+const char *ldthread[] = { NULL };
+
 struct cpu_table cpu_rules[] = {
-	{ "6502", "6502", ".6502", "lib6502.a", "6502", def6502 },
-	{ "65c02", "6502", ".6502", "lib65c02.a", "65c02", def65c02 },
-	{ "65c816", "65c816", ".65c816", "lib65c816.a", "65c816", def65c816 },
-	{ "6303", "6803", ".6803", "lib6303.a", "6303", def6303 },
-	{ "6803", "6803", ".6803", "lib6803.a", "6803", def6803 },
-	{ "6809", "6809", ".6809", "lib6809.a", "6809", def6809 },
-	{ "68hc11", "6803", ".6803", "lib68hc11.a", "68hc11", def68hc11 },
-	{ "8080", "85", ".8080", "lib8080.a", "8080", def8080 },
-	{ "8085", "85", ".8080", "lib8085.a", "8085", def8085 },
-	{ "z80", "z80", ".z80", "libz80.a", "z80", defz80 },
-	{ "z180", "z80", ".z80", "libz180.a", "z80", defz180 },
+	{ "6502", "6502", ".6502", "lib6502.a", "6502", def6502, ld6502 },
+	{ "65c02", "6502", ".6502", "lib65c02.a", "65c02", def65c02, ld6502 },
+	{ "65c816", "65c816", ".65c816", "lib65c816.a", "65c816", def65c816, ld6502 },
+	{ "6303", "6803", ".6803", "lib6303.a", "6303", def6303, ld6800 },
+	{ "6803", "6803", ".6803", "lib6803.a", "6803", def6803, ld6800 },
+	{ "6809", "6809", ".6809", "lib6809.a", "6809", def6809, ld6809 },
+	{ "68hc11", "6803", ".6803", "lib68hc11.a", "68hc11", def68hc11, ld6800 },
+	{ "8080", "85", ".8080", "lib8080.a", "8080", def8080, ld8080 },
+	{ "8085", "85", ".8080", "lib8085.a", "8085", def8085, ld8080 },
+	{ "z80", "z80", ".z80", "libz80.a", "z80", defz80, ld8080 },
+	{ "z180", "z80", ".z80", "libz180.a", "z80", defz180, ld8080 },
 	/* Other Z80 variants TODO */
 	/* This doen't quite work out. We need to know the native code or
 	   teach as/ld about some kind of "portable" type */
-	{ "byte", "byte", ".byte", "libbyte.a", "byte", defbyte },
+	{ "byte", "byte", ".byte", "libbyte.a", "byte", defbyte, ldbyte },
 	/* Similar issues. We may end up making this a bunch of CPU specifics
 	   anyway because of endianness, alignment etc */
-	{ "thread", "thread", ".thread", "libthread.a", "thread", defthread },
+	{ "thread", "thread", ".thread", "libthread.a", "thread", defthread, ldbyte },
 	{ NULL }
 };
 
@@ -167,6 +175,11 @@ const char *cpudot;		/* Which internal tool names */
 const char *cpudir;		/* CPU specific directory */
 const char *cpulib;		/* Dir for this compiler */
 const char **cpudef;		/* List of defines */
+const char **ldopts;		/* Linker opts for default link */
+/* We will need to do more with ldopts for different OS and machine targets
+   eventually */
+
+const char *crtname = "crt0.o";
 
 int keep_temp;
 int last_phase = 4;
@@ -188,8 +201,8 @@ char *codeseg;
 #define MAXARG	512
 
 int arginfd, argoutfd;
-char *arglist[MAXARG];
-char **argptr;
+const char *arglist[MAXARG];
+const char **argptr;
 char *rmlist[MAXARG];
 char **rmptr = rmlist;
 
@@ -283,6 +296,7 @@ static void set_for_processor(struct cpu_table *r)
 	cpudir = r->cpudir;
 	cpulib = r->lib;	
 	cpudef = r->defines;
+	ldopts = r->ldopts;
 }
 
 static void find_processor(const char *cpu)
@@ -338,7 +352,7 @@ static char *pathmod(char *p, char *f, char *t, int rmif)
 	return p;
 }
 
-static void add_argument(char *p)
+static void add_argument(const char *p)
 {
 	if (argptr == &arglist[MAXARG]) {
 		fprintf(stderr, "cc: too many arguments to command.\n");
@@ -365,10 +379,8 @@ static char *resolve_library(char *p)
 	struct obj *o = libpathlist.head;
 	if (strchr(p, '/') || strchr(p, '.'))
 		return p;
-	printf("Scan %s\n", p);
 	while(o) {
 		snprintf(buf, 512, "%s/lib%s.a", o->name, p);
-		printf("Try '%s'\n", buf);
 		if (access(buf, 0) == 0)
 			return xstrdup(buf, 0);
 		o = o->next;
@@ -383,7 +395,6 @@ static void resolve_libraries(void)
 	struct obj *o = liblist.head;
 	while(o != NULL) {
 		char *p = resolve_library(o->name);
-		printf("Resolve %s\n", o->name);
 		if (p == NULL) {
 			fprintf(stderr, "cc: unable to find library '%s'.\n", o->name);
 			exit(1);
@@ -410,7 +421,7 @@ static void run_command(void)
 	if (pid == 0) {
 #ifdef DEBUG
 		{
-			char **p = arglist;
+			const char **p = arglist;
 			printf("[");
 			while(*p)
 				printf("%s ", *p++);
@@ -426,7 +437,7 @@ static void run_command(void)
 			dup2(argoutfd, 1);
 			close(argoutfd);
 		}
-		execv(arglist[0], arglist);
+		execv(arglist[0], (char **)arglist);
 		perror("execv");
 		exit(255);
 	}
@@ -610,10 +621,13 @@ void link_phase(void)
 			}
 			break;
 		case OS_NONE:
-		default:
-			add_argument("-b");
-			add_argument("-C");
-			add_argument("256");
+		default: {
+				const char **x = ldopts;
+				while(*x) {
+					add_argument(*x);
+					x++;
+				}
+			}
 			break;
 	}
 	if (strip)
@@ -638,7 +652,7 @@ void link_phase(void)
 	c = NULL;
 	if (!standalone) {
 		/* Start with crt0.o, end with libc.a and support libraries */
-		c = xstrdup(make_lib_file("", "lib", "crt0.o"), 0);
+		c = xstrdup(make_lib_file("", "lib", crtname), 0);
 		add_argument(c);
 		append_obj(&libpathlist, l, 0);
 		append_obj(&libpathlist, ".", 0);
@@ -822,9 +836,19 @@ void uniopt(char *p)
 		usage();
 }
 
+void extended_opt(const char *p)
+{
+	if (strcmp(p, "dlib") == 0) {
+		crtname = "lib0.o";
+		return;
+	}
+	usage();
+}
+		
 int main(int argc, char *argv[]) {
 	char **p = argv;
 	signal(SIGCHLD, SIG_DFL);
+	unsigned c;
 
 	while (*++p) {
 		/* filename or option ? */
@@ -832,7 +856,13 @@ int main(int argc, char *argv[]) {
 			add_file(*p);
 			continue;
 		}
-		switch ((*p)[1]) {
+		c = (*p)[1];
+		if (c == '-') {
+			extended_opt(*p + 2);
+			continue;
+		}
+		switch (c) {
+			/* Extended options (for now never with args) */
 			/* Don't link */
 		case 'c':
 			uniopt(*p);
