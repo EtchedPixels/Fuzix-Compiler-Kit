@@ -1,5 +1,5 @@
 all: emu6502 emu65c816 emu85 emuz80 \
-     testcrt0.o testcrtz80.o emu6502 testcrt0_6502.o testcrt0_65c816.o
+     testcrt0.o testcrtz80.o testcrt0_6502.o testcrt0_65c816.o
 
 emu85: emu85.o intel_8085_emulator.o
 	$(CC) emu85.o intel_8085_emulator.o -o emu85
@@ -19,7 +19,7 @@ emu6502: emu6502.o 6502.o 6502dis.o
 
 emu65c816: emu65c816.o
 	(cd lib65c816; make)
-	$(CC) -Ilib65c816/lib65816 emu65c816.o lib65c816/src/lib65816.a -o emu65c816
+	$(CC) emu65c816.o lib65c816/src/lib65816.a -o emu65c816
 
 emu65c816.o: emu65c816.c
 	$(CC) $(CFLAGS) -c -Ilib65c816 emu65c816.c
