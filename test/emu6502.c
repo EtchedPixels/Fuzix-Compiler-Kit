@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
     /* 0200-0xFDFF */
-    if (read(fd, ram + 0x200, 0xFC00) < 64) {
+    if (read(fd, ram, 0xFC00) < 520) {
         fprintf(stderr, "emu6502: bad test.\n");
         perror(argv[1]);
         exit(1);
@@ -71,8 +71,8 @@ int main(int argc, char *argv[])
     close(fd);
 
     /* Run from 0x200 */
-    ram[0xFFFE] = 0x00;
-    ram[0xFFFF] = 0x02;
+    ram[0xFFFC] = 0x00;
+    ram[0xFFFD] = 0x02;
 
     disassembler_init(argv[2]);
     init6502();

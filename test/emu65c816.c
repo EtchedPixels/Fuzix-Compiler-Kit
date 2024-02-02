@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
         CPU_setTrace(1);
     }
     if (argc != 3) {
-        fprintf(stderr, "emu6502: test map.\n");
+        fprintf(stderr, "emu65c816: test map.\n");
         exit(1);
     }
     fd = open(argv[1], O_RDONLY);
@@ -75,17 +75,17 @@ int main(int argc, char *argv[])
         perror(argv[1]);
         exit(1);
     }
-    /* 0200-0xFDFF */
-    if (read(fd, ram + 0x200, 0xFC00) < 64) {
-        fprintf(stderr, "emu6502: bad test.\n");
+    /* 0200-0xFDFF for code proper */
+    if (read(fd, ram, 0xFC00) < 520) {
+        fprintf(stderr, "emu65c816: bad test.\n");
         perror(argv[1]);
         exit(1);
     }
     close(fd);
 
     /* Run from 0x200 */
-    ram[0xFFFE] = 0x00;
-    ram[0xFFFF] = 0x02;
+    ram[0xFFFC] = 0x00;
+    ram[0xFFFD] = 0x02;
 
     CPUEvent_initialize();
     CPU_setUpdatePeriod(100000);
