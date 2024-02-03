@@ -9,8 +9,8 @@ __shreqxu:
 	stx @tmp
 	tax
 	lda 0,x
-	ldx @tmp
 	phx
+	ldx @tmp
 	jsr __shrxu
 	plx
 	sta 0,x

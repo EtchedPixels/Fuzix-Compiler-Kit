@@ -8,15 +8,21 @@ __shreqxc:
 	; Shift [A] X times
 	stx @tmp
 	tax
-	rep #0x20
-	lda 0,x
 	sep #0x20
-	ldx @tmp
+	lda 0,x
+	rep #0x20
+	; Sign extend ?
+	bpl sexp
+	ora #0xFF00
+doshifts:
 	phx
+	ldx @tmp
 	jsr __rsx
 	plx
-	rep #0x20
-	sta 0,x
 	sep #0x20
+	sta 0,x
+	rep #0x20
 	rts
-
+sexp:
+	and #0xFF
+	bra doshifts

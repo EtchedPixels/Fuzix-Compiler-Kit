@@ -10,12 +10,8 @@ __rsxu:
 	and	#15
 	beq	done
 	cmp	#8
-	bcc	loop
-	swa
-	and	#0x00FF
-	; carry is already set
-	sbc	#8
-	beq	done
+	beq 	swapit
+	; Might be worth optimising >8 shift in two parts but unclear
 	tax
 	lda	@tmp
 loop:
@@ -23,4 +19,8 @@ loop:
 	dex
 	bne	loop
 done:
+	rts
+swapit:
+	lda	@tmp
+	swa
 	rts

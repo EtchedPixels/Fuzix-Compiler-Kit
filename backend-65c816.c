@@ -127,9 +127,9 @@ static void output(const char *p, ...)
 	ccvalid = CC_NONE;
 	if (cursize != livesize) {
 		if (livesize == 1)
-			printf("\trep #0x20\n");
-		else
 			printf("\tsep #0x20\n");
+		else
+			printf("\trep #0x20\n");
 		cursize = livesize;
 	}
 	putchar('\t');
@@ -163,9 +163,9 @@ static void outputnc(const char *p, ...)
 	ccvalid = CC_NONE;
 	if (cursize != livesize) {
 		if (livesize == 1)
-			printf("\trep #0x20\n");
-		else
 			printf("\tsep #0x20\n");
+		else
+			printf("\trep #0x20\n");
 		cursize = livesize;
 	}
 	putchar('\t');
@@ -419,8 +419,6 @@ static void move_x_a(void)
 static void setsize(unsigned size)
 {
 	livesize = size;
-	if (size == 1)
-		const_a_set(reg[R_A].value & 0xFF);
 }
 
 static void set16bit(void)
@@ -1855,8 +1853,8 @@ unsigned gen_direct(struct node *n)
 			output("bra X%d", xlabel + 2);
 			label("X%d", ++xlabel);
 			output("asl a");
-			label("X%d", ++xlabel);
 			output("dex");
+			label("X%d", ++xlabel);
 			output("bne X%d", xlabel - 1);
 			set16bit();
 			return 1;
@@ -2046,8 +2044,11 @@ unsigned gen_direct(struct node *n)
 		}
 		return pri_help(n, "xoreqx");
 	case T_SHLEQ:
-		if (s <= 2) {
+		if (s <= 2 && r->op == T_CONSTANT) {
+			move_a_x();
+			invalidate_a();
 			setsize(s);
+			outputcc("lda 0,x");
 			if (s == 2)
 				val = r->value & 15;
 			else
@@ -2066,8 +2067,11 @@ unsigned gen_direct(struct node *n)
 		}
 		return pri_help(n, "shleqx");
 	case T_SHREQ:
-		if (s <= 2 && (n->type & UNSIGNED)) {
+		if (s <= 2 && (n->type & UNSIGNED) && r->op == T_CONSTANT) {
+			move_a_x();
+			invalidate_a();
 			setsize(s);
+			outputcc("lda 0,x");
 			if (s == 2)
 				val = r->value & 15;
 			else
@@ -2082,6 +2086,8 @@ unsigned gen_direct(struct node *n)
 			outputnc("sta 0,x");
 			invalidate_a();
 			set16bit();
+			if (s == 1)
+				outputcc("and #0x00FF");
 			return 1;
 		}
 		return pri_help(n, "shreqx");

@@ -22,5 +22,6 @@ __shleqxcu:
 	rep #0x20
 	sta 0,x
 	sep #0x20
+	and #0xFF
 	rts
 

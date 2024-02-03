@@ -21,7 +21,7 @@ OBJ = __andeqx.o __diveqx.o __diveqxu.o __divx.o __eqeqx.o __gteqx.o \
       _memcpy.o _memset.o _strlen.o
     
 .s.o:
-	cc65c816 -c $<
+	fcc -m65c816 -c $<
 
 lib65c816.a: $(OBJ)
 	rm -f lib65c816.a

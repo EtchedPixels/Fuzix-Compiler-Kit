@@ -11,12 +11,14 @@ __rsx:
 	beq	done
 	tax
 	lda	@tmp
-	bpl	rsxn
+	bmi	rsxn
 loop:
 	lsr	a
 	dex
 	bne	loop
+	rts
 done:
+	lda	@tmp
 	rts
 
 rsxn:
