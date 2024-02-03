@@ -426,6 +426,12 @@ static void set16bit(void)
 	livesize = 2;
 }
 
+static void force16bit(void)
+{
+	cursize = 1;
+	livesize = 2;
+}
+
 
 /* Memory writes occured, invalidate according to what we know. Passing
    NULL indicates unknown memory changes */
@@ -1131,6 +1137,10 @@ void gen_prologue(const char *name)
 }
 
 /* Generate the stack frame */
+/* TODO: we use this for locals and for args we push on calls. This means we
+   it would be nice to know the max bytes pushed in function call so we can
+   prealloc this in one go. The backend doesn't have the info but the front
+   end could collect it and pass it in a way we can use: TODO */
 void gen_frame(unsigned size, unsigned argsize)
 {
 	frame_len = size;
@@ -2367,24 +2377,29 @@ static unsigned gen_cast(struct node *n)
 	if (!(rt & UNSIGNED)) {
 		/* Signed char to int or uint */
 		if (rs == 1 && ls == 2) {
+			output("and #0x00FF");
 			invalidate_x();
-			/* Cheapest way to ensure N flag is set right */
-			move_a_x();
-			output("bpl X%d", ++xlabel);
+			/* Force N valid */
+			output("cmp #0x80");
+			output("bcc X%d", ++xlabel);
 			output("ora #0xFF00");
 			label("X%d", xlabel);
 			invalidate_a();
+			invalidate_x();
 			return 1;
 		}
 		if (rs == 1 && ls == 4) {
 			outputnc("stz @hireg");
 			invalidate_x();
+			setsize(rs);
 			/* Cheapest way to ensure N flag is set right */
 			move_a_x();
 			output("bpl X%d", ++xlabel);
+			set16bit();
 			output("ora #0xFF00");
 			output("dec @hireg");
 			label("X%d", xlabel);
+			force16bit();
 			invalidate_a();
 			return 1;
 		}
@@ -2549,7 +2564,9 @@ unsigned gen_node(struct node *n)
 				move_a_x();
 				return 1;
 			}
+			setsize(size);
 			outputcc("lda %d,y", v);
+			set16bit();
 			set_a_node(n);
 			return 1;
 		}
