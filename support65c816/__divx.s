@@ -10,7 +10,7 @@
 __remxu:
 	sta	@dividend
 	stx	@divisor
-	; Divide dividend by divisor leaving result in A and remainder in
+	; Divide dividend by divisor leaving remainder in A and remainder in
 	; @dividend
 div16:
 	ldx	#16
@@ -28,7 +28,7 @@ zerobit:
 	rts
 
 __divxu:
-	jsr	__divxu
+	jsr	__remxu
 	lda	@dividend
 	rts
 
@@ -49,41 +49,42 @@ nonegate:
 nonegate2:
 	sta	@divisor
 	jsr	div16
-	tax
 	lda	@sign
 	and	#1
 	beq	divpos
-	txa
+	lda	@dividend
 	eor	#0xFFFF
 	inc	a
 	rts
 divpos:
-	txa
+	lda	@dividend
 	rts
 
 __remx:
 	stz	@sign		; needs to be word
 	ora	#0
 	bpl	rnonegate
+	inc	@sign
 	eor	#0xFFFF
 	inc	a
 rnonegate:
 	sta	@dividend
 	txa
 	bpl	rnonegate2
-	inc	@sign
 	eor	#0xFFFF
 	inc	a
 rnonegate2:
 	sta	@divisor
 	jsr	div16
+	;	Remainder is now in A
+	tax
 	lda	@sign
 	and	#1
 	beq	rempos
-	lda	@dividend
+	txa
 	eor	#0xFFFF
 	inc	a
 	rts
 rempos:
-	lda	@dividend
+	txa
 	rts
