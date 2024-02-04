@@ -13,9 +13,9 @@ __switchc:
 	sta @tmp	; length
 	pla
 next:
-	rep #0x20
-	cmp 2,x
 	sep #0x20
+	cmp 2,x
+	rep #0x20
 	beq gotswitch
 	inx
 	inx
