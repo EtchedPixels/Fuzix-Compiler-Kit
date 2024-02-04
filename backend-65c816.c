@@ -1752,10 +1752,15 @@ unsigned gen_direct(struct node *n)
 					n->flags |= ISBOOL;
 					return 1;
 				}
-				/* GT has harder than GTEQ so adjust */
-				output("cmp #%d", r->value - 1);
-				setjflags(n, "cccs", "vcvs");
-				return 1;
+				/* This is trickier than it ought to be as
+				   cmp doesn't change V for signed maths */
+				if (n->type & UNSIGNED) {
+					/* GT has harder than GTEQ so adjust */
+					outputcc("cmp #%d", r->value - 1);
+					jflags = "cccs";
+					return 1;
+				}
+				return 0;
 			}
 			/* Maybe deca and cmp ? */
 		}
@@ -1769,12 +1774,13 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		/* True of cs or vs, false if vc or sc */
 		if (n->flags & CCONLY) {
-			if (pri_cc(n, "cmp")) {
-				n->flags |= ISBOOL;
-				setjflags(n, "cscc", "vsvc");
-				return 1;
+			if (n->type & UNSIGNED) {
+				if (pri_cc(n, "cmp")) {
+					n->flags |= ISBOOL;
+					jflags = "cscc";
+					return 1;
+				}
 			}
 		}
 		return pri_help_bool(n, "gteqx");
@@ -1798,10 +1804,12 @@ unsigned gen_direct(struct node *n)
 		}
 		/* True if cc or vc */
 		if (n->flags & CCONLY) {
-			if (pri_cc(n, "cmp")) {
-				n->flags |= ISBOOL;
-				setjflags(n, "cccs", "vcvs");
-				return 1;
+			if (n->type & UNSIGNED) {
+				if (pri_cc(n, "cmp")) {
+					n->flags |= ISBOOL;
+					jflags = "cccs";
+					return 1;
+				}
 			}
 		}
 		return pri_help_bool(n, "ltx");
