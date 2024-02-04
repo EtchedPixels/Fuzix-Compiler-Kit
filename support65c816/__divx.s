@@ -7,13 +7,14 @@
 	.export __divx
 	.export __remx	
 
-__divxu:
+__remxu:
 	sta	@dividend
 	stx	@divisor
 	; Divide dividend by divisor leaving result in A and remainder in
 	; @dividend
 div16:
 	ldx	#16
+	lda	#0
 divnext:
 	asl	@dividend
 	rol	a
@@ -26,7 +27,7 @@ zerobit:
 	bne	divnext
 	rts
 
-__remxu:
+__divxu:
 	jsr	__divxu
 	lda	@dividend
 	rts
