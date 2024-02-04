@@ -7,10 +7,12 @@
 	; A v X
 __lteqx:
 	stx @tmp
-	cmp @tmp
-	beq true
-	bvc true
-	lda #0
+	clc
+	sbc @tmp
+	bvc t1
+	eor #0x8000
+t1:	bpl false
+	lda #1
 	rts
-true:	lda #1
+false:	lda #0
 	rts

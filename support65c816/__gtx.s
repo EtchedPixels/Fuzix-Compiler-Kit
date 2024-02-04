@@ -7,10 +7,12 @@
 	; A v X
 __gtx:
 	stx @tmp
-	cmp @tmp
-	beq false
-	bvc false
-	lda #1
+	clc
+	sbc  @tmp
+	bvc t1
+	eor #0x8000
+t1:	bpl true
+	lda #0
 	rts
-false:	lda #0
+true:	lda #1
 	rts

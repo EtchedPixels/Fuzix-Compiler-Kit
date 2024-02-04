@@ -8,9 +8,11 @@ __gteqx:
 	stx @tmp
 	sec
 	sbc @tmp
-	bvc false
-	lda #1
+	bvc t1
+	eor #0x8000
+t1:	bpl true
+	lda #0
 	rts
-false:	lda #0
+true:	lda #1
 	rts
 

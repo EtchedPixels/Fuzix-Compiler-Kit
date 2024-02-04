@@ -8,7 +8,9 @@ __ltx:
 	stx @tmp
 	sec
 	sbc @tmp
-	bvc true
+	bvc t1
+	eor #0x8000
+t1:	bmi true
 	lda #0
 	rts
 true:	lda #1
