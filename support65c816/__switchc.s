@@ -8,8 +8,10 @@
 __switchcu:
 __switchc:
 	; X holds the switch table A the value
+	pha
 	lda 0,x
 	sta @tmp	; length
+	pla
 next:
 	rep #0x20
 	cmp 2,x
