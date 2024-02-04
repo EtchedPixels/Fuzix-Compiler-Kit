@@ -1,5 +1,7 @@
 all: lib65c816.a crt0.o
 
+# This currently is in a working sort order but needs fixing to use lorder
+# properly
 OBJ = __andeqx.o __diveqx.o __diveqxu.o __divx.o __eqeqx.o __gteqx.o \
       __gteqxu.o __lsx.o __ltx.o __ltxu.o __minuseqx.o __muleqx.o __mulx.o \
       __nex.o __oreqx.o __pluseqx.o __remeqx.o __remeqxu.o __rsx.o __rsxu.o \
@@ -15,10 +17,11 @@ OBJ = __andeqx.o __diveqx.o __diveqxu.o __divx.o __eqeqx.o __gteqx.o \
       __bandl.o __orl.o __xorl.o __cpll.o \
       __shrxl.o __shlxl.o \
       __postdecl.o __postincl.o  __postdecxl.o __postincxl.o \
-      dp.o __push0.o __fnexit.o \
+      __push0.o __fnexit.o \
       __switchc.o __switch.o __switchl.o \
       __div32x32.o __mull.o \
-      _memcpy.o _memset.o _strlen.o
+      _memcpy.o _memset.o _strlen.o \
+      dp.o
     
 .s.o:
 	fcc -m65c816 -c $<
