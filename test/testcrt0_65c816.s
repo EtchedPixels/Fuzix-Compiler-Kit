@@ -5,6 +5,7 @@
 	.a8
 	.i8
 start:
+	cld
 	clc
 	xce
 	.a16
