@@ -826,7 +826,7 @@ static int leftop_memc(struct node *n, const char *op)
 			set_a_node(l);
 		}
 		while (count--)
-			outputcc("%s _%s+%d", op, name, v);
+			output("%s _%s+%d", op, name, v);
 		if (!nr && !preload) {
 			outputcc("lda _%s+%d", name, v);
 			set_a_node(l);
@@ -840,7 +840,7 @@ static int leftop_memc(struct node *n, const char *op)
 			set_a_node(l);
 		}
 		while (count--)
-			outputcc("%s T%d+%d", op, (unsigned) l->val2, v);
+			output("%s T%d+%d", op, (unsigned) l->val2, v);
 		if (!nr && !preload) {
 			outputcc("lda T%d+%d", (unsigned) l->val2, v);
 			set_a_node(l);
@@ -861,7 +861,7 @@ static int leftop_memc(struct node *n, const char *op)
 			invalidate_a();
 		}
 		while (count--)
-			outputcc("%s %d,x", op, v);
+			output("%s %d,x", op, v);
 		if (!nr && !preload) {
 			outputcc("lda %d,x", v);
 			set_a_node(l);
@@ -1694,7 +1694,7 @@ unsigned gen_direct(struct node *n)
 	case T_EQEQ:
 		if (n->flags & CCONLY) {
 			/* Condition codes are valid so no work neede */
-			if (r->op == T_CONSTANT) {
+			if (r->op == T_CONSTANT && s <= 2) {
 				if (r->value == 0) {
 					if (ccvalid)
 						return 1;
@@ -1743,7 +1743,7 @@ unsigned gen_direct(struct node *n)
 		   j flags ? */
 	case T_GT:
 		if (n->flags & CCONLY) {
-			if (r->op == T_CONSTANT) {
+			if (r->op == T_CONSTANT && s <= 2) {
 				/* > 0 is != 0 */
 				if ((n->type & UNSIGNED) && r->value == 0) {
 					/* Check == 0 */
@@ -1766,7 +1766,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return pri_help_bool(n, "gtx");
 	case T_GTEQ:
-		if (r->op == T_CONSTANT && r->value == 0 && !(n->type & UNSIGNED)) {
+		if (r->op == T_CONSTANT && r->value == 0 && s <= 2 && !(n->type & UNSIGNED)) {
 			if (n->flags & CCONLY) {
 				outputcc("asl a");
 				jflags = "cccs";
@@ -1785,12 +1785,10 @@ unsigned gen_direct(struct node *n)
 		}
 		return pri_help_bool(n, "gteqx");
 	case T_LTEQ:
-		if (r->op != T_CONSTANT || !(n->flags & CCONLY))
-			return pri_help_bool(n, "lteqx");
-		/* Fall through into a modified lt */
-
+		/* TODO: optimize unsigned case we can */
+		return pri_help_bool(n, "lteqx");
 	case T_LT:
-		if (r->op == T_CONSTANT && r->value == 0 && !(n->type & UNSIGNED)) {
+		if (s <= 2 && r->op == T_CONSTANT && r->value == 0 && !(n->type & UNSIGNED)) {
 			if (n->flags & CCONLY) {
 				outputcc("asl a");
 				jflags = "cscc";
@@ -1815,7 +1813,7 @@ unsigned gen_direct(struct node *n)
 		return pri_help_bool(n, "ltx");
 	case T_BANGEQ:
 		if (n->flags & CCONLY) {
-			if (r->op == T_CONSTANT) {
+			if (r->op == T_CONSTANT && s <= 2) {
 				if (r->value == 0) {
 					if (!ccvalid) {
 						invalidate_x();
@@ -2242,16 +2240,22 @@ const char *longfn(struct node *n)
 	case T_STAR:
 		return "mul";
 	case T_LT:
+		n->flags |= ISBOOL;
 		return "cclt";
 	case T_GT:
+		n->flags |= ISBOOL;
 		return "ccgt";
 	case T_LTEQ:
+		n->flags |= ISBOOL;
 		return "cclteq";
 	case T_GTEQ:
+		n->flags |= ISBOOL;
 		return "ccgteq";
 	case T_BANGEQ:
+		n->flags |= ISBOOL;
 		return "ccne";
 	case T_EQEQ:		/* Maybe - need to decide */
+		n->flags |= ISBOOL;
 		return "cceq";
 		/* Shifts etc TBD - might make more sense to generate l/r backwards
 		   and take the shift value via x */
@@ -2317,7 +2321,6 @@ unsigned gen_shortcut(struct node *n)
 	 *      if we needed to.
 	 */
 	if (size == 4 && (p = longfn(n)) != NULL) {
-		codegen_lr(l);
 		argstack(l);
 		codegen_lr(r);
 		helper_s(n, p);
