@@ -17,27 +17,27 @@
 
 
 __fnexit12:
-	dey
+	iny
 __fnexit11:
-	dey
+	iny
 __fnexit10:
-	dey
+	iny
 __fnexit9:
-	dey
+	iny
 __fnexit8:
-	dey
+	iny
 __fnexit7:
-	dey
+	iny
 __fnexit6:
-	dey
+	iny
 __fnexit5:
-	dey
+	iny
 __fnexit4:
-	dey
+	iny
 __fnexit3:
-	dey
+	iny
 __fnexit2:
-	dey
+	iny
 __fnexit1:
-	dey
+	iny
 	rts
