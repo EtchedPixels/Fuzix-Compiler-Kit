@@ -43,7 +43,7 @@
  *	Split I/D
  */
 
-#define DEBUG
+#undef DEBUG
 
 #include <stdio.h>
 #include <stdint.h>
@@ -123,6 +123,7 @@ struct cpu_table {
 	const char *cpudir;	/* Directory for this CPU include etc (some may share) */
 	const char **defines;	/* CPU defines */
 	const char **ldopts;	/* LD link rules */
+	const char *cpucode;	/* CPU code value for backend */
 };
 
 const char *def6502[] = { "__6502__", NULL };
@@ -145,26 +146,29 @@ const char *ld6809[] = { "-b", "-C", "256", NULL };
 const char *ld8080[] = { "-b", "-C", "256", NULL };
 const char *ldbyte[] =  { NULL };
 const char *ldthread[] = { NULL };
+const char *cpucode;
 
 struct cpu_table cpu_rules[] = {
-	{ "6502", "6502", ".6502", "lib6502.a", "6502", def6502, ld6502 },
-	{ "65c02", "6502", ".6502", "lib65c02.a", "65c02", def65c02, ld6502 },
-	{ "65c816", "6502", ".65c816", "lib65c816.a", "65c816", def65c816, ld6502 },
-	{ "6303", "6803", ".6803", "lib6303.a", "6303", def6303, ld6800 },
-	{ "6803", "6803", ".6803", "lib6803.a", "6803", def6803, ld6800 },
-	{ "6809", "6809", ".6809", "lib6809.a", "6809", def6809, ld6809 },
-	{ "68hc11", "6803", ".6803", "lib68hc11.a", "68hc11", def68hc11, ld6800 },
-	{ "8080", "85", ".8080", "lib8080.a", "8080", def8080, ld8080 },
-	{ "8085", "85", ".8080", "lib8085.a", "8085", def8085, ld8080 },
-	{ "z80", "z80", ".z80", "libz80.a", "z80", defz80, ld8080 },
-	{ "z180", "z80", ".z80", "libz180.a", "z80", defz180, ld8080 },
+	{ "6502", "6502", ".6502", "lib6502.a", "6502", def6502, ld6502, "0" },
+	{ "65c02", "6502", ".6502", "lib65c02.a", "65c02", def65c02, ld6502, "1" },
+	{ "65c816", "6502", ".65c816", "lib65c816.a", "65c816", def65c816, ld6502, "0" },
+	{ "6303", "6803", ".6803", "lib6303.a", "6303", def6303, ld6800, "6303" },
+	{ "6803", "6803", ".6803", "lib6803.a", "6803", def6803, ld6800, "6803" },
+	/* Until we do 6309 specifics */
+	{ "6309", "6809", ".6809", "lib6809.a", "6809", def6809, ld6809, "6809" },
+	{ "6809", "6809", ".6809", "lib6809.a", "6809", def6809, ld6809, "6809" },
+	{ "68hc11", "6803", ".6803", "lib68hc11.a", "68hc11", def68hc11, ld6800, "6811" },
+	{ "8080", "85", ".8080", "lib8080.a", "8080", def8080, ld8080, "8080" },
+	{ "8085", "85", ".8080", "lib8085.a", "8085", def8085, ld8080, "8085" },
+	{ "z80", "z80", ".z80", "libz80.a", "z80", defz80, ld8080, "80" },
+	{ "z180", "z80", ".z80", "libz180.a", "z80", defz180, ld8080, "180" },
 	/* Other Z80 variants TODO */
 	/* This doen't quite work out. We need to know the native code or
 	   teach as/ld about some kind of "portable" type */
-	{ "byte", "byte", ".byte", "libbyte.a", "byte", defbyte, ldbyte },
+	{ "byte", "byte", ".byte", "libbyte.a", "byte", defbyte, ldbyte, "0" },
 	/* Similar issues. We may end up making this a bunch of CPU specifics
 	   anyway because of endianness, alignment etc */
-	{ "thread", "thread", ".thread", "libthread.a", "thread", defthread, ldbyte },
+	{ "thread", "thread", ".thread", "libthread.a", "thread", defthread, ldbyte, "0" },
 	{ NULL }
 };
 
@@ -297,6 +301,7 @@ static void set_for_processor(struct cpu_table *r)
 	cpulib = r->lib;	
 	cpudef = r->defines;
 	ldopts = r->ldopts;
+	cpucode = r->cpucode;
 }
 
 static void find_processor(const char *cpu)
@@ -531,7 +536,7 @@ void convert_c_to_s(char *path)
 	/* The sym stuff is a bit hackish right now FIXME: make pid based
 	   for make -j */
 	add_argument(".symtmp");
-	add_argument(cpu);
+	add_argument(cpucode);
 	/* FIXME: need to change backend.c parsing for above and also
 	   add another arg when we do the new subcpu bits like -banked */
 	optstr[0] = optimize;
