@@ -29,18 +29,43 @@
 	.export __ccgtequlz
 
 ;
-;	Long compare
+;	Long compares
 ;
-longcmp:
+;
+;	unsigned long - returns EQ if a match CC if hireg:A < value
+;
+ulongcmp:
 	; Compare hireg:A with 0-3,y
 	tax
 	lda @hireg
 	cmp 2,y
+	beq uchklo
+	rts
+uchklo:
+	txa
+	cmp 0,y
+	rts
+
+longcmp:
+	; Compare hireg:A with 0-3,y
+	tax
+	lda @hireg
+	sec
+	sbc 2,y
 	beq chklo
+setvn:
+	; Now do the EOR mangling magic
+	bvs vtog
+	eor #0x8000
+vtog:	asl a
+	; C flag now the same as for unsigned compares
 	rts
 chklo:
 	txa
-	cmp 0,y
+	sec
+	sbc 0,y
+	bne setvn 
+	; EQ set - same
 	rts
 
 
@@ -105,7 +130,7 @@ __ccltl:
 __ccgtulz:
 	stz @hireg
 __ccgtul:
-	jsr longcmp
+	jsr ulongcmp
 	bcs false
 	lda #1
 	rts
@@ -113,7 +138,7 @@ __ccgtul:
 __ccgtequlz:
 	stz @hireg
 __ccgtequl:
-	jsr longcmp
+	jsr ulongcmp
 	beq true
 	bcs false
 	lda #1
@@ -122,7 +147,7 @@ __ccgtequl:
 __ccltequlz:
 	stz @hireg
 __ccltequl:
-	jsr longcmp
+	jsr ulongcmp
 	bcs true
 	lda #0
 	rts
@@ -130,7 +155,7 @@ __ccltequl:
 __ccltulz:
 	stz @hireg
 __ccltul:
-	jsr longcmp
+	jsr ulongcmp
 	beq false
 	bcs true
 	lda #0
