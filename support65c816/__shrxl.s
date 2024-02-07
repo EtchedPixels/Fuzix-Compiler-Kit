@@ -14,6 +14,7 @@ __shrxl:
 	lda @hireg
 	bmi do_signed
 	; High bit is 0, so use the unsigned shift path
+	bra __shrxul1
 __shrxul:
 	sta @tmp
 __shrxul1:
@@ -92,8 +93,9 @@ shiftitsl:
 
 ; Could optimize these to shift the ,x fields in place ? */
 __shreqxul:
-	; x is the pointer, A is the shift value
-	sta @tmp
+	; get x as the pointer, A is the shift value
+	stx @tmp
+	tax
 	lda 2,x
 	sta @hireg
 	lda 0,x
@@ -109,8 +111,9 @@ __shreqxul:
 	rts
 
 __shreqxl:
-	; x is the pointer, A is the shift value
-	sta @tmp
+	; Get x is the pointer, A is the shift value
+	stx @tmp
+	tax
 	lda 2,x
 	sta @hireg
 	lda 0,x

@@ -5,11 +5,12 @@
 	.export __postdecxl
 	.export __postdecxul
 
-;	(X) - hireg:a
+;	(A) - hireg:x
 
 __postdecxl:
 __postdecxul:
-	sta @tmp
+	stx @tmp
+	tax
 	lda 0,x
 	pha
 	sec

@@ -6,21 +6,22 @@
 	.export __postincxl
 	.export __postincxul
 
-;	(x) - hireg:a
+;	(a) + hireg:x
 
 __postincxl:
 __postincxul:
-	sta @tmp
-	lda 0,x
-	pha
+	stx @tmp		; value to add
+	tax
+	lda 0,x			; variable low
+	pha			; save as result
 	clc
-	adc @tmp
+	adc @tmp		; new low
 	sta 0,x
-	lda 2,x
-	pha
-	adc @hireg
-	sta 2,x
-	pla
+	lda 2,x			; get high
+	pha			; save as result
+	adc @hireg		; finish add
+	sta 2,x			; save back
+	pla			; get high word to hireg
 	sta @hireg
-	pla
+	pla			; get low word to A
 	rts

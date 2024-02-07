@@ -77,10 +77,11 @@ __ccequl:
 	jsr longcmp
 	beq true
 false:
+	iny
+	iny
+	iny
+	iny
 	lda #0
-	rts
-true:
-	lda #1
 	rts
 
 __ccnelz:
@@ -90,6 +91,11 @@ __ccnel:
 __ccneul:
 	jsr longcmp
 	beq false
+true:
+	iny
+	iny
+	iny
+	iny
 	lda #1
 	rts
 
@@ -98,8 +104,7 @@ __ccgtlz:
 __ccgtl:
 	jsr longcmp
 	bvs false
-	lda #1
-	rts
+	bra true
 
 __ccgteqlz:
 	stz @hireg
@@ -107,16 +112,14 @@ __ccgteql:
 	jsr longcmp
 	beq true
 	bvs false
-	lda #1
-	rts
+	bra true
 
 __cclteqlz:
 	stz @hireg
 __cclteql:
 	jsr longcmp
 	bvs true
-	lda #0
-	rts
+	bra false
 
 __ccltlz:
 	stz @hireg
@@ -124,16 +127,14 @@ __ccltl:
 	jsr longcmp
 	beq false
 	bvs true
-	lda #0
-	rts
+	bra false
 
 __ccgtulz:
 	stz @hireg
 __ccgtul:
 	jsr ulongcmp
 	bcs false
-	lda #1
-	rts
+	bra true
 
 __ccgtequlz:
 	stz @hireg
@@ -141,16 +142,14 @@ __ccgtequl:
 	jsr ulongcmp
 	beq true
 	bcs false
-	lda #1
-	rts
+	bra true
 
 __ccltequlz:
 	stz @hireg
 __ccltequl:
 	jsr ulongcmp
 	bcs true
-	lda #0
-	rts
+	bra false
 
 __ccltulz:
 	stz @hireg
@@ -158,5 +157,4 @@ __ccltul:
 	jsr ulongcmp
 	beq false
 	bcs true
-	lda #0
-	rts
+	bra false

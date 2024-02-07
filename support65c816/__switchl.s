@@ -8,8 +8,10 @@
 __switchlu:
 __switchl:
 	; X holds the switch table hireg:A the value
+	pha
 	lda 0,x
 	sta @tmp	; length
+	pla
 next:
 	cmp 2,x
 	bne nomatch

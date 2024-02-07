@@ -26,6 +26,7 @@ __shlxul:
 	rts
 shift16:
 	tax
+	lda @tmp
 shift16l:
 	asl a
 	dex
@@ -51,8 +52,9 @@ shiftitl:
 
 __shleqxul:
 __shleqxl:
-	; x is the pointer, A is the shift value
-	sta @tmp
+	; A is the pointer, X is the shift value
+	stx @tmp
+	tax
 	lda 2,x
 	sta @hireg
 	lda 0,x
