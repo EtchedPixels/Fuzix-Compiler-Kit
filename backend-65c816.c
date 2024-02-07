@@ -1499,11 +1499,15 @@ unsigned gen_direct(struct node *n)
 		}
 		if (s == 4 && !optsize) {
 			if (r->op == T_CONSTANT) {
-				if ((r->value & 0xFFFF) != 0xFFFF) {
+				if ((r->value & 0xFFFF) == 0)
+					load_a(0);
+				else if ((r->value & 0xFFFF) != 0xFFFF) {
 					outputcc("and #%d", r->value & 0xFFFF);
 					const_a_set(reg[R_A].value & r->value);
 				}
-				if ((r->value & 0xFFFF0000) != 0xFFFF0000) {
+				if ((r->value & 0xFFFF0000UL) == 0)
+					output("stz @hireg");
+				else if ((r->value & 0xFFFF0000UL) != 0xFFFF0000UL) {
 					move_a_x();
 					output("lda @hireg");
 					output("and #%d", r->value >> 16);
@@ -1522,11 +1526,19 @@ unsigned gen_direct(struct node *n)
 		}
 		if (s == 4 && !optsize) {
 			if (r->op == T_CONSTANT) {
-				if (r->value & 0xFFFF) {
+				if ((r->value & 0xFFFF) == 0xFFFF)
+					load_a(0xFFFF);
+				else if (r->value & 0xFFFF) {
 					outputcc("ora #%d", r->value & 0xFFFF);
 					const_a_set(reg[R_A].value | r->value);
 				}
-				if ((r->value & 0xFFFF0000)) {
+				if ((r->value & 0xFFFF0000UL) == 0xFFFF0000UL) {
+					move_a_x();
+					load_a(0xFFFF);
+					output("sta @hireg");
+					move_x_a();
+				}
+				if (r->value & 0xFFFF0000UL) {
 					move_a_x();
 					output("lda @hireg");
 					output("ora #%d", r->value >> 16);
@@ -1549,7 +1561,7 @@ unsigned gen_direct(struct node *n)
 					outputcc("eor #%d", r->value & 0xFFFF);
 					const_a_set(reg[R_A].value ^ r->value);
 				}
-				if ((r->value & 0xFFFF0000)) {
+				if (r->value & 0xFFFF0000UL) {
 					move_a_x();
 					output("lda @hireg");
 					output("eor #%d", r->value >> 16);
@@ -2912,11 +2924,11 @@ unsigned gen_node(struct node *n)
 	case T_PERCENTEQ:
 		return pop_help(n, "remeqx", 2);
 	case T_ANDEQ:
-		return op_eq(n, "and", NULL, 2);
+		return op_eq(n, "and", NULL, size);
 	case T_OREQ:
-		return op_eq(n, "ora", NULL, 2);
+		return op_eq(n, "ora", NULL, size);
 	case T_HATEQ:
-		return op_eq(n, "eor", NULL, 2);
+		return op_eq(n, "eor", NULL, size);
 	case T_SHLEQ:
 		return pop_help(n, "shleqx", 2);
 	case T_SHREQ:
