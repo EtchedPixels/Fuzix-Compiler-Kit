@@ -13,7 +13,6 @@
 
 __mull:
 __mulul:
-	phy
 	dey		; make a working space
 	dey
 	dey
@@ -33,12 +32,7 @@ done:
 	lda 2,y
 	sta @hireg
 	lda 0,y
-	ply
-	iny
-	iny
-	iny
-	iny
-	rts
+	jmp __fnexit8
 
 slice:
 	ldx #16		; 16bits
