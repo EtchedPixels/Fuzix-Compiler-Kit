@@ -83,7 +83,7 @@ This takes the code from
 	lhld _arg2
 	pop d
 	dad d
-```
+````
 
 to the rather better
 
@@ -93,7 +93,7 @@ to the rather better
 	lhld _arg2
 	xchg
 	dad d
-```
+````
 
 or after the peephole optimizer
 
