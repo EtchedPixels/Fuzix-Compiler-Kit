@@ -2154,10 +2154,19 @@ static unsigned argstack_helper(struct node *n, unsigned sz)
 		}
 	}
 	/* The common lda n,y push values */
-	if (n->op == T_LREF && n->value + sp <= 10 && !((sp + n->value) & 1)) {
+	if (sz <= 2 && n->op == T_LREF && n->value + sp <= 10 && !((sp + n->value) & 1)) {
 		output("jsr __pushy%d", n->value + sp);
 		return 1;
 	}
+	if (n->op == T_LREF) {
+		if (sz < 4)
+			output("jsr __pushyn");
+		else
+			output("jsr __pushynl");
+		output(".word %d", n->value + sp);
+		return 1;
+	}
+
 #if 0
 	/* FIXME: floats.. */
 	/* Shortcut 32bit loads to 16bit arg as they seem to occur
@@ -2272,6 +2281,22 @@ const char *longfn(struct node *n)
 		/* Shifts etc TBD - might make more sense to generate l/r backwards
 		   and take the shift value via x */
 	}
+	if (n->type == FLOAT) {
+		switch(n->op) {
+		case T_PLUS:
+			return "plus";
+		case T_MINUS:
+			return "minus";
+		case T_STAR:
+			return "mul";
+		case T_SLASH:
+			return "div";
+		case T_NEGATE:
+			return "neg";
+		}
+	}
+	if (n->op == T_CAST && (n->type == T_FLOAT || n->right->type == T_FLOAT))
+		return "cast";
 	return NULL;
 }
 
