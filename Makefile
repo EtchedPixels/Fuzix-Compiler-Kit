@@ -1,15 +1,15 @@
 all: cc cc85 ccz80 ccthread ccbyte cc6502 cc65c816 cc0 \
      cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
-     cc1.65c816 \
+     cc1.65c816 cc1.z8 \
      cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
-     cc2.byte cc2.6502 \
+     cc2.byte cc2.6502 cc2.z8 \
      copt support6502 support65c816 support8080 support8085 supportz80
 
 bootstuff: cc cc85 ccz80 ccthread ccbyte cc6502 cc65c816 cc0 \
      cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
-     cc1.65c816 \
+     cc1.65c816 cc1.z8 \
      cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
-     cc2.byte cc2.6502 \
+     cc2.byte cc2.6502 cc2.z8\
      copt
 
 .PHONY: support6502 support65c816 support8080 support8085 supportz80
@@ -33,6 +33,7 @@ OBJS9 = backend.o backend-threadcode.o
 OBJS10 = backend.o backend-bytecode.o
 OBJS11 = backend.o backend-6502.o
 OBJS12 = backend.o backend-65c816.o
+OBJS13 = backend.o backend-z8.o
 
 CFLAGS = -Wall -pedantic -g3 -DLIBPATH="\"$(CCROOT)/lib\"" -DBINPATH="\"$(CCROOT)/bin\""
 
@@ -96,6 +97,9 @@ cc1.6502:$(OBJS1) target-6502.o
 cc1.65c816:$(OBJS1) target-65c816.o
 	gcc -g3 $(OBJS1) target-65c816.o -o cc1.65c816
 
+cc1.z8:$(OBJS1) target-z8.o
+	gcc -g3 $(OBJS1) target-z8.o -o cc1.z8
+
 cc2:	$(OBJS2)
 	gcc -g3 $(OBJS2) -o cc2
 
@@ -125,6 +129,9 @@ cc2.6502:	$(OBJS11)
 
 cc2.65c816:	$(OBJS12)
 	gcc -g3 $(OBJS12) -o cc2.65c816
+
+cc2.z8:		$(OBJS13)
+	gcc -g3 $(OBJS13) -o cc2.z8
 
 support6502:
 	(cd support6502; make)
@@ -321,6 +328,16 @@ bootinst:
 	cp cc2.byte $(CCROOT)/lib
 #	cp copt $(CCROOT)/lib
 	cp rules.byte $(CCROOT)/lib
+	# Z8
+	mkdir -p $(CCROOT)/lib/z8
+	mkdir -p $(CCROOT)/lib/z8/include/
+	cp ccbyte $(CCROOT)/bin/ccz8
+#	cp cppbyte $(CCROOT)/lib/cpp
+#	cp cc0 $(CCROOT)/lib
+	cp cc1.z8 $(CCROOT)/lib
+	cp cc2.z8 $(CCROOT)/lib
+#	cp copt $(CCROOT)/lib
+	cp rules.z8 $(CCROOT)/lib
 
 #
 #	Install the support libraries
