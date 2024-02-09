@@ -2014,7 +2014,8 @@ unsigned gen_node(struct node *n)
 		break;
 	case T_FUNCCALL:
 		invalidate_all();
-		printf("\tcall __jmpr0\n");
+		/* Rather than mess with indirection use a helper */
+		printf("\tcall __jmpr2\n");
 		return 1;
 	case T_LABEL:
 		if (nr)
@@ -2073,7 +2074,6 @@ unsigned gen_node(struct node *n)
 		if (size == 2) {
 			/* Pop into r0,r1 which are free as accum is 16bit */
 			pop_rr(0);
-			printf(";moo\n");
 			add_r_r(R_AC, 0, 2);
 			return 1;
 		}
@@ -2258,8 +2258,58 @@ unsigned gen_node(struct node *n)
 		djnz_r(R_WORK, x);
 		store_r_memr(R_AC, R_INDEX, size);		
 		return 1;
-	/* eq maths for non const
-		T_PLUSEQ, T_MINUSEQ  */
+	/* += and -= we can inline except for long size. Only works for non
+	   regvar case as written though */
+	case T_PLUSEQ:
+		if (n->type == FLOAT)
+			return 0;
+		/* Pointer is on stack, value in ac */
+		pop_rr(R_INDEX);
+		/* Hardcoded for AC for the moment but not hard to
+		   fix */
+		x = size;
+		add_r_const(R_INDEX, size - 1, 2);
+		/* Now points to low byte */
+		load_r_memr(R_WORK, R_INDEX, 1);
+		rr_decw(R_INDEX);
+		printf("\tadd r%u,r%u\n", 3, R_WORK);
+		invalidate_ac();
+		while(--x) {
+			load_r_memr(R_WORK, R_INDEX, 1);
+			rr_decw(R_INDEX);
+			printf("\tadc r%u,r%u\n", x - 1, R_WORK);
+			invalidate_ac();
+		}
+		/* Result is now in AC, and index points to start of
+		   object */
+		store_r_memr(R_AC, R_INDEX, size);			
+		return 1;
+	case T_MINUSEQ:
+		if (n->type == FLOAT)
+			return 0;
+		/* Pointer is on stack, value in ac */
+		pop_rr(R_INDEX);
+		/* Hardcoded for AC for the moment but not hard to
+		   fix */
+		x = size;
+		add_r_const(R_INDEX, size - 1, 2);
+		/* Now points to low byte */
+		load_r_memr(R_WORK, R_INDEX, 1);
+		rr_decw(R_INDEX);
+		printf("\tsub r%u,r%u\n", R_WORK, 3);
+		invalidate_ac();
+		load_r_r(3, R_WORK);
+		while(--x) {
+			load_r_memr(R_WORK, R_INDEX, 1);
+			rr_decw(R_INDEX);
+			printf("\tsbc r%u,r%u\n", R_WORK, x - 1);
+			invalidate_ac();
+			load_r_r(x - 1, R_WORK);
+		}
+		/* Result is now in AC, and index points to start of
+		   object */
+		store_r_memr(R_AC, R_INDEX, size);			
+		return 1;
 	}
 	return 0;
 }
