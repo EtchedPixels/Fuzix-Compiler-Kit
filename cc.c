@@ -139,6 +139,7 @@ const char *defz80[] = { "__z80__", NULL };
 const char *defz180[] = { "__z80__", "__z180__", NULL };
 const char *defbyte[] = { "__byte__", NULL };
 const char *defthread[] = { "__thread__", NULL };
+const char *defz8[] = { "__z8__", NULL };
 
 const char *ld6502[] = { "-b", "-C", "512", "-Z", "0x00", NULL };
 const char *ld6800[] = { "-b", "-C", "256", "-Z", "0x40", NULL };
@@ -169,6 +170,7 @@ struct cpu_table cpu_rules[] = {
 	/* Similar issues. We may end up making this a bunch of CPU specifics
 	   anyway because of endianness, alignment etc */
 	{ "thread", "thread", ".thread", "libthread.a", "thread", defthread, ldbyte, "0" },
+	{ "z8", "z8", ".z8", "libz8.a", "z8", defz8, ld8080, "8" },
 	{ NULL }
 };
 
