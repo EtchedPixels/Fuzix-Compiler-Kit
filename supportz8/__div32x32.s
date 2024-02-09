@@ -7,6 +7,8 @@
 	.export __divequl
 	.export __diveql
 
+	.code
+
 __remul:
 	clr r13
 remdivul:
@@ -99,13 +101,13 @@ __div32x32:
 	push r6
 	push r5
 	push r4
-	lde r4,@r14
+	lde r4,@rr14
 	incw r14
-	lde r5,@r14
+	lde r5,@rr14
 	incw r14
-	lde r6,@r14
+	lde r6,@rr14
 	incw r14
-	lde r7,@r14
+	lde r7,@rr14
 	clr r13		; sign tracking
 	rrc r12
 	jr nc, is_unsigned

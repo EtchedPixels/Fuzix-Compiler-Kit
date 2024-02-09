@@ -1,11 +1,12 @@
-;
-;	Top of stack after return address is 
-;
 	.export __mulu
 	.export __mul
+	.export __domul
 
 	.code
 
+;
+;	 TOS x ac
+;
 __mulu:
 __mul:
 	pop r14		; return address
@@ -14,6 +15,8 @@ __mul:
 	pop r1
 	push r15	; return address back
 	push r14
+
+	; Fall into the helper for r0/r1 x r2/r3
 
 __domul:
 	; r0,r1 x r2,r3  - r12-r15 free as scratch
@@ -40,73 +43,7 @@ loop:
 
 	add r3,r13
 	adc r2,r12
-
 noadd:
-	dec r14
-	jr nz, loop
-
+	djnz r14,loop
 	ret
 
-	.export __muleq
-	.export __mulequ   	
-
-__muleq:
-__mulequ:
-	; stack holds ptr instead in this case
-	pop r14
-	pop r15
-	pop r12		; address
-	pop r13
-	push r15
-	push r14
-
-	; Get values
-	lde r0, @rr12
-	incw rr12
-	lde r1, @rr12
-
-	; save ptr
-	push r13
-	push r12
-
-	; r0,r1 x r2,r3
-	call __domul
-
-	; result in r2,r3, r12/r13/14 trashed
-	pop r12
-	pop r13
-	lde @rr12,r3
-	decw rr12
-	lde @rr12,r2
-	ret
-
-	.export __muleqc
-	.export __mulequc   	
-
-__muleqc:
-__mulequc:
-	; stack holds ptr instead in this case
-	pop r14
-	pop r15
-	pop r12		; address
-	pop r13
-	push r15
-	push r14
-
-	; Get values
-	clr r0
-	lde r1, @rr12
-
-	; save ptr
-	push r13
-	push r12
-
-	; r0,r1 x r2,r3
-	call __domul
-
-	; result in r2,r3, r12/r13/14 trashed
-	pop r12
-	pop r13
-	lde @rr12,r3
-	clr r2
-	ret
