@@ -1,5 +1,6 @@
-all: emu6502 emu65c816 emu85 emuz80 \
-     testcrt0.o testcrtz80.o testcrt0_6502.o testcrt0_65c816.o
+all: emu6502 emu65c816 emu85 emuz8 emuz80 \
+     testcrt0.o testcrtz80.o testcrt0_6502.o testcrt0_65c816.o \
+     testcrt0_z8.o
 
 emu85: emu85.o intel_8085_emulator.o
 	$(CC) emu85.o intel_8085_emulator.o -o emu85
@@ -7,6 +8,9 @@ emu85: emu85.o intel_8085_emulator.o
 emu85.o: emu85.c intel_8085_emulator.h
 
 inte_8085_emulator.o: intel_8085_emulator.c intel_8085_emulator.h
+
+emuz8: emuz8.o z8.o
+	$(CC) emuz8.o z8.o -o emuz8
 
 emuz80: emuz80.o z80dis.o
 	(cd libz80; make)
@@ -37,6 +41,10 @@ testcrt0_6502.o: testcrt0_6502.s
 
 testcrt0_65c816.o: testcrt0_65c816.s
 	fcc -m65c816 -c testcrt0_65c816.s
+
+testcrt0_z8.o: testcrt0_z8.s
+	fcc -mz8 -c testcrt0_z8.s
+
 
 clean:
 	rm -f *.o tests/*.o *~ tests/*~ emu85 tests/*.map *.log emuz80
