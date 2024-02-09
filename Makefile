@@ -145,6 +145,9 @@ support8080:
 support8085:
 	(cd support8085; make)
 
+supportz8:
+	(cd supportz8; make)
+
 supportz80:
 	(cd supportz80; make)
 
