@@ -29,6 +29,7 @@ __mulequl:
 	ret
 
 __mull:
+__mulul:
 	ld	r14,254		; SP
 	ld	r15,255
 	add	r15,#2		; get pointer to data on stack into r14/15
