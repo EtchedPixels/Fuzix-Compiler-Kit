@@ -329,7 +329,7 @@ static void add_r_r(unsigned r1, unsigned r2, unsigned size)
 
 	printf("\tadd r%u,r%u\n", r1--, r2--);
 	while(--size)
-		printf("\tadc r%u r%u\n", r1--, r2--);
+		printf("\tadc r%u,r%u\n", r1--, r2--);
 }
 
 
@@ -577,7 +577,7 @@ static void load_r_memr(unsigned val, unsigned rr, unsigned size)
 	while(--size) {
 		val++;
 		rr_incw(rr);
-		printf("\tlde r%u, rr%u\n", val, rr);
+		printf("\tlde r%u, @rr%u\n", val, rr);
 	}
 }
 
