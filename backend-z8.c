@@ -146,8 +146,8 @@ static void load_r_name(unsigned r, struct node *n, unsigned off)
 	}
 	if (r == R_INDEX)
 		r14_valid = 0;
-	printf("\tld r%u,#>%s+%u\n", r, c, off);
-	printf("\tld r%u,#<%s+%u\n", r + 1, c, off + 1);
+	printf("\tld r%u,#>_%s+%u\n", r, c, off);
+	printf("\tld r%u,#<_%s+%u\n", r + 1, c, off);
 }
 
 static void load_r_label(unsigned r, struct node *n, unsigned off)
@@ -159,7 +159,7 @@ static void load_r_label(unsigned r, struct node *n, unsigned off)
 	if (r == R_INDEX)
 		r14_valid = 0;
 	printf("\tld r%u,#>T%u+%u\n", r, n->val2, off);
-	printf("\tld r%u,#<T%u+%u\n", r, n->val2, off + 1);
+	printf("\tld r%u,#<T%u+%u\n", r + 1, n->val2, off);
 }
 
 static void load_r_r(unsigned r1, unsigned r2)
@@ -206,6 +206,8 @@ static void load_r_constb(unsigned r, unsigned char v)
 {
 	/* Once we do reg tracking we'll be able to deal with dups
 	   using ld r1,r2 */
+	if (R_ISAC(r))
+		r &= 0x0F;
 	if (r <= 3)
 		invalidate_ac();
 	if (r == R_INDEX || r == R_INDEX + 1)
@@ -352,7 +354,7 @@ static void sub_r_r(unsigned r1, unsigned r2, unsigned size)
 
 	printf("\tsub r%u,r%u\n", r1--, r2--);
 	while(--size)
-		printf("\tsbc r%u r%u\n", r1--, r2--);
+		printf("\tsbc r%u,r%u\n", r1--, r2--);
 }
 
 static void sub_r_const(unsigned r, unsigned long v, unsigned size)
@@ -429,15 +431,18 @@ static void cmp_r_const(unsigned r, unsigned long v, unsigned size,
 {
 	unsigned rn;
 	if (R_ISAC(r))
-		r = 4 - size;
+		r = 3;
+	else
+		r += size - 1;
 
 	rn = r;
-	printf("\tcmp r%u,#%u\n", rn++, (unsigned)v & 0xFF);
+	printf(";cmp r const rn %u\n", rn);
+	printf("\tcp r%u,#%u\n", rn--, (unsigned)v & 0xFF);
 	if (size > 1) {
 		while(--size) {
 			v >>= 8;
 			printf("\tjr nz, X%u\n", ++label_count);
-			printf("\tcmp r%u,#%u\n", rn++, (unsigned)v & 0xFF);
+			printf("\tcp r%u,#%u\n", rn--, (unsigned)v & 0xFF);
 		}
 		printf("X%u:\n", label_count);
 	}
@@ -447,11 +452,12 @@ static void cmp_r_const(unsigned r, unsigned long v, unsigned size,
 		   the full set of signed and unsigned tests. For now we set up
 		   a bool result : TODO */
 		load_r_const(R_AC, 0, 2);
-		printf("\tjr nz, X%u\n", ++label_count);
+		printf("\tjr %s, X%u\n", test, ++label_count);
 		printf("\tinc r3\n");
 		printf("X%u:\n", label_count);
 		/* At this point ac is unknown. Also need to invalidate value
 		   track once we do it due to r3 change FIXME */
+		printf("\tor r3,r3\n");
 		invalidate_ac();
 	}
 }
@@ -699,19 +705,17 @@ static void pop_op(unsigned r, const char *op, unsigned size)
 
 static void logic_popeq(unsigned size, const char *op)
 {
+	unsigned n = size;
 	load_r_r(R_INDEX, R_ACPTR);
 	load_r_r(R_INDEX + 1, R_ACCHAR);
 	pop_ac(size);
-	while(size) {
-		/* FIXME: for the reg case this doens't work. We need another
-		   temporary somehow for that case and for size 4 */
-		load_r_memr(0, R_INDEX, 1);
-		printf("\txor r%u, r0\n", 4 - size);
-		size--;
+	while(n) {
+		load_r_memr(R_WORK, R_INDEX, 1);
+		printf("\t%s r%u, r%u\n", op, 4 - n, R_WORK);
+		n--;
 	}
 	store_r_memr(R_AC, R_INDEX, size);
 }
-
 
 static void ret_op(void)
 {
@@ -719,9 +723,36 @@ static void ret_op(void)
 	unreachable = 1;
 }
 
+/* FIXME: assumes real AC  */
+/* Note condition is inverse of the one for truth */
+static void pop_compare(unsigned size, const char *cond)
+{
+	unsigned r = 4 - size;
+	unsigned rd = 12;	/* 12 to 15 as needed */
+	unsigned i;
+	unsigned l = ++label_count;
+
+	for (i = 0; i < size; i++)
+		pop_r(rd + i);	/* Load into R12-R15 */
+	for (i = 0; i < size; i++) {
+		printf("\tcp r%u,r%u\n", rd + i, r + i);
+		if (i != size - 1)
+			printf("\tjr nz, X%u\n", l);
+	}
+	/* Now do the boolify until we do cond codes right */
+	printf("X%u:\n", l);
+	invalidate_ac();
+	load_rr_const(R_ACINT, 0);
+	printf("\tjr %s,X%u\n", cond, ++label_count);
+	load_r_constb(R_ACCHAR, 1);
+	printf("X%u:\n", label_count);
+	printf("\tor r3,r3\n");
+}
+
 static unsigned label(void)
 {
 	invalidate_all();
+	unreachable = 0;
 	printf("X%u:\n", ++label_count);
 	return label_count;
 }
@@ -939,6 +970,7 @@ void gen_segment(unsigned segment)
    gen_frame for the most part */
 void gen_prologue(const char *name)
 {
+	unreachable = 0;
 	printf("_%s:\n", name);
 }
 
@@ -1009,11 +1041,12 @@ unsigned gen_exit(const char *tail, unsigned n)
 	}
 }
 
+/* FIXME: teach assembler to adjust jr and make these use jr */
 void gen_jump(const char *tail, unsigned n)
 {
 	/* Force anything deferred to complete before the jump */
 	flush_all(0);
-	printf("jr L%u%s", n, tail);
+	printf("\tjp L%u%s\n", n, tail);
 	unreachable = 1;
 }
 
@@ -1021,13 +1054,13 @@ void gen_jump(const char *tail, unsigned n)
 void gen_jfalse(const char *tail, unsigned n)
 {
 	flush_all(1);	/* Must preserve flags */
-	printf("jr z,L%u%s", n, tail);
+	printf("\tjp z,L%u%s\n", n, tail);
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
 	flush_all(1);	/* Must preserve flags */
-	printf("jr nz,L%u%s", n, tail);
+	printf("\tjp nz,L%u%s\n", n, tail);
 }
 
 static void gen_cleanup(unsigned v)
@@ -1425,14 +1458,14 @@ unsigned gen_direct(struct node *n)
 	   similar. FIXME : will need to rework the repeated_ stuff when we
 	   do tracking into loops of rr_dec etc */
 	case T_PLUS:
-		if (r->op == T_CONSTANT) {
+		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			if (!nr)
 				add_r_const(R_AC, v, size);
 			return 1;
 		}
 		return 0;
 	case T_MINUS:
-		if (r->op == T_CONSTANT) {
+		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			if (!nr)
 				add_r_const(R_AC, -v, size);
 			return 1;
@@ -1440,7 +1473,7 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	case T_STAR:
 #if 0	
-		if (r->op == T_CONSTANT) {
+		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			if (nr)
 				return 1;
 			if (s <= 2 && can_fast_mul(s, r->value)) {
@@ -1495,42 +1528,42 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_EQEQ:
-		if (r->op == T_CONSTANT) {
+		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			cmp_r_const(R_AC, r->value, size, "nz", 0);
 			n->flags |= ISBOOL;
 			return 1;
 		}
 		return 0;
 	case T_GTEQ:
-		if (r->op == T_CONSTANT) {
+		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			cmp_r_const(R_AC, r->value, size, u ? "ult": "lt", 0);
 			n->flags |= ISBOOL;
 			return 1;
 		}
 		return 0;
 	case T_GT:
-		if (r->op == T_CONSTANT) {
+		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			cmp_r_const(R_AC, r->value, size, u ? "ule": "le", 0);
 			n->flags |= ISBOOL;
 			return 1;
 		}
 		return 0;
 	case T_LTEQ:
-		if (r->op == T_CONSTANT) {
+		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			cmp_r_const(R_AC, r->value, size, u ? "ugt": "gt", 0);
 			n->flags |= ISBOOL;
 			return 1;
 		}
 		return 0;
 	case T_LT:
-		if (r->op == T_CONSTANT) {
+		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			cmp_r_const(R_AC, r->value, size, u ? "uge": "ge", 0);
 			n->flags |= ISBOOL;
 			return 1;
 		}
 		return 0;
 	case T_BANGEQ:
-		if (r->op == T_CONSTANT) {
+		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			cmp_r_const(R_AC, r->value, size, "z", 0);
 			n->flags |= ISBOOL;
 			return 1;
@@ -1933,6 +1966,7 @@ unsigned gen_node(struct node *n)
 	unsigned v;
 	unsigned nr = n->flags & NORETURN;
 	unsigned x;
+	unsigned u = n->type & UNSIGNED;
 	/* We adjust sp so track the pre-adjustment one too when we need it */
 
 	v = n->value;
@@ -2148,10 +2182,10 @@ unsigned gen_node(struct node *n)
 		return 1;
 	/* Odd mono ops T_TILDE, T_BANG, T_BOOL, T_NEGATE */
 	case T_TILDE:
-		mono_r(R_AC, size, "cpl");
+		mono_r(R_AC, size, "com");
 		return 1;
 	case T_NEGATE:
-		mono_r(R_AC, size, "cpl");
+		mono_r(R_AC, size, "com");
 		add_r_const(R_AC, 1, size);
 		return 1;
 	case T_BOOL:
@@ -2172,47 +2206,39 @@ unsigned gen_node(struct node *n)
 		return 1;
 	/* Comparisons T_EQEQ, T_BANGEQ, T_LT. T_LTEQ, T_GT, T_GTEQ */
 	case T_EQEQ:
-		/* Compare top of stack with AC. For once big endian is good
-		   news */
-		label_count += 2;
-		/* TODO: move this and !eq to a helper func */
-		/* FIXME: this doesn't account for register stuff later, will
-		   want to make some kind of helper of these */
-		while(size) {
-			pop_r(R_WORK);
-			/* FIXME: only works for AC .. needs to be a helper */
-			printf("\tcmp r%d,r%d", R_WORK, 4 - size);
-			if (--size)
-				printf("\tjr nz, X%u", label_count);
-		}
-		printf("\tld r3,#1\n");
-		printf("\tjr X%u", label_count - 1);
-		printf("X%u:\n", label_count);
-		printf("\tclr r3\n");
-		printf("X%u\n", label_count - 1);
-		printf("\rclr r2\n");
-		/* TODO: rework for CCONLY as late r2 clear messes flags */
+		if (n->type == T_FLOAT)
+			return 0;
+		pop_compare(size, "nz");
 		n->flags |= ISBOOL;
 		return 1;
 	case T_BANGEQ:
-		/* Compare top of stack with AC. For once big endian is good
-		   news */
-		label_count += 2;
-		/* FIXME: this doesn't account for register stuff later, will
-		   want to make some kind of helper of these */
-		while(size) {
-			pop_r(R_WORK);
-			printf("\tcmp r%d,r%d", R_WORK, 4 - size);
-			if (--size)
-				printf("\tjr nz, X%u", label_count);
-		}
-		printf("\tclr r3\n");
-		printf("\tjr X%u", label_count - 1);
-		printf("X%u:\n", label_count);
-		printf("\tld r3,#1\n");
-		printf("X%u\n", label_count - 1);
-		printf("\rclr r2\n");
-		/* TODO: rework for CCONLY as late r2 clear messes flags */
+		if (n->type == T_FLOAT)
+			return 0;
+		pop_compare(size, "z");
+		n->flags |= ISBOOL;
+		return 1;
+	case T_LT:
+		if (n->type == T_FLOAT)
+			return 0;
+		pop_compare(size, u ? "uge" : "ge");
+		n->flags |= ISBOOL;
+		return 1;
+	case T_LTEQ:
+		if (n->type == T_FLOAT)
+			return 0;
+		pop_compare(size, u ? "ugt" : "gt");
+		n->flags |= ISBOOL;
+		return 1;
+	case T_GT:
+		if (n->type == T_FLOAT)
+			return 0;
+		pop_compare(size, u ? "ule" : "le");
+		n->flags |= ISBOOL;
+		return 1;
+	case T_GTEQ:
+		if (n->type == T_FLOAT)
+			return 0;
+		pop_compare(size, u ? "ult" : "lt");
 		n->flags |= ISBOOL;
 		return 1;
 	/* Need some kind of similar to the above helper for relatives, but
