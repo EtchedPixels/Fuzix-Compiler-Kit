@@ -665,22 +665,22 @@ static void pop_op(unsigned r, const char *op, unsigned size)
 	}
 	while(size--) {
 		pop_r(R_WORK);
-		printf("\t%s r%u, r%u", op, r++, R_WORK);
+		printf("\t%s r%u, r%u\n", op, r++, R_WORK);
 	}
 }
 
+/* Address is on the stack, value to logic it with is in AC */
 static void logic_popeq(unsigned size, const char *op)
 {
 	unsigned n = size;
-	load_r_r(R_INDEX, R_ACPTR);
-	load_r_r(R_INDEX + 1, R_ACCHAR);
-	pop_ac(size);
+	pop_rr(R_INDEX);
 	while(n) {
 		load_r_memr(R_WORK, R_INDEX, 1);
+		rr_incw(R_INDEX);
 		printf("\t%s r%u, r%u\n", op, 4 - n, R_WORK);
 		n--;
 	}
-	store_r_memr(R_AC, R_INDEX, size);
+	revstore_r_memr(R_AC, R_INDEX, size);
 }
 
 static void ret_op(void)
@@ -1082,7 +1082,7 @@ void gen_switch(unsigned n, unsigned type)
 
 void gen_switchdata(unsigned n, unsigned size)
 {
-	printf("SW%u:\n\t.word %u\n", n, size);
+	printf("Sw%u:\n\t.word %u\n", n, size);
 }
 
 void gen_case_label(unsigned tag, unsigned entry)
@@ -2207,18 +2207,12 @@ unsigned gen_node(struct node *n)
 	   messier so probably best done as helper call. */		
 	case T_ANDEQ:
 		/* On entry ptr is in ACINT, stack is value to "and" by */
-		if (size == 4)
-			return 0;
 		logic_popeq(size, "and");
 		return 1;
 	case T_OREQ:
-		if (size == 4)
-			return 0;
 		logic_popeq(size, "or");
 		return 1;
 	case T_HATEQ:
-		if (size == 4)
-			return 0;
 		logic_popeq(size, "xor");
 		return 1;
 	/* No hardware multiply/divide
