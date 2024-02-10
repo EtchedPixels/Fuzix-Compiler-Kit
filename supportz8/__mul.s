@@ -39,7 +39,7 @@ loop:
 	adc r0,r0
 
 	; bit clear - skip add
-	jr z, noadd
+	jr nc, noadd
 
 	add r3,r13
 	adc r2,r12
