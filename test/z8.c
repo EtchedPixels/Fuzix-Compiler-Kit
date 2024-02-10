@@ -564,6 +564,38 @@ static uint8_t z8_maths(struct z8 *z8, uint8_t r, uint8_t d)
 		f |= F_V;
 	if (!((a | b) & 0x80) && (r & 0x80))
 		f |= F_V;
+	if (a & b & 0x80)
+		f |= F_C;
+	if (b & ~r & 0x80)
+		f |= F_C;
+	if (a & ~r & 0x80)
+		f |= F_C;
+	/* And half carry for DAA */
+	if ((a & b & 0x08) || ((b & ~r) & 0x08) || ((a & ~r) & 0x08))
+		f |= F_H;
+	if (d)			/* Remember direction for DAA */
+		f |= F_D;
+	z8->reg[R_FLAGS] |= f;
+	return r;
+}
+
+/* Subtraction */
+static uint8_t z8_maths_sub(struct z8 *z8, uint8_t r, uint8_t d)
+{
+	uint8_t f = 0;
+	uint8_t a = z8->arg0;
+	uint8_t b = z8->arg1;
+
+	z8->reg[R_FLAGS] &= ~ (F_C | F_Z | F_S | F_D | F_H | F_V);
+
+	if (r & 0x80)
+		f |= F_S;
+	if (r == 0)
+		f |= F_Z;
+	if ((a ^ b) & 0x80) {
+		if ((b & 0x80) == (r & 0x80))
+			f |= F_V;
+	}
 	if (~a & b & 0x80)
 		f |= F_C;
 	if (b & r & 0x80)
@@ -590,10 +622,10 @@ static uint8_t z8_maths_noh(struct z8 *z8, uint8_t r)
 		f |= F_S;
 	if (r == 0)
 		f |= F_Z;
-	if ((a & b & 0x80) && !(r & 0x80))
-		f |= F_V;
-	if (!((a | b) & 0x80) && (r & 0x80))
-		f |= F_V;
+	if ((a ^ b) & 0x80) {
+		if ((b & 0x80) == (r & 0x80))
+			f |= F_V;
+	}
 	if (~a & b & 0x80)
 		f |= F_C;
 	if (b & r & 0x80)
@@ -712,16 +744,18 @@ static void z8_execute_group2(struct z8 *z8, uint_fast8_t oph, uint_fast8_t opl)
 		setwreg(z8, oph, d);
 		if (d) {
 			d = z8_read_code(z8, z8->pc++);
-			z8->pc += d;
+			z8->pc += (int8_t)d;
 			z8->cycles += 12;
-		} else
+		} else {
+			z8->pc++;
 			z8->cycles += 10;
+		}
 		break;
 	case 0x0B:		/* JR */
 		d = z8_read_code(z8, z8->pc++);
 		if (z8_cc_true(z8, oph)) {
 			z8->cycles += 12;
-			z8->pc += d;
+			z8->pc += (int8_t)d;
 		} else
 			z8->cycles += 10;
 		break;
@@ -1076,7 +1110,6 @@ static void z8_execute_one(struct z8 *z8)
 			rdecode0(z8);
 			setreg(z8, z8->dreg,
 			       z8_maths(z8, z8->arg0 + z8->arg1, 0));
-			fprintf(stderr, "Set %x now %x\n", z8->dreg, getreg(z8, z8->dreg));
 			break;
 		case 0x01:	/* ADC group */
 			rdecode0(z8);
@@ -1087,12 +1120,12 @@ static void z8_execute_one(struct z8 *z8)
 		case 0x02:	/* SUB group */
 			rdecode0(z8);
 			setreg(z8, z8->dreg,
-			       z8_maths(z8, z8->arg0 - z8->arg1, 1));
+			       z8_maths_sub(z8, z8->arg0 - z8->arg1, 1));
 			break;
 		case 0x03:	/* SBC group */
 			rdecode0(z8);
 			setreg(z8, z8->dreg,
-			       z8_maths(z8, z8->arg0 - z8->arg1 - CARRY,
+			       z8_maths_sub(z8, z8->arg0 - z8->arg1 - CARRY,
 					1));
 			break;
 		case 0x04:	/* OR group */

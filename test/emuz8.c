@@ -17,7 +17,7 @@ static uint8_t ram[65536];
 
 uint8_t z8_read_data(struct z8 *cpu, uint16_t addr)
 {
-    fprintf(stderr, "R%04X->%02X\n", addr, ram[addr]);
+//    fprintf(stderr, "R%04X->%02X\n", addr, ram[addr]);
     return ram[addr];
 }
 
@@ -33,7 +33,7 @@ uint8_t z8_read_code_debug(struct z8 *cpu, uint16_t addr)
 
 void z8_write_data(struct z8 *cpu, uint16_t addr, uint8_t val)
 {
-    fprintf(stderr, "W%04X<-%02X\n", addr, val);
+//    fprintf(stderr, "W%04X<-%02X\n", addr, val);
     switch(addr) {
     case 0xFFFE:
         if (val < 32 || val > 127)
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
     /* 0000-0xFFFF */
-    if (read(fd, ram, sizeof(ram)) < 520) {
+    if (read(fd, ram, sizeof(ram)) < 32) {
         fprintf(stderr, "emuz8: bad test.\n");
         perror(argv[1]);
         exit(1);
