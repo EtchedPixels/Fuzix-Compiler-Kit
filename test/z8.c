@@ -1153,7 +1153,7 @@ static void z8_execute_one(struct z8 *z8)
 		case 0x0B:	/* XOR group */
 			rdecode0(z8);
 			setreg(z8, z8->dreg,
-			       z8_logic(z8, z8->arg0 & z8->arg1));
+			       z8_logic(z8, z8->arg0 ^ z8->arg1));
 			break;
 		case 0x0E:	/* LD group */
 			rdecode0l(z8);
