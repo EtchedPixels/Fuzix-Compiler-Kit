@@ -3,7 +3,8 @@ all: cc cc85 ccz80 ccthread ccbyte cc6502 cc65c816 cc0 \
      cc1.65c816 cc1.z8 \
      cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
      cc2.byte cc2.6502 cc2.z8 \
-     copt support6502 support65c816 support8080 support8085 supportz80
+     copt support6502 support65c816 support8080 support8085 supportz80 \
+     supportz8
 
 bootstuff: cc cc85 ccz80 ccthread ccbyte cc6502 cc65c816 cc0 \
      cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
@@ -12,7 +13,7 @@ bootstuff: cc cc85 ccz80 ccthread ccbyte cc6502 cc65c816 cc0 \
      cc2.byte cc2.6502 cc2.z8\
      copt
 
-.PHONY: support6502 support65c816 support8080 support8085 supportz80
+.PHONY: support6502 support65c816 support8080 support8085 supportz8 supportz80
 
 CCROOT ?=/opt/fcc/
 
@@ -164,6 +165,7 @@ clean:
 	(cd support8080; make clean)
 	(cd support8085; make clean)
 	(cd supportz80; make clean)
+	(cd supportz8; make clean)
 
 doinstall:
 	# 6502
@@ -357,6 +359,9 @@ libinst:
 	cp support8080/lib8080.a $(CCROOT)/lib/8080/lib8080.a
 	cp support8085/lib8085.a $(CCROOT)/lib/8080/lib8085.a
 	ar cq $(CCROOT)/lib/8080/libc.a
+	cp supportz8/crt0.o $(CCROOT)/lib/z8/
+	cp supportz8/libz8.a $(CCROOT)/lib/z8/libz8.a
+	ar cq $(CCROOT)/lib/z80/libc.a
 	cp supportz80/crt0.o $(CCROOT)/lib/z80/
 	cp supportz80/libz80.a $(CCROOT)/lib/z80/libz80.a
 	ar cq $(CCROOT)/lib/z80/libc.a
