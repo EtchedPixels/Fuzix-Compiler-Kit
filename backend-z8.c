@@ -56,9 +56,9 @@ static struct node ac_node;	/* What is in AC 0 type = unknown */
 
 static void invalidate_ac(void)
 {
-	if (ac_node.type)
+	if (ac_node.op)
 		printf(";invalidate ac\n");
-	ac_node.type = 0;
+	ac_node.op = 0;
 }
 
 static void set_ac_node(struct node *n)
@@ -152,7 +152,7 @@ static void load_r_name(unsigned r, struct node *n, unsigned off)
 
 static void load_r_label(unsigned r, struct node *n, unsigned off)
 {
-	if (r == R_ACPTR) {
+	if (R_ISAC(r)) {
 		r = 2;
 		set_ac_node(n);
 	}
@@ -231,18 +231,16 @@ static void load_rr_const(unsigned r, unsigned v)
 static void load_r_const(unsigned r, unsigned long v, unsigned size)
 {
 	if (R_ISAC(r))
-		r = 0;
-	if (r == R_INDEX) 
-		r14_valid = 0;
+		r = 4 - size;
 	/* Lots to do here for optimizing - using clr, copying bytes
 	   between regs */
 	if (size == 4) {
-		load_r_constb(r, v >> 24);
-		load_r_constb(r + 1, v >> 16);
+		load_r_constb(r++, v >> 24);
+		load_r_constb(r++, v >> 16);
 	}
 	if (size > 1)
-		load_r_constb(r + 2, v >> 8);
-	load_r_constb(r + 3, v);
+		load_r_constb(r++, v >> 8);
+	load_r_constb(r++, v);
 }
 
 static void add_r_const(unsigned r, unsigned long v, unsigned size)
@@ -423,45 +421,6 @@ static void cmpeq_r_0(unsigned r, unsigned size)
 	printf("\txor r3,#1\n");
 }
 
-/* FIXME: always returns result in r2/r3 but that will be wrong in future for
-   register int x = a > b; */
-/* TODO: generalize cmp 0 cases */
-static void cmp_r_const(unsigned r, unsigned long v, unsigned size,
-	const char *test, unsigned cconly)
-{
-	unsigned rn;
-	if (R_ISAC(r))
-		r = 3;
-	else
-		r += size - 1;
-
-	rn = r;
-	printf(";cmp r const rn %u\n", rn);
-	printf("\tcp r%u,#%u\n", rn--, (unsigned)v & 0xFF);
-	if (size > 1) {
-		while(--size) {
-			v >>= 8;
-			printf("\tjr nz, X%u\n", ++label_count);
-			printf("\tcp r%u,#%u\n", rn--, (unsigned)v & 0xFF);
-		}
-		printf("X%u:\n", label_count);
-	}
-	if (!cconly) {
-		/* Flags are now set properly. Our ability to use them is a bit
-		   messy until we implement CCONLY but when we do the CPU has
-		   the full set of signed and unsigned tests. For now we set up
-		   a bool result : TODO */
-		load_r_const(R_AC, 0, 2);
-		printf("\tjr %s, X%u\n", test, ++label_count);
-		printf("\tinc r3\n");
-		printf("X%u:\n", label_count);
-		/* At this point ac is unknown. Also need to invalidate value
-		   track once we do it due to r3 change FIXME */
-		printf("\tor r3,r3\n");
-		invalidate_ac();
-	}
-}
-
 static void mono_r(unsigned r, unsigned size, const char *op)
 {
 	if (R_ISAC(r))
@@ -540,14 +499,19 @@ static void logic_r_const(unsigned r, unsigned long v, unsigned size, unsigned o
 static void load_r_local(unsigned r, unsigned off)
 {
 	int diff;
+	if (R_ISAC(r))
+		r = 2;
+
 	printf(";local %d (cache %d)\n", off - sp, r14_sp);
-	if (r14_valid) {
+	if (r == R_INDEX && r14_valid) {
+		/* TODO: For exact match case we should allow it even if not INDEX and
+		   just copy the registers. Maybe also if one out */
 		diff = r14_sp - (off - sp);
 		if (diff == 0)
 			return;
 		/* incw/decw are 2 bytes a shot, add is 3 also */
 		if (diff < -2 || diff > 2) {
-			add_r_const(R_INDEX, diff, 2);
+			add_r_const(R_INDEX, -diff, 2);
 			r14_valid = 1;
 			r14_sp = off - sp;
 			return;
@@ -562,13 +526,15 @@ static void load_r_local(unsigned r, unsigned off)
 			diff--;
 			rr_decw(R_INDEX);
 		}
-		return;
+	} else {
+		load_r_R(r, R_SPH);
+		load_r_R(r + 1, R_SPL);
+		add_r_const(r, off, 2);
+		if (r == R_INDEX) {
+			r14_valid = 1;
+			r14_sp = off - sp;
+		}
 	}
-	load_r_R(R_INDEX, R_SPH);
-	load_r_R(R_INDEX + 1, R_SPL);
-	add_r_const(R_INDEX, off, 2);
-	r14_valid = 1;
-	r14_sp = off - sp;
 }
 
 static void load_r_memr(unsigned val, unsigned rr, unsigned size)
@@ -721,32 +687,6 @@ static void ret_op(void)
 {
 	printf("\tret\n");
 	unreachable = 1;
-}
-
-/* FIXME: assumes real AC  */
-/* Note condition is inverse of the one for truth */
-static void pop_compare(unsigned size, const char *cond)
-{
-	unsigned r = 4 - size;
-	unsigned rd = 12;	/* 12 to 15 as needed */
-	unsigned i;
-	unsigned l = ++label_count;
-
-	for (i = 0; i < size; i++)
-		pop_r(rd + i);	/* Load into R12-R15 */
-	for (i = 0; i < size; i++) {
-		printf("\tcp r%u,r%u\n", rd + i, r + i);
-		if (i != size - 1)
-			printf("\tjr nz, X%u\n", l);
-	}
-	/* Now do the boolify until we do cond codes right */
-	printf("X%u:\n", l);
-	invalidate_ac();
-	load_rr_const(R_ACINT, 0);
-	printf("\tjr %s,X%u\n", cond, ++label_count);
-	load_r_constb(R_ACCHAR, 1);
-	printf("X%u:\n", label_count);
-	printf("\tor r3,r3\n");
 }
 
 static unsigned label(void)
@@ -997,10 +937,10 @@ void gen_frame(unsigned size, unsigned aframe)
 		/* Special handling because of the stack and interrupts */
 		load_r_R(R_INDEX, R_SPL);
 		/* TODO: will need special tracking of course */
-		printf("\tsub r%u,%u", R_INDEX, size & 0xFF);
-		printf("\tsbc sph,%u", size >> 8);
+		printf("\tsub r%u,#%u\n", R_INDEX, size & 0xFF);
+		printf("\tsbc 255,#%u\n", size >> 8);
 		load_R_r(R_SPL, R_INDEX);
-		r14_valid = 1;
+		r14_valid = 0;
 		r14_sp = 0;
 		return;
 	}
@@ -1102,7 +1042,9 @@ void gen_helpcall(struct node *n)
 	   C call format */
 	if (c_style(n))
 		gen_push(n->right);
+	invalidate_ac();
 	printf("\tcall __");
+	r14_valid = 0;
 }
 
 void gen_helpclean(struct node *n)
@@ -1529,42 +1471,49 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	case T_EQEQ:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			cmp_r_const(R_AC, r->value, size, "nz", 0);
+			load_r_const(12, r->value , size);
+			helper(n, "cceqconst");
 			n->flags |= ISBOOL;
 			return 1;
 		}
 		return 0;
+	/* The const form helpers do the reverse compare so we use the opposite one */
 	case T_GTEQ:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			cmp_r_const(R_AC, r->value, size, u ? "ult": "lt", 0);
+			load_r_const(12, r->value , size);
+			helper_s(n, "cclteqconst");
 			n->flags |= ISBOOL;
 			return 1;
 		}
 		return 0;
 	case T_GT:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			cmp_r_const(R_AC, r->value, size, u ? "ule": "le", 0);
+			load_r_const(12, r->value , size);
+			helper_s(n, "ccltconst");
 			n->flags |= ISBOOL;
 			return 1;
 		}
 		return 0;
 	case T_LTEQ:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			cmp_r_const(R_AC, r->value, size, u ? "ugt": "gt", 0);
+			load_r_const(12, r->value , size);
+			helper_s(n, "ccgteqconst");
 			n->flags |= ISBOOL;
 			return 1;
 		}
 		return 0;
 	case T_LT:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			cmp_r_const(R_AC, r->value, size, u ? "uge": "ge", 0);
+			load_r_const(12, r->value , size);
+			helper_s(n, "ccgtconst");
 			n->flags |= ISBOOL;
 			return 1;
 		}
 		return 0;
 	case T_BANGEQ:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			cmp_r_const(R_AC, r->value, size, "z", 0);
+			load_r_const(12, r->value , size);
+			helper(n, "ccneconst");
 			n->flags |= ISBOOL;
 			return 1;
 		}
@@ -1620,7 +1569,7 @@ unsigned gen_direct(struct node *n)
 			add_r_const(R_AC, v, size);
 			/* Revstore compensates by doing the store
 			   bacwards */
-			revstore_r_memr(R_AC, 2, size);
+			revstore_r_memr(R_AC, R_INDEX, size);
 			pop_ac(size);
 			return 1;
 		}
@@ -1998,8 +1947,10 @@ unsigned gen_node(struct node *n)
 			return 1;
 		/* Is it already loaded ? */
 		if (ac_node.op == T_LREF && ac_node.value == v && 
-			get_size(ac_node.type) >= size)
+			get_size(ac_node.type) >= size) {
+			printf(";avoided load %d\n", v);
 			return 1;
+		}
 		/* effectively SPL/SPH + n */
 		load_r_local(R_INDEX, v + sp);
 		load_r_memr(R_AC, R_INDEX, size);
@@ -2036,7 +1987,7 @@ unsigned gen_node(struct node *n)
 	case T_EQ:
 		pop_rr(R_INDEX);
 		store_r_memr(R_AC, R_INDEX, size);
-		break;
+		return 1;
 	case T_RDEREF:
 		load_r_memr(R_AC, REGBASE + 2 * n->value, 0);
 		return 1;
@@ -2045,7 +1996,7 @@ unsigned gen_node(struct node *n)
 		load_r_r(R_INDEX, R_ACPTR);
 		load_r_r(R_INDEX + 1, R_ACCHAR);
 		load_r_memr(R_AC, R_INDEX, size);
-		break;
+		return 1;
 	case T_FUNCCALL:
 		invalidate_all();
 		/* Rather than mess with indirection use a helper */
@@ -2114,7 +2065,7 @@ unsigned gen_node(struct node *n)
 		/* size 1 */
 		pop_r(0);
 		add_r_r(R_AC, 0, 1);
-		return 0;
+		return 1;
 	case T_MINUS:
 		/* We are doing stack - ac. This isn't ideal but we've
 		   dealt with the simple cases already. We could more
@@ -2149,7 +2100,7 @@ unsigned gen_node(struct node *n)
 		pop_r(0);
 		sub_r_r(0, R_ACCHAR, 1);
 		load_r_r(R_ACCHAR, 0);
-		return 0;
+		return 1;
 	case T_AND:
 		pop_op(R_AC, "and", size);
 		return 1;
@@ -2205,6 +2156,8 @@ unsigned gen_node(struct node *n)
 		n->flags |= ISBOOL;
 		return 1;
 	/* Comparisons T_EQEQ, T_BANGEQ, T_LT. T_LTEQ, T_GT, T_GTEQ */
+	/* Use helpers for now */
+#if 0	
 	case T_EQEQ:
 		if (n->type == T_FLOAT)
 			return 0;
@@ -2241,6 +2194,7 @@ unsigned gen_node(struct node *n)
 		pop_compare(size, u ? "ult" : "lt");
 		n->flags |= ISBOOL;
 		return 1;
+#endif		
 	/* Need some kind of similar to the above helper for relatives, but
 	   messier so probably best done as helper call. */		
 	case T_ANDEQ:
