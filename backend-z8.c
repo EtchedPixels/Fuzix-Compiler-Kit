@@ -406,11 +406,14 @@ static void cmpne_r_0(unsigned r, unsigned size)
 	if (R_ISAC(r))
 		r = 4 - size;
 	else
-		load_rr_const(2, 0);
-	while(--size)
+		load_r_constb(3, 0);
+	if (size == 1)
+		printf("\tor r3, r%u\n", r);
+	else while(--size)
 		printf("\tor r3, r%u\n", r++);
+	load_r_constb(2,0);
 	printf("\tjr z, X%u\n", ++label_count);
-	printf("\tinc r3\n");
+	printf("\tld r3, #1\n");
 	printf("X%u:\n", label_count);
 }
 
