@@ -54,12 +54,12 @@ __dorems:
 	clr r12			; sign info
 	tcm r0,#0x80		; negative ?
 	jr nz, uns3
+	inc r12
 	com r0
 	com r1
 	incw r0			; negate
 uns3:	tcm r2,#0x80
 	jr nz, uns4
-	inc r12
 	com r2
 	com r3
 	incw r2
@@ -67,6 +67,8 @@ uns4:
 	push r12		; remember sign info
 	; Now we can do the divide unsigned
 	call __div16x16
+	ld r2,r12
+	ld r3,r13
 	pop r12
 	rr r12
 	jr nc, sign_ok_r
