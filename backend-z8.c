@@ -2117,9 +2117,13 @@ unsigned gen_node(struct node *n)
 		/* The value to shift by is in r3, the value is stacked */
 		load_r_r(R_WORK, 3);
 		pop_ac(size);	/* Recover working reg off stack */
+		printf("\tor r%u,r%u\n", R_WORK, R_WORK);
+		v = ++label_count;
+		printf("jr z, X%u\n", v);
 		x = label();
 		add_r_r(R_AC, R_AC, size);
 		djnz_r(R_WORK, x);
+		printf("X%u:\n", v);
 		return 1;
 	case T_GTGT:
 		if (nr)
@@ -2127,9 +2131,13 @@ unsigned gen_node(struct node *n)
 		/* The value to shift by is in r3, the value is stacked */
 		load_r_r(R_WORK, 3);
 		pop_ac(size);	/* Recover working reg off stack */
+		printf("\tor r%u,r%u\n", R_WORK, R_WORK);
+		v = ++label_count;
+		printf("jr z, X%u\n", v);
 		x = label();
 		rshift_r(R_AC, size, n->type & UNSIGNED);
 		djnz_r(R_WORK, x);
+		printf("X%u:\n", v);
 		return 1;
 	/* Odd mono ops T_TILDE, T_BANG, T_BOOL, T_NEGATE */
 	case T_TILDE:
@@ -2217,26 +2225,34 @@ unsigned gen_node(struct node *n)
 		T_STAR, T_SLASH, T_PERCENT, T_STARTEQ, T_SLASHEQ, T_PERCENTEQ */
 	case T_SHLEQ:
 		/* Pointer into r14/r15 */
+		v = ++label_count;
 		pop_rr(R_INDEX);
 		/* Save counter */
 		load_r_r(R_WORK, R_ACCHAR);
+		printf("\tor r%u,r%u\n", R_WORK, R_WORK);
+		printf("\tjr z, X%u\n", v);
 		/* Value into ac */
 		load_r_memr(R_AC, R_INDEX, size);
 		x = label();
 		add_r_r(R_AC, R_AC, size);
 		djnz_r(R_WORK, x);
-		store_r_memr(R_AC, R_INDEX, size);		
+		revstore_r_memr(R_AC, R_INDEX, size);
+		printf("X%u:\n", v);
 		return 1;
 	case T_SHREQ:
 		/* Pointer into r14/r15 */
+		v = ++label_count;
 		pop_rr(R_INDEX);
 		load_r_r(R_WORK, R_ACCHAR);
+		printf("\tor r%u,r%u\n", R_WORK, R_WORK);
+		printf("\tjr z, X%u\n", v);
 		/* Value into ac */
 		load_r_memr(R_AC, R_INDEX, size);
 		x = label();
 		rshift_r(R_AC, size, n->type & UNSIGNED);
 		djnz_r(R_WORK, x);
-		store_r_memr(R_AC, R_INDEX, size);		
+		revstore_r_memr(R_AC, R_INDEX, size);
+		printf("X%u:\n", v);
 		return 1;
 	/* += and -= we can inline except for long size. Only works for non
 	   regvar case as written though */
