@@ -17,13 +17,13 @@ __div:
 __dodivs:
 	clr r12			; sign info
 	tcm r0,#0x80		; negative ?
-	jr z, uns1
+	jr nz, uns1
 	inc r12
 	com r0
 	com r1
 	incw r0			; negate
 uns1:	tcm r2,#0x80
-	jr z, uns2
+	jr nz, uns2
 	inc r12
 	com r2
 	com r3
@@ -38,6 +38,7 @@ uns2:
 	com r0
 	com r1
 	incw r0
+sign_ok:
 	ld r2,r0
 	ld r3,r1
 	ret
@@ -68,10 +69,11 @@ uns4:
 	call __div16x16
 	pop r12
 	rr r12
-	jr nc, sign_ok
+	jr nc, sign_ok_r
 	com r2
 	com r3
 	incw r2
+sign_ok_r:
 	ret
 
 __diveq:
