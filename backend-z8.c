@@ -4,11 +4,12 @@
  *	TODO
  *	- register tracking
  *	- using tcm/tm for bitops
+ *	- using tcm/tm for < 0 >= 0
+ *	- using incw/decw for cmp -1 or 1
  *	- support library
  *	- efficient comparisons
  *	- flag switching on jtrue/false for comparisons
  *	- CCONLY Z80 style
- *	- probably give up on magic hacks and accept r12/r13 is also a temp reg
  *	- registers in r4/5 6/7 8/9 10/11
  */
 
@@ -50,6 +51,14 @@ static unsigned label_count;	/* Used for internal labels X%u: */
 
 static unsigned r14_sp;		/* R14/15 address relative to SP */
 static unsigned r14_valid;	/* R14/15 are a valid local ptr */
+static unsigned r2_sp;		/* R2/3 address relative to SP */
+static unsigned r2_valid;	/* R2/3 are a valid local ptr */
+
+static uint8_t r_val[16];
+static uint8_t r_type[16];	/* For now just unknown and const */
+#define R_UNKNOWN	0
+#define R_CONST		1
+
 static struct node ac_node;	/* What is in AC 0 type = unknown */
 
 /* Minimal tracking on the working register only */
@@ -84,6 +93,7 @@ static void flush_all(unsigned f)
 static void invalidate_all(void)
 {
 	invalidate_ac();
+	r2_valid = 0;
 	r14_valid = 0;
 }
 
@@ -104,18 +114,90 @@ static void invalidate_all(void)
 
 #define R_WORK		12		/* 12/13 are work ptr */
 #define R_INDEX		14		/* 14/15 are usually index */
+
+/*
+ *	Beginning of hooks for modify trackign etc
+ */
+
+static void r_modify(unsigned r, unsigned size)
+{
+	if (r == 14 || r == 15)
+		r14_valid = 0;
+	if (r == 2 || r == 3) {
+		r2_valid = 0;
+		invalidate_ac();
+	}
+	while(size--)
+		r_type[r++] = R_UNKNOWN;
+}
+
+/* Until we do value track */
+static void r_set(unsigned r, unsigned v)
+{
+	if (r == 14 || r == 15)
+		r14_valid = 0;
+	if (r == 2 || r == 3) {
+		r2_valid = 0;
+		invalidate_ac();
+	}
+	r_val[r] = v & 0xFF;
+	r_type[r] = R_CONST;
+}
+
+/* We just do the simple sp tracking for now */
+static void r_adjust(unsigned r, int by, unsigned size)
+{
+	unsigned n;
+
+	if (r == 14 && size == 2)
+		r14_sp += by;
+	else if (r == 2 && size == 2)
+		r2_sp += by;
+	else  {
+		r += size - 1;
+		if (r_type[r] == R_CONST) {
+			n = r_val[r] + (by & 0xFF);
+			r_val[r] = n & 0xFF;
+			while(--size) {
+				--r;
+				by >>= 8;
+				if (r_type[r] == R_CONST) {
+					n = r_val[r] + (by & 0xFF) + (n >> 8);
+					r_val[r] = n;
+				} else
+					break;
+			}
+		}
+		/* Unknown bits stay unknown, as does anything after as the carry
+		   result is not known */
+		if (size)
+			r_modify(r, size);
+	}
+}
+
 /*
  *	These will eventually be smart and track values etc but for now
  *	just do dumb codegen
  */
+
+static void r_dec(unsigned r)
+{
+	printf("\tdec r%u\n", r);
+	r_adjust(r, -1, 1);
+}
+
+static void r_inc(unsigned r)
+{
+	printf("\tinc r%u\n", r);
+	r_adjust(r, 1, 1);
+}
 
 static void rr_decw(unsigned rr)
 {
 	if (R_ISAC(rr))
 		rr = R_ACPTR;
 	printf("\tdecw rr%u\n", rr);
-	if (rr == R_INDEX)
-		r14_sp--;
+	r_adjust(rr, -1, 2);
 }
 
 static void RR_decw(unsigned rr)
@@ -128,8 +210,7 @@ static void rr_incw(unsigned rr)
 	if (R_ISAC(rr))
 		rr = R_ACPTR;
 	printf("\tincw rr%u\n", rr);
-	if (rr == R_INDEX)
-		r14_sp++;
+	r_adjust(rr, 1, 2);
 }
 
 static void RR_incw(unsigned rr)
@@ -144,8 +225,7 @@ static void load_r_name(unsigned r, struct node *n, unsigned off)
 		r = 2;
 		set_ac_node(n); 
 	}
-	if (r == R_INDEX)
-		r14_valid = 0;
+	r_modify(r, 2);
 	printf("\tld r%u,#>_%s+%u\n", r, c, off);
 	printf("\tld r%u,#<_%s+%u\n", r + 1, c, off);
 }
@@ -156,8 +236,7 @@ static void load_r_label(unsigned r, struct node *n, unsigned off)
 		r = 2;
 		set_ac_node(n);
 	}
-	if (r == R_INDEX)
-		r14_valid = 0;
+	r_modify(r, 2);
 	printf("\tld r%u,#>T%u+%u\n", r, n->val2, off);
 	printf("\tld r%u,#<T%u+%u\n", r + 1, n->val2, off);
 }
@@ -171,8 +250,7 @@ static void load_r_r(unsigned r1, unsigned r2)
 
 	if (r1 < 4)
 		invalidate_ac();
-	if (r1 == R_INDEX || r1 == R_INDEX + 1)
-		r14_valid = 0;
+	r_modify(r1, 1);
 	printf("\tld r%u,r%u\n", r1, r2);
 }
 
@@ -180,8 +258,7 @@ static void load_r_R(unsigned r1, unsigned r2)
 {
 	if (R_ISAC(r1))
 		r1 = r1 & 0x0F;
-	if (r1 == R_INDEX || r1 == R_INDEX + 1)
-		r14_valid = 0;
+	r_modify(r1,1);
 	printf("\tld r%u,%u\n", r1, r2);
 }
 
@@ -193,13 +270,20 @@ static void load_R_r(unsigned r1, unsigned r2)
 }
 
 /* Low level ops so we can track them later */
+static void op_r_c(unsigned r1, unsigned val, const char *op)
+{
+	if (r1 < 4)
+		invalidate_ac();
+	r_modify(r1, 1);
+	printf("\t%s r%u,#%u\n", op, r1, val);
+}
+
 static void op_r_r(unsigned r1, unsigned r2, const char *op)
 {
 	if (r1 < 4)
 		invalidate_ac();
-	if (r1 == R_INDEX || r1 == R_INDEX + 1)
-		r14_valid = 0;
-	printf("\t%s r%u,r%u", op, r1, r2);
+	r_modify(r1, 1);
+	printf("\t%s r%u,r%u\n", op, r1, r2);
 }
 
 static void load_r_constb(unsigned r, unsigned char v)
@@ -210,8 +294,7 @@ static void load_r_constb(unsigned r, unsigned char v)
 		r &= 0x0F;
 	if (r <= 3)
 		invalidate_ac();
-	if (r == R_INDEX || r == R_INDEX + 1)
-		r14_valid = 0;
+	r_set(r, v);
 	if (v == 0)
 		printf("\tclr r%u\n", r);
 	else
@@ -220,10 +303,8 @@ static void load_r_constb(unsigned r, unsigned char v)
 
 static void load_rr_const(unsigned r, unsigned v)
 {
-	if (r == R_ACPTR) {
-		invalidate_ac();
+	if (r == R_ACPTR)
 		r = 2;
-	}
 	load_r_constb(r, v >> 8);
 	load_r_constb(r + 1, v);
 }
@@ -250,15 +331,10 @@ static void add_r_const(unsigned r, unsigned long v, unsigned size)
 	else
 		r += size - 1;
 
-	if (r == R_INDEX || r == R_INDEX + 1) {
-		if (size != 2) 
-			r14_valid = 0;
-		else
-			r14_sp += v;
-	}
-
 	if (r < 4)
 		invalidate_ac();
+
+	r_adjust(r - size + 1, v, size);
 
 	/* Eliminate any low bytes that are not changed */
 	while(size && (v & 0xFF) == 0x00) {
@@ -273,11 +349,21 @@ static void add_r_const(unsigned r, unsigned long v, unsigned size)
 	   1 which are two bytes as incw/decw and four as add/adc */
 	/* FIXME: 2 is also useful */
 	if (size == 2) {
-		if (v == 1) {
+		if (v == 2) {
+			rr_incw(r - 1);
 			rr_incw(r - 1);
 			return;
 		}
 		if ((signed)v == -1) {
+			rr_decw(r - 1);
+			return;
+		}
+		if (v == 1) {
+			rr_incw(r - 1);
+			return;
+		}
+		if ((signed)v == -2) {
+			rr_decw(r - 1);
 			rr_decw(r - 1);
 			return;
 		}
@@ -324,8 +410,7 @@ static void add_r_r(unsigned r1, unsigned r2, unsigned size)
 	if (r1 < 4)
 		invalidate_ac();
 
-	if (r1 == R_INDEX || r2 == R_INDEX || r1 == R_INDEX + 1 || r2 == R_INDEX + 1)
-		r14_valid = 0;
+	r_modify(r1, 2);
 
 	printf("\tadd r%u,r%u\n", r1--, r2--);
 	while(--size)
@@ -347,8 +432,7 @@ static void sub_r_r(unsigned r1, unsigned r2, unsigned size)
 	if (r1 < 4)
 		invalidate_ac();
 
-	if (r1 == R_INDEX || r2 == R_INDEX || r1 == R_INDEX + 1 || r2 == R_INDEX + 1)
-		r14_valid = 0;
+	r_modify(r1 - size + 1, size);
 
 	printf("\tsub r%u,r%u\n", r1--, r2--);
 	while(--size)
@@ -362,24 +446,8 @@ static void sub_r_const(unsigned r, unsigned long v, unsigned size)
 	else
 		r += size - 1;
 
-	if (r == R_INDEX || r == R_INDEX + 1) {
-		if (size != 2) 
-			r14_valid = 0;
-		else
-			r14_sp -= v;
-	}
-
 	if (r < 4)
 		invalidate_ac();
-
-	/* Eliminate any low bytes that are not changed */
-	while(size && (v & 0xFF) == 0x00) {
-		r--;
-		size--;
-		v >>= 8;
-	}
-	if (size == 0)
-		return;
 
 	/* SUB to r%d is 2 bytes so the only useful cases are word inc/dec of
 	   1 which are two bytes as incw/decw and four as add/adc */
@@ -393,6 +461,33 @@ static void sub_r_const(unsigned r, unsigned long v, unsigned size)
 			return;
 		}
 	}
+	if (size == 1) {
+		if (v == 1) {
+			r_dec(r);
+			return;
+		}
+		if (v == -1) {
+			r_inc(r);
+			return;
+		}
+		if (v == -2) {
+			r_inc(r);
+			r_inc(r);
+			return;
+		}
+	}
+
+	r_adjust(r - size + 1, -v, size);
+
+	/* Eliminate any low bytes that are not changed */
+	while(size && (v & 0xFF) == 0x00) {
+		r--;
+		size--;
+		v >>= 8;
+	}
+	if (size == 0)
+		return;
+
 	printf("\tsub r%u,#%u\n", r--, (unsigned)v & 0xFF);
 	while(--size) {
 		v >>= 8;
@@ -411,9 +506,10 @@ static void cmpne_r_0(unsigned r, unsigned size)
 		printf("\tor r3, r%u\n", r);
 	else while(--size)
 		printf("\tor r3, r%u\n", r++);
+	r_modify(3, 1);
 	load_r_constb(2,0);
 	printf("\tjr z, X%u\n", ++label_count);
-	printf("\tld r3, #1\n");
+	load_r_constb(3, 1);
 	printf("X%u:\n", label_count);
 }
 
@@ -421,7 +517,8 @@ static void cmpeq_r_0(unsigned r, unsigned size)
 {
 	/* Will be able to do better for T_BOOL cases and T_BANG */
 	cmpne_r_0(r, size);
-	printf("\txor r3,#1\n");
+	op_r_c(3, 1, "xor");
+	r_modify(3, 1);
 }
 
 static void mono_r(unsigned r, unsigned size, const char *op)
@@ -430,8 +527,7 @@ static void mono_r(unsigned r, unsigned size, const char *op)
 		r = 4 - size;
 	if (r < 4)
 		invalidate_ac();
-	if (r == R_INDEX || r == R_INDEX + 1)
-		r14_valid = 0;
+	r_modify(r, size);
 	while(size--)
 		printf("\t%s r%u\n", op, r++);
 }
@@ -447,6 +543,7 @@ static void rshift_r(unsigned r, unsigned size, unsigned uns)
 		r = 4 - size;
 	if (r < 4)
 		invalidate_ac();
+	r_modify(r, size);
 	if (uns)
 		printf("\trcf\nrrc r%u\n", r++);
 	else
@@ -472,8 +569,7 @@ static void logic_r_const(unsigned r, unsigned long v, unsigned size, unsigned o
 	if (r <= 4)
 		invalidate_ac();
 
-	if (r >= R_INDEX)
-		r14_valid = 0;
+	r_modify(r, size);
 
 	/* R is now 1 after low byte */
 	while(size--) {
@@ -483,8 +579,10 @@ static void logic_r_const(unsigned r, unsigned long v, unsigned size, unsigned o
 		if (n == 0xFF) {
 			if (op == OP_OR)
 				load_r_constb(r, 0xFF);
-			else if (op == OP_XOR)
+			else if (op == OP_XOR) {
 				printf("\tcom r%u\n", r);
+				r_modify(r, 1);
+			}
 			/* and nothing for and FF */
 			continue;
 		}
@@ -493,51 +591,101 @@ static void logic_r_const(unsigned r, unsigned long v, unsigned size, unsigned o
 				load_r_constb(r, 0x00);
 			/* OR and XOR do nothing */
 			continue;
-		}
-		else
+		} else {
 			printf("\t%s r%u, #%u\n", opn, r, n);
+			r_modify(r, 1);
+		}
 	}
+}
+
+static void load_l_sprel(unsigned r, unsigned off)
+{
+	load_r_R(r, R_SPH);
+	load_r_R(r + 1, R_SPL);
+	add_r_const(r, off, 2);
+
+	if (r == R_INDEX) {
+		r14_valid = 1;
+		r14_sp = off - sp;
+		printf(";r14 valid %d\n", r14_sp);
+	}
+	if (r == 2) {
+		r2_valid = 1;
+		r2_sp = off - sp;
+		printf(";r2 valid %d\n", r2_sp);
+	}
+}
+
+static void load_l_mod(unsigned r, unsigned rs, unsigned diff, unsigned off)
+{
+	if (r != rs) {
+		load_r_r(r, rs);
+		load_r_r(r + 1, rs + 1);
+	}
+	add_r_const(r, -diff, 2);
+
+	if (r == R_INDEX) {
+		r14_valid = 1;
+		r14_sp = off - sp;
+		printf(";r14 valid %d\n", r14_sp);
+	}
+	if (r == 2) {
+		r2_valid = 1;
+		r2_sp = off - sp;
+		printf(";r2 valid %d\n", r2_sp);
+	}
+}
+
+static unsigned load_l_cost(int diff)
+{
+	unsigned n = abs(diff);
+	if (n <= 2)
+		return 2 * n;
+	return 6;
 }
 
 static void load_r_local(unsigned r, unsigned off)
 {
-	int diff;
+	int diff14;
+	int diff2;
+	unsigned cost2 = 0xFFFF, cost14 = 0xFFFF, costsp;
+
 	if (R_ISAC(r))
 		r = 2;
 
-	printf(";local %d (cache %d)\n", off - sp, r14_sp);
-	if (r == R_INDEX && r14_valid) {
-		/* TODO: For exact match case we should allow it even if not INDEX and
-		   just copy the registers. Maybe also if one out */
-		diff = r14_sp - (off - sp);
-		if (diff == 0)
-			return;
-		/* incw/decw are 2 bytes a shot, add is 3 also */
-		if (diff < -2 || diff > 2) {
-			add_r_const(R_INDEX, -diff, 2);
-			r14_valid = 1;
-			r14_sp = off - sp;
-			return;
-		}
-		/* Within range but not quite right */
-		printf("; diff %d\n", diff);
-		while(diff < 0) {
-			diff++;
-			rr_incw(R_INDEX);
-		}
-		while(diff > 0) {
-			diff--;
-			rr_decw(R_INDEX);
-		}
-	} else {
-		load_r_R(r, R_SPH);
-		load_r_R(r + 1, R_SPL);
-		add_r_const(r, off, 2);
-		if (r == R_INDEX) {
-			r14_valid = 1;
-			r14_sp = off - sp;
-		}
+	diff14 = r14_sp - (off - sp);
+	diff2 = r2_sp - (off - sp);
+
+	printf("; load r local %d\n", off);
+	if (r14_valid)
+		printf(";14: local %d (cache %d) diff %d\n", off - sp, r14_sp, diff14);
+	if (r2_valid)
+		printf(";2: local %d (cache %d) diff %d\n", off - sp, r2_sp, diff2);
+
+	/* Work out the cost for each */
+	if (r14_valid) {
+		cost14 = load_l_cost(diff14);
+		if (r != 14)
+			cost14 += 4;
 	}
+	if (r2_valid) {
+		cost2 = load_l_cost(diff2);
+		if (r != 2)
+			cost2 += 4;
+	}
+	costsp = load_l_cost(off) + 6;
+
+	printf(";costs r2 %d r4 %d rsp %d\n", cost2, cost14, costsp);
+
+	/* Cheapest is to load from SP */
+	if (costsp <= cost2 && costsp <= cost14) {
+		load_l_sprel(r, off);
+		return;
+	}
+	if (cost2 < cost14)
+		load_l_mod(r, 2, diff2, off);
+	else
+		load_l_mod(r, 14, diff14, off);
 }
 
 static void load_r_memr(unsigned val, unsigned rr, unsigned size)
@@ -549,6 +697,7 @@ static void load_r_memr(unsigned val, unsigned rr, unsigned size)
 	if (val < 4)
 		invalidate_ac();
 	printf("\tlde r%u, @rr%u\n", val, rr);
+	r_modify(val, size);
 	while(--size) {
 		val++;
 		rr_incw(rr);
@@ -612,8 +761,7 @@ static void pop_r(unsigned r)
 		invalidate_ac();
 		r = r & 0x0F;
 	}
-	if (r == R_INDEX || r == R_INDEX + 1)
-		r14_valid = 0;
+	r_modify(r, 1);
 	printf("\tpop r%u\n", r);
 }
 
@@ -629,8 +777,7 @@ static void pop_rr(unsigned rr)
 {
 	if (R_ISAC(rr))
 		rr = rr & 0x0F;
-	if (rr == R_INDEX)
-		r14_valid = 0;
+	r_modify(rr, 2);
 	printf("\tpop r%u\n", rr);
 	printf("\tpop r%u\n", rr + 1);
 }
@@ -668,6 +815,7 @@ static void pop_op(unsigned r, const char *op, unsigned size)
 	}
 	while(size--) {
 		pop_r(R_WORK);
+		r_modify(r, 1);
 		printf("\t%s r%u, r%u\n", op, r++, R_WORK);
 	}
 }
@@ -680,7 +828,8 @@ static void logic_popeq(unsigned size, const char *op)
 	while(n) {
 		load_r_memr(R_WORK, R_INDEX, 1);
 		rr_incw(R_INDEX);
-		printf("\t%s r%u, r%u\n", op, 4 - n, R_WORK);
+		r_modify(4 - n, 1);
+		op_r_r(4 - n, R_WORK, op);
 		n--;
 	}
 	revstore_r_memr(R_AC, R_INDEX, size);
@@ -702,10 +851,9 @@ static unsigned label(void)
 
 static void djnz_r(unsigned r, unsigned l)
 {
-	if (r == R_INDEX || r == R_INDEX + 1)
-		r14_valid = 0;
 	if (R_ISAC(r))
 		r = 3;
+	r_modify(r, 1);
 	printf("\tdjnz r%u, X%u\n", r, l);
 }
 
@@ -950,6 +1098,7 @@ void gen_frame(unsigned size, unsigned aframe)
 	while(size--)
 		RR_decw(R_SPH);
 	r14_valid = 0;
+	r2_valid = 0;
 }
 
 void gen_epilogue(unsigned size, unsigned argsize)
@@ -1047,7 +1196,20 @@ void gen_helpcall(struct node *n)
 		gen_push(n->right);
 	invalidate_ac();
 	printf("\tcall __");
+	r2_valid = 0;
 	r14_valid = 0;
+}
+
+/* Generate a helper that keeps r14/r15 */
+void gen_keepcall(struct node *n)
+{
+	/* Check both N and right because we handle casts to/from float in
+	   C call format */
+	if (c_style(n))
+		gen_push(n->right);
+	invalidate_ac();
+	printf("\tcall __");
+	r2_valid = 0;
 }
 
 void gen_helpclean(struct node *n)
@@ -1066,7 +1228,8 @@ void gen_helpclean(struct node *n)
 		gen_cleanup(s);
 		/* C style ops that are ISBOOL didn't set the bool flags */
 		if (n->flags & ISBOOL)
-			printf("\tor r20,r3\n");
+			printf("\tor r3,r2\n");
+		r_modify(2, 2);
 	}
 }
 
@@ -1075,6 +1238,7 @@ void gen_switch(unsigned n, unsigned type)
 	/* TODO: this probably belongs as a routine in the cpu bits */
 	printf("\tld r%u, #>Sw%u\n", R_INDEX, n);
 	printf("\tld r%u, #<Sw%u\n", R_INDEX + 1, n);
+	r_modify(R_INDEX, 2);
 	/* TODO: tracking fixes for R14/15 when tracking added ??*/
 	invalidate_all();
 	/* Nothing is preserved over a switch but */
@@ -1683,9 +1847,10 @@ unsigned gen_shortcut(struct node *n)
 			return 1;
 		s = get_size(r->type);
 		if (s <= 2 && (n->flags & CCONLY)) {
-			if (s == 2)
-				printf("\tor r2,r3\n");
-			else
+			if (s == 2) {
+				printf("\tor r3,r2\n");
+				r_modify(3, 1);
+			} else
 				printf("\tor r3,r3\n");
 			return 1;
 		}
@@ -2161,7 +2326,7 @@ unsigned gen_node(struct node *n)
 		/* Until we do cc only. Also if right is bool can do
 		   a simple xor */
 		if (n->right->flags & ISBOOL)
-			printf("\txor r3,#1\n");
+			op_r_c(3, 1, "xor");
 		else
 			cmpeq_r_0(R_AC, size);
 		n->flags |= ISBOOL;
@@ -2192,7 +2357,6 @@ unsigned gen_node(struct node *n)
 			return 0;
 		pop_compare(size, u ? "ugt" : "gt");
 		n->flags |= ISBOOL;
-		return 1;
 	case T_GT:
 		if (n->type == T_FLOAT)
 			return 0;
@@ -2264,12 +2428,12 @@ unsigned gen_node(struct node *n)
 		add_r_const(R_INDEX, size - 1, 2);
 		/* Now points to top byte */
 		load_r_memr(R_WORK, R_INDEX, 1);
-		printf("\tadd r%u,r%u\n", 3, R_WORK);
+		op_r_r(3, R_WORK, "add");
 		invalidate_ac();
 		while(--x) {
 			rr_decw(R_INDEX);
 			load_r_memr(R_WORK, R_INDEX, 1);
-			printf("\tadc r%u,r%u\n", 3 - x, R_WORK);
+			op_r_r(3 - x , R_WORK, "adc");
 			invalidate_ac();
 		}
 		/* Result is now in AC, and index points to start of
@@ -2287,13 +2451,13 @@ unsigned gen_node(struct node *n)
 		add_r_const(R_INDEX, size - 1, 2);
 		/* Now points to low byte */
 		load_r_memr(R_WORK, R_INDEX, 1);
-		printf("\tsub r%u,r%u\n", R_WORK, 3);
+		op_r_r(R_WORK, 3, "sub");
 		invalidate_ac();
 		load_r_r(3, R_WORK);
 		while(--x) {
 			rr_decw(R_INDEX);
 			load_r_memr(R_WORK, R_INDEX, 1);
-			printf("\tsbc r%u,r%u\n", R_WORK, 3 - x);
+			op_r_r(R_WORK, 3 - x, "sbc");
 			invalidate_ac();
 			load_r_r(3 - x, R_WORK);
 		}
