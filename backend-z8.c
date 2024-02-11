@@ -144,35 +144,42 @@ static void r_set(unsigned r, unsigned v)
 	r_type[r] = R_CONST;
 }
 
-/* We just do the simple sp tracking for now */
+static unsigned r_do_adjust(unsigned r, int by, unsigned size)
+{
+	unsigned rb = r;
+	unsigned n;
+	r += size - 1;
+	if (r_type[r] == R_CONST) {
+		n = r_val[r] + (by & 0xFF);
+		r_val[r] = n & 0xFF;
+		while(--size) {
+			--r;
+			by >>= 8;
+			if (r_type[r] == R_CONST) {
+				n = r_val[r] + (by & 0xFF) + (n >> 8);
+				r_val[r] = n;
+			} else
+				break;
+		}
+	}
+	/* Mark any unknown bytes as unknown */
+	if (size)
+		r_modify(rb, size);
+	return size;
+}
+
 static void r_adjust(unsigned r, int by, unsigned size)
 {
-	unsigned n;
-
-	if (r == 14 && size == 2)
+	if (r == 14 && size == 2 && r14_valid) {
 		r14_sp += by;
-	else if (r == 2 && size == 2)
+		r_do_adjust(14, by, 2);
+		r14_valid = 1;
+	} else if (r == 2 && size == 2 && r2_valid) {
 		r2_sp += by;
-	else  {
-		r += size - 1;
-		if (r_type[r] == R_CONST) {
-			n = r_val[r] + (by & 0xFF);
-			r_val[r] = n & 0xFF;
-			while(--size) {
-				--r;
-				by >>= 8;
-				if (r_type[r] == R_CONST) {
-					n = r_val[r] + (by & 0xFF) + (n >> 8);
-					r_val[r] = n;
-				} else
-					break;
-			}
-		}
-		/* Unknown bits stay unknown, as does anything after as the carry
-		   result is not known */
-		if (size)
-			r_modify(r, size);
-	}
+		r_do_adjust(2, by, 2);
+		r2_valid = 1;
+	} else
+		size = r_do_adjust(r, by , size);
 }
 
 /*
@@ -688,14 +695,40 @@ static void load_r_local(unsigned r, unsigned off)
 		load_l_mod(r, 14, diff14, off);
 }
 
+static void load_local_helper(unsigned v, unsigned size)
+{
+	/* Only works for R_AC case */
+	/* We add the extra 2 because the call adjusted the stack as well */
+	v += sp;
+	if (v < 254) {
+		load_r_const(R_INDEX + 1, v + 2, 1);
+		printf("\tcall __gargr%u\n", size);
+	} else {
+		load_r_const(R_INDEX, v + 2, 2);
+		printf("\tcall __gargrr%u\n", size);
+	}
+	r_modify(4 - size, size);
+	r14_valid = 1;
+	r14_sp = v - sp + size - 1;
+}
+
 static void load_r_memr(unsigned val, unsigned rr, unsigned size)
 {
 	if (R_ISAC(val))
 		val = 4 - size;
 	/* Check this on its own as we sometimes play games with AC
 	   registers */
-	if (val < 4)
+	if (val == 4 - size) {
 		invalidate_ac();
+		/* We use helpers for the usual case when building for
+		   small */
+		if (rr == R_INDEX && size > 1 && opt < 1) {
+			printf("\tcall __load%d\n", size);
+			r_adjust(R_INDEX, size - 1, 2);
+			r_modify(val, size);
+			return;
+		}
+	}
 	printf("\tlde r%u, @rr%u\n", val, rr);
 	r_modify(val, size);
 	while(--size) {
@@ -709,6 +742,11 @@ static void store_r_memr(unsigned val, unsigned rr, unsigned size)
 {
 	if (R_ISAC(val))
 		val = 4 - size;
+	if (val == 4 - size && rr == R_INDEX && size > 1 && opt < 1) {
+		printf("\tcall __store%u\n", size);
+		r_adjust(R_INDEX, size - 1, 2);
+		return;
+	}
 	printf("\tlde @rr%u, r%u\n", rr, val);
 	while(--size) {
 		val++;
@@ -723,9 +761,16 @@ static void store_r_memr(unsigned val, unsigned rr, unsigned size)
    T_LSTORE and a helper to decide which way to go : TODO */
 static void revstore_r_memr(unsigned val, unsigned rr, unsigned size)
 {
-	if (R_ISAC(val))
+	if (R_ISAC(val)) {
 		val = 3;
-	else
+		if (rr == R_INDEX && size > 1 && opt < 1) {
+			printf(";%x index %x\n", r14_valid, r14_sp);
+			printf("\tcall __revstore%u\n", size);
+			r_adjust(R_INDEX, - (size - 1), 2);
+			printf(";%x index %x\n", r14_valid, r14_sp);
+			return;
+		}
+	} else
 		val += size - 1;
 	printf("\tlde @rr%u, r%u\n", rr, val);
 	while(--size) {
@@ -1749,6 +1794,7 @@ unsigned gen_direct(struct node *n)
 				load_r_constb(R_INDEX, r->value & 31);
 				x = label();
 			}
+			/* FIXME: need to teach this 8bit moves */
 			rshift_r(R_AC, size, n->type & UNSIGNED);
 			if (r->value > 1)
 				djnz_r(R_INDEX, x);
@@ -2152,6 +2198,10 @@ unsigned gen_node(struct node *n)
 		if (ac_node.op == T_LREF && ac_node.value == v && 
 			get_size(ac_node.type) >= size) {
 			printf(";avoided load %d\n", v);
+			return 1;
+		}
+		if (opt < 1) {
+			load_local_helper(v, size);
 			return 1;
 		}
 		/* effectively SPL/SPH + n */
