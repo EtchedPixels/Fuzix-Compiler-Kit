@@ -1647,6 +1647,14 @@ unsigned gen_direct(struct node *n)
 	/* The const form helpers do the reverse compare so we use the opposite one */
 	case T_GTEQ:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
+			/* Quick way to do the classic signed >= 0 */
+			if (r->value == 0 && !u) {
+				printf("\tcp r%u,#0x80\n", R_ACCHAR + 1 - size);
+				load_r_const(R_ACINT, 0, 2);
+				op_r_c(3, 0, "adc");
+				n->flags |= ISBOOL;
+				return 1;
+			}
 			load_r_const(12, r->value , size);
 			helper_s(n, "cclteqconst");
 			n->flags |= ISBOOL;
@@ -1671,6 +1679,15 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	case T_LT:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
+			/* Quick way to do the classic signed < 0 */
+			if (r->value == 0 && !u) {
+				printf("\tcp r%u,#0x80\n", R_ACCHAR + 1 - size);
+				load_r_const(R_ACINT, 0, 2);
+				printf("\tccf\n");
+				op_r_c(3, 0, "adc");
+				n->flags |= ISBOOL;
+				return 1;
+			}
 			load_r_const(12, r->value , size);
 			helper_s(n, "ccgtconst");
 			n->flags |= ISBOOL;
