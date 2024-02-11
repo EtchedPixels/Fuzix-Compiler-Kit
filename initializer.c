@@ -11,6 +11,8 @@ static void ini_single(struct symbol *sym, unsigned type, unsigned storage)
     n = typeconv(n, type, 1);
     if (storage == S_AUTO || storage == S_REGISTER) {
         n = tree(T_EQ, make_symbol(sym), n);
+        /* We don't re-use the result of the assign so shortcuts are ok */
+        n->flags |= NORETURN|SIDEEFFECT;
         write_tree(n);
     } else {
         put_typed_data(n);
