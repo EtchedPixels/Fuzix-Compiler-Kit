@@ -58,9 +58,9 @@ situations. This is a bug to be fixed.
 
 ## Language
 
-All the C89 keywords are recognized. The register directive is ignored,
-volatile and const are parsed and mostly ignored. While const is useful it really
-complicates type handling. Volatile on the other hand is broken by design.
+All the C89 keywords are recognized. Volatile and const are parsed and mostly
+ignored. While const is useful it really complicates type handling. Volatile
+on the other hand is broken by design.
 
 Identifiers comply with the C standard.
 
