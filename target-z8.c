@@ -64,11 +64,23 @@ unsigned target_type_remap(unsigned type)
 	return type;
 }
 
+static unsigned rused;
+
+/* Just hand out register pairs for anything byte or word sized */
 unsigned target_register(unsigned type)
 {
-	return 0;
+	/* No long or floats */
+	if (type >= CLONG && !PTR(type))
+		return 0;
+	/* None left ? */
+	if (rused == 4)
+		return 0;
+	rused++;
+	func_flags |= F_REG(rused);
+	return rused;
 }
 
 void target_reginit(void)
 {
+	rused = 0;
 }

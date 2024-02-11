@@ -36,7 +36,9 @@
 #define T_RREF		(T_USER+7)
 #define T_RSTORE	(T_USER+8)
 #define T_RDEREF	(T_USER+9)		/* *regptr */
-#define T_REQ		(T_USER+10)		/* *regptr */
+#define T_REQ		(T_USER+10)		/* *regptr = */
+#define T_RDEREFPLUS	(T_USER+11)		/* *regptr++ */
+#define T_REQPLUS	(T_USER+12)		/* *regptr++ =  */
 
 
 /*
@@ -56,8 +58,8 @@ static unsigned r2_valid;	/* R2/3 are a valid local ptr */
 
 static uint8_t r_val[16];
 static uint8_t r_type[16];	/* For now just unknown and const */
-#define R_UNKNOWN	0
-#define R_CONST		1
+#define RV_UNKNOWN	0
+#define RV_CONST	1
 
 static struct node ac_node;	/* What is in AC 0 type = unknown */
 
@@ -110,7 +112,10 @@ static void invalidate_all(void)
 #define R_ISAC(x)		(((x) & 0xE0) == 0xE0)
 #define R_AC		0xE0
 
-#define REGBASE		4		/* Reg vars 4,6,8,10,12 */
+#define REGBASE		4		/* Reg vars 4,6,8,10 */
+
+#define R_REG(x)	(((x) * 2) + REGBASE)
+#define R_REG_S(x,s)	(((x) * 2) + REGBASE + (2 - size))
 
 #define R_WORK		12		/* 12/13 are work ptr */
 #define R_INDEX		14		/* 14/15 are usually index */
@@ -128,7 +133,7 @@ static void r_modify(unsigned r, unsigned size)
 		invalidate_ac();
 	}
 	while(size--)
-		r_type[r++] = R_UNKNOWN;
+		r_type[r++] = RV_UNKNOWN;
 }
 
 /* Until we do value track */
@@ -141,7 +146,7 @@ static void r_set(unsigned r, unsigned v)
 		invalidate_ac();
 	}
 	r_val[r] = v & 0xFF;
-	r_type[r] = R_CONST;
+	r_type[r] = RV_CONST;
 }
 
 static unsigned r_do_adjust(unsigned r, int by, unsigned size)
@@ -149,13 +154,13 @@ static unsigned r_do_adjust(unsigned r, int by, unsigned size)
 	unsigned rb = r;
 	unsigned n;
 	r += size - 1;
-	if (r_type[r] == R_CONST) {
+	if (r_type[r] == RV_CONST) {
 		n = r_val[r] + (by & 0xFF);
 		r_val[r] = n & 0xFF;
 		while(--size) {
 			--r;
 			by >>= 8;
-			if (r_type[r] == R_CONST) {
+			if (r_type[r] == RV_CONST) {
 				n = r_val[r] + (by & 0xFF) + (n >> 8);
 				r_val[r] = n;
 			} else
@@ -230,7 +235,7 @@ static void load_r_name(unsigned r, struct node *n, unsigned off)
 	const char *c = namestr(n->snum);
 	if (R_ISAC(r)) {
 		r = 2;
-		set_ac_node(n); 
+		set_ac_node(n);
 	}
 	r_modify(r, 2);
 	printf("\tld r%u,#>_%s+%u\n", r, c, off);
@@ -290,6 +295,11 @@ static void op_r_r(unsigned r1, unsigned r2, const char *op)
 	if (r1 < 4)
 		invalidate_ac();
 	r_modify(r1, 1);
+	printf("\t%s r%u,r%u\n", op, r1, r2);
+}
+
+static void opnoeff_r_r(unsigned r1, unsigned r2, const char *op)
+{
 	printf("\t%s r%u,r%u\n", op, r1, r2);
 }
 
@@ -460,11 +470,11 @@ static void sub_r_const(unsigned r, unsigned long v, unsigned size)
 	   1 which are two bytes as incw/decw and four as add/adc */
 	if (size == 2) {
 		if (v == 1) {
-			rr_decw(r);
+			rr_decw(r - 1);
 			return;
 		}
 		if ((signed)v == -1) {
-			rr_decw(r);
+			rr_decw(r - 1);
 			return;
 		}
 	}
@@ -576,8 +586,6 @@ static void logic_r_const(unsigned r, unsigned long v, unsigned size, unsigned o
 	if (r <= 4)
 		invalidate_ac();
 
-	r_modify(r, size);
-
 	/* R is now 1 after low byte */
 	while(size--) {
 		r--;
@@ -600,9 +608,34 @@ static void logic_r_const(unsigned r, unsigned long v, unsigned size, unsigned o
 			continue;
 		} else {
 			printf("\t%s r%u, #%u\n", opn, r, n);
+			/* TODO: can calc this if know, not clear it is useful */
 			r_modify(r, 1);
 		}
 	}
+}
+
+static void logic_r_r(unsigned r1, unsigned r2, unsigned size, unsigned op)
+{
+	const char *opn = "and\0or\0\0xor" + op * 4;
+
+	if (R_ISAC(r1))
+		r1 = 4;
+	else
+		r1 += size;
+
+	if (R_ISAC(r2))
+		r2 = 4;
+	else
+		r2 += size;
+
+	if (r1 <= 4)
+		invalidate_ac();
+
+	r_modify(r1, size);
+
+	/* R is now 1 after low byte */
+	while(size--)
+		printf("\t%s r%u, r%u\n", opn, --r1, --r2);
 }
 
 static void load_l_sprel(unsigned r, unsigned off)
@@ -780,17 +813,24 @@ static void revstore_r_memr(unsigned val, unsigned rr, unsigned size)
 	}
 }
 
-static unsigned logic_eq_const(struct node *r,unsigned v, unsigned size, unsigned op)
+static unsigned logic_eq_const_r(struct node *r,unsigned v, unsigned size, unsigned op)
 {
-	if (r->op != T_CONSTANT || size > 2)
+	if (size > 2)
 		return 0;
-	/* Could spot 0000 and FFFF but prob no point */
-	load_r_r(0, 2);
-	load_r_r(1, 3);
-	load_r_memr(R_AC, 0, size);
-	logic_r_const(R_AC, v, size, op);
-	revstore_r_memr(R_AC, 0, size);
-	return 1;
+	if (r->op == T_CONSTANT) {
+		/* Could spot 0000 and FFFF but prob no point */
+		load_r_r(0, 2);
+		load_r_r(1, 3);
+		load_r_memr(R_AC, 0, size);
+		logic_r_const(R_AC, v, size, op);
+		revstore_r_memr(R_AC, 0, size);
+		return 1;
+	}
+	if (r->op == T_RREF) {
+		logic_r_const(R_AC, R_REG_S(v, size), size, op);
+		return 1;
+	}
+	return 0;
 }
 
 static void push_r(unsigned r)
@@ -952,6 +992,26 @@ static void test_sign(unsigned r, unsigned size)
 }
 
 /*
+ *	Register variable helpers
+ */
+
+static void load_ac_reg(unsigned r, unsigned size)
+{
+	r = R_REG(r);
+	load_r_r(R_ACCHAR, r + 1);
+	if (size == 2)
+		load_r_r(R_ACINT, r);
+}
+
+static void load_reg_ac(unsigned r, unsigned size)
+{
+	r = R_REG(r);
+	if (size == 2)
+		load_r_r(r, R_ACINT);
+	load_r_r(r + 1, R_ACCHAR);
+}
+
+/*
  *	Object sizes
  */
 
@@ -973,6 +1033,64 @@ static unsigned get_size(unsigned t)
 	error("gs");
 	return 0;
 }
+
+/* Load helpers. Try and get a value into r (usually 12/13) without messing up ac. May
+   trash r14/r15. Set mm if returned reg must match requested */
+static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
+{
+	unsigned size = get_size(n->type);
+	unsigned v = n->value;
+	if (size > 2)
+		return 0;
+	switch(n->op) {
+	case T_LOCAL:
+		load_r_local(r, v);
+		return r;
+	case T_NAME:
+		load_r_name(r, n, v);
+		return r;
+	case T_LABEL:
+		load_r_label(r, n, v);
+		return r;
+	case T_LREF:
+		load_r_local(R_INDEX, v);
+		if (size == 1)
+			r++;
+		load_r_memr(r, R_INDEX, size);
+		return r;
+	case T_NREF:
+		load_r_name(R_INDEX, n, v);
+		if (size == 1)
+			r++;
+		load_r_memr(r, R_INDEX, size);
+		return r;
+	case T_LBREF:
+		load_r_label(R_INDEX, n, v);
+		if (size == 1)
+			r++;
+		load_r_memr(r, R_INDEX, size);
+		return r;
+	case T_CONSTANT:
+		/* Load lower half */
+		if (size == 1)
+			r++;
+		load_r_const(r, v, size);
+		return r;
+	case T_RREF:
+		v = R_REG_S(v, size);
+		if (mm == 0 || v  == r)
+			return v;
+		load_r_r(r + 1, v + 1);
+		if (size == 2) {
+			load_r_r(r, v);
+			return r;
+		}
+		return r + 1;
+	}
+	return 0;
+}
+
+/* Tree manipulation */
 
 static void squash_node(struct node *n, struct node *o)
 {
@@ -1036,6 +1154,28 @@ struct node *gen_rewrite_node(struct node *n)
 		- rewrite some reg ops
 	*/
 
+	/* regptr++  The size will always be the true size for ++ and const */
+	if (op == T_DEREF && r->op == T_PLUSPLUS && r->left->op == T_REG)
+	{
+		n->op = T_RDEREFPLUS;
+		n->value = r->left->value;
+		free_node(r->left);
+		free_node(r->right);
+		free_node(r);
+		n->right = NULL;
+		return n;
+	}
+	/* *regptr++ =  again the size will be const and right */
+	if (op == T_EQ && l->op == T_PLUSPLUS && l->left->op == T_REG)
+	{
+		n->op = T_REQPLUS;
+		n->value = l->left->value;
+		free_node(l->left);
+		free_node(l->right);
+		free_node(l);
+		n->left = NULL;
+		return n;
+	}
 	/* *regptr */
 	if (op == T_DEREF && r->op == T_RREF) {
 		n->op = T_RDEREF;
@@ -1055,6 +1195,7 @@ struct node *gen_rewrite_node(struct node *n)
 		return n;
 	}
 	/* Rewrite references into a load operation */
+	/* TODO: these should all work for long types now */
 	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt)) {
 		if (op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
@@ -1163,21 +1304,25 @@ void gen_prologue(const char *name)
 /* TODO: defer this to statements so we can ld/push initializers */
 void gen_frame(unsigned size, unsigned aframe)
 {
+	unsigned r;
 	frame_len = size;
 	sp = 0;
 
-	if (size || func_flags & F_REG(1))
+	if (size)
 		func_cleanup = 1;
 	else
 		func_cleanup = 0;
 
 	argbase = ARGBASE;
-#if 0	
-	if (func_flags & F_REG(1)) {
-		opcode(OP_PUSH, R_BC|R_SP, R_SP, "push b");
-		argbase += 2;
+	
+	for (r = 1; r <= 4; r++) {
+		if (func_flags & F_REG(r)) {
+			push_rr(R_REG(r));
+			argbase += 2;
+			func_cleanup = 1;
+		}
 	}
-#endif
+	
 	if (size > 4) {
 		/* Special handling because of the stack and interrupts */
 		load_r_R(R_INDEX, R_SPL);
@@ -1197,11 +1342,18 @@ void gen_frame(unsigned size, unsigned aframe)
 
 void gen_epilogue(unsigned size, unsigned argsize)
 {
+	unsigned r;
+
 	if (sp != 0)
 		error("sp");
 	if (unreachable)
 		return;
 	add_R_const(R_SPH, size, 2);
+	for (r = 4; r >= 1; r--) {
+		if (func_flags & F_REG(r)) {
+			pop_rr(R_REG(r));
+		}
+	}
 	ret_op();
 }
 
@@ -1430,7 +1582,8 @@ void gen_tree(struct node *n)
 }
 
 /*
- *	We are fairly limited in our direct access ability
+ *	We are fairly limited in our direct access ability but we can juggle a lot
+ *	with the work register pair and smaller sizes
  */
 static unsigned access_direct(struct node *n)
 {
@@ -1438,33 +1591,12 @@ static unsigned access_direct(struct node *n)
 
 	if (op == T_CONSTANT)
 		return 1;
-	if (op == T_LABEL || op == T_NAME)
+	if (op == T_LABEL || op == T_NAME || op == T_LOCAL || op == T_ARGUMENT)
 		return 1;
 	if (op == T_RREF)
 		return 1;
-	return 0;
-}
-
-/* Generate compares */
-static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsigned sign)
-{
-#if 0
-	if (r->op == T_CONSTANT && r->value == 0 && r->type != FLOAT) {
-		char buf[10];
-		strcpy(buf, op);
-		strcat(buf, "0");
-		if (sign)
-			helper_s(n, buf);
-		else
-			helper(n, buf);
-		n->flags |= ISBOOL;
+	if ((op == T_LREF || op == T_LBREF || op == T_NREF) && get_size(n->type) <= 2)
 		return 1;
-	}
-	if (gen_deop(op, n, r, sign)) {
-		n->flags |= ISBOOL;
-		return 1;
-	}
-#endif	
 	return 0;
 }
 
@@ -1518,57 +1650,48 @@ static void gen_fast_mul(unsigned r, unsigned s, unsigned long n)
 		lshift_r(r, s, l);
 }
 
-static unsigned gen_fast_div(unsigned r, unsigned s, unsigned n)
+static unsigned gen_fast_div(unsigned r, unsigned s, unsigned long n)
 {
-	return 0;
-#if 0
 	if (n & (n - 1))
 		return 0;
-
 	while(n > 1) {
-		opcode(OP_ARHL, R_HL,  R_HL, "arhl");
+		rshift_r(r, s, 0);
 		n >>= 1;
 	}
-#endif
-	return 1;	
+	return 1;
 }
 
-static unsigned gen_fast_udiv(unsigned r, unsigned n, unsigned s)
+static unsigned gen_fast_udiv(unsigned r, unsigned s, unsigned long n)
 {
-	if (s != 2)
-		return 0;
 	if (n == 1)
 		return 1;
-	if (n == 256) {
+	/* Move all this into a single rshift helper */
+	if (n == 256 && s == 2) {
 		load_r_r(r, r + 1);
 		load_r_constb(r + 1, 0);
 		return 1;
 	}
+	if (n & (n - 1))
+		return 0;
+	while(n > 1) {
+		rshift_r(r, s, 1);
+		n >>= 1;
+	}
 	return 0;
 }
 
-static unsigned gen_fast_remainder(unsigned r, unsigned n, unsigned s)
+static unsigned gen_fast_remainder(unsigned r, unsigned s, unsigned long n)
 {
-/*	unsigned mask; */
-	if (s != 2)
-		return 0;
 	if (n == 1) {
 		load_r_const(r, 0, s);
 		return 1;
 	}
-	if (n == 256) {
-		load_r_constb(r + 1, 0);
-		return 1;
-	}
 	if (n & (n - 1))
 		return 0;
-#if 0		
 	if (!optsize) {
-		mask = n - 1;
-		gen_logicc(NULL, s, "ani", mask, 1);
+		logic_r_const(r, n - 1, s, OP_AND);
 		return 1;
 	}
-#endif	
 	return 0;
 }
 
@@ -1589,6 +1712,7 @@ unsigned gen_direct(struct node *n)
 	unsigned nr = n->flags & NORETURN;
 	unsigned x;
 	unsigned u = n->type & UNSIGNED;
+	unsigned r1;
 
 	/* We only deal with simple cases for now */
 	if (r) {
@@ -1617,9 +1741,10 @@ unsigned gen_direct(struct node *n)
 		set_ac_node(n);
 		return 1;
 	case T_RSTORE:
-		load_r_r(REGBASE + 2 * n->value, R_ACCHAR);
+		v = R_REG(n->value);
+		load_r_r(v + 1, R_ACCHAR);
 		if (size > 1)
-			load_r_r(REGBASE + 2 * n->value + 1, R_ACINT);
+			load_r_r(v, R_ACINT);
 		return 1;
 	case T_EQ:
 		/* We may be able to do better with thought */
@@ -1628,6 +1753,12 @@ unsigned gen_direct(struct node *n)
 			load_r_r(R_INDEX + 1, R_ACPTR + 1);
 			load_r_const(R_AC, v, size);
 			store_r_memr(R_AC, R_INDEX, size);
+			return 1;
+		}
+		/* Can we load the right without touching AC, and do we need the result */
+		if (nr && (r1 = load_direct(R_WORK, r, 0)) != 0) {
+			/* r1 is the data, R_AC the ptr */
+			store_r_memr(r1, R_AC, size);
 			return 1;
 		}
 		return 0;
@@ -1642,12 +1773,20 @@ unsigned gen_direct(struct node *n)
 				add_r_const(R_AC, v, size);
 			return 1;
 		}
+		if ((r1 = load_direct(R_WORK, r, 0)) != 0) {
+			add_r_r(R_AC, r1, size);
+			return 1;
+		}
 		return 0;
 	case T_MINUS:
 		if (nr)
 			return 1;
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			add_r_const(R_AC, -v, size);
+			return 1;
+		}
+		if ((r1 = load_direct(R_WORK, r, 0)) != 0) {
+			sub_r_r(R_AC, r1, size);
 			return 1;
 		}
 		return 0;
@@ -1664,12 +1803,12 @@ unsigned gen_direct(struct node *n)
 	case T_SLASH:
 		if (nr)
 			return 1;
-		if (r->op == T_CONSTANT && size <= 2) {
+		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			if (n->type & UNSIGNED) {
-				if (gen_fast_udiv(R_AC, size, v))
+				if (gen_fast_udiv(R_AC, size, r->value))
 					return 1;
 			} else {
-				if (gen_fast_div(R_AC, size, v))
+				if (gen_fast_div(R_AC, size, r->value))
 					return 1;
 			}
 		}
@@ -1677,9 +1816,9 @@ unsigned gen_direct(struct node *n)
 	case T_PERCENT:
 		if (nr)
 			return 1;
-		if (r->op == T_CONSTANT) {
+		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			if (n->type & UNSIGNED) {
-				if (size <= 2 && gen_fast_remainder(0, size, r->value))
+				if (gen_fast_remainder(R_AC, size, r->value))
 					return 1;
 			}
 		}
@@ -1691,12 +1830,20 @@ unsigned gen_direct(struct node *n)
 			logic_r_const(R_AC, r->value, size, OP_AND);
 			return 1;
 		}
+		if ((r1 = load_direct(R_WORK, r, 0)) != 0) {
+			logic_r_r(R_AC, r1, size, OP_AND);
+			return 1;
+		}
 		return 0;
 	case T_OR:
 		if (nr)
 			return 1;
 		if (r->op == T_CONSTANT) {
 			logic_r_const(R_AC, r->value, size, OP_OR);
+			return 1;
+		}
+		if ((r1 = load_direct(R_WORK, r, 0)) != 0) {
+			logic_r_r(R_AC, r1, size, OP_OR);
 			return 1;
 		}
 		return 0;
@@ -1707,7 +1854,12 @@ unsigned gen_direct(struct node *n)
 			logic_r_const(R_AC, r->value, size, OP_XOR);
 			return 1;
 		}
+		if ((r1 = load_direct(R_WORK, r, 0)) != 0) {
+			logic_r_r(R_AC, r1, size, OP_XOR);
+			return 1;
+		}
 		return 0;
+	/* TODO: inline reg compares, also look at reg on left compare optimizations later */
 	case T_EQEQ:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			load_r_const(12, r->value , size);
@@ -1775,6 +1927,7 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		return 0;
+	/* TODO: a lot of these could use direct versions */
 	case T_LTLT:
 		if (nr)
 			return 1;
@@ -1803,8 +1956,9 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	/* Shorten post inc/dec if result not needed - in which case it's the same as
 	   pre inc/dec */
+	/* Options here to improve thing += reg etc */
 	case T_PLUSPLUS:
-		if (r->op != T_CONSTANT || size > 2)
+		if (size > 2)
 			return 0;
 		if (!(n->flags & NORETURN)) {
 			/* r2/3 is the pointer,  */
@@ -1874,11 +2028,12 @@ unsigned gen_direct(struct node *n)
 		revstore_r_memr(R_AC, R_WORK, size);
 		return 1;
 	case T_ANDEQ:
-		return logic_eq_const(r, v, size, OP_AND);
+		return logic_eq_const_r(r, v, size, OP_AND);
 	case T_OREQ:
-		return logic_eq_const(r, v, size, OP_OR);
+		return logic_eq_const_r(r, v, size, OP_OR);
 	case T_HATEQ:
-		return logic_eq_const(r, v, size, OP_XOR);
+		return logic_eq_const_r(r, v, size, OP_XOR);
+	/* Should do SHLEQ/SHREQ of const or r */
 	}
 	return 0;
 }
@@ -1899,10 +2054,11 @@ unsigned gen_uni_direct(struct node *n)
  */
 unsigned gen_shortcut(struct node *n)
 {
-	unsigned s = get_size(n->type);
+	unsigned size = get_size(n->type);
 	struct node *l = n->left;
 	struct node *r = n->right;
 	unsigned nr = n->flags & NORETURN;
+	unsigned x;
 
 	/* Unreachable code we can shortcut into nothing ..bye.. */
 	if (unreachable)
@@ -1926,9 +2082,9 @@ unsigned gen_shortcut(struct node *n)
 		codegen_lr(r);
 		if (r->flags & ISBOOL)
 			return 1;
-		s = get_size(r->type);
-		if (s <= 2 && (n->flags & CCONLY)) {
-			if (s == 2) {
+		size = get_size(r->type);
+		if (size <= 2 && (n->flags & CCONLY)) {
+			if (size == 2) {
 				printf("\tor r3,r2\n");
 				r_modify(3, 1);
 			} else
@@ -1940,175 +2096,144 @@ unsigned gen_shortcut(struct node *n)
 		n->flags |= ISBOOL;
 		return 1;
 	}
-#if 0	
+	if (n->op == T_RSTORE && (n->flags & NORETURN))
+		return load_direct(R_REG(n->value), r, 1);
+
+	/* Squash op for optimization */
+	if (n->op == T_REQPLUS) {
+		/* *reg++ = r */
+		codegen_lr(r);	/* AC now holds the value */
+		store_r_memr(R_AC, R_REG(n->value), size);	/* Moves the pointer on as a side effect */
+		rr_incw(R_REG(n->value));
+		return 1;
+	}
+	/* Handle operations on registers as they have no address so cannot be resolved as
+	   a subtree with an addr in it */
 	if (l && l->op == T_REG) {
+		unsigned reg = l->value;
 		unsigned v = r->value;
 		/* Never a long... */
 		switch(n->op) {
-		case T_MINUSMINUS:
-			v = -v;
+		case T_EQ:
+			if (load_direct(R_REG(reg), r, 1) == 0)
+				return 0;
+			if (!nr)
+				load_ac_reg(reg, size);
+			return 1;
 		case T_PLUSPLUS:
-			/* R is always a constant for ++ */
-			if (!nr) {
-				load_r_r(0, REGBASE + 2 * n->value);
-				if (sz == 2)
-					load_r_r(1, REGBASE + 2 * n->value);
-			}
-			/* TODO catch -ve versions remembering 'v' is unsigned */
-			if (v < 10) {	/* TODO pick an amount */
-				if (sz == 2)
-					repeated_op(v, REGBASE + 2 * n->value, "incw");
-				else
-					repeated_op(v, REGBASE + 2 * n->value, "inc");
-				return 1;
-			}
-			const_op(REGBASE + 2 * n->value, "add", "adc", v, size);
+			/* v is always a const */
+			if (!nr)
+				load_ac_reg(reg, size);
+			add_r_const(R_REG_S(reg, size), v, size);
+			return 1;
+		case T_MINUSMINUS:
+			printf(";reg minusminus size %u reg %u R_REG() = %u\n",
+				size, reg, R_REG(reg));
+			if (!nr)
+				load_ac_reg(reg, size);
+			sub_r_const(R_REG_S(reg, size), v, size);
 			return 1;
 		case T_PLUSEQ:
-			/* Trickier as right might not be reg or const TODO */
-			if (reg_canincdec(r, s, v)) {
-				reg_incdec(s, v);
-				if (nr)
-					return 1;
-				if (n->op == T_PLUSEQ) {
-					loadhl(n, s);
-				}
-			} else {
-				/* Amount to add into HL */
-				codegen_lr(r);
-				opcode(OP_DAD, R_HL|R_BC, R_HL, "dad b");
-				opcode(OP_MOV, R_L, R_C, "mov c,l");
-				if (s == 2)
-					opcode(OP_MOV, R_H, R_B, "mov b,h");
-			}
-			if (n->op == T_PLUSPLUS && !(n->flags & NORETURN)) {
-				opcode(OP_POP, R_SP, R_HL|R_SP, "pop h");
-				sp -= 2;
-			}
+			/* TODO : reg/const and reg/direct versions */
+			/* The value could be anything */
+			codegen_lr(r);
+			/* AC now holds stuff to add */
+			add_r_r(R_REG(reg), R_AC, size);
+			if (!nr)
+				load_ac_reg(reg, size);
 			return 1;
 		case T_MINUSEQ:
-			if (reg_canincdec(r, s, -v)) {
-				reg_incdec(s, -v);
-				loadhl(n, s);
-				return 1;
-			}
-			if (r->op == T_CONSTANT) {
-				opcode(OP_LXI, 0, R_HL, "lxi h,%u", -v);
-				opcode(OP_DAD, R_HL|R_BC, R_HL, "dad b");
-				loadbc(s);
-				return 1;
-			}
-			/* Get the subtraction value into HL */
+			/* TODO : reg/const and reg/direct versions */
+			/* The value could be anything */
 			codegen_lr(r);
-			helper(n, "bcsub");
-			/* Result is only left in BC reload if needed */
-			loadhl(n, s);
+			/* AC now holds stuff to add */
+			sub_r_r(R_REG(reg), R_AC, size);
+			if (!nr)
+				load_ac_reg(reg, size);
 			return 1;
-		/* For now - we can do better - maybe just rewrite them into load,
-		   op, store ? */
 		case T_STAREQ:
-			/* TODO: constant multiply */
-			if (r->op == T_CONSTANT) {
-				if (can_fast_mul(s, v)) {
-					loadhl(NULL, s);
-					gen_fast_mul(s, v);
-					loadbc(s);
-					return 1;
+			if (r->op == T_CONSTANT && n->type != FLOAT) {
+				if (can_fast_mul(size, r->value)) {
+					gen_fast_mul(R_REG(reg), size, r->value);
+					if (!nr)
+						load_ac_reg(reg, size);
 				}
+				return 1;
 			}
 			codegen_lr(r);
-			helper(n, "bcmul");
+			/* Need to do ac * reg */
+			push_rr(R_REG(reg));
+			helper(n, "mul");
+			/* We did reg * ac into ac */
+			load_reg_ac(reg, size);	/* Store it back */
 			return 1;
 		case T_SLASHEQ:
-			/* TODO: power of 2 constant divide maybe ? */
 			codegen_lr(r);
-			helper_s(n, "bcdiv");
+			/* Need to do reg / ac */
+			push_rr(R_REG(reg));
+			helper_s(n, "div");
+			load_reg_ac(reg, size);	/* Store it back */
 			return 1;
 		case T_PERCENTEQ:
-			/* TODO: spot % 256 case */
 			codegen_lr(r);
-			helper(n, "bcrem");
+			/* Need to do reg / ac */
+			push_rr(R_REG(reg));
+			helper_s(n, "rem");
+			load_reg_ac(reg, size);	/* Store it back */
 			return 1;
 		case T_SHLEQ:
 			if (r->op == T_CONSTANT) {
-				if (s == 1 && v >= 8) {
-					opcode(OP_MVI, 0, R_C, "mvi c,0");
-					loadhl(n, s);
-					return 1;
-				}
-				if (s == 1) {
-					printf("\tmov a,c\n");
-					repeated_op("add a", v);
-					printf("\tmov c,a\n");
-					loadhl(n, s);
-					return 1;
-				}
-				/* 16 bit */
-				if (v >= 16) {
-					opcode(OP_LXI, 0, R_B, "lxi b,0");
-					loadhl(n, s);
-					return 1;
-				}
-				if (v == 8) {
-					printf("\tmov b,c\n\tmvi c,0\n");
-					loadhl(n, s);
-					return 1;
-				}
-				if (v > 8) {
-					printf("\tmov a,c\n");
-					repeated_op("add a", v - 8);
-					printf("\tmov b,a\nvi c,0\n");
-					loadhl(n, s);
-					return 1;
-				}
-				/* 16bit full shifting */
-				loadhl(NULL, s);
-				repeated_op("dad h", v);
-				loadbc(s);
+				lshift_r(R_REG(reg), size, v);
 				return 1;
 			}
 			codegen_lr(r);
-			helper(n, "bcshl");
+			/* Do r << ac */
+			v = ++label_count;
+			opnoeff_r_r(R_ACCHAR, R_ACCHAR, "or");
+			printf("\tjr z, X%u\n", v);
+			x = label();
+			add_r_r(R_REG(reg), R_REG(reg), size);
+			djnz_r(R_ACCHAR, x);
+			printf("X%u:\n", v);
+			if (!nr)
+				load_ac_reg(reg, size);
 			return 1;
 		case T_SHREQ:
-			if (r->op == T_CONSTANT) {
-				if (v >= 8 && s == 1) {
-					opcode(OP_MVI, 0, R_C, "mvi c,0");
-					loadhl(n, s);
-					return 1;
-				}
-				if (v >= 16) {
-					opcode(OP_LXI, 0, R_BC, "lxi b,0");
-					loadhl(n, s);
-					return 1;
-				}
-				if (v == 8 && (n->type & UNSIGNED)) {
-					printf("\tmov c,b\nmvi b,0\n");
-					loadhl(n, s);
-					return 1;
-				}
-				if (s == 2 && !(n->type & UNSIGNED) && cpu == 8085 && v < 2 + 4 * opt) {
-					loadhl(NULL,s);
-					repeated_op("arhl", v);
-					loadbc(s);
-					return 1;
-				}
-			}
+			/* TODO: const short form */
 			codegen_lr(r);
-			helper_s(n, "bcshr");
+			v = ++label_count;
+			opnoeff_r_r(R_ACCHAR, R_ACCHAR, "or");
+			printf("\tjr z, X%u\n", v);
+			x = label();
+			rshift_r(R_REG(reg), size, n->type & UNSIGNED);
+			djnz_r(R_ACCHAR, x);
+			if (!nr)
+				load_ac_reg(reg, size);
+			printf("X%u:\n", v);
 			return 1;
+		/* TODO: reg/reg versions */
 		case T_ANDEQ:
-			reg_logic(n, s, 0, "bcana");
+			codegen_lr(r);
+			logic_r_r(reg, R_AC, size, OP_AND);
+			if (!nr)
+				load_ac_reg(reg, size);
 			return 1;
 		case T_OREQ:
-			reg_logic(n, s, 1, "bcora");
+			codegen_lr(r);
+			logic_r_r(reg, R_AC, size, OP_OR);
+			if (!nr)
+				load_ac_reg(reg, size);
 			return 1;
 		case T_HATEQ:
-			reg_logic(n, s, 2, "bcxra");
+			codegen_lr(r);
+			logic_r_r(reg, R_AC, size, OP_XOR);
+			if (!nr)
+				load_ac_reg(reg, size);
 			return 1;
+		default:
+			fprintf(stderr, "unfixed regleft on %04X\n", n->op);
 		}
 	}
-#endif
 	return 0;
 }
 
@@ -2195,7 +2320,7 @@ unsigned gen_node(struct node *n)
 		if (nr)
 			return 1;
 		/* Is it already loaded ? */
-		if (ac_node.op == T_LREF && ac_node.value == v && 
+		if (ac_node.op == T_LREF && ac_node.value == v &&
 			get_size(ac_node.type) >= size) {
 			printf(";avoided load %d\n", v);
 			return 1;
@@ -2210,9 +2335,7 @@ unsigned gen_node(struct node *n)
 		set_ac_node(n);
 		return 1;
 	case T_RREF:
-		load_r_r(R_ACCHAR, REGBASE + 2 * n->value);
-		if (size == 2)
-			load_r_r(R_ACINT, REGBASE + 2 * n->value + 1);
+		load_ac_reg(v, size);
 		return 1;
 	case T_NSTORE:
 		load_r_name(R_INDEX, n, v);
@@ -2228,9 +2351,7 @@ unsigned gen_node(struct node *n)
 		set_ac_node(n);
 		return 1;
 	case T_RSTORE:
-		load_r_r(REGBASE + 2 * n->value, R_ACCHAR);
-		if (size > 1)
-			load_r_r(REGBASE + 2 * n->value + 1, R_ACINT);
+		load_reg_ac(v, size);
 		return 1;
 		/* Call a function by name */
 	case T_CALLNAME:
@@ -2242,7 +2363,20 @@ unsigned gen_node(struct node *n)
 		store_r_memr(R_AC, R_INDEX, size);
 		return 1;
 	case T_RDEREF:
-		load_r_memr(R_AC, REGBASE + 2 * n->value, 0);
+		/* Our deref actually is a ++ on the reg ptr. We optimize the *x++ as an op */
+		if (size > 1) {
+			load_r_r(R_INDEX, R_REG(v));
+			load_r_r(R_INDEX + 1, R_REG(v) + 1);
+			load_r_memr(R_AC, R_INDEX, size);
+			return 1;
+		}
+		load_r_memr(R_AC, R_REG(v), size);
+		return 1;
+	case T_RDEREFPLUS:
+		/* This will do size - 1 incs as it reads */
+		load_r_memr(R_AC, R_REG(v), size);
+		/* And the final postinc */
+		rr_incw(R_REG(v));
 		return 1;
 	case T_DEREF:
 		/* Have to deal with overlap */
@@ -2475,7 +2609,7 @@ unsigned gen_node(struct node *n)
 		pop_rr(R_INDEX);
 		/* Save counter */
 		load_r_r(R_WORK, R_ACCHAR);
-		printf("\tor r%u,r%u\n", R_WORK, R_WORK);
+		opnoeff_r_r(R_WORK, R_WORK, "or");
 		printf("\tjr z, X%u\n", v);
 		/* Value into ac */
 		load_r_memr(R_AC, R_INDEX, size);
