@@ -857,6 +857,55 @@ static void djnz_r(unsigned r, unsigned l)
 	printf("\tdjnz r%u, X%u\n", r, l);
 }
 
+/* Do a left shift by some means */
+static void lshift_r(unsigned r, unsigned size, unsigned l)
+{
+	unsigned x;
+	if (r == R_AC)
+		r = 4 - size;
+	if (l >= 8 * size) {
+		load_r_const(r, 0, size);
+		return;
+	}
+	if (size == 4) {
+		if (l >= 24) {
+			load_r_r(r, r + 3);
+			load_r_const(r, 0, 3);
+			l -= 24;
+		} else if (l >= 16) {
+			load_r_r(r, r + 2);
+			load_r_r(r + 1, r + 3);
+			load_r_const(r + 2, 0, 2);
+			l -= 16;
+		} else if (l >= 8) {
+			load_r_r(r, r + 1);
+			load_r_r(r + 1, r + 2);
+			load_r_r(r + 2, r + 3);
+			load_r_const(r + 3, 0, 1);
+		}
+	} else if (size == 2) {
+		if (l >= 8) {
+			load_r_r(r, r + 1);
+			load_r_const(r + 1, 0, 1);
+			l -= 8;
+		}
+	}
+	if (l * size > 8) {
+		load_r_const(R_WORK, l, 1);
+		x = label();
+		add_r_r(r, r, size);
+		djnz_r(R_WORK, x);
+	} else while(l--)
+		add_r_r(r, r, size);
+}
+
+static void test_sign(unsigned r, unsigned size)
+{
+	if (R_ISAC(r))
+		r = 4 - size;
+	printf("\tcp r%u,#0x80\n", r);
+}
+
 /*
  *	Object sizes
  */
@@ -1336,29 +1385,19 @@ void gen_tree(struct node *n)
 }
 
 /*
- *	Return 1 if the node can be turned into direct access. The VOID check
- *	is a special case we need to handle stack clean up of void functions.
+ *	We are fairly limited in our direct access ability
  */
 static unsigned access_direct(struct node *n)
 {
 	unsigned op = n->op;
 
-	/* FIXME */
-	
-	/* The 8080 we can reliably access stuff within 253 bytes of the
-	   current stack pointer. 8085 we don't have the short helpers as they
-	   are not worth it for this case, but we can do it via the 4 byte one */
-	if (op == T_LREF && n->value + sp < 253)
+	if (op == T_CONSTANT)
 		return 1;
-	/* We can direct access integer or smaller types that are constants
-	   global/static or string labels */
-	/* TODO group the user ones together for a range check ? */
-	if (op != T_CONSTANT && op != T_NAME && op != T_LABEL &&
-		 op != T_NREF && op != T_LBREF && op != T_RREF)
-		 return 0;
-	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
-		return 0;
-	return 1;
+	if (op == T_LABEL || op == T_NAME)
+		return 1;
+	if (op == T_RREF)
+		return 1;
+	return 0;
 }
 
 /* Generate compares */
@@ -1384,70 +1423,54 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 	return 0;
 }
 
-static int count_mul_cost(unsigned n)
-{
-	int cost = 0;
-	if ((n & 0xFF) == 0) {
-		n >>= 8;
-		cost += 3;		/* mov mvi */
-	}
-	while(n > 1) {
-		if (n & 1)
-			cost += 3;	/* push pop dad d */
-		n >>= 1;
-		cost++;			/* dad h */
-	}
-	return cost;
-}
-
-/* Write the multiply for any value > 0 */
-static void write_mul(unsigned n)
-{
-#if 0
-	unsigned pops = 0;
-	if ((n & 0xFF) == 0) {
-		opcode(OP_MOV, R_L, R_H, "mov h,l");
-		opcode(OP_MVI, 0, R_L, "mvi l,0");
-		n >>= 8;
-	}
-	while(n > 1) {
-		if (n & 1) {
-			pops++;
-			opcode(OP_PUSH, R_SP|R_HL, R_SP, "push h");
-		}
-		opcode(OP_DAD, R_HL, R_HL, "dad h");
-		n >>= 1;
-	}
-	while(pops--) {
-		opcode(OP_POP, R_SP, R_SP|R_DE, "pop d");
-		opcode(OP_DAD, R_DE|R_HL, R_HL, "dad d");
-	}
-#endif	
-}
-
 static unsigned can_fast_mul(unsigned s, unsigned n)
 {
-#if 0
-	/* Pulled out of my hat 8) */
-	unsigned cost = 15 + 3 * opt;
-	if (optsize)
-		cost = 10;
-	if (s > 2)
-		return 0;
-	if (n == 0 || count_mul_cost(n) <= cost)
+	/* Fairly primitive for now */
+	if (n < 2)
 		return 1;
-#endif		
-	return 0;
+	/* For now only support powers of 2 */
+	if (n & ~(n-1))
+		return 0;
+	return 1;
 }
 
-static void gen_fast_mul(unsigned r, unsigned s, unsigned n)
+/* Input must be a power of 2 */
+static unsigned ilog2w(unsigned n)
 {
-#if 0
-	if (n == 0)
-		opcode(OP_LXI, 0, R_HL, "lxi h,0");
-	else
-		write_mul(n);
-#endif		
+	unsigned r = 0;
+	if (n & 0xFF00) {
+		r = 8;
+		n >>= 8;
+	}
+	if (n & 0xF0) {
+		r += 4;
+		n >>= 4;
+	}
+	if (n & 0x0C) {
+		r += 2;
+		n >>= 2;
+	}
+	if (n & 0x02) {
+		r++;
+		n >>= 1;
+	}
+	return r;
+}
+
+static unsigned ilog2(unsigned long n)
+{
+	if (n & 0xFFFF0000)
+		return 16 + ilog2w(n >> 16);
+	return ilog2w(n);
+}
+
+static void gen_fast_mul(unsigned r, unsigned s, unsigned long n)
+{
+	unsigned l = ilog2(n);
+	if (l == 0)
+		load_r_const(r, 0, s);
+	else if (l > 1)
+		lshift_r(r, s, l);
 }
 
 static unsigned gen_fast_div(unsigned r, unsigned s, unsigned n)
@@ -1567,6 +1590,8 @@ unsigned gen_direct(struct node *n)
 	   similar. FIXME : will need to rework the repeated_ stuff when we
 	   do tracking into loops of rr_dec etc */
 	case T_PLUS:
+		if (nr)
+			return 1;
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			if (!nr)
 				add_r_const(R_AC, v, size);
@@ -1574,28 +1599,27 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_MINUS:
+		if (nr)
+			return 1;
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			if (!nr)
-				add_r_const(R_AC, -v, size);
+			add_r_const(R_AC, -v, size);
 			return 1;
 		}
 		return 0;
 	case T_STAR:
-#if 0	
+		if (nr)
+			return 1;
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			if (nr)
-				return 1;
-			if (s <= 2 && can_fast_mul(s, r->value)) {
-				gen_fast_mul(R_AC, s, 0, r->value);
+			if (size <= 2 && can_fast_mul(size, r->value)) {
+				gen_fast_mul(R_AC, size, r->value);
 				return 1;
 			}
 		}
-#endif		
 		return 0;
 	case T_SLASH:
+		if (nr)
+			return 1;
 		if (r->op == T_CONSTANT && size <= 2) {
-			if (nr)
-				return 1;
 			if (n->type & UNSIGNED) {
 				if (gen_fast_udiv(R_AC, size, v))
 					return 1;
@@ -1606,9 +1630,9 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_PERCENT:
+		if (nr)
+			return 1;
 		if (r->op == T_CONSTANT) {
-			if (nr)
-				return 1;
 			if (n->type & UNSIGNED) {
 				if (size <= 2 && gen_fast_remainder(0, size, r->value))
 					return 1;
@@ -1616,23 +1640,26 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_AND:
+		if (nr)
+			return 1;
 		if (r->op == T_CONSTANT) {
-			if (!nr)
-				logic_r_const(R_AC, r->value, size, OP_AND);
+			logic_r_const(R_AC, r->value, size, OP_AND);
 			return 1;
 		}
 		return 0;
 	case T_OR:
+		if (nr)
+			return 1;
 		if (r->op == T_CONSTANT) {
-			if (!nr)
-				logic_r_const(R_AC, r->value, size, OP_OR);
+			logic_r_const(R_AC, r->value, size, OP_OR);
 			return 1;
 		}
 		return 0;
 	case T_HAT:
+		if (nr)
+			return 1;
 		if (r->op == T_CONSTANT) {
-			if (!nr)
-				logic_r_const(R_AC, r->value, size, OP_XOR);
+			logic_r_const(R_AC, r->value, size, OP_XOR);
 			return 1;
 		}
 		return 0;
@@ -1649,7 +1676,7 @@ unsigned gen_direct(struct node *n)
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			/* Quick way to do the classic signed >= 0 */
 			if (r->value == 0 && !u) {
-				printf("\tcp r%u,#0x80\n", R_ACCHAR + 1 - size);
+				test_sign(R_AC, size);
 				load_r_const(R_ACINT, 0, 2);
 				op_r_c(3, 0, "adc");
 				n->flags |= ISBOOL;
@@ -1681,7 +1708,8 @@ unsigned gen_direct(struct node *n)
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			/* Quick way to do the classic signed < 0 */
 			if (r->value == 0 && !u) {
-				printf("\tcp r%u,#0x80\n", R_ACCHAR + 1 - size);
+				/* FIXME: tied to accumulator proper atm */
+				test_sign(R_AC, size);
 				load_r_const(R_ACINT, 0, 2);
 				printf("\tccf\n");
 				op_r_c(3, 0, "adc");
@@ -1703,27 +1731,17 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_LTLT:
+		if (nr)
+			return 1;
 		if (r->op == T_CONSTANT) {
-			if (nr)
-				return 1;
-			/* TODO: optimize byte parts of shifts */
-			r->value &= (8 * size) - 1;
-			if (r->value == 0)
-				return 1;
-			if (r->value > 1) {
-				load_r_constb(R_INDEX, r->value & 31);
-				x = label();
-			}
-			add_r_r(R_AC, R_AC, size);
-			if (r->value > 1)
-				djnz_r(R_INDEX, x);
+			lshift_r(R_AC, size, v);
 			return 1;
 		}
 		return 0;
 	case T_GTGT:
+		if (nr)
+			return 1;
 		if (r->op == T_CONSTANT) {
-			if (nr)
-				return 1;
 			r->value &= (8 * size) - 1;
 			if (r->value == 0)
 				return 1;
