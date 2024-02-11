@@ -2262,15 +2262,14 @@ unsigned gen_node(struct node *n)
 		   fix */
 		x = size;
 		add_r_const(R_INDEX, size - 1, 2);
-		/* Now points to low byte */
+		/* Now points to top byte */
 		load_r_memr(R_WORK, R_INDEX, 1);
-		rr_decw(R_INDEX);
 		printf("\tadd r%u,r%u\n", 3, R_WORK);
 		invalidate_ac();
 		while(--x) {
-			load_r_memr(R_WORK, R_INDEX, 1);
 			rr_decw(R_INDEX);
-			printf("\tadc r%u,r%u\n", x - 1, R_WORK);
+			load_r_memr(R_WORK, R_INDEX, 1);
+			printf("\tadc r%u,r%u\n", 3 - x, R_WORK);
 			invalidate_ac();
 		}
 		/* Result is now in AC, and index points to start of
@@ -2288,16 +2287,15 @@ unsigned gen_node(struct node *n)
 		add_r_const(R_INDEX, size - 1, 2);
 		/* Now points to low byte */
 		load_r_memr(R_WORK, R_INDEX, 1);
-		rr_decw(R_INDEX);
 		printf("\tsub r%u,r%u\n", R_WORK, 3);
 		invalidate_ac();
 		load_r_r(3, R_WORK);
 		while(--x) {
-			load_r_memr(R_WORK, R_INDEX, 1);
 			rr_decw(R_INDEX);
-			printf("\tsbc r%u,r%u\n", R_WORK, x - 1);
+			load_r_memr(R_WORK, R_INDEX, 1);
+			printf("\tsbc r%u,r%u\n", R_WORK, 3 - x);
 			invalidate_ac();
-			load_r_r(x - 1, R_WORK);
+			load_r_r(3 - x, R_WORK);
 		}
 		/* Result is now in AC, and index points to start of
 		   object */
