@@ -11,7 +11,9 @@ OBJ =	__cast.o \
 	__cceql.o __ccnel.o __ccltl.o __ccgtl.o __cclteql.o __ccgteql.o \
 	__cceqconstl.o __ccneconstl.o \
 	__ccgtconstl.o __ccltconstl.o \
-	__pluseql.o __postincl.o __minuseql.o __postdecl.o
+	__pluseql.o __postincl.o __minuseql.o __postdecl.o \
+      __cast2f.o __castf.o __cceqf.o __ccgteqf.o __ccgtf.o __cclteqf.o \
+      __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o
 
 .s.o:
 	fcc -mz8 -c $<

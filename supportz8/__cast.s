@@ -1,6 +1,8 @@
 	.export __castc_
 	.export __castc_l
+	.export __castc_ul
 	.export __cast_l
+	.export __cast_ul
 
 	.code
 
@@ -8,6 +10,7 @@
 
 __castc_:
 __castc_l:
+__castc_ul:
 	cp r3,#0x80
 	jr nc, negc
 	clr r2
@@ -21,6 +24,7 @@ negc:
 	ret
 
 __cast_l:
+__cast_ul:
 	cp r2,#0x80
 	jr nc, negw
 	clr r0

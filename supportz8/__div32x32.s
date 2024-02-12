@@ -19,8 +19,8 @@ remdivul:
 	call __div32x32
 	pop r12
 	pop r13
-	add 254,#4
-	adc 255,#0
+	add 255,#4
+	adc 254,#0
 	push r13
 	push r12
 	ret	
@@ -101,7 +101,7 @@ __div32x32:
 	push r6
 	push r5
 	push r4
-	lde r4,@rr14
+	lde r4,@rr14	; dividend
 	incw r14
 	lde r5,@rr14
 	incw r14
@@ -112,9 +112,9 @@ __div32x32:
 	rrc r12
 	jr nc, is_unsigned
 
-	tcm r0,#0x80
+	tcm r0,#0x80	; invert the divisor if needed
 	jr z,uns1
-	inc r13
+	inc r13		; and remember that
 	com r0
 	com r1
 	com r2
@@ -130,7 +130,7 @@ uns1:
 	jr z, is_mod
 	inc r13
 is_mod:
-	com r4
+	com r4		; invert the dividend
 	com r5
 	com r6
 	com r7
@@ -139,7 +139,7 @@ is_mod:
 	adc r5,#0
 	adc r4,#0
 is_unsigned:
-	clr r8
+	clr r8		; clear the workiing register
 	clr r9
 	clr r10
 	clr r11
@@ -187,6 +187,7 @@ skipadd:
 	ld r3,r11
 is_rem:
 	; Result is now in r0-r3
+	; Get the sign info back
 	pop r13
 	; Check if we need to negate the result
 	or r13,r13
