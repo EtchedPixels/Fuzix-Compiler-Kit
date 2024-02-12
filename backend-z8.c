@@ -742,6 +742,7 @@ static void load_local_helper(unsigned v, unsigned size)
 		printf("\tcall __gargrr%u\n", size);
 	}
 	r_modify(4 - size, size);
+	r_modify(12, 2);
 	r14_valid = 1;
 	r14_sp = v - sp + size - 1;
 }
@@ -1443,8 +1444,8 @@ void gen_helpcall(struct node *n)
 		gen_push(n->right);
 	invalidate_ac();
 	printf("\tcall __");
-	r2_valid = 0;
-	r14_valid = 0;
+	r_modify(0, 4);
+	r_modify(12,4);
 }
 
 /* Generate a helper that keeps r14/r15 */
@@ -1502,6 +1503,7 @@ void gen_switchdata(unsigned n, unsigned size)
 void gen_case_label(unsigned tag, unsigned entry)
 {
 	unreachable = 0;
+	invalidate_all();
 	printf("Sw%u_%u:\n", tag, entry);
 }
 
@@ -1556,9 +1558,9 @@ void gen_value(unsigned type, unsigned long value)
 	case CLONG:
 	case ULONG:
 	case FLOAT:
-		/* We are little endian */
-		printf("\t.word %u\n", w);
+		/* We are big endian */
 		printf("\t.word %u\n", (unsigned) ((value >> 16) & 0xFFFF));
+		printf("\t.word %u\n", w);
 		break;
 	default:
 		error("unsuported type");
@@ -1959,7 +1961,7 @@ unsigned gen_direct(struct node *n)
 	   pre inc/dec */
 	/* Options here to improve thing += reg etc */
 	case T_PLUSPLUS:
-		if (size > 2)
+		if (r->type == T_FLOAT)
 			return 0;
 		if (!(n->flags & NORETURN)) {
 			/* r2/3 is the pointer,  */
@@ -1978,7 +1980,7 @@ unsigned gen_direct(struct node *n)
 		}
 		/* Noreturn is like pluseq */
 	case T_PLUSEQ:
-		if (r->op != T_CONSTANT || size > 2)
+		if (r->op != T_CONSTANT || r->type == FLOAT)
 			return 0;
 			
 		/* FIXME: will need an "and not register" check */
@@ -1997,7 +1999,7 @@ unsigned gen_direct(struct node *n)
 		revstore_r_memr(R_AC, R_WORK, size);
 		return 1;
 	case T_MINUSMINUS:
-		if (r->op != T_CONSTANT || size > 2)
+		if (r->type == FLOAT)
 			return 0;
 		if (!(n->flags & NORETURN)) {
 			/* r2/3 is the pointer,  */
@@ -2012,7 +2014,7 @@ unsigned gen_direct(struct node *n)
 		}
 		/* Noreturn is like minuseq */
 	case T_MINUSEQ:
-		if (r->op != T_CONSTANT || size > 2)
+		if (r->op != T_CONSTANT || r->type == FLOAT)
 			return 0;
 		/* FIXME: will need an "not register" check */
 		if ((n->flags & NORETURN) && size <= 2) {
@@ -2650,10 +2652,11 @@ unsigned gen_node(struct node *n)
 		load_r_memr(R_WORK, R_INDEX, 1);
 		op_r_r(3, R_WORK, "add");
 		invalidate_ac();
+		v = 2;
 		while(--x) {
 			rr_decw(R_INDEX);
 			load_r_memr(R_WORK, R_INDEX, 1);
-			op_r_r(3 - x , R_WORK, "adc");
+			op_r_r(v-- , R_WORK, "adc");
 			invalidate_ac();
 		}
 		/* Result is now in AC, and index points to start of
@@ -2674,12 +2677,13 @@ unsigned gen_node(struct node *n)
 		op_r_r(R_WORK, 3, "sub");
 		invalidate_ac();
 		load_r_r(3, R_WORK);
+		v = 2;
 		while(--x) {
 			rr_decw(R_INDEX);
 			load_r_memr(R_WORK, R_INDEX, 1);
-			op_r_r(R_WORK, 3 - x, "sbc");
+			op_r_r(R_WORK, x, "sbc");
 			invalidate_ac();
-			load_r_r(3 - x, R_WORK);
+			load_r_r(v--, R_WORK);
 		}
 		/* Result is now in AC, and index points to start of
 		   object */
