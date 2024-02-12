@@ -20,6 +20,9 @@ __switch:
 		ld	e,(hl)
 		inc	hl
 		ld	d,(hl)
+		ld	a,d
+		or	e
+		jr	z,default
 next:
 		inc	hl		; Move on to value to check
 		ld	a,(hl)

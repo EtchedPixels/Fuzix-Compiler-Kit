@@ -10,6 +10,7 @@ __switchl:
 	; X holds the switch table hireg:A the value
 	pha
 	lda 0,x
+	beq default
 	sta @tmp	; length
 	pla
 next:
@@ -29,6 +30,7 @@ nomatch:
 	inx
 	dec @tmp
 	bne next
+done:
 	; Fall through for default
 	lda 2,x
 	dec a
@@ -40,3 +42,6 @@ gotswitch:
 	dec a
 	pha
 	rts
+default:
+	pla
+	bra done

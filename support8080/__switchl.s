@@ -22,6 +22,9 @@ __switchlu:
 		inx	h
 		mov	d,m
 		; DE is the number of records to scan
+		mov	a,d
+		ora	e
+		jz	match
 
 next:
 		; Low byte compare to C

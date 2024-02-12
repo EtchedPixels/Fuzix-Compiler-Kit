@@ -10,6 +10,7 @@ __switchc:
 	; X holds the switch table A the value
 	pha
 	lda 0,x
+	beq default
 	sta @tmp	; length
 	pla
 next:
@@ -22,6 +23,7 @@ next:
 	inx
 	dec @tmp
 	bne next
+done:
 	; Fall through for default
 	lda 2,x
 	dec a
@@ -32,3 +34,6 @@ gotswitch:
 	dec a
 	pha
 	rts
+default:
+	pla
+	bra done

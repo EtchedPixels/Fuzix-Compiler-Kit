@@ -21,6 +21,9 @@ __switchlu:
 		inc	hl
 		ld	d,(hl)
 		; DE is the number of records to scan
+		ld	a,d
+		or	e
+		jr	z, match
 
 next:
 		; Low byte compare to C

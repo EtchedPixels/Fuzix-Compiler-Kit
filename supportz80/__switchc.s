@@ -18,6 +18,9 @@ __switchc:
 		ld	e,(hl)
 		inc	hl
 		ld	d,(hl)
+		ld	a,d
+		or	e
+		jr	z, default
 next:
 		inc	hl		; Move on to value to check
 		ld	a,c
@@ -29,6 +32,7 @@ next:
 		ld	a,d
 		or	e
 		jr	nz, next
+default:
 		inc	hl
 		; We are pointing at the address
 match:

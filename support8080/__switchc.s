@@ -19,6 +19,9 @@ __switchc:
 		mov	e,m
 		inx	h
 		mov	d,m
+		mov	a,d
+		ora	e
+		jz	default
 next:
 		inx	h		; Move on to value to check
 		mov	a,c
@@ -30,6 +33,7 @@ next:
 		mov	a,d
 		ora	e
 		jnz	next
+default:
 		inx 	h
 		; We are pointing at the address
 match:
