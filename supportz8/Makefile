@@ -8,7 +8,8 @@ OBJ =	__cast.o \
 	__ccltu.o __ccgtu.o __ccgtequ.o __ccltequ.o \
 	__cclt.o __ccgt.o __ccgteq.o __cclteq.o \
 	__cceq.o __ccne.o \
-	__cceql.o __ccnel.o
+	__cceql.o __ccnel.o __ccltl.o __ccgtl.o __cclteql.o __ccgteql.o \
+	__cceqconstl.o __ccneconstl.o
 
 .s.o:
 	fcc -mz8 -c $<

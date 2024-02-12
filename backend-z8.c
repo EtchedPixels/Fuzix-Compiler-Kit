@@ -126,14 +126,15 @@ static void invalidate_all(void)
 
 static void r_modify(unsigned r, unsigned size)
 {
-	if (r == 14 || r == 15)
-		r14_valid = 0;
-	if (r == 2 || r == 3) {
-		r2_valid = 0;
-		invalidate_ac();
+	while(size--) {
+		if (r == 14 || r == 15)
+			r14_valid = 0;
+		if (r == 2 || r == 3) {
+			r2_valid = 0;
+			invalidate_ac();
+		}
+		r_type[r++] = RV_UNKNOWN; 
 	}
-	while(size--)
-		r_type[r++] = RV_UNKNOWN;
 }
 
 /* Until we do value track */
@@ -1862,7 +1863,7 @@ unsigned gen_direct(struct node *n)
 	/* TODO: inline reg compares, also look at reg on left compare optimizations later */
 	case T_EQEQ:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			load_r_const(12, r->value , size);
+			load_r_const(R_WORK, r->value , size);
 			helper(n, "cceqconst");
 			n->flags |= ISBOOL;
 			return 1;
@@ -1879,7 +1880,7 @@ unsigned gen_direct(struct node *n)
 				n->flags |= ISBOOL;
 				return 1;
 			}
-			load_r_const(12, r->value , size);
+			load_r_const(R_WORK, r->value , size);
 			helper_s(n, "cclteqconst");
 			n->flags |= ISBOOL;
 			return 1;
@@ -1887,7 +1888,7 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	case T_GT:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			load_r_const(12, r->value , size);
+			load_r_const(R_WORK, r->value , size);
 			helper_s(n, "ccltconst");
 			n->flags |= ISBOOL;
 			return 1;
@@ -1895,7 +1896,7 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	case T_LTEQ:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			load_r_const(12, r->value , size);
+			load_r_const(R_WORK, r->value , size);
 			helper_s(n, "ccgteqconst");
 			n->flags |= ISBOOL;
 			return 1;
@@ -1913,7 +1914,7 @@ unsigned gen_direct(struct node *n)
 				n->flags |= ISBOOL;
 				return 1;
 			}
-			load_r_const(12, r->value , size);
+			load_r_const(R_WORK, r->value , size);
 			helper_s(n, "ccgtconst");
 			n->flags |= ISBOOL;
 			return 1;
@@ -1921,7 +1922,7 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	case T_BANGEQ:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			load_r_const(12, r->value , size);
+			load_r_const(R_WORK, r->value , size);
 			helper(n, "ccneconst");
 			n->flags |= ISBOOL;
 			return 1;
