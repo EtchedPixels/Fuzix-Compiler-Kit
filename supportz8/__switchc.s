@@ -13,6 +13,9 @@ __switchc:
 	lde r13,@rr14
 	incw rr14
 	; 12,13 is the count
+	ld r0,r12
+	or r0,r13
+	jr z,done
 switchlp:
 	lde r0,@rr14
 	incw rr14
