@@ -39,8 +39,8 @@ __mulul:
 
 	pop	r12		; return address
 	pop	r13
-	add	254,#4		; discard from stack
-	adc	255,#0
+	add	255,#4		; discard from stack
+	adc	254,#0
 
 	push	r13		; and done
 	push	r12
@@ -68,13 +68,13 @@ domull:
 
 	lde	r12,@rr14	; get first byte of value
 	call	mulbyte
-	incw	@rr14
+	incw	rr14
 	lde	r12,@rr14
 	call	mulbyte
-	incw	@rr14
+	incw	rr14
 	lde	r12,@rr14
 	call	mulbyte
-	incw	@rr14
+	incw	rr14
 	lde	r12,@rr14
 	call	mulbyte
 
@@ -96,7 +96,7 @@ mulbyte:
 	ld	r13,#8
 mulbl:
 	add	r7,r7		; shift total
-	adc	r6,r5
+	adc	r6,r6
 	adc	r5,r5
 	adc	r4,r4
 
