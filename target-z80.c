@@ -77,7 +77,6 @@ unsigned target_register(unsigned type)
 {
 	if (type >= CLONG && !PTR(type))
 		return 0;
-#if 1
 	/* For now only use IX/IY for pointers */
 	if (PTR(type)) {
 		if (ix_free) {
@@ -91,8 +90,6 @@ unsigned target_register(unsigned type)
 			return 3;
 		}
 	}
-#endif	
-#if 1
 	/* BC is good for 8 and 16 bit maths or byte pointers, but prefer ix/iy for pointers */
 	if (bc_free == 0)
 		return 0;
@@ -102,7 +99,6 @@ unsigned target_register(unsigned type)
 		func_flags |= F_REG(1);
 		return 1;
 	}
-#endif
 	return 0;
 }
 
