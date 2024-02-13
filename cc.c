@@ -140,6 +140,8 @@ const char *defz180[] = { "__z80__", "__z180__", NULL };
 const char *defbyte[] = { "__byte__", NULL };
 const char *defthread[] = { "__thread__", NULL };
 const char *defz8[] = { "__z8__", NULL };
+const char *def1802[] = { "__1802__", NULL };
+const char *def1805[] = { "__1805__", NULL };
 
 const char *ld6502[] = { "-b", "-C", "512", "-Z", "0x00", NULL };
 const char *ld6800[] = { "-b", "-C", "256", "-Z", "0x40", NULL };
@@ -171,6 +173,8 @@ struct cpu_table cpu_rules[] = {
 	   anyway because of endianness, alignment etc */
 	{ "thread", "thread", ".thread", "libthread.a", "thread", defthread, ldbyte, "0" },
 	{ "z8", "z8", ".z8", "libz8.a", "z8", defz8, ld8080, "8" },
+	{ "1802", "1802", ".1802", "lib1802.a", "1802", def1802, ld8080, "2" },
+	{ "1805", "1802", ".1802", "lib18052.a", "1802", def1805, ld8080, "5" },
 	{ NULL }
 };
 
@@ -445,7 +449,7 @@ static void run_command(void)
 			close(argoutfd);
 		}
 		execv(arglist[0], (char **)arglist);
-		perror("execv");
+		perror(arglist[0]);
 		exit(255);
 	}
 	if (arginfd)
