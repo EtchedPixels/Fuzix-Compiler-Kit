@@ -9,6 +9,8 @@ emu85.o: emu85.c intel_8085_emulator.h
 
 inte_8085_emulator.o: intel_8085_emulator.c intel_8085_emulator.h
 
+CFLAGS += -O2
+
 emuz8: emuz8.o z8.o
 	$(CC) emuz8.o z8.o -o emuz8
 
