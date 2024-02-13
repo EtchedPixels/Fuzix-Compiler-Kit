@@ -158,9 +158,9 @@ int main(int argc, char *argv[])
     fprintf(o, "byteop:	; Must be page aligned\n");
     for (i = 0; i < 256; i++) {
         if (opname[i])
-            fprintf(o, "\t.word op_%s,\n", opname[i]);
+            fprintf(o, "\t.word op_%s\n", opname[i]);
         else
-            fprintf(o, "\t.word op_invalid,\n");
+            fprintf(o, "\t.word op_invalid\n");
     }
     fclose(o);
     return 0;

@@ -1,3 +1,4 @@
+#
 ;
 ;	First draft of the support code to run the compiler
 ;	as a threadcode generator for 1802/5/6 (there's a lot of
@@ -10,7 +11,9 @@
 ;	  user SP isn't that important and can be briefly slightly invalid
 ;
 	.abs
-	.org 0x300
+	.org 0x100
+
+#include "1802tab.s"
 
 ;		0	; DMA
 ;		1	; Interrupt handler
@@ -33,83 +36,6 @@
 ;
 ;	1802 engine
 ;
-op_shift1:
-	ldi >byteop2
-	phi VP
-	sep RUN
-op_pushc:
-	glo AC
-	str SP
-	dec SP
-	sep RUN
-op_push:
-	sex SP
-	ghi AC
-	stxd
-	glo AC
-	stxd
-	sex BPC
-	set RUN
-op_popl:
-	inc SP
-	inc SP
-op_pop:
-	inc SP
-op_popc:
-	inc SP
-	sep RUN
-op_xxeq:		; start of += etc. Duplicate the pointer top of stack
-	inc SP
-	lda SP
-	plo TMP
-	phi TMP
-	dec SP
-	dec SP
-	glo TMP
-	stxd
-	ghi TMP
-	stxd
-	sep RUN
-op_xxeqpostc:		; po the address and write back the result
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	glo AC
-	str TMP
-	sep RUN
-op_xxeqpost:		; po the address and write back the result
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	glo AC
-	str TMP
-	inc TMP
-	ghi AC
-	str TMP
-	sep RUN
-op_xxeqpostl:		; po the address and write back the result
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	glo AC
-	str TMP
-	inc TMP
-	ghi AC
-	str TMP
-	inc TMP
-	glo HI
-	str TMP
-	inc TMP
-	ghi HI
-	str TMP
-	sep RUN
-
 op_shl:
 	glo AC
 	ani 15
@@ -176,17 +102,42 @@ op_shru:
 	ldn SP
 	phi AC
 	br lsrnext
-lsruloop:
+lsrloop:
 	ghi AC
 	shr
 	phi AC
 	glo AC
 	shrc
 	plo AC
-lsrunext:
+lsrnext:
 	dec TMP
 	glo TMP
 	bnz lsrloop
+	sep RUN
+op_shift1:
+	ldi >byteop2
+	phi VP
+	sep RUN
+op_pushc:
+	glo AC
+	str SP
+	dec SP
+	sep RUN
+op_push:
+	sex SP
+	ghi AC
+	stxd
+	glo AC
+	stxd
+	sex BPC
+	sep RUN
+op_popl:
+	inc SP
+	inc SP
+op_pop:
+	inc SP
+op_popc:
+	inc SP
 	sep RUN
 op_plus:
 	sex SP
@@ -207,63 +158,180 @@ op_minus:	; TOS - AC
 	sd
 	plo AC
 	inc SP
-	gi AC
+	ghi AC
 	sdb
 	phi AC
 	sex BPC
 	sep RUN
-op_mul:
-	; AC * TOS
-	glo SP
-	plo HI
-	ghi SP
-	phi HI		; HI now points the value to work with
-	sex HI
-
-	; AC * (HI)
-	ldi 0
-	plo TMP2	; sum
-	phi TMP2
-
-nextbits:
-	glo TMP2	; sum << = 1
-	shl
-	plo TMP2
-	ghi TMP2
-	shlc
-	phi TMP2
-	ghi AC		; top bit set
-	shl
-	bz noadd
-	glo TMP2
-	add
-	inc HI
-	plo TMP2
-	ghi TMP2
-	adc
-	phi TMP2
-	dec HI
-noadd:
-	; now shift bits along
+op_negate:
 	glo AC
-	bnz morebits
-	ghi AC
-	bnz morebits
-	glo TMP2
+	xri 0xFF
 	plo AC
-	ghi TMP2
+	ghi AC
+	xri 0xFF
 	phi AC
-	sex BPC
+	inc AC
 	sep RUN
-morebits:
+op_band:
+	sex SP
+	inc SP
 	glo AC
-	shl
+	and
+	plo AC
+	inc SP
+	ghi AC
+	and
+	phi AC
+	sex SP
+	sep RUN
+op_or:
+	sex SP
+	inc SP
+	glo AC
+	or
+	plo AC
+	inc SP
+	ghi AC
+	or
+	phi AC
+	sex SP
+	sep RUN
+op_xor:
+	sex SP
+	inc SP
+	glo AC
+	xor
+	plo AC
+	inc SP
+	ghi AC
+	xor
+	phi AC
+	sex SP
+	sep RUN
+op_cpll:
+	glo HI
+	xri 0xFF
+	plo HI
+	ghi HI
+	xri 0xFF
+	phi HI
+op_cpl:	glo AC
+	xri 0xFF
 	plo AC
 	ghi AC
-	shlc
+	xri 0xFF
+	plo AC
+	sep RUN
+op_assignc:
+	inc SP
+	ldn SP
+	str AC
+	plo AC		; stored value becomes working
+	sep RUN
+op_assign:
+	inc SP
+	lda SP
+	str AC
+	plo TMP
+	ldn SP
+	str AC
 	phi AC
-	br nextbits
-
+	glo TMP
+	plo AC
+	sep RUN
+op_derefc:
+	lda AC
+	plo AC
+	sep RUN
+op_deref:
+	lda AC
+	plo TMP
+	lda AC
+	phi AC
+	glo TMP
+	plo AC
+	sep RUN
+op_xxeq:		; start of += etc. Duplicate the pointer top of stack
+	inc SP
+	lda SP
+	plo TMP
+	phi TMP
+	dec SP
+	dec SP
+	glo TMP
+	stxd
+	ghi TMP
+	stxd
+	sep RUN
+op_xxeqpostc:		; po the address and write back the result
+	inc SP
+	lda SP
+	plo TMP
+	ldn SP
+	phi TMP
+	glo AC
+	str TMP
+	sep RUN
+op_xxeqpost:		; po the address and write back the result
+	inc SP
+	lda SP
+	plo TMP
+	ldn SP
+	phi TMP
+	glo AC
+	str TMP
+	inc TMP
+	ghi AC
+	str TMP
+	sep RUN
+op_xxeqpostl:		; po the address and write back the result
+	inc SP
+	lda SP
+	plo TMP
+	ldn SP
+	phi TMP
+	glo AC
+	str TMP
+	inc TMP
+	ghi AC
+	str TMP
+	inc TMP
+	glo HI
+	str TMP
+	inc TMP
+	ghi HI
+	str TMP
+	sep RUN
+op_constc:
+	ldxa
+	plo AC
+	sep RUN
+op_const:
+	ldxa
+	plo AC
+	ldxa
+	phi AC
+	sep RUN
+op_notl:
+	glo HI
+	bnz set0
+	ghi HI
+	bnz set0
+op_not:
+	ghi AC
+	bnz set0
+op_notc:
+	glo AC
+	bnz set0
+	; is 0 should be 1
+	inc AC
+	sep RUN
+set0:
+	ldi 0
+	phi AC
+	ldi 1
+	plo AC
+	sep RUN
 ;
 ;	Now the fun stuff - 16bit divide
 ;
@@ -271,7 +339,7 @@ op_rem:
 	sex SP
 	ghi AC
 	shl
-	bz __remu	; Remainder sign matches divisor
+	bz op_remu	; Remainder sign matches divisor
 			; so low means same as unsigned
 	ldi 0x80	; Remember to invert the sign
 	br negates
@@ -424,124 +492,58 @@ divide:
 	ghi TMP
 	phi AC
 	br chksign
-op_negate:
-	glo AC
-	xri 0xFF
-	plo AC
-	ghi AC
-	xri 0xFF
-	phi AC
-	inc AC
-	sep RUN
-op_band:
-	sex SP
-	inc SP
-	glo AC
-	and
-	plo AC
-	inc SP
-	ghi AC
-	and
-	phi AC
-	sex SP
-	sep RUN
-op_or:
-	sex SP
-	inc SP
-	glo AC
-	or
-	plo AC
-	inc SP
-	ghi AC
-	or
-	phi AC
-	sex SP
-	sep RUN
-op_xor:
-	sex SP
-	inc SP
-	glo AC
-	xor
-	plo AC
-	inc SP
-	ghi AC
-	xor
-	phi AC
-	sex SP
-	sep RUN
-op_cpll:
-	glo HI
-	xri 0xFF
+op_mul:
+	; AC * TOS
+	glo SP
 	plo HI
-	ghi HI
-	xri 0xFF
-	phi HI
-op_cpl:	glo AC
-	xri 0xFF
-	plo AC
-	ghi AC
-	xri 0xFF
-	plo AC
-	sep RUN
-op_assignc:
-	inc SP
-	ldn SP
-	str AC
-	plo AC		; stored value becomes working
-	sep RUN
-op_assign:
-	inc SP
-	lda SP
-	str AC
-	plo TMP
-	ldn SP
-	str AC
-	phi AC
-	glo TMP
-	plo AC
-	sep RUN
-op_derefc:
-	lda AC
-	plo AC
-	sep RUN
-op_deref:
-	lda AC
-	plo TMP
-	lda AC
-	phi AC
-	glo TMP
-	plo AC
-	sep RUN
-op_constc:
-	ldxa
-	plo AC
-	sep RUN
-op_const:
-	ldxa
-	plo AC
-	ldxa
-	phi AC
-	sep RUN
-op_notl:
-	glo HI
-	bnz set0
-	ghi HI
-	bnz set0
-op_not:
-	ghi AC
-	bnz set0
-op_notc:
-	glo AC
-	bnz set0
-	; is 0 should be 1
-	inc AC
-	sep RUN
-set0:
+	ghi SP
+	phi HI		; HI now points the value to work with
+	sex HI
+
+	; AC * (HI)
 	ldi 0
-	phi AC
-	ldi 1
+	plo TMP2	; sum
+	phi TMP2
+
+nextbits:
+	glo TMP2	; sum << = 1
+	shl
+	plo TMP2
+	ghi TMP2
+	shlc
+	phi TMP2
+	ghi AC		; top bit set
+	shl
+	bz noadd
+	glo TMP2
+	add
+	inc HI
+	plo TMP2
+	ghi TMP2
+	adc
+	phi TMP2
+	dec HI
+noadd:
+	; now shift bits along
+	glo AC
+	bnz morebits
+	ghi AC
+	bnz morebits
+	glo TMP2
 	plo AC
+	ghi TMP2
+	phi AC
+	sex BPC
 	sep RUN
+morebits:
+	glo AC
+	shl
+	plo AC
+	ghi AC
+	shlc
+	phi AC
+	br nextbits
+
 op_booll:
 	ghi HI
 	bnz set1
@@ -661,7 +663,7 @@ op_callfunc:
 	sep RUN
 op_jfalse:
 	glo AC
-	bz __jump
+	bz op_jump
 bnot:
 	inc BPC
 	inc BPC
@@ -1030,7 +1032,7 @@ op_pushl:
 	glo AC
 	stxd
 	sex BPC
-	set RUN
+	sep RUN
 op_shrll:
 	; We should do smart things for 8bit shift
 	glo AC
@@ -1044,7 +1046,7 @@ op_shrll:
 	ldn SP
 	phi AC
 	shl
-	bdf lsrlnext
+	bdf llsrnext
 	br asrlnext
 asrlloop:
 	ghi HI
@@ -1078,7 +1080,7 @@ op_shrul:
 	ldn SP
 	phi AC
 	br llsrnext
-llsruloop:
+llsrloop:
 	ghi HI
 	shr
 	phi HI
@@ -1091,7 +1093,7 @@ llsruloop:
 	glo AC
 	shrc
 	plo AC
-llsrunext:
+llsrnext:
 	dec TMP
 	glo TMP
 	bnz llsrloop
@@ -1615,9 +1617,8 @@ op_r3drfpost:
 	sep RUN
 op_invalid:
 
-
-
-; Set up to run bytecode at address in BPC, C stack at SP
+; Set up to run bytecode at address in bpc, C stack at sp
+;
 byteop_init:
 	ldi	>byteop
 	phi	VP
