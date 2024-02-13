@@ -2110,6 +2110,14 @@ unsigned gen_shortcut(struct node *n)
 		rr_incw(R_REG(n->value));
 		return 1;
 	}
+	if (n->op == T_REQ) {
+		/* *reg = r */
+		codegen_lr(r);	/* AC now holds the value */
+		load_r_r(R_INDEX, R_REG(n->value));
+		load_r_r(R_INDEX + 1, R_REG(n->value) + 1);
+		store_r_memr(R_AC, R_INDEX, size);	/* Moves the pointer on as a side effect */
+		return 1;
+	}
 	/* Handle operations on registers as they have no address so cannot be resolved as
 	   a subtree with an addr in it */
 	if (l && l->op == T_REG) {
