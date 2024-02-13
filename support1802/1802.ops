@@ -1,0 +1,149 @@
+# Must tbe first - switches between opcode blocks
+
+%shift1	-
+%shift0	2
+
+# Push a value onto the stack
+
+%push c
+
+# Discard a value from the stack (not recover value?)
+
+%pop c
+
+# Shifts
+
+%shr	s	T_GTGT
+%shl		T_LTLT
+
+# Integer math ops
+
+%plus	f	T_PLUS
+%minus	f	T_MINUS
+%mul	f	T_STAR
+%div	sf	T_SLASH
+%rem	sf	T_PERCENT
+%negate	f	T_NEGATE
+
+# Logic ops
+
+%band		T_AND
+%or		T_OR
+%xor		T_XOR
+%cpl		T_TILDE
+
+# Assignment
+%assign	c	T_EQ
+
+# Dereference
+%deref	c	T_DEREF
+
+# Constants
+%const	c	T_CONST T_NAME T_LABEL
+
+# Booleans
+%not	c	T_NOT
+%bool	c	T_BOOL
+
+# Casts are special. Minimum need is ext and sext for the sizes
+# (shrinking is a no op)
+%ext	cis	T_CAST
+%f2l	-
+%l2f	-
+%f2ul	-
+%ul2f	-
+
+# General eq helpers
+%xxeq	-
+%xxeqpost c
+# Special case eq ops
+%postinc cf	T_PLUSPLUS		; also does postdec
+
+# Function calls
+
+%callfname -	T_CALLFN
+%callfunc -	T_CALLFUNC
+
+# Branches
+
+%jfalse	-
+%jtrue	-
+%jump	-
+%switch c
+
+#Integer conditions
+
+%cceq f		T_EQEQ
+%cclt sf	T_LT
+%cclteq sf	T_LTEQ
+# We can make these pairs using negation ?
+#%ccne f		T_BANGEQ
+#%ccgt	sf	T_GT
+#%ccgteq	sf	T_GTEQ
+
+# Variables
+
+%nref c		T_NREF
+%lref c		T_LREF
+%nstore c	T_NSTORE
+%lstore c	T_LSTORE
+%local -	T_LOCAL
+
+# Optimized
+
+%plusconst -
+%plus4	-
+%plus3	-
+%plus2	-
+%plus1	-
+%minus4	-
+%minus3	-
+%minus2	-
+%minus1	-
+
+# Helpers
+
+%fnenter -
+%fnexit	 -
+%cleanup -
+%native -
+%byte - 
+
+# Register operations
+
+%r0ref cir	T_RREF
+%r0store cir	T_RSTORE
+%r0deref cir	T_RDEREF
+%r0inc1 ir	T_RINC1
+%r0inc2 ir	T_RINC2
+%r0dec ir	T_RDEC
+%r0dec2 ir	T_RDEC2
+%r0drfpost ir 	T_RDEREFPRE
+%r0drfpre ir	T_RDEREFPOST
+%r1ref cir	T_RREF
+%r1store cir	T_RSTORE
+%r1deref cir	T_RDEREF
+%r1inc1 ir	T_RINC1
+%r1inc2 ir	T_RINC2
+%r1dec ir	T_RDEC
+%r1dec2 ir	T_RDEC2
+%r1drfpost ir 	T_RDEREFPRE
+%r1drfpre ir	T_RDEREFPOST
+%r2ref cir	T_RREF
+%r2store cir	T_RSTORE
+%r2deref cir	T_RDEREF
+%r2inc1 ir	T_RINC1
+%r2inc2 ir	T_RINC2
+%r2dec ir	T_RDEC
+%r2dec2 ir	T_RDEC2
+%r2drfpost ir 	T_RDEREFPRE
+%r2drfpre ir	T_RDEREFPOST
+%r3ref cir	T_RREF
+%r3store cir	T_RSTORE
+%r3deref cir	T_RDEREF
+%r3inc1 ir	T_RINC1
+%r3inc2 ir	T_RINC2
+%r3dec ir	T_RDEC
+%r3dec2 ir	T_RDEC2
+%r3drfpost ir 	T_RDEREFPRE
+%r3drfpre ir	T_RDEREFPOST

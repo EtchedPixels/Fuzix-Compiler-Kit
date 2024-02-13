@@ -10,75 +10,107 @@
 ;	  user SP isn't that important and can be briefly slightly invalid
 ;
 	.abs
-	.org 0x100
+	.org 0x300
 
 ;		0	; DMA
 ;		1	; Interrupt handler
 ;		2	; System stack for interrupt
 #define AC	3	; Accumulator low
 #define HI	4	; Accumulator high
-#define SP	5	; Thread code stack (must bump on 4 bytes before
+#define SP	5	; Thread code stack (must bump down 4 bytes before
 			; reusing in interrupts)
 #define BPC	6	; Threadcode program counter
 #define PC	7	; Program counter for the thread op
 #define RUN	8	; Program counter for the main co-routine
-#define TMP	9	; Working scratch
-#define FP	10	; Frame pointer	
-			; 11-15 free (register vars perhaps one day ?)
-
-
-	.export __execute
-
-;	Run threadcode ops. We fetch an address from bpc and execute it as a
-;	couroutine in pc. run holds the execute co-routine address
-__execute:
-	lda BPC
-	plo PC
-	lda BPC
-	phi PC
-	sep PC
-	br __execute
-
+#define TMP	9	; Working scratch (also PC for native ?)
+#define FP	10	; Frame pointer
+#define VP	11	; Vector table pointer (must be page aligned)
+			; 12-15 free for register variables
+#define	R_0	12
+#define R_1	13
+#define R_2	14
+#define R_3	15
 ;
-;	Stack the accumulator byte, word, long sized
+;	1802 engine
 ;
-	.export __pushc
-__pushc:
+op_shift1:
+	ldi >byteop2
+	phi VP
+	sep RUN
+op_pushc:
 	glo AC
 	str SP
 	dec SP
 	sep RUN
-
-	.export __push
-__push:
+op_push:
 	sex SP
 	ghi AC
 	stxd
 	glo AC
 	stxd
 	sex BPC
+	set RUN
+op_popl:
+	inc SP
+	inc SP
+op_pop:
+	inc SP
+op_popc:
+	inc SP
 	sep RUN
-
-	.export __pushl
-
-__pushl:
-	sex SP
-	ghi HI
+op_xxeq:		; start of += etc. Duplicate the pointer top of stack
+	inc SP
+	lda SP
+	plo TMP
+	phi TMP
+	dec SP
+	dec SP
+	glo TMP
 	stxd
+	ghi TMP
+	stxd
+	sep RUN
+op_xxeqpostc:		; po the address and write back the result
+	inc SP
+	lda SP
+	plo TMP
+	ldn SP
+	phi TMP
+	glo AC
+	str TMP
+	sep RUN
+op_xxeqpost:		; po the address and write back the result
+	inc SP
+	lda SP
+	plo TMP
+	ldn SP
+	phi TMP
+	glo AC
+	str TMP
+	inc TMP
+	ghi AC
+	str TMP
+	sep RUN
+op_xxeqpostl:		; po the address and write back the result
+	inc SP
+	lda SP
+	plo TMP
+	ldn SP
+	phi TMP
+	glo AC
+	str TMP
+	inc TMP
+	ghi AC
+	str TMP
+	inc TMP
 	glo HI
-	stxd
-	ghi AC
-	stxd
-	glo AC
-	stxd
-	sex BPC
+	str TMP
+	inc TMP
+	ghi HI
+	str TMP
 	sep RUN
 
-;
-;	16bit unsigned right shift of top of stack by AC.lo
-;
-	.export __shru
-__shru:			; needs smarts for 8bit
+op_shl:
 	glo AC
 	ani 15
 	plo TMP
@@ -86,68 +118,10 @@ __shru:			; needs smarts for 8bit
 	inc SP
 	lda SP
 	plo AC
-	ldn SP
-	phi AC
-	br lsrnext
-lsrloop:
-	ghi AC
-	shr
-	phi AC
-	glo AC
-	shrc
-	plo AC
-lsrnext:
-	dec TMP
-	glo TMP
-	bnz lsrloop
-	sep RUN
-
-;
-;	Signed version of above
-;
-	.export __shr
-__shr:
-	glo AC
-	ani 15
-	plo TMP
-	inc TMP
 	inc SP
 	lda SP
-	plo AC
-	ldn SP
 	phi AC
-	shl
-	bdf lsrnext
-	br asrnext
-asrloop:	; negative loop
-	ghi AC
-	shr
-	adi 0x80
-	phi AC
-	glo AC
-	shrc
-	plo AC
-asrnext:
-	dec TMP
-	glo TMP
-	bnz asrloop
-	sep RUN
-
-;
-;	16bit signed/unsigned left shift of the top of stack by AC.lo
-;
-	.export __shl
-__shl:			; needs smarts for 8bit
-	glo AC
-	ani 15
-	plo TMP
-	inc TMP
-	inc SP
-	lda SP
-	plo AC
-	ldn SP
-	phi AC
-	br lslnext
+	br  lslnext
 lslloop:
 	glo AC
 	shl
@@ -161,1118 +135,84 @@ lslnext:
 	bnz lslloop
 	sep RUN
 
-;
-;	32bit version
-;
-	.export __shll
-__shll:			; needs smarts for 8bit and 16bit breaks
-	glo AC
-	ani 31
-	plo TMP
-	inc TMP
-	inc SP
-	lda SP
-	plo AC
-	lda SP
-	phi AC
-	lda SP
-	plo HI
-	ldn SP	
-	phi HI
-	br lsllnext
-lsllloop:
-	glo AC
-	shl
-	plo AC
-	ghi AC
-	shlc
-	phi AC
-	glo HI
-	shlc
-	plo HI
-	ghi HI
-	shlc
-	phi HI
-lsllnext:
-	dec TMP
-	glo TMP
-	bnz lsllloop
-	sep RUN
-
-;
-;	16 and 32bit addition between top of stack and AC/HI
-;	May well be worth having optimized ops for constant later
-;
-	.export __plus
-__plus:
-	sex SP
-	inc SP
-	glo AC
-	add
-	plo AC
-	inc SP	
-	ghi AC
-	adc
-	phi AC
-	sex BPC
-	sep RUN
-
-	.export __plusl
-__plusl:
-	sex SP
-	inc SP
-	glo AC
-	add
-	plo AC
-	inc SP	
-	ghi AC
-	adc
-	phi AC
-	inc SP
-	glo HI
-	adc
-	plo HI
-	inc SP	
-	ghi HI
-	adc
-	phi HI
-	sex BPC
-	sep RUN
-
-	.export __minus
-;	TOS - AC
-__minus:
-	sex SP
-	inc SP
-	glo AC
-	sd
-	plo AC
-	inc SP	
-	ghi AC
-	sdb
-	phi AC
-	sex BPC
-	sep RUN
-
-	.export __minusl
-__minusl:
-	sex SP
-	inc SP
-	glo AC
-	sd
-	plo AC
-	inc SP	
-	ghi AC
-	sdb
-	phi AC
-	inc SP
-	glo HI
-	sdb
-	plo HI
-	inc SP	
-	ghi HI
-	sdb
-	phi HI
-	sex BPC
-	sep RUN
-
-;
-;	Boolean logic between top of stack and AC or AC/HI
-;
-	.export __band
-__band:
-	sex SP
-	inc SP
-	glo AC
-	and
-	plo AC
-	inc SP
-	ghi AC
-	and
-	phi AC
-	sex SP
-	sep RUN
-
-	.export __bandl
-__bandl:
-	sex SP
-	inc SP
-	glo AC
-	and
-	plo AC
-	inc SP
-	ghi AC
-	and
-	phi AC
-	inc SP
-	glo HI
-	and
-
-	plo HI
-	inc SP
-	ghi HI
-	and
-	phi HI
-	sex SP
-	sep RUN
-
-
-	.export __xor
-__xor:
-	sex SP
-	inc SP
-	glo AC
-	xor
-	plo AC
-	inc SP
-	ghi AC
-	xor
-	phi AC
-	sex SP
-	sep RUN
-
-	.export __xorl
-__xorl:
-	sex SP
-	inc SP
-	glo AC
-	or
-	plo AC
-	inc SP
-	ghi AC
-	xor
-	phi AC
-	inc SP
-	glo HI
-	xor
-	plo HI
-	inc SP
-	ghi HI
-	xor
-	phi HI
-	sex SP
-	sep RUN
-
-	.export __or
-__or:
-	sex SP
-	inc SP
-	glo AC
-	or
-	plo AC
-	inc SP
-	ghi AC
-	or
-	phi AC
-	sex SP
-	sep RUN
-
-	.export __orl
-__orl:
-	sex SP
-	inc SP
-	glo AC
-	or
-	plo AC
-	inc SP
-	ghi AC
-	or
-	phi AC
-	inc SP
-	glo HI
-	or
-	plo HI
-	inc SP
-	ghi HI
-	or
-	phi HI
-	sex SP
-	sep RUN
-
-;
-;	Complement AC or AC/HI
-;
-	.export __cpll
-	.export __cpl
-__cpll:
-	glo HI
-	xri 0xFF
-	plo HI
-	ghi HI
-	xri 0xFF
-	phi HI
-__cpl:	glo AC
-	xri 0xFF
-	plo AC
-	ghi AC
-	xri 0xFF
-	plo AC
-	sep RUN
-
-;
-;	Assignment (all sizes). AC into (TOS)
-;	
-
-	; put TOS into (AC)
-	.export __eqc
-__eqc:
-	inc SP
-	ldn SP
-	str AC
-	plo AC		; stored value becomes working
-	sep RUN
-
-	.export __eq
-__eq:
-	inc SP
-	lda SP
-	str AC
-	plo TMP
-	ldn SP
-	str AC
-	phi AC
-	glo TMP
-	plo AC
-	sep RUN
-
-	.export __eql
-__eql:
-	inc SP
-	lda SP
-	str AC
-	plo TMP
-	lda SP
-	str AC
-	phi AC
-	lda SP
-	str AC
-	plo HI
-	ldn SP
-	str AC
-	phi HI
-	glo TMP
-	plo AC
-	sep RUN
-
-;
-;	Object dereference (all sizes) AC = (AC)
-;
-	.export __derefc
-	.export __deref
-	.export __derefl
-
-__deref:
-	lda AC
-	plo TMP
-	lda AC
-	phi AC
-	glo TMP
-	plo AC
-	sep RUN
-__derefc:
-	lda SP
-	plo AC
-	sep RUN
-__derefl:
-	lda AC
-	plo TMP
-	lda AC
-	phi TMP
-	lda AC
-	plo HI
-	lda AC
-	phi HI
-	glo TMP
-	plo AC
-	ghi TMP
-	phi AC
-	sep RUN
-
-;
-;	Negate AC
-;
-	.export __negate
-	.export __negatel
-__negate:
-	glo AC
-	xri 0xFF
-	plo AC
-	ghi AC
-	xri 0xFF
-	phi AC
-	inc AC
-	sep RUN
-
-__negatel:
-	glo AC
-	xri 0xFF
-	plo AC
-	ghi AC
-	xri 0xFF
-	phi AC
-	glo HI
-	xri 0xFF
-	plo HI
-	ghi HI
-	xri 0xFF
-	phi HI
-	inc AC
-	glo AC
-	bnz negdone
-	ghi AC
-	bnz negdone
-	inc HI
-negdone:
-	sep RUN
-
-;
-;	Load a constant value into AC
-;
-	.export __const
-	.export __loadn
-	.export __loadl
-
-__const:
-__loadn:
-	ldxa
-	plo AC
-	ldxa
-	phi AC
-	sep RUN
-
-	.export __loadl
-__loadl:
-	ldxa
-	plo AC
-	ldxa
-	phi AC
-	ldxa
-	plo HI
-	ldxa
-	phi HI
-	sep RUN
-
-;
-;	Drop a byte word or long from the stack
-;
-	.export __popl
-	.export __pop
-	.export __popc
-
-__popl:
-	inc SP
-	inc SP
-__pop:
-	inc SP
-__popc:
-	inc SP
-	sep RUN
-
-;
-;	boolean negate AC
-;
-	.export __notl
-	.export __not
-	.export __notc
-
-__notl:
-	glo HI
-	bnz set0
-	ghi HI
-	bnz set0
-__not:
-	ghi AC
-	bnz set0
-__notc:
-	glo AC
-	bnz set0
-	; is 0 should be 1
-	inc AC
-	sep RUN
-set0:
-	ldi 0
-	phi AC
-	ldi 1
-	plo AC
-	sep RUN
-
-;
-;	Turn AC boolean (0/1)
-;
-	.export __booll
-	.export __bool
-	.export __boolc
-
-__booll:
-	ghi HI
-	bnz set1
-	glo HI
-	bnz set1
-__bool:
-	ghi AC
-	bnz set1
-__boolc:
-	glo AC
-	lsz
-set1:
-	ldi 1
-	plo AC
-	ldi 0
-	phi AC
-	sep RUN
-
-;	loadl		; adjust into a single operator in core code
-;	loada		; we need a tmp as we can't touch SP whilst
-;			; working on it
-
-	.export __local
-__local:
-	sex SP
-	glo FP
-	inc SP
-	add
-	plo AC
-	ghi FP
-	adc
-	phi AC
-	sex BPC
-	sep RUN
-
-;
-;	Typecasting of HI:AC as needed
-;
-	.export __castc_
-	.export __castc_l
-	.export __castuc_
-	.export __castuc_l
-	.export __cast_l
-	.export __castu_l
-
-__castc_l1:
-	ldi 255
-	lskp
-__castuc_l:
-	ldi 0
-	phi HI
-	plo HI
-	lskp
-__castuc_:
-	ldi 0
-	phi AC
-	sep RUN
-
-__castc_l:
-	glo AC
-	shl
-	bdf __castc_l1
-	br __castuc_l
-__castc_:
-	glo AC
-	shl
-	bdf __castuc_
-	ldi 255
-	phi AC
-	sep RUN
-
-__cast_l:
-	ghi AC
-	shl
-	ldi 0xFF
-	lsdf
-__castu_l:
-	ldi 0
-	plo HI
-	phi HI
-	sep RUN
-
-;
-;	C "+="
-;	TOS = address, A is amount
-;
-	.export __pluseqc
-	.export __pluseq
-	.export __pluseql
-
-__pluseqc:
-	; AC = value
-	; TOS = ptr
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	sex TMP
-	glo AC
-	add
-	plo AC
-	str TMP
-	sex BPC
-	sep RUN
-
-__pluseq:
-	; AC = value
-	; TOS = ptr
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	sex TMP
-	glo AC
-	add
-	plo AC
-	stxd
-	ghi AC
-	adc
-	phi AC
-	str TMP
-	sex BPC
-	sep RUN
-
-__pluseql:
-	; AC = value
-	; TOS = ptr
-	sex SP
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	dec SP
-	sex TMP
-	glo AC
-	add
-	plo AC
-	stxd
-	ghi AC
-	adc
-	phi AC
-	stxd
-	glo HI
-	adc
-	plo HI
-	stxd
-	ghi HI
-	adc
-	phi HI
-	str TMP
-	sex BPC
-	sep RUN
-
-	.export __minuseqc
-	.export __minuseq
-	.export __minuseql
-
-;
-;	C "-="
-;
-__minuseqc:
-	; AC = value
-	; TOS = ptr
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	sex TMP
-	glo AC
-	sdb
-	plo AC
-	str TMP
-	sex BPC
-	sep RUN
-
-__minuseq:
-	; AC = value
-	; TOS = ptr
-	sex SP
-	inc SP
-
-	phi TMP
-	sex TMP
-	glo AC
-	sdb
-	plo AC
-	stxd
-	ghi AC
-	sdb
-	phi AC
-	str TMP
-	sex BPC
-	sep RUN
-
-__minuseql:
-	; AC = value
-	; TOS = ptr
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	sex TMP
-	glo AC
-	sd
-	plo AC
-	stxd
-	ghi AC
-	sdb
-	phi AC
-	stxd
-	glo HI
-	sdb
-	plo HI
-	stxd
-	ghi HI
-	sdb
-	phi HI
-	str TMP
-	sex BPC
-	sep RUN
-
-;
-;	Same for logic ops
-;
-	.export __andeqc
- 	.export __andeq
-	.export __andeql
-__andeqc:
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	sex TMP
-	glo AC
-	and
-	plo AC
-	sex BPC
-	sep RUN
-
-
-__andeq:
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	sex TMP
-	glo AC
-	and
-	plo AC
-	inc TMP
-	ghi AC
-	and
-	phi AC
-	sex BPC
-	sep RUN
-
-__andeql:
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	sex TMP
-	glo AC
-	and
-	plo AC
-	inc TMP
-	ghi AC
-	and
-	phi AC
-	inc TMP
-	glo HI
-	and
-	plo HI
-	inc TMP
-	ghi HI
-	and
-	phi HI
-	sex BPC
-	sep RUN
-
-	.export __oreqc
- 	.export __oreq
-	.export __oreql
-__oreqc:
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	sex TMP
-	glo AC
-	or
-	plo AC
-	sex BPC
-	sep RUN
-
-__oreq:
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	sex TMP
-	glo AC
-	or
-	plo AC
-	inc TMP
-	ghi AC
-	or
-	phi AC
-	sex BPC
-	sep RUN
-
-__oreql:
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	sex TMP
-	glo AC
-	or
-	plo AC
-	inc TMP
-	ghi AC
-	or
-	phi AC
-	inc TMP
-	glo HI
-	or
-	plo HI
-	inc TMP
-	ghi HI
-	or
-	phi HI
-	sex BPC
-	sep RUN
-
-	.export __xoreqc
- 	.export __xoreq
-	.export __xoreql
-__xoreqc:
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	sex TMP
-	glo AC
-	xor
-	plo AC
-	sex BPC
-	sep RUN
-
-__xoreq:
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	sex TMP
-	glo AC
-	xor
-	plo AC
-	inc TMP
-	ghi AC
-	xor
-	phi AC
-	sex BPC
-	sep RUN
-
-__xoreql:
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	sex TMP
-	glo AC
-	xor
-	plo AC
-	inc TMP
-	ghi AC
-	xor
-	phi AC
-	inc TMP
-	glo HI
-	xor
-	plo HI
-	inc TMP
-	ghi HI
-	xor
-	phi HI
-	sex BPC
-	sep RUN
-
-;
-;	Call a function. Saves BPC and FP
-;
-	.export __callfn
-__callfn:
-	sex SP
-	lda BPC
-	plo TMP
-	lda BPC
-	phi TMP
-	ghi BPC
-	stxd
-	glo BPC
-	stxd
-	ghi FP
-	stxd
-	glo FP
-	stxd
-	glo TMP
-	plo BPC
-	ghi TMP
-	phi BPC
-	sex BPC
-	sep RUN
-
-;
-;	Call function whose address is TOS
-;
-	.export __callfunc
-
-__callfunc:
-	sex SP
-	inc SP
-	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	ghi BPC
-	stxd
-	glo BPC
-	stxd
-	ghi FP
-	stxd
-	glo FP
-	stxd
-	glo TMP
-	plo BPC
-	ghi TMP
-	phi BPC
-	sex BPC
-	sep RUN
-
-;
-;	Function entry helper, builds stack frame and sets FP
-;
-	.export __fnenter
-__fnenter:
-	glo SP
-	add
-	plo FP
-	plo SP
-	inc BPC
-	ghi SP
-	adc
-	phi FP
-	phi SP
-	sep RUN
-
-;
-;	Return from a function. Restores BPC and FP
-;
-	.export __fnexit
-__fnexit:
-	inc SP
-	lda SP
-	plo FP
-	lda SP
-	phi FP 
-	lda SP
-	plo BPC
-	ldn SP
-	phi BPC
-	sep RUN
-
-;
-;	Adjust the stack pointer to clean up after a function call
-;
-	.export __cleanup
-__cleanup:
-	sex BPC
-	glo SP
-	add
-	plo SP
-	inc BPC
-	ghi SP
-	adc
-	phi SP
-	inc BPC
-	sep RUN
-
-;
-;	Branches. Use the boolean in AC.lo to decide what happens
-;
-	.export __jfalse
-	.export __jtrue
-	.export __jump
-__jfalse:
-	glo AC
-	bz __jump
-bnot:
-	inc BPC
-	inc BPC
-	sep RUN
-__jtrue:
-	glo AC
-	bz bnot
-__jump:
-	lda BPC
-	plo TMP
-	ldn BPC
-	phi BPC
-	glo TMP
-	plo BPC
-	sep RUN
-
-;TODO	shleql
-
-;
-;	<<= 	(TOS) <<= AC.lo
-;
-	.export __shleqc
-	.export __shleq
-__shleqc:	; shift (TOS) by AC
+op_shr:
+	; We should do smart things for 8bit shift
 	glo AC
 	ani 15
-	bz shleq_nonec
-	plo HI
-	inc SP
-	ldn SP
 	plo TMP
-	ldn TMP
-	plo AC
-shleqlpc:
-	glo AC
-	shl
-	plo AC
-	dec HI
-	glo HI
-	bnz shleqlpc
-	; AC is now the value, store
-	glo AC
-	str TMP
-	sep RUN
-
-shleq_nonec:
-	ldn TMP
-	plo AC
-	sep RUN
-
-__shleq:	; shift (TOS) by AC
-	glo AC
-	ani 15
-	bz shleq_none
-	plo HI
+	inc TMP
 	inc SP
 	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	lda TMP
 	plo AC
-	ldn TMP
-	phi AC
-shleqlp:
-	glo AC
-	shl
-	plo AC
-	ghi AC
-	shlc
-	phi AC
-	dec HI
-	glo HI
-	bnz shleqlp
-	; AC is now the value, store
-	ghi AC
-	str TMP
-	dec TMP
-	glo AC
-	str TMP
-	sep RUN
-
-shleq_none:
-	lda TMP
-	plo AC
-	ldn TMP
-	phi AC
-	sep RUN
-
-	.export __shrequc
-	.export __shrequ
-
-__shrequc:; shift (TOS) by AC
-	glo AC
-	ani 15
-	bz shleq_none
-	plo HI
 	inc SP
 	ldn SP
-	plo TMP
-	ldn TMP
-	plo AC
-shreqlpc:
-	glo AC
+	phi AC
+	shl
+	bdf lsrnext
+	br asrnext
+asrloop:
+	ghi AC
 	shr
-	plo AC
-	dec HI
-	glo HI
-	bnz shreqlpc
-	; AC is now the value, store
+	adi 0x80
+	phi AC
 	glo AC
-	str TMP
+	shrc
+	plo AC
+asrnext:
+	dec TMP
+	glo TMP
+	bnz asrloop
 	sep RUN
-
-;
-;	(TOS) >>= AC.lo
-;
-__shrequ:	; shift (TOS) by AC
+op_shru:
+	; We should do smart things for 8bit shift
 	glo AC
 	ani 15
-	bz shleq_none
-	plo HI
+	plo TMP
+	inc TMP
 	inc SP
 	lda SP
-	plo TMP
-	ldn SP
-	phi TMP
-	lda TMP
 	plo AC
-	ldn TMP
+	inc SP
+	ldn SP
 	phi AC
-shreqlp:
+	br lsrnext
+lsruloop:
 	ghi AC
 	shr
 	phi AC
 	glo AC
 	shrc
 	plo AC
-	dec HI
-	glo HI
-	bnz shreqlp
-	; AC is now the value, store
-	ghi AC
-	str TMP
+lsrunext:
 	dec TMP
-	glo AC
-	str TMP
+	glo TMP
+	bnz lsrloop
 	sep RUN
-
-; TODO shreql and signed ver
-;	shreq (cl)(u)
-
-;
-;	16x16 multiply
-;
-	.export __mul
-__mul:
+op_plus:
+	sex SP
+	inc SP
+	glo AC
+	add
+	plo AC
+	inc SP
+	ghi AC
+	adc
+	phi AC
+	sex BPC
+	sep RUN
+op_minus:	; TOS - AC
+	sex SP
+	inc SP
+	glo AC
+	sd
+	plo AC
+	inc SP
+	gi AC
+	sdb
+	phi AC
+	sex BPC
+	sep RUN
+op_mul:
 	; AC * TOS
 	glo SP
 	plo HI
@@ -1324,364 +264,18 @@ morebits:
 	phi AC
 	br nextbits
 
-
-;mull:	/* TODO */
-;	mul(l)
-;
-;	div(l)(s)
-;
-;	rem(l)(s)
-;
-;	diveq(cl)(u)
-;	muleq(cl)
-;	remeq(cl)(u)
-;	postinc (cl)	; rewrite as stash pluseq unstash
-;		(stash storing to tmp and unstash recovering ?)
-;	postdec (cl)
-
-
-
-;	cclt(l)(s)
-;	ccgt(l)(s)
-;	cclteq(l)(s)
-;	ccgteq(l)(s)
-;	cceq (l)
-
-;
-;	Comparisons of TOS and AC. Boolean into AC as result
-;
-	.export __cceq
-__cceq:
-	sex SP
-	glo AC
-	inc SP
-	sm
-	inc SP
-	bnz ccfalse
-	ghi AC
-	sm
-	bnz ccfalse
-cctrue:
-	ldi 0	; already 0 but this lets us share the stub
-	phi AC
-	ldi 1
-	plo AC
-	sex BPC
-	sep RUN
-ccfalse:
-	ldi 0
-	plo AC
-	phi AC
-	sex BPC
-	sep RUN
-
-; ccne: 	; rewrite branch direction on cceq
-
-; for both rewrite >= to ltu reverse conditions,  ditto gt/lteq
-	.export __ccltu
-__ccltu:
-	ldi 0
-	phi AC
-	sex SP
-	inc SP
-	inc SP		; high byte
-	glo AC
-	sm
-	bz ltu2
-	ldi 0
-	lsdf
-	ldi 1
-	plo AC
-	sex BPC
-	sep RUN
-ltu2:
-	dec SP
-	glo AC
-	sm
-	inc SP
-	ldi 0
-	lsdf
-	ldi 1
-	plo AC
-	sex BPC
-	sep RUN
-
-	.export __ccltequ
-__ccltequ:
-	ldi 0
-	phi AC
-	sex SP
-	inc SP
-	inc SP		; high byte
-	glo AC
-	sm
-	bz ltequ2
-	ldi 0
-	lsdf
-	ldi 1
-	plo AC
-	sex BPC
-	sep RUN
-ltequ2:
-	dec SP
-	glo AC
-	sm
-	inc SP
-	bz ltequ3
-	ldi 0
-	lsdf
-ltequ3:
-	ldi 1
-	plo AC
-	sex BPC
-	sep RUN
-
-	.export __cclt
-__cclt:
-	; TOS < AC
-	sex SP
-	inc SP
-	inc SP
-	ghi AC
-	xor
-	shl
-	bnf lt_sign_same
-	shr
-	xor
-	shl	; get sign into D
-	ldi 0
-	phi AC
-	lsdf
-	ldi 1
-	plo AC
-	sex BPC
-	sep RUN
-lt_sign_same:
-	dec SP
-	ghi AC
-	sm
-	bz cclt_2
-	ldi 1
-	lsdf
-	ldi 0
-	inc SP
-	sex BPC
-	sep RUN
-cclt_2:
-	inc SP
-	glo AC
-	sm
-	ldi 1
-	lsdf
-	ldi 0
-	plo AC
-	sex BPC
-	sep RUN
-
-	.export __cclteq
-__cclteq:
-	; TOS < AC
-	sex SP
-	inc SP
-	inc SP
-	ghi AC
-	xor
-	shl
-	bdf lteq_sign_same
-	shr
-	xor
-	shl	; get sign into D
-	ldi 0
-	phi AC
-	lsdf
-	ldi 1
-	plo AC
-	sex BPC
-	sep RUN
-lteq_sign_same:
-	dec SP
-	ghi AC
-	sm
-	bz cclt_2
-	ldi 1
-	lsdf
-	ldi 0
-	inc SP
-	sex BPC
-	sep RUN
-cclteq_2:
-	inc SP
-	glo AC
-	sm
-	bz setleq
-	ldi 1
-	lsdf
-	ldi 0
-	plo AC
-	sex BPC
-	sep RUN
-setleq:
-	ldi 1
-	plo AC
-	sex BPC
-	sep RUN
-
-	.export __lbrefc
-	.export __nrefc
-	.export __lrefc
-	.export __lbref
-	.export __nref
-	.export __lref
-	.export __nstorec
-	.export __nstore
-	.export __lbstorec
-	.export __lbstore
-	.export __lstorec
-	.export __lstore
-
-__nrefc:
-__lbrefc:
-	ldxa
-	plo TMP
-	ldxa
-	phi TMP
-	lda TMP
-	plo AC
-	sep RUN
-
-__nref:
-__lbref:
-	ldxa
-	plo TMP
-	ldxa
-	phi TMP
-	lda TMP
-	plo AC
-	ldn TMP
-	phi AC
-	sep RUN
-
-__nstorec:
-__lbstorec:
-	ldxa
-	plo TMP
-	ldxa
-	phi TMP
-	glo AC
-	str TMP
-	sep RUN
-
-__nstore:
-__lbstore:
-	ldxa
-	plo TMP
-	ldxa
-	phi TMP
-	glo AC
-	str TMP
-	inc TMP
-	ghi AC
-	str TMP
-	sep RUN
-
-; Could do refl stuff easily enough
-
-__lrefc:
-	glo FP
-	add
-	plo TMP
-	irx
-	ghi FP
-	adc
-	phi TMP
-	ldn TMP
-	plo AC
-	sep RUN
-
-__lref:
-	glo FP
-	add
-	plo TMP
-	irx
-	ghi FP
-	adc
-	phi TMP
-	lda TMP
-	plo AC
-	ldn TMP
-	plo AC
-	sep RUN
-
-__lstorec:
-	glo FP
-	add
-	plo TMP
-	irx
-	ghi FP
-	adc
-	phi TMP
-	glo AC
-	str TMP
-	sep RUN
-
-__lstore:
-	glo FP
-	add
-	plo TMP
-	irx
-	ghi FP
-	adc
-	phi TMP
-	glo AC
-	str TMP
-	inc TMP
-	ghi AC
-	str TMP
-	sep RUN
-
-; Optimizer rule generated heleprs
-
-	.export __plus4
-	.export __plus3
-	.export __plus2
-	.export __plus1
-	.export __minus4
-	.export __minus3
-	.export __minus2
-	.export __minus1
-
-__plus4:
-	inc AC
-__plus3:
-	inc AC
-__plus2:
-	inc AC
-__plus1:
-	inc AC
-	sep RUN
-
-__minus4:
-	dec AC
-__minus3:
-	dec AC
-__minus2:
-	dec AC
-__minus1:
-	dec AC
-	sep RUN
-
 ;
 ;	Now the fun stuff - 16bit divide
 ;
-__rem:
+op_rem:
 	sex SP
 	ghi AC
 	shl
-	lbz __remu	; Remainder sign matches divisor
+	bz __remu	; Remainder sign matches divisor
 			; so low means same as unsigned
 	ldi 0x80	; Remember to invert the sign
-	lbr negates
-__div:
+	br negates
+op_div:
 	sex SP
 	ghi AC
 	inc SP
@@ -1729,10 +323,10 @@ no_neg_1:
 no_neg_2:
 	br __div16x16
 
-__remu:
+op_remu:
 	ldi 0
 	lskp
-__divu:
+op_divu:
 	ldi 1
 	phi HI
 ;
@@ -1830,3 +424,1213 @@ divide:
 	ghi TMP
 	phi AC
 	br chksign
+op_negate:
+	glo AC
+	xri 0xFF
+	plo AC
+	ghi AC
+	xri 0xFF
+	phi AC
+	inc AC
+	sep RUN
+op_band:
+	sex SP
+	inc SP
+	glo AC
+	and
+	plo AC
+	inc SP
+	ghi AC
+	and
+	phi AC
+	sex SP
+	sep RUN
+op_or:
+	sex SP
+	inc SP
+	glo AC
+	or
+	plo AC
+	inc SP
+	ghi AC
+	or
+	phi AC
+	sex SP
+	sep RUN
+op_xor:
+	sex SP
+	inc SP
+	glo AC
+	xor
+	plo AC
+	inc SP
+	ghi AC
+	xor
+	phi AC
+	sex SP
+	sep RUN
+op_cpll:
+	glo HI
+	xri 0xFF
+	plo HI
+	ghi HI
+	xri 0xFF
+	phi HI
+op_cpl:	glo AC
+	xri 0xFF
+	plo AC
+	ghi AC
+	xri 0xFF
+	plo AC
+	sep RUN
+op_assignc:
+	inc SP
+	ldn SP
+	str AC
+	plo AC		; stored value becomes working
+	sep RUN
+op_assign:
+	inc SP
+	lda SP
+	str AC
+	plo TMP
+	ldn SP
+	str AC
+	phi AC
+	glo TMP
+	plo AC
+	sep RUN
+op_derefc:
+	lda AC
+	plo AC
+	sep RUN
+op_deref:
+	lda AC
+	plo TMP
+	lda AC
+	phi AC
+	glo TMP
+	plo AC
+	sep RUN
+op_constc:
+	ldxa
+	plo AC
+	sep RUN
+op_const:
+	ldxa
+	plo AC
+	ldxa
+	phi AC
+	sep RUN
+op_notl:
+	glo HI
+	bnz set0
+	ghi HI
+	bnz set0
+op_not:
+	ghi AC
+	bnz set0
+op_notc:
+	glo AC
+	bnz set0
+	; is 0 should be 1
+	inc AC
+	sep RUN
+set0:
+	ldi 0
+	phi AC
+	ldi 1
+	plo AC
+	sep RUN
+op_booll:
+	ghi HI
+	bnz set1
+	glo HI
+	bnz set1
+op_bool:
+	ghi AC
+	bnz set1
+op_boolc:
+	glo AC
+	lsz
+set1:
+	ldi 1
+	plo AC
+	ldi 0
+	phi AC
+	sep RUN
+op_extc:
+	glo AC
+	shl
+	bdf op_extuc
+	ldi 255
+	phi AC
+	plo HI
+	phi HI
+	sep RUN
+op_ext:
+	ghi AC
+	shl
+	bdf op_extu
+	ldi 255
+	plo HI
+	phi HI
+	sep RUN
+op_extuc:
+	ldi 0
+	phi AC
+op_extu:
+	ldi 0
+	plo HI
+	phi HI
+	sep RUN
+op_f2l:
+op_l2f:
+op_f2ul:
+op_ul2f:
+op_pluseqc:
+op_pluseq:
+op_minuseqc:
+op_minuseq:
+op_postincc:
+op_postinc:
+op_postdecc:
+op_postdec:
+op_muleqc:
+op_muleq:
+op_diveqc:
+op_divequc:
+op_diveq:
+op_divequ:
+op_remeqc:
+op_remequc:
+op_remeq:
+op_remequ:
+op_andeqc:
+op_andeq:
+op_oreqc:
+op_oreq:
+op_xoreqc:
+op_xoreq:
+op_shleqc:
+op_shleq:
+op_shreqc:
+op_shrequc:
+op_shreq:
+op_shrequ:
+op_callfname:
+	sex SP
+	lda BPC
+	plo TMP		; target addr lo
+	lda BPC
+	phi TMP		; target addr hi
+	ghi BPC
+	stxd		; save old addr
+	glo BPC
+	stxd
+	ghi FP
+	stxd
+	glo FP
+	stxd
+	glo TMP
+	plo BPC
+	ghi TMP
+	phi BPC
+	sex BPC
+	sep RUN
+op_callfunc:
+	sex SP
+	inc SP
+	lda SP
+	plo TMP
+	ldn SP
+	phi TMP
+	ghi BPC
+	stxd
+	glo BPC
+	stxd
+	ghi FP
+	stxd
+	glo FP
+	stxd
+	glo TMP
+	plo BPC
+	ghi TMP
+	phi BPC
+	sex BPC
+	sep RUN
+op_jfalse:
+	glo AC
+	bz __jump
+bnot:
+	inc BPC
+	inc BPC
+	sep RUN
+op_jtrue:
+	glo AC
+	bz bnot
+op_jump:
+	lda BPC
+	plo TMP
+	ldn BPC
+	phi BPC
+	glo TMP
+	plo BPC
+	sep RUN
+op_switchc:
+op_switch:
+op_cceq:
+	sex SP
+	glo AC
+	inc SP
+	sm
+	inc SP
+	bnz ccfalse
+	ghi AC
+	sm
+	bnz ccfalse
+cctrue:
+	ldi 0	; already 0 but this lets us share the stub
+	phi AC
+	ldi 1
+	plo AC
+	sex BPC
+	sep RUN
+ccfalse:
+	ldi 0
+	plo AC
+	phi AC
+	sex BPC
+	sep RUN
+op_cclt:
+	; TOS < AC
+	sex SP
+	inc SP
+	inc SP
+	ghi AC
+	xor
+	shl
+	bnf lt_sign_same
+	shr
+	xor
+	shl	; get sign into D
+	ldi 0
+	phi AC
+	lsdf
+	ldi 1
+	plo AC
+	sex BPC
+	sep RUN
+lt_sign_same:
+	dec SP
+	ghi AC
+	sm
+	bz cclt_2
+	ldi 1
+	lsdf
+	ldi 0
+	inc SP
+	sex BPC
+	sep RUN
+cclt_2:
+	inc SP
+	glo AC
+	sm
+	ldi 1
+	lsdf
+	ldi 0
+	plo AC
+	sex BPC
+	sep RUN
+op_ccltu:
+	ldi 0
+	phi AC
+	sex SP
+	inc SP
+	inc SP		; high byte
+	glo AC
+	sm
+	bz ltu2
+	ldi 0
+	lsdf
+	ldi 1
+	plo AC
+	sex BPC
+	sep RUN
+ltu2:
+	dec SP
+	glo AC
+	sm
+	inc SP
+	ldi 0
+	lsdf
+	ldi 1
+	plo AC
+	sex BPC
+	sep RUN
+op_cclteq:
+	; TOS < AC
+	sex SP
+	inc SP
+	inc SP
+	ghi AC
+	xor
+	shl
+	bdf lteq_sign_same
+	shr
+	xor
+	shl	; get sign into D
+	ldi 0
+	phi AC
+	lsdf
+	ldi 1
+	plo AC
+	sex BPC
+	sep RUN
+lteq_sign_same:
+	dec SP
+	ghi AC
+	sm
+	bz cclt_2
+	ldi 1
+	lsdf
+	ldi 0
+	inc SP
+	sex BPC
+	sep RUN
+cclteq_2:
+	inc SP
+	glo AC
+	sm
+	bz setleq
+	ldi 1
+	lsdf
+	ldi 0
+	plo AC
+	sex BPC
+	sep RUN
+setleq:
+	ldi 1
+	plo AC
+	sex BPC
+	sep RUN
+op_ccltequ:
+	ldi 0
+	phi AC
+	sex SP
+	inc SP
+	inc SP		; high byte
+	glo AC
+	sm
+	bz ltequ2
+	ldi 0
+	lsdf
+	ldi 1
+	plo AC
+	sex BPC
+	sep RUN
+ltequ2:
+	dec SP
+	glo AC
+	sm
+	inc SP
+	bz ltequ3
+	ldi 0
+	lsdf
+ltequ3:
+	ldi 1
+	plo AC
+	sex BPC
+	sep RUN
+op_nrefc:
+	ldxa
+	plo TMP
+	ldxa
+	phi TMP
+	lda TMP
+	plo AC
+	sep RUN
+op_nref:
+	ldxa
+	plo TMP
+	ldxa
+	phi TMP
+	lda TMP
+	plo AC
+	ldn TMP
+	phi AC
+	sep RUN
+op_lrefc:
+	glo FP
+	add
+	plo TMP
+	irx
+	ghi FP
+	adc
+	phi TMP
+	ldn TMP
+	plo AC
+	sep RUN
+op_lref:
+	glo FP
+	add
+	plo TMP
+	irx
+	ghi FP
+	adc
+	phi TMP
+	lda TMP
+	plo AC
+	ldn TMP
+	phi AC
+	sep RUN
+op_nstorec:
+	ldxa
+	plo TMP
+	ldxa
+	phi TMP
+	glo AC
+	str TMP
+	sep RUN
+op_nstore:
+	ldxa
+	plo TMP
+	ldxa
+	phi TMP
+	glo AC
+	str TMP
+	inc TMP
+	ghi AC
+	str TMP
+	sep RUN
+op_lstorec:
+	glo FP
+	add
+	plo TMP
+	irx
+	ghi FP
+	adc
+	phi TMP
+	glo AC
+	str TMP
+	sep RUN
+op_lstore:
+	glo FP
+	add
+	plo TMP
+	irx
+	ghi FP
+	adc
+	phi TMP
+	glo AC
+	str TMP
+	inc TMP
+	ghi AC
+	str TMP
+	sep RUN
+op_local:
+	glo FP
+	add
+	plo AC
+	irx
+	ghi FP
+	adc
+	phi AC
+	sep RUN
+op_plusconst:
+	sex BPC
+	glo AC
+	add
+	plo AC
+	ghi AC
+	inc BPC
+	add
+	phi AC
+	sep RUN
+op_plus4:
+	inc AC
+op_plus3:
+	inc AC
+op_plus2:
+	inc AC
+op_plus1:
+	inc AC
+	sep RUN
+op_minus4:
+	dec AC
+op_minus3:
+	dec AC
+op_minus2:
+	dec AC
+op_minus1:
+	dec AC
+	sep RUN
+op_fnenter:
+	glo SP
+	add
+	plo FP
+	plo SP
+	inc BPC
+	ghi SP
+	add
+	phi FP
+	phi SP
+	sep RUN
+op_fnexit:
+	inc SP
+	lda SP
+	plo FP
+	lda SP
+	phi FP
+	lda SP
+	plo BPC
+	ldn SP
+	phi BPC
+	sep RUN
+op_cleanup:
+	sex BPC
+	glo SP
+	add
+	plo SP
+	inc BPC
+	ghi SP
+	adc
+	phi SP
+	inc BPC
+	sep RUN
+op_native:
+	ldxa
+	plo TMP
+	ldxa
+	phi TMP
+	sep TMP
+	; caller will return by doing sep run and reappearing
+	; in bexecute
+op_clear:
+	ldi 0
+	phi AC
+	plo AC
+	sep RUN
+op_byte:
+	ldi 0
+	phi AC
+	sep RUN
+op_shift0:
+	ldi >byteop
+	phi VP
+	sep RUN
+op_pushl:
+	sex SP
+	ghi HI
+	stxd
+	glo HI
+	stxd
+	ghi AC
+	stxd
+	glo AC
+	stxd
+	sex BPC
+	set RUN
+op_shrll:
+	; We should do smart things for 8bit shift
+	glo AC
+	ani 15
+	plo TMP
+	inc TMP
+	inc SP
+	lda SP
+	plo AC
+	inc SP
+	ldn SP
+	phi AC
+	shl
+	bdf lsrlnext
+	br asrlnext
+asrlloop:
+	ghi HI
+	shr
+	adi 0x80
+	phi HI
+	glo HI
+	shrc
+	plo HI
+	ghi AC
+	shrc
+	phi AC
+	glo AC
+	shrc
+	plo AC
+asrlnext:
+	dec TMP
+	glo TMP
+	bnz asrlloop
+	sep RUN
+op_shrul:
+	; We should do smart things for 8bit shift
+	glo AC
+	ani 15
+	plo TMP
+	inc TMP
+	inc SP
+	lda SP
+	plo AC
+	inc SP
+	ldn SP
+	phi AC
+	br llsrnext
+llsruloop:
+	ghi HI
+	shr
+	phi HI
+	glo HI
+	shrc
+	plo HI
+	ghi AC
+	shrc
+	phi AC
+	glo AC
+	shrc
+	plo AC
+llsrunext:
+	dec TMP
+	glo TMP
+	bnz llsrloop
+	sep RUN
+op_shll:
+	glo AC
+	ani 31
+	plo TMP
+	inc TMP
+	inc SP
+	lda SP
+	plo AC
+	lda SP
+	phi AC
+	lda SP
+	plo HI
+	ldn SP
+	phi HI
+	br lsllnext
+lsllloop:
+	glo AC
+	shl
+	plo AC
+	ghi AC
+	shlc
+	phi AC
+	glo HI
+	shlc
+	plo HI
+	ghi HI
+	shlc
+	phi HI
+lsllnext:
+	dec TMP
+	glo TMP
+	bnz lsllloop
+	sep RUN
+op_plusf:
+op_plusl:
+	sex SP
+	inc SP
+	glo AC
+	add
+	plo AC
+	inc SP
+	ghi AC
+	adc
+	phi AC
+	glo HI
+	adc
+	plo HI
+	inc SP
+	ghi HI
+	adc
+	phi HI
+	sex BPC
+	sep RUN
+op_minusf:
+op_minusl:
+	sex SP
+	inc SP
+	glo AC
+	sd
+	plo AC
+	inc SP
+	ghi AC
+	sdb
+	phi AC
+	inc SP
+	glo HI
+	sdb
+	plo HI
+	inc SP
+	ghi HI
+	sdb
+	phi HI
+	sex BPC
+	sep RUN
+op_mulf:
+op_mull:
+op_divf:
+op_divl:
+op_divul:
+op_remf:
+op_reml:
+op_remul:
+op_negatef:
+op_negatel:
+	glo AC
+	xri 0xFF
+	plo AC
+	ghi AC
+	xri 0xFF
+	phi AC
+	glo HI
+	xri 0xFF
+	plo HI
+	ghi HI
+	xri 0xFF
+	phi HI
+	inc AC
+	glo AC
+	bnz negdone
+	ghi AC
+	bnz negdone
+	inc HI
+negdone:
+	sep RUN
+op_bandl:
+	sex SP
+	inc SP
+	glo AC
+	and
+	plo AC
+	inc SP
+	ghi AC
+	and
+	phi AC
+	inc SP
+	glo HI
+	and
+
+	plo HI
+	inc SP
+	ghi HI
+	and
+	phi HI
+	sex SP
+	sep RUN
+op_orl:
+	sex SP
+	inc SP
+	glo AC
+	or
+	plo AC
+	inc SP
+	ghi AC
+	or
+	phi AC
+	inc SP
+	glo HI
+	or
+	plo HI
+	inc SP
+	ghi HI
+	or
+	phi HI
+	sex SP
+	sep RUN
+op_xorl:
+	sex SP
+	inc SP
+	glo AC
+	or
+	plo AC
+	inc SP
+	ghi AC
+	xor
+	phi AC
+	inc SP
+	glo HI
+	xor
+	plo HI
+	inc SP
+	ghi HI
+	xor
+	phi HI
+	sex SP
+	sep RUN
+op_assignl:
+	inc SP
+	lda SP
+	str AC
+	plo TMP
+	lda SP
+	str AC
+	phi AC
+	lda SP
+	str AC
+	plo HI
+	ldn SP
+	str AC
+	phi HI
+	glo TMP
+	plo AC
+	sep RUN
+op_derefl:
+	lda AC
+	plo TMP
+	lda AC
+	phi TMP
+	lda AC
+	plo HI
+	lda AC
+	phi HI
+	glo TMP
+	plo AC
+	ghi TMP
+	phi AC
+	sep RUN
+op_constl:
+	ldxa
+	plo AC
+	ldxa
+	phi AC
+	ldxa
+	plo HI
+	ldxa
+	phi HI
+	sep RUN
+op_pluseqf:
+op_pluseql:
+op_minuseqf:
+op_minuseql:
+op_postincf:
+op_postincl:
+op_postdecf:
+op_postdecl:
+op_muleqf:
+op_muleql:
+op_diveqf:
+op_diveql:
+op_divequl:
+op_remeqf:
+op_remeql:
+op_remequl:
+op_andeql:
+op_oreql:
+op_xoreql:
+op_shleql:
+op_shreql:
+op_shrequl:
+op_switchl:
+op_cceqf:
+op_cceql:
+op_ccnef:
+op_ccnel:
+op_ccltf:
+op_ccltl:
+op_ccltul:
+op_cclteqf:
+op_cclteql:
+op_ccltequl:
+op_ccgtf:
+op_ccgtl:
+op_ccgtul:
+op_ccgteqf:
+op_ccgteql:
+op_ccgtequl:
+op_nrefl:
+	ldxa
+	plo TMP
+	ldxa
+	phi TMP
+	lda TMP
+	plo AC
+	lda TMP
+	phi AC
+	lda TMP
+	plo HI
+	ldn TMP
+	phi HI
+	sep RUN
+op_lrefl:
+	glo FP
+	add
+	plo TMP
+	irx
+	ghi FP
+	adc
+	phi TMP
+	lda TMP
+	plo AC
+	lda TMP
+	phi AC
+	lda TMP
+	plo HI
+	ldn TMP
+	phi HI
+	sep RUN
+op_nstorel:
+	ldxa
+	plo TMP
+	ldxa
+	phi TMP
+	glo AC
+	str TMP
+	inc TMP
+	ghi AC
+	str TMP
+	inc TMP
+	glo HI
+	str TMP
+	inc TMP
+	ghi HI
+	str TMP
+	sep RUN
+op_lstorel:
+	glo FP
+	add
+	plo TMP
+	irx
+	ghi FP
+	adc
+	phi TMP
+	glo AC
+	str TMP
+	inc TMP
+	ghi AC
+	str TMP
+	inc TMP
+	glo HI
+	str TMP
+	inc TMP
+	ghi HI
+	str TMP
+	sep RUN
+op_r0ref:
+	ghi R_0
+	phi AC
+op_r0refc:
+	glo R_0
+	plo AC
+	sep RUN
+op_r0store:
+	ghi AC
+	phi R_0
+op_r0storec:
+	glo AC
+	plo R_0
+	sep RUN
+op_r0derefc:
+	glo R_0
+	plo TMP
+	ghi R_0
+	phi TMP
+	ldn TMP
+	plo AC
+	sep RUN
+op_r0drfpre:
+	inc R_0
+	inc R_0
+op_r0deref:
+	glo R_0
+	plo TMP
+	ghi R_0
+	phi TMP
+	lda TMP
+	plo AC
+	ldn TMP
+	phi AC
+	sep RUN
+op_r0inc2:
+	inc R_0
+op_r0inc1:
+	inc R_0
+	sep RUN
+op_r0dec2:
+	dec R_0
+op_r0dec:
+	dec R_0
+	sep RUN
+op_r0drfpost:
+	lda R_0
+	plo AC
+	lda R_0
+	phi AC
+	sep RUN
+op_r1ref:
+	ghi R_1
+	phi AC
+op_r1refc:
+	glo R_1
+	plo AC
+	sep RUN
+op_r1store:
+	ghi AC
+	phi R_1
+op_r1storec:
+	glo AC
+	plo R_1
+	sep RUN
+op_r1derefc:
+	glo R_1
+	plo TMP
+	ghi R_1
+	phi TMP
+	ldn TMP
+	plo AC
+	sep RUN
+op_r1drfpre:
+	inc R_1
+	inc R_1
+op_r1deref:
+	glo R_1
+	plo TMP
+	ghi R_1
+	phi TMP
+	lda TMP
+	plo AC
+	ldn TMP
+	phi AC
+	sep RUN
+op_r1inc2:
+	inc R_1
+op_r1inc1:
+	inc R_1
+	sep RUN
+op_r1dec2:
+	dec R_1
+op_r1dec:
+	dec R_1
+	sep RUN
+op_r1drfpost:
+	lda R_1
+	plo AC
+	lda R_1
+	phi AC
+	sep RUN
+op_r2ref:
+	ghi R_2
+	phi AC
+op_r2refc:
+	glo R_2
+	plo AC
+	sep RUN
+op_r2store:
+	ghi AC
+	phi R_2
+op_r2storec:
+	glo AC
+	plo R_2
+	sep RUN
+op_r2derefc:
+	glo R_2
+	plo TMP
+	ghi R_2
+	phi TMP
+	ldn TMP
+	plo AC
+	sep RUN
+op_r2drfpre:
+	inc R_2
+	inc R_2
+op_r2deref:
+	glo R_2
+	plo TMP
+	ghi R_2
+	phi TMP
+	lda TMP
+	plo AC
+	ldn TMP
+	phi AC
+	sep RUN
+op_r2inc2:
+	inc R_2
+op_r2inc1:
+	inc R_2
+	sep RUN
+op_r2dec2:
+	dec R_2
+op_r2dec:
+	dec R_2
+	sep RUN
+op_r2drfpost:
+	lda R_2
+	plo AC
+	lda R_2
+	phi AC
+	sep RUN
+op_r3ref:
+	ghi R_3
+	phi AC
+op_r3refc:
+	glo R_3
+	plo AC
+	sep RUN
+op_r3store:
+	ghi AC
+	phi R_3
+op_r3storec:
+	glo AC
+	plo R_3
+	sep RUN
+op_r3derefc:
+	glo R_3
+	plo TMP
+	ghi R_3
+	phi TMP
+	ldn TMP
+	plo AC
+	sep RUN
+op_r3drfpre:
+	inc R_3
+	inc R_3
+op_r3deref:
+	glo R_3
+	plo TMP
+	ghi R_3
+	phi TMP
+	lda TMP
+	plo AC
+	ldn TMP
+	phi AC
+	sep RUN
+op_r3inc2:
+	inc R_3
+op_r3inc1:
+	inc R_3
+	sep RUN
+op_r3dec2:
+	dec R_3
+op_r3dec:
+	dec R_3
+	sep RUN
+op_r3drfpost:
+	lda R_3
+	plo AC
+	lda R_3
+	phi AC
+	sep RUN
+op_invalid:
+
+
+
+; Set up to run bytecode at address in BPC, C stack at SP
+byteop_init:
+	ldi	>byteop
+	phi	VP
+	ldi	>byteop_run
+	phi	RUN
+	ldi	<byteop_run
+	plo	RUN
+	sep	RUN
+byteop_run:
+	lda	BPC
+	plo	VP
+	lda	VP
+	plo	PC
+	ldn	PC
+	sep	PC
+	br	byteop_run
