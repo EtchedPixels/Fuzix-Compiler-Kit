@@ -1,16 +1,16 @@
 all: cc cc85 ccz80 ccthread ccbyte cc6502 cc65c816 cc0 \
      cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
-     cc1.65c816 cc1.z8 \
+     cc1.65c816 cc1.z8 cc1.1802 \
      cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
-     cc2.byte cc2.6502 cc2.z8 \
+     cc2.byte cc2.6502 cc2.z8 cc2.1802 \
      copt support6502 support65c816 support8080 support8085 supportz80 \
      supportz8
 
 bootstuff: cc cc85 ccz80 ccthread ccbyte cc6502 cc65c816 cc0 \
      cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
-     cc1.65c816 cc1.z8 \
+     cc1.65c816 cc1.z8 cc1.1802 \
      cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
-     cc2.byte cc2.6502 cc2.z8\
+     cc2.byte cc2.6502 cc2.z8 cc2.1802 \
      copt
 
 .PHONY: support6502 support65c816 support8080 support8085 supportz8 supportz80
@@ -35,6 +35,7 @@ OBJS10 = backend.o backend-bytecode.o
 OBJS11 = backend.o backend-6502.o
 OBJS12 = backend.o backend-65c816.o
 OBJS13 = backend.o backend-z8.o
+OBJS14 = backend.o backend-1802.o
 
 CFLAGS = -Wall -pedantic -g3 -DLIBPATH="\"$(CCROOT)/lib\"" -DBINPATH="\"$(CCROOT)/bin\""
 
@@ -101,6 +102,9 @@ cc1.65c816:$(OBJS1) target-65c816.o
 cc1.z8:$(OBJS1) target-z8.o
 	gcc -g3 $(OBJS1) target-z8.o -o cc1.z8
 
+cc1.1802:$(OBJS1) target-1802.o
+	gcc -g3 $(OBJS1) target-1802.o -o cc1.1802
+
 cc2:	$(OBJS2)
 	gcc -g3 $(OBJS2) -o cc2
 
@@ -133,6 +137,9 @@ cc2.65c816:	$(OBJS12)
 
 cc2.z8:		$(OBJS13)
 	gcc -g3 $(OBJS13) -o cc2.z8
+
+cc2.1802:	$(OBJS14)
+	gcc -g3 $(OBJS14) -o cc2.1802
 
 support6502:
 	(cd support6502; make)
@@ -336,13 +343,21 @@ bootinst:
 	# Z8
 	mkdir -p $(CCROOT)/lib/z8
 	mkdir -p $(CCROOT)/lib/z8/include/
-	cp ccbyte $(CCROOT)/bin/ccz8
 #	cp cppbyte $(CCROOT)/lib/cpp
 #	cp cc0 $(CCROOT)/lib
 	cp cc1.z8 $(CCROOT)/lib
 	cp cc2.z8 $(CCROOT)/lib
 #	cp copt $(CCROOT)/lib
 	cp rules.z8 $(CCROOT)/lib
+	# 1802
+	mkdir -p $(CCROOT)/lib/1802
+	mkdir -p $(CCROOT)/lib/1802/include/
+#	cp cppbyte $(CCROOT)/lib/cpp
+#	cp cc0 $(CCROOT)/lib
+	cp cc1.1802 $(CCROOT)/lib
+	cp cc2.1802 $(CCROOT)/lib
+#	cp copt $(CCROOT)/lib
+	cp rules.1802 $(CCROOT)/lib
 
 #
 #	Install the support libraries
