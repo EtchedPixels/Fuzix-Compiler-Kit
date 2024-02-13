@@ -590,36 +590,6 @@ op_f2l:
 op_l2f:
 op_f2ul:
 op_ul2f:
-op_pluseqc:
-op_pluseq:
-op_minuseqc:
-op_minuseq:
-op_postincc:
-op_postinc:
-op_postdecc:
-op_postdec:
-op_muleqc:
-op_muleq:
-op_diveqc:
-op_divequc:
-op_diveq:
-op_divequ:
-op_remeqc:
-op_remequc:
-op_remeq:
-op_remequ:
-op_andeqc:
-op_andeq:
-op_oreqc:
-op_oreq:
-op_xoreqc:
-op_xoreq:
-op_shleqc:
-op_shleq:
-op_shreqc:
-op_shrequc:
-op_shreq:
-op_shrequ:
 op_callfname:
 	sex SP
 	lda BPC
@@ -940,7 +910,6 @@ op_local:
 	phi AC
 	sep RUN
 op_plusconst:
-	sex BPC
 	glo AC
 	add
 	plo AC
@@ -948,6 +917,7 @@ op_plusconst:
 	inc BPC
 	add
 	phi AC
+	inc BPC
 	sep RUN
 op_plus4:
 	inc AC
@@ -1304,29 +1274,61 @@ op_constl:
 	ldxa
 	phi HI
 	sep RUN
-op_pluseqf:
-op_pluseql:
-op_minuseqf:
-op_minuseql:
-op_postincf:
+op_postincc:		; AC holds the pointer, constant follows
+	inc SP
+	ldn AC
+	plo TMP
+	add
+	str AC
+	inc AC
+	inc BPC
+	glo TMP
+	plo AC
+	sep RUN
+op_postinc:
+	ldn AC		; get original
+	plo TMP		; save (return is value before adjustment)
+	add		; adjust by const in bytestream
+	str AC		; stick it back
+	inc AC		; move on
+	inc BPC
+	ldn AC
+	phi TMP
+	adc
+	str AC
+	inc BPC		; move past constant
+	ghi TMP		; fish result out of tmp
+	phi AC
+	glo TMP
+	plo AC
+	sep RUN
 op_postincl:
-op_postdecf:
-op_postdecl:
-op_muleqf:
-op_muleql:
-op_diveqf:
-op_diveql:
-op_divequl:
-op_remeqf:
-op_remeql:
-op_remequl:
-op_andeql:
-op_oreql:
-op_xoreql:
-op_shleql:
-op_shreql:
-op_shrequl:
-op_switchl:
+	ldn AC
+	plo TMP
+	add
+	str AC
+	inc AC
+	inc BPC
+	ldn AC
+	phi TMP
+	adc
+	str AC
+	inc AC
+	inc BPC
+	glo HI
+	adc
+	plo HI
+	inc AC
+	inc BPC
+	ghi HI
+	adc
+	phi HI
+	inc BPC
+	ghi TMP
+	phi AC
+	glo TMP
+	plo AC
+	sep RUN
 op_cceqf:
 op_cceql:
 op_ccnef:
@@ -1337,12 +1339,6 @@ op_ccltul:
 op_cclteqf:
 op_cclteql:
 op_ccltequl:
-op_ccgtf:
-op_ccgtl:
-op_ccgtul:
-op_ccgteqf:
-op_ccgteql:
-op_ccgtequl:
 op_nrefl:
 	ldxa
 	plo TMP
