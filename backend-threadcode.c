@@ -447,8 +447,6 @@ unsigned gen_node(struct node *n)
 		printf("\t.word T%ds+%d\n", n->val2, v);
 		return 1;
 	case T_LSTORE:
-		if (nr)
-			return 1;
 		helper(n, "lstore");
 		printf("\t.word %d\n", v);
 		return 1;

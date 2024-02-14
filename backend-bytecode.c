@@ -532,8 +532,6 @@ unsigned gen_node(struct node *n)
 		helper(n, "assign");
 		return 1;
 	case T_LSTORE:
-		if (nr)
-			return 1;
 		if (v < 256)
 			printf("\tloadl8 %d\n", v);
 		else
