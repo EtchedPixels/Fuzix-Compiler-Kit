@@ -3,8 +3,13 @@
 ;
 	.export __ccgt
 	.export __ccgtconst
+	.export __ccgtconst0
 	.code
 
+__ccgtconst0:
+	clr r12
+	clr r13
+	jr __ccgtconst
 __ccgt:
 	pop r14
 	pop r15

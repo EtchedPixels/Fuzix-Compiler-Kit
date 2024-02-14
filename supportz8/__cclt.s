@@ -3,8 +3,13 @@
 ;
 	.export __cclt
 	.export __ccltconst
+	.export __ccltconst0
 	.code
 
+__ccltconst0:
+	clr r12
+	clr r13
+	jr __ccltconst
 __cclt:
 	pop r14
 	pop r15

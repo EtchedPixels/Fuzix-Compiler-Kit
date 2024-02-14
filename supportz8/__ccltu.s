@@ -3,8 +3,13 @@
 ;
 	.export __ccltu
 	.export __ccltconstu
+	.export __ccltconst0u
 	.code
 
+__ccltconst0u:
+	clr r2
+	clr r3
+	jr __ccltconstu
 __ccltu:
 	pop r14		; Return address
 	pop r15

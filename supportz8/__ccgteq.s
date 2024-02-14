@@ -3,8 +3,14 @@
 ;
 	.export __ccgteq
 	.export __ccgteqconst
+	.export __ccgteqconst0
 	.code
 
+__ccgteqconst0:
+	clr r12
+	clr r13
+	jr __ccgteqconst
+	
 __ccgteq:
 	pop r14
 	pop r15

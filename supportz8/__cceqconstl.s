@@ -2,8 +2,17 @@
 ;	Compare r0-r3 with r12-r15
 ;
 	.export __cceqconstl
+	.export __cceqconst0l
 	.code
 
+__cceqconst0l:
+	or	r12,r13
+	or	r12,r14
+	or	r12,r15
+	jr	nz,false
+	clr	r2
+	ld	r3,#1
+	ret
 __cceqconstl:
 	cp	r0,r12
 	jr	nz,false

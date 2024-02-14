@@ -3,8 +3,13 @@
 ;
 	.export __cclteq
 	.export __cclteqconst
+	.export __cclteqconst0
 	.code
 
+__cclteqconst0:
+	clr r12
+	clr r13
+	jr __cclteqconst
 __cclteq:
 	pop r14
 	pop r15

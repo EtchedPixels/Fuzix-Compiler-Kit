@@ -92,11 +92,16 @@ static void flush_all(unsigned f)
 {
 }
 
-static void invalidate_all(void)
+static void gen_symref(struct node *n)
 {
-	invalidate_ac();
-	r2_valid = 0;
-	r14_valid = 0;
+	register unsigned op = n->op;
+	register unsigned v = n->value;
+	if (op == T_NREF || op == T_NSTORE)
+		printf("\t.word _%s+%u\n",  namestr(n->snum), v);
+	else if (op == T_LBREF || op == T_LBSTORE)
+		printf("\t.word T%u+%u\n", n->val2, v);
+	else
+		error("gsr");
 }
 
 
@@ -112,7 +117,7 @@ static void invalidate_all(void)
 #define R_ISAC(x)		(((x) & 0xE0) == 0xE0)
 #define R_AC		0xE0
 
-#define REGBASE		4		/* Reg vars 4,6,8,10 */
+#define REGBASE		2		/* Reg vars 4,6,8,10 numbered 1,2,3,4 */
 
 #define R_REG(x)	(((x) * 2) + REGBASE)
 #define R_REG_S(x,s)	(((x) * 2) + REGBASE + (2 - size))
@@ -126,6 +131,8 @@ static void invalidate_all(void)
 
 static void r_modify(unsigned r, unsigned size)
 {
+	if (R_ISAC(r))
+		r = 4 - size;
 	while(size--) {
 		if (r == 14 || r == 15)
 			r14_valid = 0;
@@ -186,6 +193,12 @@ static void r_adjust(unsigned r, int by, unsigned size)
 		r2_valid = 1;
 	} else
 		size = r_do_adjust(r, by , size);
+}
+
+static void invalidate_all(void)
+{
+	invalidate_ac();
+	r_modify(0, 16);
 }
 
 /*
@@ -308,6 +321,22 @@ static void load_r_constb(unsigned r, unsigned char v)
 {
 	/* Once we do reg tracking we'll be able to deal with dups
 	   using ld r1,r2 */
+	unsigned i = 0;
+	uint8_t *p = r_type;
+	while(i < 16) {
+		if (*p++ == RV_CONST && r_val[i] == v) {
+			/* Already has the value */
+			if (i == r) {
+				printf("; r%u alrwady %u\n", r, v);
+				return;
+			}
+			printf("; r%u get %u from %u\n", r, v, i);
+			load_r_r(r, i);
+			r_set(r, v);
+			return;
+		}
+		i++;
+	}
 	if (R_ISAC(r))
 		r &= 0x0F;
 	if (r <= 3)
@@ -737,12 +766,50 @@ static void load_local_helper(unsigned v, unsigned size)
 	if (v < 254) {
 		load_r_const(R_INDEX + 1, v + 2, 1);
 		printf("\tcall __gargr%u\n", size);
+		r_modify(14,2);
 	} else {
 		load_r_const(R_INDEX, v + 2, 2);
 		printf("\tcall __gargrr%u\n", size);
+		r_modify(14,2);
 	}
 	r_modify(4 - size, size);
 	r_modify(12, 2);
+	r14_valid = 1;
+	r14_sp = v - sp + size - 1;
+}
+
+static void load_work_helper(unsigned v, unsigned size)
+{
+	/* We add the extra 2 because the call adjusted the stack as well */
+	v += sp;
+	if (v < 254) {
+		load_r_const(R_INDEX + 1, v + 2, 1);
+		printf("\tcall __garg12r%u\n", size);
+		r_modify(14,2);
+	} else {
+		load_r_const(R_INDEX, v + 2, 2);
+		printf("\tcall __garg12rr%u\n", size);
+		r_modify(14,2);
+	}
+	r_modify(12, 2);
+	r14_valid = 1;
+	r14_sp = v - sp + size - 1;
+}
+
+static void store_local_helper(unsigned v, unsigned size)
+{
+	/* Only works for R_AC case */
+	/* We add the extra 2 because the call adjusted the stack as well */
+	v += sp;
+	if (v < 254) {
+		load_r_const(R_INDEX + 1, v + 2, 1);
+		printf("\tcall __pargr%u\n", size);
+		r_modify(14,2);
+	} else {
+		load_r_const(R_INDEX, v + 2, 2);
+		printf("\tcall __pargrr%u\n", size);
+		r_modify(14,2);
+	}
 	r14_valid = 1;
 	r14_sp = v - sp + size - 1;
 }
@@ -759,8 +826,8 @@ static void load_r_memr(unsigned val, unsigned rr, unsigned size)
 		invalidate_ac();
 		/* We use helpers for the usual case when building for
 		   small */
-		if (rr == R_INDEX && size > 1 && opt < 1) {
-			printf("\tcall __load%d\n", size);
+		if (rr == R_INDEX && size > 1 && opt < 1){
+			printf("\tcall __load%u\n", size);
 			r_adjust(R_INDEX, size - 1, 2);
 			r_modify(val, size);
 			return;
@@ -1061,18 +1128,41 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 		load_r_label(r, n, v);
 		return r;
 	case T_LREF:
+		/* Size shrink for all the op with local in r12/r13 stuff */
+		if (r == R_WORK && opt < 1) {
+			load_work_helper(v, size);
+			return r;
+		}
 		load_r_local(R_INDEX, v);
 		if (size == 1)
 			r++;
 		load_r_memr(r, R_INDEX, size);
 		return r;
 	case T_NREF:
+		if (optsize) {
+			if (size <= 2 && r == R_WORK) {
+				printf("\tcall __nref12_%d\n", size);
+				/* Until we track r14 objects other than local */
+				r_modify(R_WORK + size - 1, size);
+				gen_symref(n);
+				return 1;
+			}
+		}
 		load_r_name(R_INDEX, n, v);
 		if (size == 1)
 			r++;
 		load_r_memr(r, R_INDEX, size);
 		return r;
 	case T_LBREF:
+		if (optsize) {
+			if (size <= 2 && r == R_WORK) {
+				printf("\tcall __nref12_%d\n", size);
+				/* Until we track r14 objects other than local */
+				r_modify(R_WORK + size - 1, size);
+				gen_symref(n);
+				return 1;
+			}
+		}
 		load_r_label(R_INDEX, n, v);
 		if (size == 1)
 			r++;
@@ -1184,6 +1274,18 @@ struct node *gen_rewrite_node(struct node *n)
 		n->left = NULL;
 		return n;
 	}
+	/* *(reg + offset). Optimize this specially as it occurs a lot */
+	if (op == T_DEREF && r->op == T_PLUS && r->left->op == T_RREF &&
+		r->right->op == T_CONSTANT) {
+		n->op = T_RDEREF;
+		n->right = NULL;
+		n->val2 = r->right->value;	/* Offset to add */
+		n->value = r->left->value;	/* Register number */
+		free_node(r->right);		/* Discard constant */
+		free_node(r->left);		/* Discard T_REG */
+		free_node(r);			/* Discsrd plus */
+		return n;
+	}
 	/* *regptr */
 	if (op == T_DEREF && r->op == T_RREF) {
 		n->op = T_RDEREF;
@@ -1191,6 +1293,18 @@ struct node *gen_rewrite_node(struct node *n)
 		n->val2 = 0;
 		n->value = r->value;
 		free_node(r);
+		return n;
+	}
+	/* *(reg + offset) =  Optimize this specially as it occurs a lot */
+	if (op == T_EQ && l->op == T_PLUS && l->left->op == T_RREF &&
+		l->right->op == T_CONSTANT) {
+		n->op = T_REQ;
+		n->val2 = l->right->value;	/* Offset to add */
+		n->value = l->left->value;	/* Register number */
+		free_node(l->right);		/* Discard constant */
+		free_node(l->left);		/* Discard T_REG */
+		free_node(l);			/* Discsrd plus */
+		n->left = NULL;
 		return n;
 	}
 	/* *regptr = */
@@ -1306,6 +1420,7 @@ void gen_prologue(const char *name)
 {
 	unreachable = 0;
 	printf("_%s:\n", name);
+	invalidate_all();
 }
 
 /* Generate the stack frame */
@@ -1330,22 +1445,26 @@ void gen_frame(unsigned size, unsigned aframe)
 			func_cleanup = 1;
 		}
 	}
-	
+
+	r14_valid = 0;
+	r2_valid = 0;
+
+	if (size > 3 && opt < 1 && size < 256) {
+		printf("\tld r13,#%u\n", size & 0xFF);
+		printf("\tcall __frame\n");
+		return;
+	}
 	if (size > 4) {
 		/* Special handling because of the stack and interrupts */
 		load_r_R(R_INDEX, R_SPL);
 		/* TODO: will need special tracking of course */
 		printf("\tsub r%u,#%u\n", R_INDEX, size & 0xFF);
-		printf("\tsbc 255,#%u\n", size >> 8);
+		printf("\tsbc 254,#%u\n", size >> 8);
 		load_R_r(R_SPL, R_INDEX);
-		r14_valid = 0;
-		r14_sp = 0;
 		return;
 	}
 	while(size--)
 		RR_decw(R_SPH);
-	r14_valid = 0;
-	r2_valid = 0;
 }
 
 void gen_epilogue(unsigned size, unsigned argsize)
@@ -1576,6 +1695,7 @@ void gen_value(unsigned type, unsigned long value)
 void gen_start(void)
 {
 /*	printf("\t.setcpu %u\n", cpu); */
+	printf("; opt %u optsize %u\n", opt, optsize);
 }
 
 void gen_end(void)
@@ -1697,11 +1817,8 @@ static unsigned gen_fast_remainder(unsigned r, unsigned s, unsigned long n)
 	}
 	if (n & (n - 1))
 		return 0;
-	if (!optsize) {
-		logic_r_const(r, n - 1, s, OP_AND);
-		return 1;
-	}
-	return 0;
+	logic_r_const(r, n - 1, s, OP_AND);
+	return 1;
 }
 
 /*
@@ -1745,9 +1862,13 @@ unsigned gen_direct(struct node *n)
 		store_r_memr(R_AC, R_INDEX, size);
 		return 1;
 	case T_LSTORE:
-		load_r_local(R_INDEX, v + sp);
-		store_r_memr(R_AC, R_INDEX, size);
-		set_ac_node(n);
+		if (opt < 1)
+			store_local_helper(v + sp, size);
+		else {
+			load_r_local(R_INDEX, v + sp);
+			store_r_memr(R_AC, R_INDEX, size);
+			set_ac_node(n);
+		}
 		return 1;
 	case T_RSTORE:
 		v = R_REG(n->value);
@@ -1778,10 +1899,10 @@ unsigned gen_direct(struct node *n)
 		if (nr)
 			return 1;
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			if (!nr)
-				add_r_const(R_AC, v, size);
+			add_r_const(R_AC, v, size);
 			return 1;
 		}
+		printf("; try direct\n");
 		if ((r1 = load_direct(R_WORK, r, 0)) != 0) {
 			add_r_r(R_AC, r1, size);
 			return 1;
@@ -1871,7 +1992,17 @@ unsigned gen_direct(struct node *n)
 	/* TODO: inline reg compares, also look at reg on left compare optimizations later */
 	case T_EQEQ:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			load_r_const(R_WORK, r->value , size);
+			if (r->value == 0)
+				helper(n, "cceqconst0");
+			else {
+				load_r_const(R_WORK, r->value , size);
+				helper(n, "cceqconst");
+			}
+			n->flags |= ISBOOL;
+			return 1;
+		}
+		r1 = load_direct(R_WORK, r, 1);
+		if (r1) {
 			helper(n, "cceqconst");
 			n->flags |= ISBOOL;
 			return 1;
@@ -1888,7 +2019,17 @@ unsigned gen_direct(struct node *n)
 				n->flags |= ISBOOL;
 				return 1;
 			}
-			load_r_const(R_WORK, r->value , size);
+			if (r->value == 0)
+				helper_s(n, "cclteqconst0");
+			else {
+				load_r_const(R_WORK, r->value , size);
+				helper_s(n, "cclteqconst");
+			}
+			n->flags |= ISBOOL;
+			return 1;
+		}
+		r1 = load_direct(R_WORK, r, 1);
+		if (r1) {
 			helper_s(n, "cclteqconst");
 			n->flags |= ISBOOL;
 			return 1;
@@ -1896,7 +2037,17 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	case T_GT:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			load_r_const(R_WORK, r->value , size);
+			if (r->value == 0)
+				helper_s(n, "ccltconst0");
+			else {
+				load_r_const(R_WORK, r->value , size);
+				helper_s(n, "ccltconst");
+			}
+			n->flags |= ISBOOL;
+			return 1;
+		}
+		r1 = load_direct(R_WORK, r, 1);
+		if (r1) {
 			helper_s(n, "ccltconst");
 			n->flags |= ISBOOL;
 			return 1;
@@ -1904,7 +2055,17 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	case T_LTEQ:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			load_r_const(R_WORK, r->value , size);
+			if (r->value == 0)
+				helper_s(n, "ccgteqconst0");
+			else {
+				load_r_const(R_WORK, r->value , size);
+				helper_s(n, "ccgteqconst");
+			}
+			n->flags |= ISBOOL;
+			return 1;
+		}
+		r1 = load_direct(R_WORK, r, 1);
+		if (r1) {
 			helper_s(n, "ccgteqconst");
 			n->flags |= ISBOOL;
 			return 1;
@@ -1922,7 +2083,17 @@ unsigned gen_direct(struct node *n)
 				n->flags |= ISBOOL;
 				return 1;
 			}
-			load_r_const(R_WORK, r->value , size);
+			if (r->value == 0)
+				helper_s(n, "ccgtconst0");
+			else {
+				load_r_const(R_WORK, r->value , size);
+				helper_s(n, "ccgtconst");
+			}
+			n->flags |= ISBOOL;
+			return 1;
+		}
+		r1 = load_direct(R_WORK, r, 1);
+		if (r1) {
 			helper_s(n, "ccgtconst");
 			n->flags |= ISBOOL;
 			return 1;
@@ -1931,6 +2102,17 @@ unsigned gen_direct(struct node *n)
 	case T_BANGEQ:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			load_r_const(R_WORK, r->value , size);
+			if (r->value == 0)
+				helper(n, "ccneconst0");
+			else {
+				load_r_const(R_WORK, r->value , size);
+				helper(n, "ccneconst");
+			}
+			n->flags |= ISBOOL;
+			return 1;
+		}
+		r1 = load_direct(R_WORK, r, 1);
+		if (r1) {
 			helper(n, "ccneconst");
 			n->flags |= ISBOOL;
 			return 1;
@@ -2121,6 +2303,7 @@ unsigned gen_shortcut(struct node *n)
 		codegen_lr(r);	/* AC now holds the value */
 		load_r_r(R_INDEX, R_REG(n->value));
 		load_r_r(R_INDEX + 1, R_REG(n->value) + 1);
+		add_r_const(R_INDEX, n->val2, 2);
 		store_r_memr(R_AC, R_INDEX, size);	/* Moves the pointer on as a side effect */
 		return 1;
 	}
@@ -2324,11 +2507,29 @@ unsigned gen_node(struct node *n)
 
 	switch (n->op) {
 	case T_NREF:
+		if (optsize) {
+			printf("\tcall __nref_%d\n", size);
+			/* Until we track r14 objects other than local */
+			set_ac_node(n);
+			r_modify(R_AC, size);
+			r_modify(R_WORK,4);
+			gen_symref(n);
+			return 1;
+		}
 		load_r_name(R_INDEX, n, v);
 		load_r_memr(R_AC, R_INDEX, size);
 		set_ac_node(n);
 		return 1;
 	case T_LBREF:
+		if (optsize) {
+			printf("\tcall __nref_%d\n", size);
+			/* Until we track r14 objects other than local */
+			set_ac_node(n);
+			r_modify(R_AC, size);
+			r_modify(R_WORK,4);
+			gen_symref(n);
+			return 1;
+		}
 		load_r_label(R_INDEX, n, v);
 		load_r_memr(R_AC, R_INDEX, size);
 		set_ac_node(n);
@@ -2357,16 +2558,34 @@ unsigned gen_node(struct node *n)
 		load_ac_reg(v, size);
 		return 1;
 	case T_NSTORE:
+		if (optsize) {
+			printf("\tcall __nstore_%d\n", size);
+			set_ac_node(n);
+			r_modify(R_WORK,4);
+			gen_symref(n);
+			return 1;
+		}
 		load_r_name(R_INDEX, n, v);
 		store_r_memr(R_AC, R_INDEX, size);
 		return 1;
 	case T_LBSTORE:
+		if (optsize) {
+			printf("\tcall __nstore_%d\n", size);
+			set_ac_node(n);
+			gen_symref(n);
+			r_modify(R_WORK,4);
+			return 1;
+		}
 		load_r_label(R_INDEX, n, v);
 		store_r_memr(R_AC, R_INDEX, size);
 		return 1;
 	case T_LSTORE:
-		load_r_local(R_INDEX, v + sp);
-		store_r_memr(R_AC, R_INDEX, size);
+		if (opt < 1)
+			store_local_helper(v + sp, size);
+		else {
+			load_r_local(R_INDEX, v + sp);
+			store_r_memr(R_AC, R_INDEX, size);
+		}
 		set_ac_node(n);
 		return 1;
 	case T_RSTORE:
@@ -2386,6 +2605,7 @@ unsigned gen_node(struct node *n)
 		if (size > 1) {
 			load_r_r(R_INDEX, R_REG(v));
 			load_r_r(R_INDEX + 1, R_REG(v) + 1);
+			add_r_const(R_INDEX, n->val2, 2);
 			load_r_memr(R_AC, R_INDEX, size);
 			return 1;
 		}

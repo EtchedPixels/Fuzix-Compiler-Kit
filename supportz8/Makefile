@@ -1,6 +1,6 @@
 all: libz8.a crt0.o
 
-OBJ =	__cast.o \
+OBJ =	__cast.o __nref.o __nrefl.o __nref12.o \
 	__div16x16.o __div32x32.o __divequc.o __divequ.o __div.o \
 	__jmpr2.o __switch.o __switchc.o __switchl.o __bool.o __local.o \
 	__muleqc.o __muleq.o __mull.o __mul.o \

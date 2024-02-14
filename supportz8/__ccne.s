@@ -3,6 +3,7 @@
 ;
 	.export __ccne
 	.export __ccneconst
+	.export __ccneconst0
 	.code
 
 __ccne:
@@ -18,9 +19,15 @@ __ccneconst :
 	jr nz, c1
 	cp r13,r3
 	jr nz, c1
+cf:
 	clr r3
 	or r3,r3
 	ret
 c1:	ld r3,#1
 	or r3,r3
 	ret
+__ccneconst0:
+	or r2,r3
+	clr r2
+	jr  nz,c1
+	jr cf

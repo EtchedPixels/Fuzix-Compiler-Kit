@@ -3,8 +3,13 @@
 ;
 	.export __ccgtequ
 	.export __ccgteqconstu
+	.export __ccgteqconst0u
 	.code
 
+__ccgteqconst0u:
+	clr r2
+	clr r3
+	jr __ccgteqconstu
 __ccgtequ:
 	pop r14		; Return address
 	pop r15
