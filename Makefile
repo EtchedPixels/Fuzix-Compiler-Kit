@@ -349,6 +349,7 @@ bootinst:
 	cp cc2.z8 $(CCROOT)/lib
 #	cp copt $(CCROOT)/lib
 	cp rules.z8 $(CCROOT)/lib
+	cp lorderz8 $(CCROOT)/bin/lorderz8
 	# 1802
 	mkdir -p $(CCROOT)/lib/1802
 	mkdir -p $(CCROOT)/lib/1802/include/
