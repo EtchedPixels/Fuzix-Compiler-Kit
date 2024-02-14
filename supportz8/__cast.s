@@ -1,4 +1,5 @@
 	.export __castc_
+	.export __castc_u
 	.export __castc_l
 	.export __castc_ul
 	.export __cast_l
@@ -9,6 +10,7 @@
 ; We have no sex instructions so we have to do this the hard way
 
 __castc_:
+__castc_u:
 __castc_l:
 __castc_ul:
 	cp r3,#0x80
