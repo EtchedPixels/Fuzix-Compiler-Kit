@@ -74,13 +74,15 @@ static void invalidate_ac(void)
 
 static void set_ac_node(struct node *n)
 {
-	unsigned op = n->op;
+	register unsigned op = n->op;
 	printf(";ac node now O %u T %u V %lu\n",
 		op, n->type, n->value);
 	/* Whatever was in AC just got stored so we are now a valid lref */
 	if (op == T_LSTORE)
 		op = T_LREF;
-	if (op != T_LREF) {
+	if (op == T_RSTORE)
+		op = T_RREF;
+	if (op != T_LREF && op != T_RREF) {
 		ac_node.type = 0;
 		return;
 	}
@@ -2556,6 +2558,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_RREF:
 		load_ac_reg(v, size);
+		set_ac_node(n);
 		return 1;
 	case T_NSTORE:
 		if (optsize) {
@@ -2567,6 +2570,7 @@ unsigned gen_node(struct node *n)
 		}
 		load_r_name(R_INDEX, n, v);
 		store_r_memr(R_AC, R_INDEX, size);
+			set_ac_node(n);
 		return 1;
 	case T_LBSTORE:
 		if (optsize) {
@@ -2578,6 +2582,7 @@ unsigned gen_node(struct node *n)
 		}
 		load_r_label(R_INDEX, n, v);
 		store_r_memr(R_AC, R_INDEX, size);
+		set_ac_node(n);
 		return 1;
 	case T_LSTORE:
 		if (opt < 1)
@@ -2590,6 +2595,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_RSTORE:
 		load_reg_ac(v, size);
+		set_ac_node(n);
 		return 1;
 		/* Call a function by name */
 	case T_CALLNAME:
