@@ -563,7 +563,7 @@ static void rshift_r(unsigned r, unsigned size, unsigned uns)
 		invalidate_ac();
 	r_modify(r, size);
 	if (uns)
-		printf("\trcf\nrrc r%u\n", r++);
+		printf("\trcf\n\trrc r%u\n", r++);
 	else
 		printf("\tsra r%u\n", r++);
 	while(--size)
@@ -751,6 +751,8 @@ static void load_r_memr(unsigned val, unsigned rr, unsigned size)
 {
 	if (R_ISAC(val))
 		val = 4 - size;
+	if (R_ISAC(rr))
+		rr = 2;
 	/* Check this on its own as we sometimes play games with AC
 	   registers */
 	if (val == 4 - size) {
@@ -777,6 +779,8 @@ static void store_r_memr(unsigned val, unsigned rr, unsigned size)
 {
 	if (R_ISAC(val))
 		val = 4 - size;
+	if (R_ISAC(rr))
+		rr = 2;
 	if (val == 4 - size && rr == R_INDEX && size > 1 && opt < 1) {
 		printf("\tcall __store%u\n", size);
 		r_adjust(R_INDEX, size - 1, 2);
@@ -807,6 +811,8 @@ static void revstore_r_memr(unsigned val, unsigned rr, unsigned size)
 		}
 	} else
 		val += size - 1;
+	if (R_ISAC(rr))
+		rr = 2;
 	printf("\tlde @rr%u, r%u\n", rr, val);
 	while(--size) {
 		val--;
@@ -2200,7 +2206,8 @@ unsigned gen_shortcut(struct node *n)
 			codegen_lr(r);
 			/* Do r << ac */
 			v = ++label_count;
-			opnoeff_r_r(R_ACCHAR, R_ACCHAR, "or");
+			/* Only works on AC for now */
+			opnoeff_r_r(3, 3, "or");
 			printf("\tjr z, X%u\n", v);
 			x = label();
 			add_r_r(R_REG(reg), R_REG(reg), size);
@@ -2213,7 +2220,8 @@ unsigned gen_shortcut(struct node *n)
 			/* TODO: const short form */
 			codegen_lr(r);
 			v = ++label_count;
-			opnoeff_r_r(R_ACCHAR, R_ACCHAR, "or");
+			/* Only works on AC */
+			opnoeff_r_r(3, 3, "or");
 			printf("\tjr z, X%u\n", v);
 			x = label();
 			rshift_r(R_REG(reg), size, n->type & UNSIGNED);
