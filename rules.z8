@@ -1,0 +1,51 @@
+# Branches
+	jr %1
+%1:
+=
+%1:
+
+	jr %2
+%1:
+%2:
+=
+%1:
+%2:
+
+	jr L%1
+	jr L%2
+=
+	jr L%1
+
+# Fold up clears implied in helpers
+	call __lstref0c
+	clr r2
+=
+	call __lstref0c
+
+	call __lstref0
+	clr r2
+=
+	call __lstref0
+
+	call __nref_1
+	.word %1
+	clr r2
+=
+	call __nref_1
+	.word %1
+
+# A common pattern we rewrite into a helper: we should fix this in the
+# backend however FIXME
+	ld 14,r2
+	ld r15,r3
+	call __load2
+=
+	call __load2ac
+
+# Another common patter, get a local arg and assign to it
+	call __garg12r2
+	lde @rr2, r12
+	incw rr2
+	lde @rr2, r13
+=
+	call __garg12r2str
