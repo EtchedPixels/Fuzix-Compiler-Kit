@@ -1,5 +1,7 @@
 	.export __nref_4
 	.export __nstore_4
+	.export __nstore_4_0
+	.export __nstore_4b
 
 
 __nref_4:
@@ -20,6 +22,12 @@ __nref_4:
 	lde	r3,@rr14
 	ret
 
+__nstore_4_0:
+	clr	r3
+__nstore_4b:
+	clr	r2
+	clr	r1
+	clr	r0
 __nstore_4:
 	pop	r12
 	pop	r13

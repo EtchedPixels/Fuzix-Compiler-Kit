@@ -1,11 +1,11 @@
 ;
 ;	*TOS + AC
 ;
-	.export __pluseql
+	.export __pluseq
 	.code
 
 
-__pluseql:
+__pluseq:
 	pop r12		;	return
 	pop r13
 	pop r14		;	pointer (TODO: pass ptr in call ?)
@@ -13,8 +13,6 @@ __pluseql:
 	push r13
 	push r12
 
-	incw rr14
-	incw rr14
 	incw rr14	;	point to low byte
 
 	lde r12,@rr14
@@ -25,15 +23,5 @@ __pluseql:
 	lde r12,@rr14
 	adc r2,r12
 	lde @rr14,r2
-	decw rr14
-
-	lde r12,@rr14
-	adc r1,r12
-	lde @rr14,r1
-	decw rr14
-
-	lde r12,@rr14
-	adc r0,r12
-	lde @rr14,r0
 
 	ret

@@ -21,11 +21,17 @@
 	.export __pargrr1
 	.export __pargrr2
 	.export __pargrr4
+	.export __pargr1_0
+	.export __pargr2_0
+	.export __pargr4_0
+	.export __pargr4_1
 	.export __frame
 	.export __load2
 	.export __load4
 	.export __store2
 	.export __store4
+	.export __garg12r2str
+	.export __garg12rr2str
 
 __gargr1:
 	clr	r14
@@ -45,7 +51,13 @@ __load2:
 	incw	rr14
 	lde	r3,@rr14
 	ret
-
+__load2ac:		; Must leave regs exactly like this
+	ld	r14,r2
+	ld	r15,r3
+	lde	r2,@rr14
+	incw	rr14
+	lde	r3,@rr14
+	ret
 __gargr4:
 	clr	r14
 __gargrr4:
@@ -79,6 +91,22 @@ __garg12rr2:
 	lde	r13,@rr14
 	ret
 
+; Rewritten by optimizer as a store helper
+__garg12r2str:
+	clr	r14
+__garg12rr2str:
+	add	r15,255
+	adc	r14,254
+	lde	r12,@rr14
+	incw	rr14
+	lde	r13,@rr14
+	lde	@rr2,r12
+	incw	rr2
+	lde	@rr2,r13
+	ret
+
+__pargr1_0:
+	clr	r2
 __pargr1:
 	clr	r14
 __pargrr1:
@@ -87,6 +115,9 @@ __pargrr1:
 	lde	@rr14,r3
 	ret
 
+__pargr2_0:
+	clr	r2
+	clr	r3
 __pargr2:
 	clr	r14
 __pargrr2:
@@ -97,9 +128,18 @@ __store2:
 	incw	rr14
 	lde	@rr14,r3
 	ret
+
+__pargr4_1:
+	ld	r3,#1
+	jr	pac
+__pargr4_0:
+	clr	r3
+pac:
+	clr	r0
+	clr	r1
+	clr	r2
 __pargr4:
 	clr	r14
-
 __pargrr4:
 	add	r15,255
 	adc	r14,254

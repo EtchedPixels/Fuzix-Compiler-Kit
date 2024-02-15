@@ -39,7 +39,8 @@
 #define T_REQ		(T_USER+10)		/* *regptr = */
 #define T_RDEREFPLUS	(T_USER+11)		/* *regptr++ */
 #define T_REQPLUS	(T_USER+12)		/* *regptr++ =  */
-
+#define T_LSTREF	(T_USER+13)		/* reference via a local ptr to struct field */
+#define T_LSTSTORE	(T_USER+14)		/* store ref via a local ptr to struct field */
 
 /*
  *	State for the current function
@@ -48,7 +49,6 @@ static unsigned frame_len;	/* Number of bytes of stack frame */
 static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned argbase;	/* Argument offset in current function */
 static unsigned unreachable;	/* Code following an unconditional jump */
-static unsigned func_cleanup;	/* Zero if we can just ret out */
 static unsigned label_count;	/* Used for internal labels X%u: */
 
 static unsigned r14_sp;		/* R14/15 address relative to SP */
@@ -405,7 +405,6 @@ static void add_r_const(unsigned r, unsigned long v, unsigned size)
 
 	/* ADD to r%d is 3 bytes so the only useful cases are word inc/dec of
 	   1 which are two bytes as incw/decw and four as add/adc */
-	/* FIXME: 2 is also useful */
 	if (size == 2) {
 		if (v == 2) {
 			rr_incw(r - 1);
@@ -425,6 +424,23 @@ static void add_r_const(unsigned r, unsigned long v, unsigned size)
 			rr_decw(r - 1);
 			return;
 		}
+	}
+	/* inc rn is 1 byte, dec rn is 2 ! */
+	if (size == 1) {
+		if (v == 2) {
+			r_inc(r);
+			r_inc(r);
+			return;
+		}
+		if ((signed)v == -1) {
+			r_dec(r);
+			return;
+		}
+		if (v == 1) {
+			r_inc(r);
+			return;
+		}
+		/* For -2 dec, dec is 4 bytes whilst add is 3 */
 	}
 		
 	printf("\tadd r%u,#%u\n", r--, (unsigned)v & 0xFF);
@@ -865,14 +881,24 @@ static void load_work_helper(unsigned v, unsigned size)
 	r14_sp = v - sp + size - 1;
 }
 
-static void store_local_helper(unsigned v, unsigned size)
+static void store_local_helper(struct node *r, unsigned v, unsigned size)
 {
 	/* Only works for R_AC case */
 	/* We add the extra 2 because the call adjusted the stack as well */
 	v += sp;
 	if (v < 254) {
 		load_r_const(R_INDEX + 1, v + 2, 1);
-		printf("\tcall __pargr%u\n", size);
+		/* Extra helper paths optimize assign with 0 or 1L */
+		if (r && r->op == T_CONSTANT) {
+			if (r->value == 0)
+				printf("\tcall __pargr%u_0\n", size);
+			else if (r->value == 1 && size == 4)
+				printf("\tcall __pargr%u_0\n", size);
+			else
+				printf("\tcall __pargr%u\n", size);
+		}
+		else
+			printf("\tcall __pargr%u\n", size);
 		r_modify(14,2);
 	} else {
 		load_r_const(R_INDEX, v + 2, 2);
@@ -1306,7 +1332,6 @@ struct node *gen_rewrite(struct node *n)
 /*
  *	Our chance to do tree rewriting. We don't do much for the 8080
  *	at this point, but we do rewrite name references and function calls
- *	to make them easier to process.
  */
 struct node *gen_rewrite_node(struct node *n)
 {
@@ -1319,6 +1344,36 @@ struct node *gen_rewrite_node(struct node *n)
 		- rewrite some reg ops
 	*/
 
+	/* Structure field references from locals. These end up big on the Z8 so use
+	   a helper for the lot */
+	if (optsize && op == T_DEREF && r->op == T_PLUS && r->right->op == T_CONSTANT) {
+		/* For now just do lrefs of offsets within 256 bytes */
+		if (r->left->op == T_LREF && r->left->value < 256) {
+			n->op = T_LSTREF;
+			n->value = r->right->value;
+			n->val2 = r->left->value;
+			n->left = NULL;
+			n->right = NULL;
+			free_node(r->right);
+			free_node(r->left);
+			free_node(r);
+			return n;
+		}
+	}
+	/* Structure field assign - same idea */
+	if (optsize && op == T_EQ && l->op == T_PLUS && l->right->op == T_CONSTANT) {
+		/* Same restrictions */
+		if (l->left->op == T_LSTORE && l->left->value < 256) {
+			n->op = T_LSTSTORE;
+			n->value = l->right->value;
+			n->val2 = l->left->value;
+			n->left = NULL;
+			free_node(l->right);
+			free_node(l->left);
+			free_node(l);
+			return n;
+		}
+	}
 	/* regptr++  The size will always be the true size for ++ and const */
 	if (op == T_DEREF && r->op == T_PLUSPLUS && r->left->op == T_REG)
 	{
@@ -1495,18 +1550,12 @@ void gen_frame(unsigned size, unsigned aframe)
 	frame_len = size;
 	sp = 0;
 
-	if (size)
-		func_cleanup = 1;
-	else
-		func_cleanup = 0;
-
 	argbase = ARGBASE;
 	
 	for (r = 1; r <= 4; r++) {
 		if (func_flags & F_REG(r)) {
 			push_rr(R_REG(r));
 			argbase += 2;
-			func_cleanup = 1;
 		}
 	}
 
@@ -1531,6 +1580,21 @@ void gen_frame(unsigned size, unsigned aframe)
 		RR_decw(R_SPH);
 }
 
+void gen_exitjp(unsigned size)
+{
+	if (size == 0)
+		ret_op();
+	else if (size > 255) {
+		load_r_const(R_WORK, size, 2);
+		printf("\tjp __cleanup\n");
+	} else if (size > 8) {
+		load_r_const(R_WORK + 1, size, 1);
+		printf("\tjp __cleanupb\n");
+	} else
+		printf("\tjp __cleanup%u\n", size);
+	unreachable = 1;
+}
+
 void gen_epilogue(unsigned size, unsigned argsize)
 {
 	unsigned r;
@@ -1539,11 +1603,16 @@ void gen_epilogue(unsigned size, unsigned argsize)
 		error("sp");
 	if (unreachable)
 		return;
+
 	add_R_const(R_SPH, size, 2);
 	for (r = 4; r >= 1; r--) {
 		if (func_flags & F_REG(r)) {
 			pop_rr(R_REG(r));
 		}
+	}
+	if (!(func_flags & F_VARARG)) {
+		gen_exitjp(argsize);
+		return;
 	}
 	ret_op();
 }
@@ -1561,13 +1630,8 @@ void gen_label(const char *tail, unsigned n)
    no cleanup to do */
 unsigned gen_exit(const char *tail, unsigned n)
 {
-	if (func_cleanup) {
-		gen_jump(tail, n);
-		return 0;
-	} else {
-		ret_op();
-		return 1;
-	}
+	gen_jump(tail, n);
+	return 0;
 }
 
 /* FIXME: teach assembler to adjust jr and make these use jr */
@@ -1575,7 +1639,7 @@ void gen_jump(const char *tail, unsigned n)
 {
 	/* Force anything deferred to complete before the jump */
 	flush_all(0);
-	printf("\tjp L%u%s\n", n, tail);
+	printf("\tjr L%u%s\n", n, tail);
 	unreachable = 1;
 }
 
@@ -1583,25 +1647,27 @@ void gen_jump(const char *tail, unsigned n)
 void gen_jfalse(const char *tail, unsigned n)
 {
 	flush_all(1);	/* Must preserve flags */
-	printf("\tjp z,L%u%s\n", n, tail);
+	printf("\tjr z,L%u%s\n", n, tail);
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
 	flush_all(1);	/* Must preserve flags */
-	printf("\tjp nz,L%u%s\n", n, tail);
+	printf("\tjr nz,L%u%s\n", n, tail);
 }
 
-static void gen_cleanup(unsigned v)
+static void gen_cleanup(unsigned v, unsigned vararg)
 {
 	printf(";cleanup %d\n", v);
 	sp -= v;
-	if (v >= 4) {
-		add_R_const(R_SPH, v, 2);
-		return;
+	if (vararg) {
+		if (v >= 4) {
+			add_R_const(R_SPH, v, 2);
+			return;
+		}
+		while(v--)
+			RR_incw(R_SPH);
 	}
-	while(v--)
-		RR_incw(R_SPH);
 }
 
 /*
@@ -1662,7 +1728,8 @@ void gen_helpclean(struct node *n)
 			sp += s;
 		}
 		s += get_size(n->right->type);
-		gen_cleanup(s);
+		/* No helper uses varargs */
+		gen_cleanup(s, 0);
 		/* C style ops that are ISBOOL didn't set the bool flags */
 		if (n->flags & ISBOOL)
 			printf("\tor r3,r2\n");
@@ -1886,7 +1953,7 @@ unsigned gen_direct(struct node *n)
 	switch (n->op) {
 	case T_CLEANUP:
 		printf(";cleanup\n");
-		gen_cleanup(v);
+		gen_cleanup(v, n->val2);
 		return 1;
 	case T_NSTORE:
 		load_r_name(R_INDEX, n, v);
@@ -1898,7 +1965,7 @@ unsigned gen_direct(struct node *n)
 		return 1;
 	case T_LSTORE:
 		if (opt < 1)
-			store_local_helper(v + sp, size);
+			store_local_helper(r, v + sp, size);
 		else {
 			load_r_local(R_INDEX, v + sp);
 			store_r_memr(R_AC, R_INDEX, size);
@@ -2152,10 +2219,8 @@ unsigned gen_direct(struct node *n)
 			load_r_const(R_WORK, v , size);
 			if (v == 0)
 				helper(n, "ccneconst0");
-			else {
-				load_r_const(R_WORK, v , size);
+			else
 				helper(n, "ccneconst");
-			}
 			n->flags |= ISBOOL;
 			return 1;
 		}
@@ -2396,6 +2461,23 @@ unsigned gen_shortcut(struct node *n)
 		helper(n, "lplusplus");
 		return 1;
 	}
+
+	/* Assign to struct field with pointer in local */
+	if (n->op == T_LSTSTORE) {
+		/* Get thje value to assign into the working registers */
+		gen_node(n->right);
+		/* Now store t */
+		if (n->val2 + sp < 254) {
+			load_r_const(R_INDEX + 1, n->val2 + sp + 2, 1);
+			load_r_const(R_WORK + 1, n->value, 1);
+			helper(n, "lststore0");
+		} else {
+			load_r_const(R_INDEX, n->val2 + sp + 2, 2);
+			load_r_const(R_WORK + 1, n->value, 1);
+			helper(n, "lststore");
+		}
+		return 1;
+	}
 	/* TODO: Do PLUSEQ/MINUSEQ for CONST non FLOAT akin to above */
 	if (n->op == T_RSTORE && (n->flags & NORETURN))
 		return load_direct(R_REG(n->value), r, 1);
@@ -2416,6 +2498,23 @@ unsigned gen_shortcut(struct node *n)
 		add_r_const(R_INDEX, n->val2, 2);
 		store_r_memr(R_AC, R_INDEX, size);	/* Moves the pointer on as a side effect */
 		return 1;
+	}
+	if (optsize && (n->op == T_NSTORE || n->op == T_LBSTORE) && r->op == T_CONSTANT) {
+		if (r->value == 0) {
+			printf("\tcall __nstore_%d_0\n", size);
+			set_ac_node(n);
+			r_modify(R_WORK,4);
+			gen_symref(n);
+			return 1;
+		}
+		if (r->value < 256 && size > 1) {
+			load_r_const(R_ACCHAR, r->value, 1);
+			printf("\tcall __nstore_%db\n", size);
+			set_ac_node(n);
+			r_modify(R_WORK,4);
+			gen_symref(n);
+			return 1;
+		}			
 	}
 	/* Handle operations on registers as they have no address so cannot be resolved as
 	   a subtree with an addr in it */
@@ -2671,6 +2770,17 @@ unsigned gen_node(struct node *n)
 		load_ac_reg(v, size);
 		set_ac_node(n);
 		return 1;
+	case T_LSTREF:
+		if (n->val2 + sp < 254) {
+			load_r_const(R_INDEX + 1, n->val2 + sp + 2, 1);
+			load_r_const(R_WORK + 1, v, 1);
+			helper(n, "lstref0");
+		} else {
+			load_r_const(R_INDEX, n->val2 + sp + 2, 2);
+			load_r_const(R_WORK + 1, v, 1);
+			helper(n, "lstref");
+		}
+		return 1;
 	case T_NSTORE:
 		if (optsize) {
 			printf("\tcall __nstore_%d\n", size);
@@ -2687,8 +2797,8 @@ unsigned gen_node(struct node *n)
 		if (optsize) {
 			printf("\tcall __nstore_%d\n", size);
 			set_ac_node(n);
-			gen_symref(n);
 			r_modify(R_WORK,4);
+			gen_symref(n);
 			return 1;
 		}
 		load_r_label(R_INDEX, n, v);
@@ -2697,7 +2807,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LSTORE:
 		if (opt < 1)
-			store_local_helper(v + sp, size);
+			store_local_helper(NULL, v + sp, size);
 		else {
 			load_r_local(R_INDEX, v + sp);
 			store_r_memr(R_AC, R_INDEX, size);
@@ -2783,7 +2893,7 @@ unsigned gen_node(struct node *n)
 	case T_PLUS:
 		/* Tricky as big endian on stack */
 		/* FIXME: needs a !reg check */
-		if (size == 4 && n->type != FLOAT) {
+		if (size == 4 && n->type != FLOAT && !optsize) {
 			/* Games time */
 			pop_r(R_WORK);
 			op_r_r(3, R_WORK, "add");
@@ -2813,7 +2923,7 @@ unsigned gen_node(struct node *n)
 		/* We are doing stack - ac. This isn't ideal but we've
 		   dealt with the simple cases already. We could more
 		   in gen_shortcut perhaps if it is still an issue */
-		if (size == 4 && n->type != FLOAT) {
+		if (size == 4 && n->type != FLOAT && !optsize) {
 			/* Lots of joy involved */
 			pop_r(R_WORK);
 			op_r_r(R_WORK, 3, "sub");
@@ -2994,7 +3104,7 @@ unsigned gen_node(struct node *n)
 	/* += and -= we can inline except for long size. Only works for non
 	   regvar case as written though */
 	case T_PLUSEQ:
-		if (n->type == FLOAT)
+		if (n->type == FLOAT || optsize)
 			return 0;
 		/* Pointer is on stack, value in ac */
 		pop_rr(R_INDEX);
@@ -3018,7 +3128,7 @@ unsigned gen_node(struct node *n)
 		store_r_memr(R_AC, R_INDEX, size);			
 		return 1;
 	case T_MINUSEQ:
-		if (n->type == FLOAT)
+		if (n->type == FLOAT || optsize)
 			return 0;
 		/* Pointer is on stack, value in ac */
 		pop_rr(R_INDEX);
