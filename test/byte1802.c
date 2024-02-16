@@ -7,6 +7,13 @@
 #include "../support1802/1802ops.h"
 #include "../support1802/1802debug.h"
 
+/*
+ *	We operate big endian because the 1805 forces the issue for later
+ *	processors. It's not the ideal way around for us and we will need
+ *	to rework the 1802 engine in various places accordingly. In particular
+ *	it makes math ops more painful but compares less so.
+ */
+
 static uint8_t mem[65536];
 
 static uint16_t sp;
@@ -19,16 +26,16 @@ static void mwc(uint16_t addr, uint8_t c)
 
 static void mw(uint16_t addr, unsigned c)
 {
-	mem[addr] = c;
-	mem[addr + 1] = c >> 8;
+	mem[addr] = c >> 8;
+	mem[addr + 1] = c;
 }
 
 static void mwl(uint16_t addr, uint32_t c)
 {
-	mem[addr] = c;
-	mem[addr + 1] = c >> 8;
-	mem[addr + 2] = c >> 16;
-	mem[addr + 3] = c >> 24;
+	mem[addr] = c >> 24;
+	mem[addr + 1] = c >> 16;
+	mem[addr + 2] = c >> 8;
+	mem[addr + 3] = c;
 }
 
 static uint8_t mrc(uint16_t addr)
@@ -38,13 +45,13 @@ static uint8_t mrc(uint16_t addr)
 
 static uint16_t mr(uint16_t addr)
 {
-	return mem[addr] | (mem[addr + 1] << 8);
+	return (mem[addr] << 8)| mem[addr + 1];
 }
 
 static uint32_t mrl(uint16_t addr)
 {
-	uint32_t r = mr(addr);
-	r |= ((uint32_t)mr(addr + 2)) << 16;
+	uint32_t r = mr(addr + 2);
+	r |= ((uint32_t)mr(addr)) << 16;
 	return r;
 }
 
@@ -109,6 +116,41 @@ void error(const char *p)
 	exit(1);
 }
 
+static uint16_t do_switchc(uint16_t pc, uint8_t c)
+{	
+	unsigned len = mr(pc);
+	pc += 2;
+	while(len--) {
+		if (mrc(pc) == c)
+			return mr(pc + 1);
+		pc += 3;
+	}
+	return mr(pc);
+}
+
+static uint16_t do_switch(uint16_t pc, uint16_t u)
+{	
+	unsigned len = mr(pc);
+	pc += 2;
+	while(len--) {
+		if (mr(pc) == u)
+			return mr(pc + 2);
+		pc += 4;
+	}
+	return mr(pc);
+}
+
+static uint16_t do_switchl(uint16_t pc, uint32_t l)
+{	
+	unsigned len = mr(pc);
+	pc += 2;
+	while(len--) {
+		if (mrl(pc) == l)
+			return mr(pc + 4);
+		pc += 6;
+	}
+	return mr(pc);
+}
 
 unsigned execute(unsigned initpc, unsigned initsp)
 {
@@ -386,8 +428,14 @@ unsigned execute(unsigned initpc, unsigned initsp)
 			pc = mr(pc);
 			break;
 		case op_switchc:
+			pc = do_switchc(ac, pc);
+			break;
 		case op_switchl:
+			pc = do_switchl(ac, pc);
+			break;
 		case op_switch:
+			pc = do_switch(ac, pc);
+			break;
 		case op_cceqf:
 		case op_cceql:
 			ac = !!(popl() == ac);
