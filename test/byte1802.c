@@ -9,7 +9,7 @@
 
 static uint8_t mem[65536];
 
-static unsigned sp;
+static uint16_t sp;
 unsigned debug;
 
 static void mwc(uint16_t addr, uint8_t c)
@@ -50,7 +50,9 @@ static uint32_t mrl(uint16_t addr)
 
 static void pushc(uint8_t c)
 {
-	mw(sp, c);
+	mwc(sp, c);
+	if (debug)
+		fprintf(stderr, "pushed %uB at %x\n", c, sp);
 	sp--;
 }
 
@@ -58,12 +60,16 @@ static void push(unsigned u)
 {
 	sp -= 2;
 	mw(sp + 1, u);
+	if (debug)
+		fprintf(stderr, "pushed %u at %x\n", u, sp + 1);
 }
 
 static void pushl(uint32_t l)
 {
 	sp -= 4;
 	mwl(sp + 1, l);
+	if (debug)
+		fprintf(stderr, "pushed %uL at %x\n", l, sp + 1);
 }
 
 static uint8_t popc(void)
@@ -74,8 +80,11 @@ static uint8_t popc(void)
 
 static unsigned pop(void)
 {
+	unsigned r = mr(sp + 1);
+	if (debug)
+		fprintf(stderr, "popped %u at %x\n", r, sp + 1);
 	sp += 2;
-	return mr(sp - 1);
+	return r;
 }
 
 static unsigned popl(void)
@@ -100,34 +109,31 @@ void error(const char *p)
 	exit(1);
 }
 
-void disassemble(uint16_t pc, uint8_t op)
-{
-	const char *s = opnames[op];
-	if (s == NULL)
-		s = "illegal";
-	if (debug == 0)
-		return;
-	fprintf(stderr, "%04X: %02X : %s",  pc, op, s);
-}
 
 unsigned execute(unsigned initpc, unsigned initsp)
 {
 	uint16_t pc = initpc;
-	uint16_t fp;
+	uint16_t fp = 0;
 	unsigned shift = 0;
-	uint32_t ac;
+	uint32_t ac = 0;
 	uint16_t addr;
-	uint16_t r0,r1,r2,r3;
+	uint16_t r0 = 0, r1 = 0, r2 = 0, r3 = 0;
 
 	sp = initsp;
 
 	while(1) {
-		uint8_t op = mrc(pc);
-		disassemble(pc, op);
+		uint16_t op = mrc(pc) + shift;
 
+		if (debug) {
+			const char *s = opnames[op >> 1];
+			if (s == NULL)
+				s = "illegal";
+			fprintf(stderr, "%04X: %08X %04X %04X %04X %04X %04X %04X: %02X %s\n",
+				pc, ac, fp, sp, r0, r1, r2, r3, op, s);
+		}
 		pc++;
 		
-		switch(op + shift) {
+		switch(op) {
 		case op_shift1:
 			shift = 0x100;
 			break;
@@ -333,20 +339,20 @@ unsigned execute(unsigned initpc, unsigned initsp)
 			mw(pop(), ac);
 			break;
 		case op_postincc:
-			addr = pop();
+			addr = ac;
 			ac = mrc(addr);
 			mw(addr, ac + mrc(pc));
 			pc++;
 			break;
 		case op_postincf:
 		case op_postincl:
-			addr = pop();
+			addr = ac;
 			ac = mrl(addr);
 			mwl(addr, ac + mrl(pc));
 			pc += 4;
 			break;
 		case op_postinc:
-			addr = pop();
+			addr = ac;
 			ac = mr(addr);
 			mw(addr, ac + mrl(pc));
 			pc += 2;
@@ -416,28 +422,37 @@ unsigned execute(unsigned initpc, unsigned initsp)
 			ac = !!((unsigned)pop() <= (unsigned)word(ac));
 			break;
 		case op_nrefc:
-			ac = mrc(ac);
+			ac = mrc(mr(pc));
+			pc += 2;
 			break;
 		case op_nrefl:
-			ac = mrl(ac);
+			ac = mrl(mr(pc));
+			pc += 2;
 			break;
 		case op_nref:
-			ac = mr(ac);
+			ac = mr(mr(pc));
+			pc += 2;
 			break;
 		case op_lrefc:
-			ac = mrc(fp + mr(pc));
+			if (debug)
+				fprintf(stderr, "lrefc %04X\n", fp + mr(pc) + 1);
+			ac = mrc(fp + mr(pc) + 1);	/* FIXME: do the adjust in the compiler */
 			pc += 2;
 			break;
 		case op_lrefl:
-			ac = mrl(fp + mr(pc));
+			if (debug)
+				fprintf(stderr, "lrefl %04X\n", fp + mr(pc) + 1);
+			ac = mrl(fp + mr(pc) + 1);
 			pc += 2;
 			break;
 		case op_lref:
-			ac = mr(fp + mr(pc));
+			if (debug)
+				fprintf(stderr, "lref %04X\n", fp + mr(pc) + 1);
+			ac = mr(fp + mr(pc) + 1);
 			pc += 2;
 			break;
 		case op_nstorec:
-			mw(mr(pc), ac);
+			mwc(mr(pc), ac);
 			pc += 2;
 			break;
 		case op_nstorel:
@@ -449,18 +464,19 @@ unsigned execute(unsigned initpc, unsigned initsp)
 			pc += 2;
 			break;
 		case op_lstorec:
-			mwc(fp + mr(pc), ac);
+			mwc(fp + mr(pc) + 1, ac);
 			pc += 2;
 			break;
 		case op_lstorel:
-			mwl(fp + mr(pc), ac);
+			mwl(fp + mr(pc) + 1, ac);
 			pc += 2;
 			break;
 		case op_lstore:
-			mw(fp + mr(pc), ac);
+			mw(fp + mr(pc) + 1, ac);
+			pc += 2;
 			break;
 		case op_local:
-			ac = fp + mr(pc);
+			ac = fp + mr(pc) + 1;
 			pc += 2;
 			break;
 		case op_plusconst:
@@ -492,13 +508,18 @@ unsigned execute(unsigned initpc, unsigned initsp)
 			ac = word(ac - 1);
 			break;
 		case op_fnenter:
-			fp = sp;
+			if (debug)
+				fprintf(stderr, ";fnenter sp by %x\n", word(-mr(pc)));
 			sp += mr(pc);	/* Will be negative so can add not sub */
+			fp = sp;
 			pc += 2;
 			break;
 		case op_fnexit:
+			if (debug)
+				fprintf(stderr, ";fnenxit sp by %x\n", mr(pc));
 			sp += mr(pc);
-			pc = mr(sp);
+			fp = pop();
+			pc = pop();
 			break;
 		case op_cleanup:
 			sp += mr(pc);
@@ -586,7 +607,6 @@ unsigned execute(unsigned initpc, unsigned initsp)
 			r1 += 2;
 			ac = mr(r1);
 			break;
-
 		case op_r2refc:
 			ac = byte(r2);
 			break;
@@ -666,6 +686,7 @@ unsigned execute(unsigned initpc, unsigned initsp)
 			break;
 
 		default:
+			fprintf(stderr, "op %x AC %x\n", op, ac);
 			error("unknown op\n");
 		}
 	}
@@ -690,7 +711,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
     /* 0000-0xFFFF */
-    if (read(fd, mem, sizeof(mem)) < 32) {
+    if (read(fd, mem, sizeof(mem)) < 2) {
         fprintf(stderr, "byte1802: bad test.\n");
         perror(argv[1]);
         exit(1);

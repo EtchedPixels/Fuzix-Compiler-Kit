@@ -1,6 +1,6 @@
-all: emu6502 emu65c816 emu85 emuz8 emuz80 \
+all: emu6502 emu65c816 emu85 emuz8 emuz80 byte1802 \
      testcrt0.o testcrtz80.o testcrt0_6502.o testcrt0_65c816.o \
-     testcrt0_z8.o
+     testcrt0_z8.o testcrt0_byte1802.o
 
 emu85: emu85.o intel_8085_emulator.o
 	$(CC) emu85.o intel_8085_emulator.o -o emu85
@@ -9,7 +9,10 @@ emu85.o: emu85.c intel_8085_emulator.h
 
 inte_8085_emulator.o: intel_8085_emulator.c intel_8085_emulator.h
 
-CFLAGS += -O2
+CFLAGS += -O2 -Wall -pedantic
+
+byte1802: byte1802.o
+	$(CC) byte1802.o -o byte1802
 
 emuz8: emuz8.o z8.o
 	$(CC) emuz8.o z8.o -o emuz8
@@ -34,6 +37,9 @@ z80dis.o: z80dis.h
 
 testcrt0.o: testcrt0.s
 	cc85 -c testcrt0.s
+
+testcrt0_byte1802.o: testcrt0_byte1802.S
+	fcc -m1802 -c testcrt0_byte1802.S
 
 testcrtz80.o: testcrtz80.s
 	ccz80 -c testcrtz80.s
