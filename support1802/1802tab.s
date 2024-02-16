@@ -37,7 +37,10 @@ byteop:	; Must be page aligned
 	.word op_l2f
 	.word op_f2ul
 	.word op_ul2f
+	.word op_xxeqc
+	.word op_xxequc
 	.word op_xxeq
+	.word op_xxequ
 	.word op_xxeqpostc
 	.word op_xxeqpost
 	.word op_postincc
@@ -124,9 +127,6 @@ byteop:	; Must be page aligned
 	.word op_invalid
 	.word op_invalid
 	.word op_invalid
-	.word op_invalid
-	.word op_invalid
-	.word op_invalid
 	.word op_shift0
 	.word op_pushl
 	.word op_popl
@@ -156,6 +156,8 @@ byteop:	; Must be page aligned
 	.word op_constl
 	.word op_notl
 	.word op_booll
+	.word op_xxeql
+	.word op_xxequl
 	.word op_xxeqpostl
 	.word op_postincf
 	.word op_postincl
@@ -220,8 +222,6 @@ byteop:	; Must be page aligned
 	.word op_r3dec2
 	.word op_r3drfpost
 	.word op_r3drfpre
-	.word op_invalid
-	.word op_invalid
 	.word op_invalid
 	.word op_invalid
 	.word op_invalid

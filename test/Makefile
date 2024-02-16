@@ -11,7 +11,7 @@ inte_8085_emulator.o: intel_8085_emulator.c intel_8085_emulator.h
 
 CFLAGS += -O2 -Wall -pedantic
 
-byte1802: byte1802.o
+byte1802: byte1802.o ../support1802/1802ops.h
 	$(CC) byte1802.o -o byte1802
 
 emuz8: emuz8.o z8.o
@@ -38,7 +38,7 @@ z80dis.o: z80dis.h
 testcrt0.o: testcrt0.s
 	cc85 -c testcrt0.s
 
-testcrt0_byte1802.o: testcrt0_byte1802.S
+testcrt0_byte1802.o: testcrt0_byte1802.S ../support1802/1802ops.h
 	fcc -m1802 -c testcrt0_byte1802.S
 
 testcrtz80.o: testcrtz80.s

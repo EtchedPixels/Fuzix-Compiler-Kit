@@ -54,7 +54,7 @@
 %ul2f	-
 
 # General eq helpers
-%xxeq	-
+%xxeq	cs
 %xxeqpost c
 # Special case eq ops
 %postinc cf	T_PLUSPLUS		; also does postdec

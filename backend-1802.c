@@ -26,7 +26,7 @@ static void byteop_direct(unsigned op)
 {
 	/* Deal with shifts between the two bytecode blocks */
 	if ((op & 0x0100) != opshift) {
-		printf("\t.byte 0x00\n");
+		printf("\t.byte 0x00\t; %s\n", opnames[op >> 1]);
 		opshift = op & 0x0100;
 	}
 	printf("\t.byte 0x%02X\t; %s\n", op & 0xFF, opnames[op >> 1]);
@@ -37,8 +37,15 @@ static void byteop_direct(unsigned op)
  */
 static void byteop_reset(void)
 {
-	if (opshift)
-		byteop_direct(0);
+	if (opshift) {
+		printf("\t.byte 0x00\t; sync to page 0\n");
+		opshift = 0;
+	}
+}
+
+static void byteop_label(void)
+{
+	opshift = 0;
 }
 
 static void outconstw(unsigned v)
@@ -211,6 +218,7 @@ void gen_label(const char *tail, unsigned n)
 		byteop_reset();
 	unreachable = 0;
 	printf("L%d%s:\n", n, tail);
+	byteop_label();	/* Always starts from page 0 */
 }
 
 unsigned gen_exit(const char *tail, unsigned n)
@@ -251,6 +259,8 @@ void gen_case_label(unsigned tag, unsigned entry)
 	if (!unreachable)
 		byteop_reset();
 	printf("Sw%d_%d:\n", tag, entry);
+	/* All the branches hit with byteop at 0, unreach or otherwise */
+	byteop_label();
 	unreachable = 0;
 }
 
@@ -372,7 +382,8 @@ void gen_switch(unsigned n, unsigned type)
 		byteop_direct(op_switchl);
 		break;
 	}
-	printf("\t.wordSw%d\n", n);
+	printf("\t.word Sw%d\n", n);
+	unreachable = 1;
 }
 
 /* Op with int or long forms */
@@ -437,22 +448,22 @@ void byteop_cs(struct node *n, unsigned op, unsigned opl)
 /* EQ ops */
 void byteop_eq_c(struct node *n, unsigned op, unsigned opl)
 {
-	byteop_i(n, op_xxeq);
-	byteop_c(n->right, op, opl);
+	byteop_c(n, op_xxeq, op_xxeql);
+	byteop(n->right, op, opl);
 	byteop_c(n->right, op_xxeqpost, op_xxeqpostl);
 }
 
 void byteop_posteq_c(struct node *n, unsigned op, unsigned opl)
 {
-	byteop_i(n, op_xxeq);
-	byteop_c(n->right, op, opl);
+	byteop_c(n, op_xxeq, op_xxeql);
+	byteop(n->right, op, opl);
 	byteop_c(n->right, op_xxeqpost, op_xxeqpostl);
 }
 
 void byteop_eq_cs(struct node *n, unsigned op, unsigned opl)
 {
-	byteop_i(n, op_xxeq);
-	byteop_cs(n->right, op, opl);
+	byteop_c(n, op_xxeq, op_xxeql);
+	byteop_s(n->right, op, opl);
 	byteop_c(n->right, op_xxeqpost, op_xxeqpostl);
 }
 
@@ -535,8 +546,8 @@ static void outconst_size(struct node *n, unsigned long v)
 		printf("\t.word %u\n", (unsigned)v & 0xFFFF);
 		break;
 	case 4:
-		printf("\t.word %u\n", (unsigned)v & 0xFFFF);
 		printf("\t.word %u\n", (unsigned)(n->value >> 16) & 0xFFFF);
+		printf("\t.word %u\n", (unsigned)v & 0xFFFF);
 		break;
 	}
 }

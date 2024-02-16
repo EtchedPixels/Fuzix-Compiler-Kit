@@ -118,38 +118,48 @@ void error(const char *p)
 
 static uint16_t do_switchc(uint16_t pc, uint8_t c)
 {	
-	unsigned len = mr(pc);
-	pc += 2;
+	unsigned addr = mr(pc);
+	unsigned len = mr(addr);
+	addr += 2;
 	while(len--) {
-		if (mrc(pc) == c)
-			return mr(pc + 1);
-		pc += 3;
+		if (mrc(addr) == c)
+			return mr(addr + 1);
+		addr += 3;
 	}
-	return mr(pc);
+	return mr(addr);
 }
 
 static uint16_t do_switch(uint16_t pc, uint16_t u)
 {	
-	unsigned len = mr(pc);
-	pc += 2;
+	unsigned addr = mr(pc);
+	unsigned len = mr(addr);
+	addr += 2;
 	while(len--) {
-		if (mr(pc) == u)
-			return mr(pc + 2);
-		pc += 4;
+		if (mr(addr) == u)
+			return mr(addr + 2);
+		addr += 4;
 	}
-	return mr(pc);
+	return mr(addr);
 }
 
 static uint16_t do_switchl(uint16_t pc, uint32_t l)
 {	
-	unsigned len = mr(pc);
-	pc += 2;
+	unsigned addr = mr(pc);
+	unsigned len = mr(addr);
+	addr += 2;
 	while(len--) {
-		if (mrl(pc) == l)
-			return mr(pc + 4);
-		pc += 6;
+		if (mrl(addr) == l)
+			return mr(addr + 4);
+		addr += 6;
 	}
-	return mr(pc);
+	return mr(addr);
+}
+
+static int16_t sexb(uint8_t r)
+{
+	if (r & 0x80)
+		return (int8_t)r;
+	return r;
 }
 
 unsigned execute(unsigned initpc, unsigned initsp)
@@ -367,9 +377,28 @@ unsigned execute(unsigned initpc, unsigned initsp)
 		case op_f2ul:
 		case op_ul2f:
 		case op_xxeq:
+		case op_xxequ:
 			addr = pop();
 			push(addr);
+			push(mr(addr));
+			break;
+		case op_xxeqc:
+			addr = pop();
 			push(addr);
+			ac = sexb(byte(ac));
+			push(sexb(mrc(addr)));
+			break;
+		case op_xxequc:
+			addr = pop();
+			push(addr);
+			ac = byte(ac);
+			push(mrc(addr));
+			break;
+		case op_xxeql:
+		case op_xxequl:
+			addr = pop();
+			push(addr);
+			pushl(mrl(addr));
 			break;
 		case op_xxeqpostc:
 			mwc(pop(), ac);
@@ -383,7 +412,7 @@ unsigned execute(unsigned initpc, unsigned initsp)
 		case op_postincc:
 			addr = ac;
 			ac = mrc(addr);
-			mw(addr, ac + mrc(pc));
+			mwc(addr, ac + mrc(pc));
 			pc++;
 			break;
 		case op_postincf:
@@ -396,7 +425,7 @@ unsigned execute(unsigned initpc, unsigned initsp)
 		case op_postinc:
 			addr = ac;
 			ac = mr(addr);
-			mw(addr, ac + mrl(pc));
+			mw(addr, ac + mr(pc));
 			pc += 2;
 			break;
 		case op_callfname:
@@ -428,13 +457,18 @@ unsigned execute(unsigned initpc, unsigned initsp)
 			pc = mr(pc);
 			break;
 		case op_switchc:
-			pc = do_switchc(ac, pc);
+			shift = 0;
+			pc = do_switchc(pc, ac);
 			break;
 		case op_switchl:
-			pc = do_switchl(ac, pc);
+			/* Special hack is needed switchl is in page 1, so we must flip the page back
+			   as we work */
+			shift = 0;
+			pc = do_switchl(pc, ac);
 			break;
 		case op_switch:
-			pc = do_switch(ac, pc);
+			shift = 0;
+			pc = do_switch(pc, ac);
 			break;
 		case op_cceqf:
 		case op_cceql:
