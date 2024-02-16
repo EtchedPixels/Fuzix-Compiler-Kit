@@ -43,14 +43,13 @@ static void byteop_reset(void)
 
 static void outconstw(unsigned v)
 {
-	printf("\t.word %u\n", v);
+	printf("\t.word %u\n", v & 0xFFFF);
 }
 
 /*
  *	State for the current function
  */
 static unsigned frame_len;	/* Number of bytes of stack frame */
-static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned unreachable;	/* Is the code we are generating reachable ? */
 
 #define T_NREF		(T_USER)		/* Load of C global/static */
@@ -196,14 +195,11 @@ void gen_frame(unsigned size, unsigned aframe)
 {
 	frame_len = size + 4;	/* 2 for the return addr, 2 for the fp save */
 	byteop_direct(op_fnenter);
-        outconstw(size);
-        sp = 0;
+        outconstw(-size);
 }
 
 void gen_epilogue(unsigned size, unsigned argsize)
 {
-	if (sp)
-		error("sp");
 	byteop_direct(op_fnexit);
 	outconstw(size);
 	unreachable = 1;
@@ -279,23 +275,23 @@ void gen_data_label(const char *name, unsigned align)
 
 void gen_space(unsigned value)
 {
-	printf("\tds %d\n", value);
+	printf("\tds %u\n", value);
 }
 
 void gen_text_data(unsigned n)
 {
-	printf("\t.word T%d\n", n);
+	printf("\t.word T%u\n", n);
 }
 
 void gen_literal(unsigned n)
 {
 	if (n)
-		printf("T%d:\n", n);
+		printf("T%u:\n", n);
 }
 
 void gen_name(struct node *n)
 {
-	printf("\t.word _%s+%d\n", namestr(n->snum), WORD(n->value));
+	printf("\t.word _%s+%u\n", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
@@ -379,15 +375,6 @@ void gen_switch(unsigned n, unsigned type)
 	printf("\t.wordSw%d\n", n);
 }
 
-
-static unsigned get_stack_size(unsigned t)
-{
-	unsigned n = get_size(t);
-	if (n == 1)
-		return 2;
-	return n;
-}
-
 /* Op with int or long forms */
 void byteop(struct node *n, unsigned op, unsigned opl)
 {
@@ -455,6 +442,13 @@ void byteop_eq_c(struct node *n, unsigned op, unsigned opl)
 	byteop_c(n->right, op_xxeqpost, op_xxeqpostl);
 }
 
+void byteop_posteq_c(struct node *n, unsigned op, unsigned opl)
+{
+	byteop_i(n, op_xxeq);
+	byteop_c(n->right, op, opl);
+	byteop_c(n->right, op_xxeqpost, op_xxeqpostl);
+}
+
 void byteop_eq_cs(struct node *n, unsigned op, unsigned opl)
 {
 	byteop_i(n, op_xxeq);
@@ -467,14 +461,10 @@ void byteop_eq_cs(struct node *n, unsigned op, unsigned opl)
 void byteop_cc(struct node *n, unsigned op, unsigned opl)
 {
 	unsigned s = get_size(n->right->type);
-	if (s == 4) {
+	if (s == 4)
 		byteop_direct(opl);
-		return;
-	}
-	/* Ops are ordered so this works */
-	if (s == 1)
-		op -= 2; 
-	byteop_direct(op);
+	else
+		byteop_direct(op);
 }
 
 
@@ -482,17 +472,14 @@ void byteop_cc_s(struct node *n, unsigned op, unsigned opl)
 {
 	unsigned s = get_size(n->right->type);
 	if (s == 4) {
-		if (n->type & UNSIGNED)
-			op += 2;
+		if (n->right->type & UNSIGNED)
+			opl += 2;
 		byteop_direct(opl);
-		return;
+	} else {
+		if (n->right->type & UNSIGNED)
+			op += 2;
+		byteop_direct(op);
 	}
-	/* Ops are ordered so this works */
-	if (s == 1)
-		op -= 2; 
-	if (n->type & UNSIGNED)
-		op += 4;
-	byteop_direct(op);
 }
 
 void byteop_neg_cc(struct node *n, unsigned op, unsigned opl)
@@ -511,17 +498,46 @@ void byteop_neg_cc_s(struct node *n, unsigned op, unsigned opl)
 void outsym(struct node *n)
 {
 	switch(n->op) {
+	case T_NREF:
+	case T_NSTORE:
 	case T_NAME:
+	case T_CALLNAME:
 		gen_name(n);
 		break;
-	case T_LABEL:
-		gen_text_data(n->val2);
+	case T_ARGUMENT:
+		printf("\t/word T%u+%u\n", n->val2, (unsigned)n->value + frame_len);
 		break;
+	case T_LREF:
+	case T_LSTORE:
+	case T_LOCAL:
+		printf("\t/word T%u+%u\n", n->val2, (unsigned)n->value);
+		break;
+	case T_LBREF:
+	case T_LBSTORE:
+	case T_LABEL:
 	case T_CONSTANT:
 		gen_value(n->type, n->value);
 		break;
 	default:
+		fprintf(stderr, "%x\n", n->op);
 		error("os");
+	}
+}
+
+static void outconst_size(struct node *n, unsigned long v)
+{
+	unsigned s= get_size(n->type);
+	switch(s) {
+	case 1:
+		printf("\t.byte %u\n", (unsigned)v & 0xFF);
+		break;
+	case 2:
+		printf("\t.word %u\n", (unsigned)v & 0xFFFF);
+		break;
+	case 4:
+		printf("\t.word %u\n", (unsigned)v & 0xFFFF);
+		printf("\t.word %u\n", (unsigned)(n->value >> 16) & 0xFFFF);
+		break;
 	}
 }
 
@@ -530,8 +546,7 @@ unsigned gen_push(struct node *n)
 	/* Our push will put the object on the stack, so account for it */
 	/* Can't use helper as we might be doing a push of the result of
 	   a cast */
-	byteop(n, op_push, op_pushl);
-	sp += get_stack_size(n->type);
+	byteop_c(n, op_push, op_pushl);
 	return 1;
 }
 
@@ -543,17 +558,16 @@ unsigned gen_push(struct node *n)
 unsigned gen_direct(struct node *n)
 {
 	struct node *r = n->right;
-	unsigned v;
 	unsigned s = get_size(n->type);
 	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
 	   type of the function return so don't use that for the cleanup value
 	   in n->right */
 	case T_CLEANUP:
-		v = r->value;
-		if (v) {
+		printf(";cleanup %d\n", (unsigned)r->value);
+		if (r->value) {
 			byteop_i(n, op_cleanup);
-			outconstw(v);
+			outconstw(r->value);
 		}
 		return 1;
 	case T_PLUS:
@@ -572,12 +586,12 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	case T_PLUSPLUS:
 		byteop_c(n, op_postinc, op_postincl);
-		outconstw(r->value);
-		return 0;
+		outconst_size(n, r->value);
+		return 1;
 	case T_MINUSMINUS:
 		byteop_c(n, op_postinc, op_postincl);
-		outconstw(-r->value);
-		return 0;
+		outconst_size(n, -r->value);
+		return 1;
 	}
 	return 0;
 }
@@ -643,7 +657,7 @@ static unsigned gen_cast(struct node *n)
 		return 1;
 	}
 	ls = get_size(lt);
-	rs = get_size(lt);
+	rs = get_size(rt);
 
 	/* Size shrink is free */
 	if (ls <= rs)
@@ -670,8 +684,11 @@ unsigned gen_node(struct node *n)
 
 	/* Function call arguments are special - they are removed by the
 	   act of call/return and reported via T_CLEANUP */
+#if 0
+	/* We have a frame pointer */
 	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL && n->op != T_CALLNAME)
 		sp -= get_stack_size(n->left->type);
+#endif
 
 	switch(n->op) {
 	case T_NREF:
@@ -689,7 +706,7 @@ unsigned gen_node(struct node *n)
 		outconstw(n->value);
 		return 1;
 	case T_NSTORE:
-		byteop_c(n, op_lstore, op_lstorel);
+		byteop_c(n, op_nstore, op_lstorel);
 		outsym(n);
 		return 1;
 	case T_LBSTORE:
@@ -783,7 +800,7 @@ unsigned gen_node(struct node *n)
 		byteop_neg_cc_s(n, op_cclteq, op_cclteql);
 		return 1;
 	case T_LTEQ:
-		byteop_cc_s(n, op_cclteq, op_cclteq);
+		byteop_cc_s(n, op_cclteq, op_cclteql);
 		return 1;
 	case T_GTEQ:
 		byteop_neg_cc_s(n, op_cclt, op_ccltl);
@@ -825,6 +842,9 @@ unsigned gen_node(struct node *n)
 		/* Bool uses the type of the right side */
 		byteop(n->right, op_bool, op_booll);
 		return 1;
+	case T_ARGCOMMA:
+		/* Pass it down */
+		return 0;
 	}
 	fprintf(stderr, "No rule for %x\n", n->op);
 	return 0;
