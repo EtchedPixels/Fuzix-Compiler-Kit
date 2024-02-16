@@ -174,7 +174,7 @@ struct cpu_table cpu_rules[] = {
 	{ "thread", "thread", ".thread", "libthread.a", "thread", defthread, ldbyte, "0" },
 	{ "z8", "z8", ".z8", "libz8.a", "z8", defz8, ld8080, "8" },
 	{ "1802", "1802", ".1802", "lib1802.a", "1802", def1802, ld8080, "2" },
-	{ "1805", "1802", ".1802", "lib18052.a", "1802", def1805, ld8080, "5" },
+	{ "1805", "1802", ".1802", "lib1805.a", "1802", def1805, ld8080, "5" },
 	{ NULL }
 };
 
