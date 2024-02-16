@@ -611,6 +611,7 @@ op_callfname:
 	sex BPC
 	sep RUN
 op_callfunc:
+	; Should use AC not pop ?
 	sex SP
 	inc SP
 	lda SP
@@ -839,6 +840,7 @@ op_lrefc:
 	irx
 	ghi FP
 	adc
+	irx
 	phi TMP
 	ldn TMP
 	plo AC
@@ -850,6 +852,7 @@ op_lref:
 	irx
 	ghi FP
 	adc
+	irx
 	phi TMP
 	lda TMP
 	plo AC
@@ -978,11 +981,6 @@ op_native:
 	sep TMP
 	; caller will return by doing sep run and reappearing
 	; in bexecute
-op_clear:
-	ldi 0
-	phi AC
-	plo AC
-	sep RUN
 op_byte:
 	ldi 0
 	phi AC
