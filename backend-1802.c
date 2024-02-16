@@ -312,9 +312,10 @@ void gen_value(unsigned type, unsigned long value)
 	case CLONG:
 	case ULONG:
 	case FLOAT:
-		/* We are little endian */
-		printf("\t.word %d\n", (unsigned) (value & 0xFFFF));
+		/* We are big endian (the 1802 doesn't care but the 1805
+		   is big endian with LDI RLDI etc */
 		printf("\t.word %d\n", (unsigned) ((value >> 16) & 0xFFFF));
+		printf("\t.word %d\n", (unsigned) (value & 0xFFFF));
 		break;
 	default:
 		error("unsuported type");
@@ -360,7 +361,6 @@ static unsigned get_size(unsigned t)
 
 void gen_switch(unsigned n, unsigned type)
 {
-	gen_helpcall(NULL);
 	switch(get_size(type)) {
 	case 1:
 		byteop_direct(op_switchc);
