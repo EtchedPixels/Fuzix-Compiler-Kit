@@ -75,12 +75,15 @@ static unsigned bc_free;
   other pointer type because we have ldax b bot lhlx with b */
 unsigned target_register(unsigned type, unsigned storage)
 {
-	if (!bc_free || type >= CLONG || storage != S_AUTO)
+	if (!bc_free || type >= CLONG)
 		return 0;
 	if (PTR(type) == 0 || (PTR(type) == 1 && type < CSHORT)) {
 		bc_free = 0;
 		/* Tell the backend */
-		func_flags |= F_REG(1);
+		if (storage == S_AUTO)
+			func_flags |= F_REG(1);
+		else
+			arg_flags |= F_REG(1);
 		return 1;
 	}
 	return 0;

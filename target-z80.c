@@ -73,23 +73,29 @@ static unsigned bc_free;
 static unsigned ix_free;
 static unsigned iy_free;
 
+static unsigned ralloc(unsigned storage, unsigned n)
+{
+	/* Tell the backend what is allocated */
+	if (storage == S_AUTO)
+		func_flags |= F_REG(n);
+	else
+		arg_flags |= F_REG(n);
+	return n;
+}
+
 unsigned target_register(unsigned type, unsigned storage)
 {
 	if (type >= CLONG && !PTR(type))
 		return 0;
-	if (storage != S_AUTO)
-		return 0;
 	/* For now only use IX/IY for pointers */
 	if (PTR(type)) {
 		if (ix_free) {
-			func_flags |= F_REG(2);
 			ix_free = 0;
-			return 2;
+			return ralloc(storage, 2);
 		}
 		if (iy_free) {
-			func_flags |= F_REG(3);
 			iy_free = 0;
-			return 3;
+			return ralloc(storage, 3);
 		}
 	}
 	/* BC is good for 8 and 16 bit maths or byte pointers, but prefer ix/iy for pointers */
@@ -97,9 +103,7 @@ unsigned target_register(unsigned type, unsigned storage)
 		return 0;
 	if (PTR(type) == 0 || (PTR(type) == 1 && type < CSHORT)) {
 		bc_free = 0;
-		/* Tell the backend */
-		func_flags |= F_REG(1);
-		return 1;
+		return ralloc(storage, 1);
 	}
 	return 0;
 }

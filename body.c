@@ -340,16 +340,23 @@ void statement_block(unsigned need_brack)
 static void load_registers(void)
 {
 	struct node *n;
+	unsigned t;
 	unsigned i = 1;
 	while(i <= NUM_REG) {
 		if (reg_load[i]) {
+			t = reg_load[i]->type;
 			/* Expression tree to load the register */
 			/* EQ (T_REG:i, T_DEREF(T_ARGUMENT:offset)) */
 			/* Hand build a symbol less reference to an argument */
 			n = new_node();
 			n->op = T_ARGUMENT;
 			n->value = reg_offset[i];
+			n->type = t;
 			n = tree(T_EQ, make_symbol(reg_load[i]), tree(T_DEREF,NULL, n));
+			/* Set the assignment to the type of the symbol */
+			n->type = t;
+			/* And we don't care about the return value after assignment */
+			n->flags |= NORETURN|SIDEEFFECT;
 			write_tree(n);
 			reg_load[i] = NULL;
 		}
