@@ -1,14 +1,20 @@
 General
--	Pass .symtmp name to cc0 so can fix make -j
 -	Pass cpu sub opts to cc1 (65c816 registers depend on subtype
 	for example)
+-	Encode storage class into register upper half
+-	For reg arg generate a reg for it, and an assign reg localptr offset
+-	Remove old install arrangement
+-	Package assemblers as FuxixBinTools
 
 1802:
--	the eqxx stuff doesn't quite work eqxx needs to be sized c/int/l
-	and actually do
-		copy stack word to to tmp
-		deref tmp to stack (ac unchanged)
--	Switch needs doing
+-	Optimizations
+	- shift by 8,16,24 l/r unsigned helpers
+	- multiply and divide fastpaths with shift
+	- peephole for jumps
+	- peephole for store/reload of local
+	- use plusconst in eqops for add/sub (will need direct helpers
+	- use mul/div optimizations also in mul/div/rem of eqops
+	- enable registers
 
 Z80:
 -	parse arg code from 65C816 but probably just use it to
@@ -19,9 +25,6 @@ Z80:
 -	Some kind of core code hooks for passing platform ops
 	so you can specify stuff like -mz80-noiy to target.c and backend.c
 -	Move work back over to fuzix tree and check size of pass 2
-
--	Fold AUTO and LOCAL into one with sign as indicator
--	REGISTER pack info the upper bits (can't have lots of regs)
 
 Z8:
 -	CCONLY (enables stuff like decw testing for 1 or tests for 0 etc)
@@ -45,12 +48,12 @@ Z8:
 	replacing the whole ld r15,#n,call____garg, add, adc, ld r14, ld r15
 	etc mess
 
-	end of func jp xx for __exit2,3,4,5,6,7,8.... (and optimize the return n to use it
+DONE	end of func jp xx for __exit2,3,4,5,6,7,8.... (and optimize the return n to use it
 	too)
 
 	__cpluseq1 __cpluseq2 __cpluseq4 // ditto for char helpers
 
--	Clean up stack in called fn except vararg ?
+DONE	Clean up stack in called fn except vararg ?
 
 
 
