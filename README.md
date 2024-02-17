@@ -61,8 +61,7 @@ addressed.
 
 auto, static, extern, typedef, register
 
-register is dependent upon the backend and currently only used for local
-variables (register arguments will become auto).
+register is dependent upon the backend.
 
 ### C Syntax
 
@@ -93,6 +92,15 @@ Known incompatibilities (some to be fixed)
 * Local variables have a single function wide scope not a block scope
 
 ## Backend Status
+
+### 1802
+
+An experimental bytecode engine for the 1802. The bytecode side of the
+generation appears to be functional (except for floats) and the bytecode
+simulation passes the basic tests. The next steps are a bytecode format
+assembler for user bytecode pieces, and to start to build and debug the
+actual 1802 interpreter. It should also be a good basis for any other
+CPU needing this sort of treatment.
 
 ### 6303/6803/68HC11
 
@@ -134,6 +142,12 @@ easy way to do it the BC register pair is not used for other pointer sizes.
 Signed comparison and sign extension are significantly slower than unsigned.
 This is an instruction set limitation.
 
+### Z8
+
+This port now passes most of the self tests and the code coverage compile
+tests. It has not yet been used except on test sets so probably contains
+quite a few bugs. Split I/D is supported.
+
 ### Z80 / Z180
 
 The Z80 code generator will generate reasonable Z80 code. The processor
@@ -159,8 +173,7 @@ byytecode etc.
 
 This is a simple test backend the just turns the input into a lot of calls.
 It is intended as a reference only although it may be useful for processors
-that require a threadcode implementation (eg 1802) or to build an
-interpreted backend.
+that require a threadcode implementation or to build an interpreted backend.
 
 ## Internals
 
