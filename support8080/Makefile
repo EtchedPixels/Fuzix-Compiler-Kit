@@ -52,15 +52,15 @@ include ldst.mk
 ldword/_10.o: makeldst
 	mkdir -p ldword ldbyte stword stbyte
 	./makeldst
-	cc85 -c ldword/_10.s
+	fcc -m8080 -c ldword/_10.s
 
 makeldst: makeldst.c
 	$(CC) makeldst.c -o ./makeldst
 
 .s.o:
-	cc85 -c $<
+	fcc -m8080 -c $<
 .c.o:
-	cc85 -m8080 -O -c $<
+	fcc -m8080 -O -c $<
 
 lib8080.a: makeldst $(OBJ)
 	rm -f lib8080.a
