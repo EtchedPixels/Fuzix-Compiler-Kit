@@ -51,8 +51,10 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 	if ((s == S_AUTO || s == S_REGISTER) && defstorage == S_EXTDEF)
 		error("no automatic globals");
 
-	if (IS_FUNCTION(type) && !PTR(type) && s == S_EXTDEF)
-		s = S_EXTERN;
+	if (IS_FUNCTION(type) && !PTR(type)) {
+		if (s == S_EXTDEF || s == S_AUTO)
+			s = S_EXTERN;
+	}
 
 	if (s == S_REGISTER) {
 		offset = target_register(type, S_AUTO);

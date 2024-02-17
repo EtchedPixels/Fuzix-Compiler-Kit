@@ -241,6 +241,10 @@ static void parse_function_arguments(unsigned *tplt)
 			t = CINT;
 		}
 		t = type_canonical(t);
+		/* Don't do register allocations for expressions within a function body, they are
+		   always declations to functions as functions cannot be nested in C */
+		if (funcbody)
+			reg = 0;
 		if (reg)
 			reg = target_register(t, S_ARGUMENT);
 		if (an) {
