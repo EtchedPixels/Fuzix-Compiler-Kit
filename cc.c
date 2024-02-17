@@ -232,7 +232,7 @@ static void remove_temporaries(void)
 static void fatal(void)
 {
 	remove_temporaries();
-	if (symtab)
+	if (symtab && keep_temp == 0)
 		unlink(symtab);
 	exit(1);
 }
