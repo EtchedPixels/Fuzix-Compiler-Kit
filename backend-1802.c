@@ -111,38 +111,36 @@ struct node *gen_rewrite_node(struct node *n)
 	unsigned op = n->op;
 	unsigned nt = n->type;
 	/* Rewrite references into a load operation */
-	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt)) {
-		if (op == T_DEREF) {
-			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
-				if (r->op == T_ARGUMENT)
-					r->value += frame_len;
-				squash_right(n, T_LREF);
-				return n;
-			}
-			if (r->op == T_NAME) {
-				squash_right(n, T_NREF);
-				return n;
-			}
-			if (r->op == T_LABEL) {
-				squash_right(n, T_LBREF);
-				return n;
-			}
+	if (op == T_DEREF) {
+		if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
+			if (r->op == T_ARGUMENT)
+				r->value += frame_len;
+			squash_right(n, T_LREF);
+			return n;
 		}
-		if (op == T_EQ) {
-			if (l->op == T_NAME) {
-				squash_left(n, T_NSTORE);
-				return n;
-			}
-			if (l->op == T_LABEL) {
-				squash_left(n, T_LBSTORE);
-				return n;
-			}
-			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
-				if (l->op == T_ARGUMENT)
-					l->value += frame_len;
-				squash_left(n, T_LSTORE);
-				return n;
-			}
+		if (r->op == T_NAME) {
+			squash_right(n, T_NREF);
+			return n;
+		}
+		if (r->op == T_LABEL) {
+			squash_right(n, T_LBREF);
+			return n;
+		}
+	}
+	if (op == T_EQ) {
+		if (l->op == T_NAME) {
+			squash_left(n, T_NSTORE);
+			return n;
+		}
+		if (l->op == T_LABEL) {
+			squash_left(n, T_LBSTORE);
+			return n;
+		}
+		if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
+			if (l->op == T_ARGUMENT)
+				l->value += frame_len;
+			squash_left(n, T_LSTORE);
+			return n;
 		}
 	}
 	/* Eliminate casts for sign, pointer conversion or same */
@@ -476,6 +474,7 @@ void byteop_cc(struct node *n, unsigned op, unsigned opl)
 		byteop_direct(opl);
 	else
 		byteop_direct(op);
+	n->flags |= ISBOOL;
 }
 
 
@@ -491,12 +490,14 @@ void byteop_cc_s(struct node *n, unsigned op, unsigned opl)
 			op += 2;
 		byteop_direct(op);
 	}
+	n->flags |= ISBOOL;
 }
 
 void byteop_neg_cc(struct node *n, unsigned op, unsigned opl)
 {
 	byteop_cc(n, op, opl);
 	byteop_direct(op_not);
+	n->flags |= ISBOOL;
 }
 
 
@@ -504,6 +505,7 @@ void byteop_neg_cc_s(struct node *n, unsigned op, unsigned opl)
 {
 	byteop_cc_s(n, op, opl);
 	byteop_direct(op_not);
+	n->flags |= ISBOOL;
 }
 
 void outsym(struct node *n)
@@ -851,7 +853,8 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_BOOL:
 		/* Bool uses the type of the right side */
-		byteop(n->right, op_bool, op_booll);
+		if (!(n->right->flags & ISBOOL))
+			byteop(n->right, op_bool, op_booll);
 		return 1;
 	case T_ARGCOMMA:
 		/* Pass it down */

@@ -211,16 +211,16 @@ unsigned execute(unsigned initpc, unsigned initsp)
 			pop();
 			break;
 		case op_shrl:
-			ac = (int32_t)popl() >> word(ac);
+			ac = ((int32_t)popl()) >> word(ac);
 			break;
 		case op_shrul:
-			ac = (uint32_t)popl() >> word(ac);
+			ac = popl() >> word(ac);
 			break;
 		case op_shr:
-			ac = (int16_t)pop() >> word(ac);
+			ac = ((int16_t)pop()) >> word(ac);
 			break;
 		case op_shru:
-			ac = (uint16_t)pop() >> word(ac);
+			ac = pop() >> word(ac);
 			break;
 		case op_shll:
 			ac = popl() << word(ac);
@@ -479,26 +479,26 @@ unsigned execute(unsigned initpc, unsigned initsp)
 			break;
 		case op_ccltf:
 		case op_ccltl:
-			ac = !!((signed long)popl() < (signed long)ac);
+			ac = !!((int32_t)popl() < (int32_t)ac);
 			break;
 		case op_ccltul:
-			ac = !!((uint32_t)popl() < (uint32_t)ac);
+			ac = !!(popl() < ac);
 			break;
 		case op_cclt:
-			ac = !!((signed)pop() < (signed)word(ac));
+			ac = !!((int16_t)pop() < (int16_t)word(ac));
 			break;
 		case op_ccltu:
 			ac = !!((unsigned)pop() < (unsigned)word(ac));
 			break;
 		case op_cclteqf:
 		case op_cclteql:
-			ac = !!((signed long)popl() <= (signed long)ac);
+			ac = !!((int32_t)popl() <= (int32_t)ac);
 			break;
 		case op_ccltequl:
 			ac = !!((uint32_t)popl() <= (uint32_t)ac);
 			break;
 		case op_cclteq:
-			ac = !!((signed)pop() <= (signed)word(ac));
+			ac = !!((int16_t)pop() <= (int16_t)word(ac));
 			break;
 		case op_ccltequ:
 			ac = !!((unsigned)pop() <= (unsigned)word(ac));
