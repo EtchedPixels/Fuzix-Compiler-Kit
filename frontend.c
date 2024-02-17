@@ -18,6 +18,8 @@
 #include "token.h"
 #include "target.h"
 
+static char *symtab;
+
 #if defined(__linux__)
 /* _itoa */
 static char buf[7];
@@ -320,9 +322,9 @@ static void write_symbol_table(void)
 	uint8_t n[2];
 
 	/* FIXME: proper temporary file! */
-	int fd = open(".symtmp", O_WRONLY | O_CREAT | O_TRUNC, 0600);
+	int fd = open(symtab, O_WRONLY | O_CREAT | O_TRUNC, 0600);
 	if (fd == -1) {
-		perror(".symtmp");
+		perror(symtab);
 		exit(1);
 	}
 	n[0] = len;
@@ -1146,6 +1148,9 @@ static unsigned tokenize(void)
 int main(int argc, char *argv[])
 {
 	unsigned t;
+	symtab = argv[1];
+	if (symtab == NULL)
+		symtab = ".symtab";
 	keywords();
 	do {
 		t = tokenize();

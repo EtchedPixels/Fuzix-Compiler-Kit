@@ -208,6 +208,8 @@ int fuzixsub;
 char optimize = '0';
 char *codeseg;
 
+char *symtab;
+
 #define MAXARG	512
 
 int arginfd, argoutfd;
@@ -230,6 +232,8 @@ static void remove_temporaries(void)
 static void fatal(void)
 {
 	remove_temporaries();
+	if (symtab)
+		unlink(symtab);
 	exit(1);
 }
 
@@ -408,7 +412,7 @@ static void resolve_libraries(void)
 		char *p = resolve_library(o->name);
 		if (p == NULL) {
 			fprintf(stderr, "cc: unable to find library '%s'.\n", o->name);
-			exit(1);
+			fatal();
 		}
 		add_argument(p);
 		o = o->next;
@@ -522,6 +526,7 @@ void convert_c_to_s(char *path)
 
 
 	build_arglist(make_lib_name("cc0", ""));
+	add_argument(symtab);
 	t = xstrdup(path, 0);
 	tmp = pathmod(t, ".c", ".%", 0);
 	redirect_in(tmp);
@@ -539,9 +544,7 @@ void convert_c_to_s(char *path)
 	run_command();
 
 	build_arglist(make_lib_name("cc2", cpudot));
-	/* The sym stuff is a bit hackish right now FIXME: make pid based
-	   for make -j */
-	add_argument(".symtmp");
+	add_argument(symtab);
 	add_argument(cpucode);
 	/* FIXME: need to change backend.c parsing for above and also
 	   add another arg when we do the new subcpu bits like -banked */
@@ -858,8 +861,9 @@ void extended_opt(const char *p)
 		
 int main(int argc, char *argv[]) {
 	char **p = argv;
-	signal(SIGCHLD, SIG_DFL);
 	unsigned c;
+
+	signal(SIGCHLD, SIG_DFL);
 
 	while (*++p) {
 		/* filename or option ? */
@@ -988,7 +992,11 @@ int main(int argc, char *argv[]) {
 		target = "a.out";
 	if (only_one_input && c_files > 1)
 		one_input();
+
+	symtab = xstrdup(".symtmp", 6);
+	snprintf(symtab + 7, 6, "%x", getpid());
 	processing_loop();
 	unused_files();
+	unlink(symtab);
 	return 0;
 }
