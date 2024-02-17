@@ -380,15 +380,13 @@ struct node *gen_rewrite_node(struct node *n)
 				}
 			}
 		} else if (r->op == T_RREF) {
-			val = r->value;
-			if (val == 0 || (val >= -128 && val < 125 && r->value != 1)) {
-				n->op = T_RDEREF;
-				n->val2 = 0;
-				n->value = val;
-				n->right = NULL;
-				free_node(r);
-				return n;
-			}
+			/* Check - are we ok with BC always ? */
+			n->op = T_RDEREF;
+			n->val2 = 0;
+			n->value = r->value;
+			n->right = NULL;
+			free_node(r);
+			return n;
 		}
 	}
 	if (op == T_EQ) {
@@ -1636,7 +1634,7 @@ unsigned gen_direct(struct node *n)
 			}
 		}
 		/* Faster case for foo + bc to avoid transfer to de */
-		if (r->op == T_REG && v == 1) {
+		if (r->op == T_RREF && v == 1) {
 			printf("\tadd hl,bc\n");
 			return 1;
 		}
