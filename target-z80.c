@@ -73,9 +73,11 @@ static unsigned bc_free;
 static unsigned ix_free;
 static unsigned iy_free;
 
-unsigned target_register(unsigned type)
+unsigned target_register(unsigned type, unsigned storage)
 {
 	if (type >= CLONG && !PTR(type))
+		return 0;
+	if (storage != S_AUTO)
 		return 0;
 	/* For now only use IX/IY for pointers */
 	if (PTR(type)) {

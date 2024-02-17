@@ -73,9 +73,9 @@ static unsigned bc_free;
 
 /* Use BC for a register char pointer or integer/char type. Don't use it for any
   other pointer type because we have ldax b bot lhlx with b */
-unsigned target_register(unsigned type)
+unsigned target_register(unsigned type, unsigned storage)
 {
-	if (!bc_free || type >= CLONG)
+	if (!bc_free || type >= CLONG || storage != S_AUTO)
 		return 0;
 	if (PTR(type) == 0 || (PTR(type) == 1 && type < CSHORT)) {
 		bc_free = 0;

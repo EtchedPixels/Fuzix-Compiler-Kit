@@ -67,7 +67,7 @@ unsigned target_type_remap(unsigned type)
 static unsigned rused;
 
 /* Just hand out register pairs for anything byte or word sized */
-unsigned target_register(unsigned type)
+unsigned target_register(unsigned type, unsigned storage)
 {
 #if 0
 	/* No long or floats */

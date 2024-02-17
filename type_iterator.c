@@ -211,7 +211,10 @@ static void parse_function_arguments(unsigned *tplt)
 	unsigned *tn = tplt + 1;
 	unsigned t;
 	unsigned an;
+	unsigned reg;
 	struct symbol *sym;
+
+	arg_flags = 0;
 
 	/* Parse the bracketed arguments if any and nail them to the
 	   symbol. */
@@ -224,8 +227,7 @@ static void parse_function_arguments(unsigned *tplt)
 			*tn++ = ELLIPSIS;
 			break;
 		}
-		/* Throw away register hint on arguments */
-		match(T_REGISTER);
+		reg = match(T_REGISTER);
 		t = get_type();
 		if (t == UNKNOWN)
 			t = CINT;
@@ -239,9 +241,21 @@ static void parse_function_arguments(unsigned *tplt)
 			t = CINT;
 		}
 		t = type_canonical(t);
+		if (reg)
+			reg = target_register(t, S_ARGUMENT);
 		if (an) {
-			sym = update_symbol_by_name(an, S_ARGUMENT, t);
-			sym->data.offset = assign_storage(t, S_ARGUMENT);
+			/* Register arguments we pack the upper offset bits to indicate the need
+			   to assign it during code generation. We allow only 8 registers so this
+			   is fine */
+			if (reg == 0) {
+				sym = update_symbol_by_name(an, S_ARGUMENT, t);
+				sym->data.offset = assign_storage(t, S_ARGUMENT);
+			} else {
+				sym = update_symbol_by_name(an, S_REGISTER, t);
+				sym->data.offset = reg;
+				reg_load[reg] = sym;
+				reg_offset[reg] = assign_storage(t, S_ARGUMENT);
+			}
 			*tn++ = t;
 		} else {
 			assign_storage(t, S_ARGUMENT);

@@ -67,7 +67,7 @@ unsigned target_type_remap(unsigned type)
 static unsigned rused;
 
 /* Just hand out register pairs for anything byte or word sized */
-unsigned target_register(unsigned type)
+unsigned target_register(unsigned type, unsigned storage)
 {
 	/* No long or floats */
 	if (type >= CLONG && !PTR(type))
@@ -76,7 +76,10 @@ unsigned target_register(unsigned type)
 	if (rused == 4)
 		return 0;
 	rused++;
-	func_flags |= F_REG(rused);
+	if (storage == S_AUTO)
+		func_flags |= F_REG(rused);
+	else
+		arg_flags |= F_REG(rused);
 	return rused;
 }
 

@@ -66,7 +66,7 @@ unsigned target_type_remap(unsigned type)
 	return type;
 }
 
-unsigned target_register(unsigned type)
+unsigned target_register(unsigned type, unsigned storage)
 {
 	return 0;
 }

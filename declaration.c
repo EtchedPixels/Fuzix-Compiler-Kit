@@ -55,7 +55,7 @@ unsigned one_declaration(unsigned s, unsigned type, unsigned name, unsigned defs
 		s = S_EXTERN;
 
 	if (s == S_REGISTER) {
-		offset = target_register(type);
+		offset = target_register(type, S_AUTO);
 		if (offset == 0)
 			s = S_AUTO;
 	}

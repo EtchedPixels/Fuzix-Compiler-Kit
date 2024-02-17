@@ -5,6 +5,11 @@
 #include <stdio.h>
 #include "compiler.h"
 
+/* These track which registers are aliases to arguments and must be
+   loaded at function entry */
+struct symbol *reg_load[NUM_REG + 1];
+unsigned reg_offset[NUM_REG + 1];
+
 static unsigned arg_frame;
 static unsigned local_frame;
 static unsigned local_max;

@@ -15,6 +15,7 @@ static unsigned switch_default;
 static unsigned func_type;
 
 unsigned func_flags;
+unsigned arg_flags;
 
 /* C keyword statements */
 
@@ -336,6 +337,26 @@ void statement_block(unsigned need_brack)
 	next_token();
 }
 
+static void load_registers(void)
+{
+	struct node *n;
+	unsigned i = 1;
+	while(i <= NUM_REG) {
+		if (reg_load[i]) {
+			/* Expression tree to load the register */
+			/* EQ (T_REG:i, T_DEREF(T_ARGUMENT:offset)) */
+			/* Hand build a symbol less reference to an argument */
+			n = new_node();
+			n->op = T_ARGUMENT;
+			n->value = reg_offset[i];
+			n = tree(T_EQ, make_symbol(reg_load[i]), tree(T_DEREF,NULL, n));
+			write_tree(n);
+			reg_load[i] = NULL;
+		}
+		i++;
+	}
+}
+
 /*
  *	We have parsed the declaration part of a function and found it
  *	is followed by a body. Set up the headersfor the backend and turn
@@ -349,7 +370,8 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	unsigned *p;
 	unsigned n;
 
-	func_flags = 0;
+	/* We are using both the ones allocated for locals and those registers */
+	func_flags = arg_flags & F_REGMASK;
 
 	/* Pass useful information flags to the backend */
 	func_type = func_return(type);
@@ -372,6 +394,10 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	header(H_FUNCTION, func_tag, name);
 	hrw = mark_header();
 	header(H_FRAME, 0, 0);
+
+	/* Register arguments need loading into registers */
+	if (arg_flags)
+		load_registers();
 
 	init_labels();
 

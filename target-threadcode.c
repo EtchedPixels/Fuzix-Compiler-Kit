@@ -71,7 +71,7 @@ unsigned target_type_remap(unsigned type)
 
 /* Use BC for a register char pointer or integer/char type. Don't use it for any
   other pointer type because we have ldax b bot lhlx with b */
-unsigned target_register(unsigned type)
+unsigned target_register(unsigned type, unsigned storage)
 {
 	return 0;
 }
