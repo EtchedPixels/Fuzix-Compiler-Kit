@@ -1,7 +1,5 @@
 /*
- *	Z80 backend. For the moment an 8080 backend but with the syntax
- *	changed. This gives us a tested base to work from for Z80 specific
- *	functionality.
+ *	Z80 Backend
  *
  *	The Z80 essentially has three ways of dealing with locals
  *
@@ -14,9 +12,8 @@
  *				6 bytes 38 cycles
  *				much higher function entry/exit cost
  *
- *	Therefore it actually looks likely that we will be better off figuring out how
- *	to use IX, IY and BC as "register" variables either compiler or user assigned
- *	once we have that functionality
+ *	We use IX, IY and BC as "register" variables. If IX or IY is free and we are not size
+ *	optimizing we use IX or IY as a frame pointer. If not helpers.
  *
  *	The situation only improves if we get to Z280 or Rabbit processors
  *
