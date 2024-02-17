@@ -1,4 +1,4 @@
-all: cc cc85 ccz80 ccthread ccbyte cc6502 cc65c816 cc0 \
+all: cc cc85 ccz80 ccthread cc6502 cc65c816 cc0 \
      cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.1802 \
      cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
@@ -6,7 +6,7 @@ all: cc cc85 ccz80 ccthread ccbyte cc6502 cc65c816 cc0 \
      copt support6502 support65c816 support8080 support8085 supportz80 \
      supportz8
 
-bootstuff: cc cc85 ccz80 ccthread ccbyte cc6502 cc65c816 cc0 \
+bootstuff: cc cc85 ccz80 ccthread cc6502 cc65c816 cc0 \
      cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.1802 \
      cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
@@ -59,9 +59,6 @@ cc85:	cc85.o
 
 ccz80:	ccz80.o
 	gcc -g3 ccz80.o -o ccz80
-
-ccbyte: ccbyte.o
-	gcc -g3 ccbyte.o -o ccbyte
 
 ccthread: ccthread.o
 	gcc -g3 ccthread.o -o ccthread
@@ -161,7 +158,7 @@ supportz80:
 
 clean:
 	rm -f cc cc85 ccz80 ccthread cc0 copt
-	rm -f ccbyte cc6502 cc65c816
+	rm -f cc6502 cc65c816
 	rm -f cc1.8080 cc1.z80 cc1.6803 cc1.thread
 	rm -f cc1.6502 cc1.65c816 cc1.6809 cc1.byte
 	rm -f cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803
@@ -247,17 +244,6 @@ doinstall:
 	cp cc2.thread /opt/ccthread/lib
 	cp copt /opt/ccthread/lib
 	cp rules.thread /opt/ccthread/lib
-	# Bytecode
-	mkdir -p /opt/ccbyte/bin
-	mkdir -p /opt/ccbyte/lib
-	mkdir -p /opt/ccbyte/include
-	cp ccbyte /opt/ccbyte/bin/ccbyte
-	cp cppbyte /opt/ccbyte/lib/cpp
-	cp cc0 /opt/ccbyte/lib
-	cp cc1.byte /opt/ccbyte/lib
-	cp cc2.byte /opt/ccbyte/lib
-	cp copt /opt/ccbyte/lib
-	cp rules.byte /opt/ccbyte/lib
 #	cp supportthread/crt0.o /opt/ccthread/lib
 #	cp supportthread/libthread.a /opt/ccthread/lib/libthread.a
 #	ar cq /opt/ccthread/lib/libc.a
@@ -330,16 +316,6 @@ bootinst:
 	cp cc2.thread $(CCROOT)/lib
 #	cp copt $(CCROOT)/lib
 	cp rules.thread $(CCROOT)/lib
-	# Bytecode
-	mkdir -p $(CCROOT)/lib/bytecode
-	mkdir -p $(CCROOT)/lib/bytecode/include/
-	cp ccbyte $(CCROOT)/bin/ccbyte
-#	cp cppbyte $(CCROOT)/lib/cpp
-#	cp cc0 $(CCROOT)/lib
-	cp cc1.byte $(CCROOT)/lib
-	cp cc2.byte $(CCROOT)/lib
-#	cp copt $(CCROOT)/lib
-	cp rules.byte $(CCROOT)/lib
 	# Z8
 	mkdir -p $(CCROOT)/lib/z8
 	mkdir -p $(CCROOT)/lib/z8/include/
