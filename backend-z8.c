@@ -1680,7 +1680,7 @@ static unsigned c_style(struct node *np)
 {
 	register struct node *n = np;
 	/* Assignment is done asm style */
-	if (n->op == T_EQ)
+	if (n->op == T_EQ || n->op == T_LSTREF || n->op == T_LSTSTORE)
 		return 0;
 	/* Float ops otherwise are C style */
 	if (n->type == FLOAT)
@@ -2450,13 +2450,20 @@ unsigned gen_shortcut(struct node *n)
 	   handle it specially */
 	if (optsize && n->op == T_PLUSPLUS && l->op == T_LREF && l->value + sp + size - 1 < 254) {
 		/* Set the pointer to the last byte */
-		load_r_const(R_INDEX + 1, l->value + sp + 2 + size - 1, size);
-		load_r_const(R_AC, r->value, size);
-		helper(n, "lplusplus");
+		load_r_const(R_INDEX + 1, l->value + sp + 2 + size - 1, 1);
+		if (r->value == 1)
+			helper(n, "lplusplus1");
+		else if (r->value < 256) {
+			load_r_const(R_ACCHAR, r->value, 1);
+			helper(n, "lplusplusb");
+		} else {
+			load_r_const(R_AC, r->value, size);
+			helper(n, "lplusplus");
+		}
 		return 1;
 	}
 	if (optsize && n->op == T_MINUSMINUS && l->op == T_LREF && l->value + sp + size - 1 < 254) {
-		load_r_const(R_INDEX + 1, l->value + sp + 2 + size - 1, size);
+		load_r_const(R_INDEX + 1, l->value + sp + 2 + size - 1, 1);
 		load_r_const(R_AC, -r->value, size);
 		helper(n, "lplusplus");
 		return 1;
