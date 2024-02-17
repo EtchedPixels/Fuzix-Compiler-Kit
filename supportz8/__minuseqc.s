@@ -1,11 +1,11 @@
 ;
 ;	*TOS - AC
 ;
-	.export __minuseq
+	.export __minuseqc
 	.code
 
 
-__minuseq:
+__minuseqc:
 	pop r12		;	return
 	pop r13
 	pop r14		;	pointer (TODO: pass ptr in call ?)

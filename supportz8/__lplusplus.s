@@ -3,8 +3,16 @@
 ;
 	.export __lplusplus
 	.export __lplusplusc
+	.export __lplusplusb
+	.export __lplusplusbc
+	.export __lplusplus1
+	.export __lplusplus1c
 	.code
 
+__lplusplus1:
+	ld  r3,#1
+__lplusplusb:
+	clr r2
 __lplusplus:
 	clr r14
 	add r15,255
@@ -22,6 +30,8 @@ __lplusplus:
 	pop r3
 	ret
 
+__lplusplus1c:
+__lplusplusbc:
 __lplusplusc:
 	clr r14
 	add r15,255

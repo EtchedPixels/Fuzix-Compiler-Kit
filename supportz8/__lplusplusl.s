@@ -2,11 +2,19 @@
 ;	++ on a local at offset r15
 ;
 	.export __lplusplusl
+	.export __lplusplusbl
+	.export __lplusplus1l
 	.code
 
 ;
 ;	r15 points to the last byte
 ;
+__lplusplus1l:
+	ld r3,#1
+__lplusplusbl:
+	clr r0
+	clr r1
+	clr r2
 __lplusplusl:
 	clr r14
 	add r15,255
