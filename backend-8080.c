@@ -388,6 +388,10 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	unsigned x = func_flags & F_VOIDRET;
 	if (sp != 0)
 		error("sp");
+
+	if (unreachable)
+		return;
+
 	/* Return in HL, does need care on stack. TOOD: flag void functions
 	   where we can burn the return */
 	sp -= size;
@@ -435,12 +439,16 @@ void gen_label(const char *tail, unsigned n)
    no cleanup to do */
 unsigned gen_exit(const char *tail, unsigned n)
 {
+	if (unreachable)
+		return 1;
 	if (func_cleanup) {
 		gen_jump(tail, n);
+		unreachable = 1;
 		return 0;
 	} else {
 		/* FIXME: R_HL depends on func != void */
 		opcode(OP_RET, R_HL, 0, "ret");
+		unreachable = 1;
 		return 1;
 	}
 }
