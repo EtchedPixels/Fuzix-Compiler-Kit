@@ -211,12 +211,12 @@ dodiveq:
 	push	psw
 	call	__copy4		; copy value into tmp2/tmp3
 	pop	psw
-	call	divldo		; result in hireg:tmp
+	call	divldo		; result in hireg:hl
 	pop	d
-	push	h
-	lxi	h,__tmp2
+	shld	__tmp
+	lxi	h,__tmp
 	call	__copy4		; copy it back
-	pop	h
+	lhld	__tmp
 	ret
 __divequl:
 	mvi	a,1
