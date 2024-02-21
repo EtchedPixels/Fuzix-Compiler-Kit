@@ -37,29 +37,25 @@ div32x32:
 	; R = 0;
 	stz @tmp2
 	stz @tmp3
-	lda @tmp2
+;??	lda @tmp2
 	tyx			; We can only use X as the index for rol
-loop:	; Shift the dividend left and set bit 0 assuming that
+loop:	; Shift the dividend left and clear bit 0 assuming that
 	; R >= A
 	sec
-	rol DIVID,x
-	rol DIVID+1,x
+	rol DIVID+0,x
 	rol DIVID+2,x
-	rol DIVID+3,x
 	; N(i) is now in carry
 	; R <<= 1; R(0) = N(i)
 	; Capture into the working register
 	rol @tmp2		; capturing high bit into the
-	rol @tmp2+1		; working register bottom
-	rol @tmp3
-	rol @tmp3+1
+	rol @tmp3		; working register bottom
 	; Do a 32bit subtract but skip writing the high 16bits
 	; back until we know the comparison
 	;
 	; R - D
 	;
-	lda @tmp2
 	sec
+	lda @tmp2
 	sbc DIVIS,y
 	sta @tmp2
 	lda @tmp3

@@ -23,34 +23,20 @@ divsetup:
 	rts
 
 __divul:
-	phy
 	jsr divsetup
-	sta 0,y
-	lda @hireg
-	sta 2,y
 	jsr div32x32
 	lda 6,y
 	sta @hireg
 	lda 4,y
-popit:
-	ply
-	iny
-	iny
-	iny
-	iny
-	rts
+	jmp __fnexit8
 
 __remul:
-	phy
 	jsr divsetup
-	sta 0,y
-	lda @hireg
-	sta 2,y
 	jsr div32x32
 	lda @tmp3
 	sta @hireg
 	lda @tmp2
-	bra popit
+	jmp __fnexit8
 
 
 ;
