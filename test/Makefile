@@ -36,13 +36,13 @@ emu65c816.o: emu65c816.c
 z80dis.o: z80dis.h
 
 testcrt0.o: testcrt0.s
-	cc85 -c testcrt0.s
+	fcc -m8085 -c testcrt0.s
 
 testcrt0_byte1802.o: testcrt0_byte1802.S ../support1802/1802ops.h
 	fcc -m1802 -c testcrt0_byte1802.S
 
 testcrtz80.o: testcrtz80.s
-	ccz80 -c testcrtz80.s
+	fcc -mz80 -c testcrtz80.s
 
 testcrt0_6502.o: testcrt0_6502.s
 	fcc -m6502 -c testcrt0_6502.s
