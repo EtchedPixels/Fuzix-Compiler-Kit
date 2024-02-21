@@ -23,12 +23,18 @@ __ccnel:
 	lde r13,@rr14
 	cp r13, r3
 	jr nz, true
-	clr r2
 	clr r3
 	; flags is correct for ccne case
-	ret
+	jr out
 true:
-	clr r2
 	ld r3,#1
-	; flags are correct for ccne case
+out:
+	clr r2
+	pop r14		; return address
+	pop r15
+	add 255,#4
+	adc 254,#0
+	push r15
+	push r14
+	or r3,r3	; get the flags right
 	ret
