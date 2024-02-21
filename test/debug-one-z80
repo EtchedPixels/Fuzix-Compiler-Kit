@@ -2,5 +2,5 @@
 b=$(basename $1 .c)
 echo  $b":"
 fcc -O -X -mz80 -c tests/$b.c
-ldz80 -b -C0 testcrt0.o tests/$b.o -o tests/$b /opt/ccz80/lib/libz80.a
+ldz80 -b -C0 testcrt0.o tests/$b.o -o tests/$b /opt/fcc/lib/z80/libz80.a
 ./emuz80 -d tests/$b tests/$b.map 2> $b.log

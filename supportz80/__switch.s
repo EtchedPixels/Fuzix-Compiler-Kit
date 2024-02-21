@@ -39,6 +39,7 @@ nomatch:
 		ld	a,e
 		or	d
 		jr	nz, next
+default:
 		inc	hl
 		; We are pointing at the address
 match:
