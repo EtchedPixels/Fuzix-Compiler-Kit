@@ -205,15 +205,13 @@ dodiveq:
 		ex	(sp),hl		; swap for lval
 		push	hl		; save address
 		ld	de,__tmp2
-		push	af
 		call	__copy4		; copy value into tmp2/tmp3
-		pop	af
-		call	divldo		; result in hireg:tmp
+		call	divldo		; result in hireg:hl
+		ld 	(__tmp),hl
 		pop	de
-		push	hl
-		ld	hl,__tmp2
+		ld	hl,__tmp
 		call	__copy4		; copy it back
-		pop	hl
+		ld	hl,(__tmp)
 		ret
 __divequl:
 		ld	a,1
