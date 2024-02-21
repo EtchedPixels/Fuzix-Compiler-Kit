@@ -17,5 +17,6 @@ __remequc:
 	pop r14
 	pop r15
 	clr r2
+	ld r3,r13
 	lde @rr14,r3
 	ret

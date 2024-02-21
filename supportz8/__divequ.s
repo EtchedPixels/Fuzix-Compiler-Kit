@@ -15,8 +15,8 @@ __divequ:
 	call __div16x16	; do the division
 	pop r14
 	pop r15
-	ld r2,r12	; we want the quotient
-	ld r3,r13
+	ld r2,r0	; we want the quotient
+	ld r3,r1
 	lde @rr14,r3
 	decw rr14
 	lde @rr14,r2

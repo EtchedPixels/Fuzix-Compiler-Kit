@@ -16,6 +16,8 @@ __remequ:
 	call __div16x16	; do the division
 	pop r14
 	pop r15
+	ld r3,r13
+	ld r2,r12
 	lde @rr14,r3
 	decw rr14
 	lde @rr14,r2

@@ -17,7 +17,7 @@ __divequc:
 	pop r14
 	pop r15
 	clr r2
-	ld r3,r13
+	ld r3,r1
 	lde @rr14,r3
 	ret
 

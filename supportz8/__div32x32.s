@@ -84,13 +84,15 @@ __diveql:
 	push r13
 	push r12
 	ld r12,#3
-	call __div32x32
 	jr eqstore
 
 
 ; Divide @rr14 by r0-r3 working regs r8-r11, also uses r12/13 r14/15 preserved
 ; r4-r7 stacked restored and preserved
 ; on entry r12 bit 0 is set if signed, bit 1 set if divide not remainder
+; r14/15 on entry point to the object we will use as the dividend. On exit
+; they point to the last byte of the object. The helpers for /= etc rely
+; upon this.
 
 __div32x32:
 	push r11
