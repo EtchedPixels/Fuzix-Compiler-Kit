@@ -26,8 +26,8 @@ long mods(long a, long b)
 
 int main(int argc, char *argv[])
 {
-    unsigned n;
-    signed i;
+    unsigned long n;
+    long i;
     if (mul(0xFF,0xFF) != 65025U)
         return 1;
     if (mul(0xFF,0) != 0)
