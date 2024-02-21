@@ -61,6 +61,8 @@ int mods100n(int a)
 
 int main(int argc, char *argv[])
 {
+    unsigned n;
+    signed i;
     if (mul(0xFF,0xFF) != 65025U)
         return 1;
     if (mul(0xFF,0) != 0)
@@ -119,5 +121,19 @@ int main(int argc, char *argv[])
         return 27;
     if (mods100n(1006) != 6)
         return 28;
+    n = 32;
+    n /= 4;
+    if (n != 8)
+        return 29;
+    n %= 12;
+    if (n != 8)
+        return 30;
+    i = -32;
+    i /= 4;
+    if (i != -8)
+        return 31;
+    i %= 10;
+    if (i != -8)
+        return 32;
     return 0;
 }
