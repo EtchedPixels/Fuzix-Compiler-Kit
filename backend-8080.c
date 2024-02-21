@@ -348,6 +348,7 @@ void gen_segment(unsigned segment)
 void gen_prologue(const char *name)
 {
 	opcode(OP_LABEL, 0, R_KEEP, "_%s:\n", name);
+	unreachable = 0;
 }
 
 /* Generate the stack frame */
