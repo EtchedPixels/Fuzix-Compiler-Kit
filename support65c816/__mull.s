@@ -20,13 +20,14 @@ __mulul:
 	;
 	;	We are now multiplying 4-7,y (arg) with hireg:a
 	;
-	stz 0,y		; initialize working result
-	stz 2,y
+	tyx		; no stz ,y
+	stz 0,x		; initialize working result
+	stz 2,x
 
 	jsr slice	; do low 16 x 32
 	lda @hireg
-	beq done	; 32 x 16 is common in C code so skip high word if
-			; we can
+; TODO	beq done	; 32 x 16 is common in C code so skip high word if
+;			; we can
 	jsr slice	; do the next 16x32
 done:
 	lda 2,y
