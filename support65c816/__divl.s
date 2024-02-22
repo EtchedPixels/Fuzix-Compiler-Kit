@@ -68,8 +68,8 @@ nosignfix3:
 ;	Same basic idea but the sign is determined solely by hireg
 ;
 __reml:
-	; Sign is in X
-	stx @sign		; test sign by throw away store
+	; Sign is in hireg
+	ldx @hireg		; test sign by throw away store
 	bpl msignfixed
 	jsr __negatel
 msignfixed:
@@ -97,23 +97,26 @@ mnocarry:
 	bra popout
 
 ;
-;	X is the pointer. Build the stack and call the main operation
+;	A is the pointer. Build the stack and call the main operation
 ;
-;	(X) / hireg:A
+;	(A) / hireg:X
 ;
 __diveqxl:
+	phx		; save working value
 	dey
 	dey
 	dey
 	dey
-	pha
+	tax
 	lda 2,x
 	sta 2,y
 	lda 0,x
 	sta 0,y
-	pla
+	pla		; get working value back
 	phx
 	jsr __divl
+eqxlclean:
+	; This has removed the 4 bytes of workspace we made on the stack
 	plx
 	; it did all our cleanup on the data stack
 	sta 0,x
@@ -124,23 +127,17 @@ __diveqxl:
 	rts
 
 __remeqxl:
-	phx
+	phx		; save working value
 	dey
 	dey
 	dey
 	dey
-	pha
+	tax
 	lda 2,x
 	sta 2,y
 	lda 0,x
 	sta 0,y
-	pla
+	pla		; get working value back
+	phx
 	jsr __reml
-	plx
-	; it did all our cleanup on the data stack
-	sta 0,x
-	pha
-	lda @hireg
-	sta 2,x
-	pla
-	rts
+	bra eqxlclean

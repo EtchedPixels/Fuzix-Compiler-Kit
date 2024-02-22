@@ -40,7 +40,7 @@ __remul:
 
 
 ;
-;	32bit ops but with a 16bit left so we go via x
+;	32bit ops but with a 16bit left so we go via hireg:x
 ;
 divsetupx:
 	dey
@@ -51,35 +51,38 @@ divsetupx:
 	dey
 	dey
 	dey
-	sta 0,y
+	stx @tmp	; no stx 0,y alas
+	tax		; pointer into X
 	lda @hireg
 	sta 2,y
 	lda 0,x
 	sta 4,y
 	lda 2,x
 	sta 6,y
+	lda @tmp
+	sta 0,y
 	rts
 
 __diveqxul:
-	phy
 	jsr divsetupx
 	phx
 	jsr div32x32
 	plx
 	lda 6,y
 	sta @hireg
+	sta 2,x
 	lda 4,y
-	ply
-	rts
+	sta 0,x
+	jmp __fnexit8
 
 __remeqxul:
-	phy
 	jsr divsetupx
 	phx
 	jsr div32x32
 	plx
 	lda @tmp3
 	sta @hireg
+	sta 2,x
 	lda @tmp2
-	ply
-	rts
+	sta 0,x
+	jmp __fnexit8

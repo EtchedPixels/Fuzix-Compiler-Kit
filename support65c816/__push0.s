@@ -60,7 +60,10 @@ __pushl0a:
 	dey
 	dey
 	dey
-	stz 2,y
+	pha
+	lda #0
+	sta 2,y
+	pla
 	sta 0,y
 	rts
 
