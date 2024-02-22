@@ -1767,10 +1767,11 @@ unsigned gen_direct(struct node *n)
 				}
 				/* This is trickier than it ought to be as
 				   cmp doesn't change V for signed maths */
-				if (n->type & UNSIGNED) {
+				if ((n->type & UNSIGNED) && s == 2 && r->value != 0xFFFF)  {
+					printf(";gt\n");
 					/* GT has harder than GTEQ so adjust */
-					outputcc("cmp #%d", r->value - 1);
-					jflags = "cccs";
+					outputcc("cmp #%d", r->value + 1);
+					jflags = "cscc";
 					return 1;
 				}
 				return 0;
@@ -1788,6 +1789,7 @@ unsigned gen_direct(struct node *n)
 			}
 		}
 		if (n->flags & CCONLY) {
+				printf(";gteq\n");
 			if (n->type & UNSIGNED) {
 				if (pri_cc(n, "cmp")) {
 					n->flags |= ISBOOL;
@@ -1798,7 +1800,29 @@ unsigned gen_direct(struct node *n)
 		}
 		return pri_help_bool(n, "gteqx");
 	case T_LTEQ:
-		/* TODO: optimize unsigned case we can */
+		if (n->flags & CCONLY) {
+			if (r->op == T_CONSTANT && s <= 2) {
+				/* > 0 is != 0 */
+				if ((n->type & UNSIGNED) && r->value == 0) {
+					/* Check == 0 */
+					invalidate_x();
+					move_a_x();
+					n->flags |= ISBOOL;
+					jflags = "eqne";
+					return 1;
+				}
+				/* This is trickier than it ought to be as
+				   cmp doesn't change V for signed maths */
+				if ((n->type & UNSIGNED) && s == 2 && r->value != 0xFFFF)  {
+					/* GT has harder than GTEQ so adjust */
+					outputcc("cmp #%d", r->value + 1);
+					jflags = "cccs";
+					return 1;
+				}
+				return 0;
+			}
+			/* Maybe deca and cmp ? */
+		}
 		return pri_help_bool(n, "lteqx");
 	case T_LT:
 		if (s <= 2 && r->op == T_CONSTANT && r->value == 0 && !(n->type & UNSIGNED)) {
@@ -2823,6 +2847,7 @@ unsigned gen_node(struct node *n)
 	case T_ARGUMENT:
 		v += argbase + frame_len;
 	case T_LOCAL:
+		v += sp;
 		output("tya");
 		if (v) {
 			output("clc");
