@@ -74,7 +74,7 @@ __ccequlz:
 	stz @hireg
 __cceql:
 __ccequl:
-	jsr longcmp
+	jsr ulongcmp
 	beq true
 false:
 	iny
@@ -89,7 +89,7 @@ __ccneulz:
 	stz @hireg
 __ccnel:
 __ccneul:
-	jsr longcmp
+	jsr ulongcmp
 	beq false
 true:
 	iny

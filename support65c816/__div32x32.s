@@ -39,7 +39,7 @@ div32x32:
 	stz @tmp3
 ;??	lda @tmp2
 	tyx			; We can only use X as the index for rol
-loop:	; Shift the dividend left and clear bit 0 assuming that
+loop:	; Shift the dividend left and set bit 0 assuming that
 	; R >= A
 	sec
 	rol DIVID+0,x
@@ -61,7 +61,7 @@ loop:	; Shift the dividend left and clear bit 0 assuming that
 	lda @tmp3
 	sbc DIVIS+2,y
 	; Want to subtract (R - D >= 0)
-	bcc skip
+	bcs skip
 	; No subtract, so put back the low 16bits we mushed
 	lda @tmp2
 	clc

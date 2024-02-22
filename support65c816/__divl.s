@@ -29,11 +29,10 @@ __divl:
 	jsr __negatel		; negate it if so
 	inc @sign		; and count the negation
 signfixed:
-	phy
 	jsr divsetup
 	lda 6,y			; get the stacked high word
 	bpl nocarry		; are we negative
-	inc @sign		; remember negation
+	dec @sign		; remember negation
 	eor #0xffff		; negate
 	sta 6,y
 	lda 4,y
@@ -46,8 +45,7 @@ signfixed:
 nocarry:
 	jsr div32x32		; unsigned divide
 	lda @sign
-	and #1			; one negation -> negatvie
-	beq nosignfix3
+	beq nosignfix3		; both same sign - no change
 	lda 6,y			; negate into hireg:a
 	eor #0xffff
 	sta @hireg
@@ -57,12 +55,7 @@ nocarry:
 	bne popout		; and done
 	inc @hireg		; carried so an extra inc needed
 popout:
-	ply
-	dey			; clean up passed stack argument
-	dey
-	dey
-	dey
-	rts			; home time
+	jmp __fnexit8		; 4 argument, 4 we added
 
 nosignfix3:
 	lda 6,y
@@ -75,14 +68,14 @@ nosignfix3:
 ;	Same basic idea but the sign is determined solely by hireg
 ;
 __reml:
-	ldx @hireg
-	stx @sign		; save word that determines sign
+	; Sign is in X
+	stx @sign		; test sign by throw away store
 	bpl msignfixed
 	jsr __negatel
 msignfixed:
-	phy
 	jsr divsetup
 	lda 6,y
+	sta @sign		; sign that determines resulting sign
 	bpl mnocarry
 	eor #0xffff
 	sta 6,y
@@ -131,6 +124,7 @@ __diveqxl:
 	rts
 
 __remeqxl:
+	phx
 	dey
 	dey
 	dey
@@ -141,7 +135,6 @@ __remeqxl:
 	lda 0,x
 	sta 0,y
 	pla
-	phx
 	jsr __reml
 	plx
 	; it did all our cleanup on the data stack
