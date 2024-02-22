@@ -1474,6 +1474,7 @@ unsigned gen_direct(struct node *n)
 		if (s <= 2 && nr && r->op == T_CONSTANT && r->value == 0) {
 			setsize(s);
 			invalidate_mem();
+			move_a_x();
 			outputnc("stz 0,x");
 			set16bit();
 			return 1;
@@ -2031,7 +2032,7 @@ unsigned gen_direct(struct node *n)
 	case T_SLASHEQ:
 		return pri_help(n, "diveqx");
 	case T_PERCENTEQ:
-		return pri_help(n, "diveqx");
+		return pri_help(n, "remeqx");
 	case T_ANDEQ:
 		if (s <= 2) {
 			setsize(s);
@@ -2215,6 +2216,7 @@ static void argstack(struct node *n)
 		output("dey");
 		output("dey");
 		outputnc("sta 0,y");
+		invalidate_a();
 		output("lda @hireg");
 		output("sta 2,y");
 		sp += 4;
@@ -2621,7 +2623,7 @@ unsigned gen_node(struct node *n)
 		if (size == 4) {
 			output("lda %d,y", v + 2);
 			output("sta @hireg");
-			outputcc("lda %d,y", v);
+			output("lda %d,y", v);
 			return 1;
 		}
 		return 0;
@@ -2690,6 +2692,8 @@ unsigned gen_node(struct node *n)
 			n->flags |= ISBOOL;
 			return 1;
 		}
+		/* Bool we need the right hand size. It's sort of a typecast */
+		size = get_size(r->type);
 		if (n->flags & CCONLY) {
 			/* Already happens to be correct */
 			if (ccvalid == CC_VALID)
@@ -2714,6 +2718,7 @@ unsigned gen_node(struct node *n)
 		return 0;
 	case T_BANG:
 		if (n->flags & CCONLY) {
+			size = get_size(r->type);
 			if (ccvalid == CC_VALID);
 			else if (size == 1)
 				outputcc("and #0xff");
@@ -2775,7 +2780,9 @@ unsigned gen_node(struct node *n)
 		if (size > 2) {
 			output("lda %d,x", v + 2);
 			output("sta @hireg");
-			outputcc("lda %d,x", v);
+			output("lda %d,x", v);
+			/* Flags will not be valid because they are for
+			   both halves together */
 			invalidate_a();
 			return 1;
 		}
