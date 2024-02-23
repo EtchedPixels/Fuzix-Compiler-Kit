@@ -9,6 +9,7 @@
 uint32_t _negatef(uint32_t a)
 {
     a ^= 0x80000000;
+    return a;
 }
 
 uint32_t _minusf(uint32_t a1, uint32_t a2)

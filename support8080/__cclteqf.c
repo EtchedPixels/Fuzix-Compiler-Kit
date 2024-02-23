@@ -4,7 +4,7 @@
 unsigned _cclteqf(uint32_t a1, uint32_t a2)
 {
     /* Handle negative zero compare */
-    if ((a1 & a2 & 0x7FFFFFFFUL) == 0)
+    if (((a1 | a2) & 0x7FFFFFFFUL) == 0)
         return 1;
     /* Both negative */
     if ((a1 & a2) & 0x80000000UL) {
