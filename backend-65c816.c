@@ -64,10 +64,15 @@
  *	- Use stz.
  *	- fold a + b + 1 to use sec adc, ditto a - b - 1 and clc
  *
- *	Need a ccvalid flag of 0 = no 1 = yes 2 = backwards so we can shorten
- *	stuff like  lda 2,y and #1 jsr __bool beq by spotting ccvalid when
- *	we bool or not and setting it for the code paths that keep eq/ne right
- *	(of which there are many)
+ *	TODO
+ *	- audit outputcc/nc/output usage
+ *	- we need an outputcc2(size, blah") that sets valid if size 2
+ *	  and not otherwise
+ *	- Turn on lref etc for size 4
+ *	- Tree rewrite DEREF(LBREF) DEREF(LREF) DEREF(NREF) to use
+ *	  ldx blah, lda n,x and avoid shuffling registers. Make sure
+ *	  to also cover DEREFPLUS
+ *
  */
 
 #include <stdio.h>
@@ -402,7 +407,7 @@ static unsigned a_contains(struct node *n)
 static void move_a_x(void)
 {
 	if (reg[R_X].state == INVALID || reg[R_A].state != reg[R_X].state || reg[R_A].value != reg[R_X].value || reg[R_A].snum != reg[R_X].snum) {
-		outputcc("tax");
+		outputnc("tax");
 		memcpy(reg + R_X, reg + R_A, sizeof(struct regtrack));
 	}
 }
@@ -410,11 +415,18 @@ static void move_a_x(void)
 static void move_x_a(void)
 {
 	if (reg[R_A].state == INVALID || reg[R_A].state != reg[R_X].state || reg[R_A].value != reg[R_X].value || reg[R_A].snum != reg[R_X].snum) {
-		outputcc("txa");
+		outputnc("txa");
 		memcpy(reg + R_A, reg + R_X, sizeof(struct regtrack));
 	}
 }
 
+/* Move A to X to make the condition codes valid */
+static void move_a_x_ccvalid(void)
+{
+	outputnc("tax");
+	memcpy(reg + R_X, reg + R_A, sizeof(struct regtrack));
+	ccvalid = CC_VALID;
+}
 
 static void setsize(unsigned size)
 {
@@ -658,7 +670,10 @@ static int do_pri_cc(struct node *n, const char *op, void (*pre)(struct node *n)
 			/* TODO: use zp hacks stack tracking */
 		}
 		setsize(s);
-		outputcc("%s %d,y", op, r->value + sp);
+		if (s == 2)
+			outputcc("%s %d,y", op, r->value + sp);
+		else
+			outputnc("%s %d,y", op, r->value + sp);
 		set16bit();
 		return 1;
 	case T_NREF:
@@ -666,14 +681,20 @@ static int do_pri_cc(struct node *n, const char *op, void (*pre)(struct node *n)
 		pre(n);
 		setsize(s);
 		name = namestr(r->snum);
-		outputcc("%s _%s+%d", op, name, (unsigned) r->value);
+		if (s == 2)
+			outputcc("%s _%s+%d", op, name, (unsigned) r->value);
+		else
+			outputnc("%s _%s+%d", op, name, (unsigned) r->value);
 		set16bit();
 		return 1;
 	case T_LBSTORE:
 	case T_LBREF:
 		pre(n);
 		setsize(s);
-		outputcc("%s T%d+%d", op, r->val2, (unsigned) r->value);
+		if (s == 2)
+			outputcc("%s T%d+%d", op, r->val2, (unsigned) r->value);
+		else
+			outputnc("%s T%d+%d", op, r->val2, (unsigned) r->value);
 		set16bit();
 		return 1;
 		/* If we add registers
@@ -1032,6 +1053,7 @@ struct node *gen_rewrite_node(struct node *n)
 	}
 
 	/* Rewrite references into a load operation */
+	/* FIXME: rewrite long load/store also */
 	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || nt == CLONG || nt == ULONG || PTR(nt)) {
 		if (op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
@@ -1475,7 +1497,7 @@ unsigned gen_direct(struct node *n)
 			setsize(s);
 			invalidate_mem();
 			move_a_x();
-			outputnc("stz 0,x");
+			output("stz 0,x");
 			set16bit();
 			return 1;
 		}
@@ -1503,7 +1525,7 @@ unsigned gen_direct(struct node *n)
 				if ((r->value & 0xFFFF) == 0)
 					load_a(0);
 				else if ((r->value & 0xFFFF) != 0xFFFF) {
-					outputcc("and #%d", r->value & 0xFFFF);
+					output("and #%d", r->value & 0xFFFF);
 					const_a_set(reg[R_A].value & r->value);
 				}
 				if ((r->value & 0xFFFF0000UL) == 0)
@@ -1530,7 +1552,7 @@ unsigned gen_direct(struct node *n)
 				if ((r->value & 0xFFFF) == 0xFFFF)
 					load_a(0xFFFF);
 				else if (r->value & 0xFFFF) {
-					outputcc("ora #%d", r->value & 0xFFFF);
+					output("ora #%d", r->value & 0xFFFF);
 					const_a_set(reg[R_A].value | r->value);
 				}
 				if ((r->value & 0xFFFF0000UL) == 0xFFFF0000UL) {
@@ -1559,7 +1581,7 @@ unsigned gen_direct(struct node *n)
 		if (s == 4 && !optsize) {
 			if (r->op == T_CONSTANT) {
 				if (r->value & 0xFFFF) {
-					outputcc("eor #%d", r->value & 0xFFFF);
+					output("eor #%d", r->value & 0xFFFF);
 					const_a_set(reg[R_A].value ^ r->value);
 				}
 				if (r->value & 0xFFFF0000UL) {
@@ -1714,7 +1736,7 @@ unsigned gen_direct(struct node *n)
 					invalidate_x();
 					/* Force a tax to set the flags as it's
 					   cheaper than a compare */
-					move_a_x();
+					move_a_x_ccvalid();
 					jflags = "eqne";
 					return 1;
 				}
@@ -1760,8 +1782,7 @@ unsigned gen_direct(struct node *n)
 				/* > 0 is != 0 */
 				if ((n->type & UNSIGNED) && r->value == 0) {
 					/* Check == 0 */
-					invalidate_x();
-					move_a_x();
+					move_a_x_ccvalid();
 					n->flags |= ISBOOL;
 					return 1;
 				}
@@ -1805,8 +1826,7 @@ unsigned gen_direct(struct node *n)
 				/* > 0 is != 0 */
 				if ((n->type & UNSIGNED) && r->value == 0) {
 					/* Check == 0 */
-					invalidate_x();
-					move_a_x();
+					move_a_x_ccvalid();
 					n->flags |= ISBOOL;
 					jflags = "eqne";
 					return 1;
@@ -1852,10 +1872,8 @@ unsigned gen_direct(struct node *n)
 		if (n->flags & CCONLY) {
 			if (r->op == T_CONSTANT && s <= 2) {
 				if (r->value == 0) {
-					if (!ccvalid) {
-						invalidate_x();
-						move_a_x();
-					}
+					if (!ccvalid)
+						move_a_x_ccvalid();
 					return 1;
 				}
 				if (r->value == 1) {
@@ -1936,7 +1954,7 @@ unsigned gen_direct(struct node *n)
 			move_a_x();
 			setsize(s);
 			if (!nr)
-				outputcc("lda 0,x");
+				outputnc("lda 0,x");
 			if (nr && r->value <= 4) {
 				repeated_op(r->value, "inc 0,x");
 				set16bit();
@@ -1949,7 +1967,7 @@ unsigned gen_direct(struct node *n)
 				repeated_op_cc(r->value, "inc a");
 			else {
 				outputnc("clc");
-				outputcc("adc #%d", r->value);
+				output("adc #%d", r->value);
 			}
 			invalidate_mem();
 			outputnc("sta 0,x");
@@ -1978,7 +1996,7 @@ unsigned gen_direct(struct node *n)
 				repeated_op_cc(r->value, "dec a");
 			else {
 				outputnc("sec");
-				outputcc("sbc #%d", r->value);
+				output("sbc #%d", r->value);
 			}
 			invalidate_mem();
 			outputnc("sta 0,x");
@@ -2057,6 +2075,7 @@ unsigned gen_direct(struct node *n)
 		return pri_help(n, "diveqx");
 	case T_PERCENTEQ:
 		return pri_help(n, "remeqx");
+	/* FIXME: we can do the 4 byte const versions of these */
 	case T_ANDEQ:
 		if (s <= 2) {
 			setsize(s);
@@ -2326,6 +2345,17 @@ const char *longfn(struct node *n)
 	return NULL;
 }
 
+static unsigned c_call(struct node *n)
+{
+	/* Float operations use C call format */
+	if (n->type == FLOAT)
+		return 1;
+	/* Operations on float types use C call format */
+	if (n->right && n->right->type == FLOAT)
+		return 1;
+	return 0;
+}
+
 /*
  *	Allow the code generator to shortcut trees it knows
  */
@@ -2385,9 +2415,23 @@ unsigned gen_shortcut(struct node *n)
 	 */
 	if (size == 4 && (p = longfn(n)) != NULL) {
 		argstack(l);
-		codegen_lr(r);
-		helper_s(n, p);
-		sp -= 4;	/* The helper cleans up */
+		if (c_call(n)) {
+			argstack(r);
+			helper_s(n, p);
+			/* Clean up is all done by caller (no varargs helpers) */
+			if (n->left)
+				sp -= 4;
+			if (n->right)
+				sp -= 4;
+		} else {
+			codegen_lr(r);
+			helper_s(n, p);
+			sp -= 4;	/* The helper cleans up */
+		}
+		if (n->flags & CCONLY) {
+			/* Force a move of A to X to set the flags */
+			move_a_x_ccvalid();
+		}
 		return 1;
 	}
 	/* Shifts we evaluate the count last so we can go via x */
@@ -2404,7 +2448,6 @@ unsigned gen_shortcut(struct node *n)
 	}
 	/* Flip any addition we can merge over */
 	if (size == 2 && n->op == T_PLUS) {
-		printf(";addflip\n");
 		if (can_pri(l)) {
 			n->left = r;
 			n->right = l;
@@ -2635,19 +2678,25 @@ unsigned gen_node(struct node *n)
 			if (a_contains(n))
 				return 1;
 			if (x_contains(n)) {
-				move_a_x();
+				if (size == 2)
+					move_a_x_ccvalid();
+				else
+					move_a_x();
 				return 1;
 			}
 			setsize(size);
-			outputcc("lda %d,y", v);
+			if (size == 2)
+				outputcc("lda %d,y", v);
+			else
+				outputnc("lda %d,y", v);
 			set16bit();
 			set_a_node(n);
 			return 1;
 		}
 		if (size == 4) {
-			output("lda %d,y", v + 2);
-			output("sta @hireg");
-			output("lda %d,y", v);
+			outputnc("lda %d,y", v + 2);
+			outputnc("sta @hireg");
+			outputnc("lda %d,y", v);
 			return 1;
 		}
 		return 0;
@@ -2711,25 +2760,21 @@ unsigned gen_node(struct node *n)
 		/* A cast to nowhere is no cast at all */
 		if (nr)
 			return 1;
-		/* Already boolified ? */
-		if (r->flags & ISBOOL) {
-			n->flags |= ISBOOL;
-			return 1;
-		}
-		/* Bool we need the right hand size. It's sort of a typecast */
 		size = get_size(r->type);
 		if (n->flags & CCONLY) {
 			/* Already happens to be correct */
 			if (ccvalid == CC_VALID)
 				return 1;
+			/* If it is already boolified then CINT */
+			if (r->flags & ISBOOL)
+				size = 2;
 			if (size == 1) {
 				outputcc("and #0xff");
 				return 1;
 			} else if (size == 2) {
 				/* Cheapest 'is it 0 set flags' is to
 				   just tax and throw it away */
-				invalidate_x();
-				move_a_x();
+				move_a_x_ccvalid();
 				return 1;
 			} else {
 				/* 32bit - check both halves */
@@ -2738,6 +2783,12 @@ unsigned gen_node(struct node *n)
 				return 1;
 			}
 		}
+		/* Already boolified ? */
+		if (r->flags & ISBOOL) {
+			n->flags |= ISBOOL;
+			return 1;
+		}
+		/* Bool we need the right hand size. It's sort of a typecast */
 		/* Non condition code cases via helpers */
 		return 0;
 	case T_BANG:
@@ -2749,8 +2800,7 @@ unsigned gen_node(struct node *n)
 			else if (size == 2) {
 				/* Cheapest 'is it 0 set flags' is to
 				   just tax and throw it away */
-				invalidate_x();
-				move_a_x();
+				move_a_x_ccvalid();
 			} else {
 				outputcc("ora @hireg");
 				invalidate_a();
@@ -2802,9 +2852,9 @@ unsigned gen_node(struct node *n)
 		   one where we can update the contents info TODO */
 		move_a_x();
 		if (size > 2) {
-			output("lda %d,x", v + 2);
-			output("sta @hireg");
-			output("lda %d,x", v);
+			outputnc("lda %d,x", v + 2);
+			outputnc("sta @hireg");
+			outputnc("lda %d,x", v);
 			/* Flags will not be valid because they are for
 			   both halves together */
 			invalidate_a();
@@ -2813,7 +2863,10 @@ unsigned gen_node(struct node *n)
 		/* TODO: need to look at volatile propogation and volatile
 		   plus hardware I/O for optimizing opportunities */
 		setsize(size);
-		outputcc("lda %d,x", v);
+		if (size == 2)
+			outputcc("lda %d,x", v);
+		else
+			outputnc("lda %d,x", v);
 		set16bit();
 		invalidate_a();
 		return 1;
@@ -2866,20 +2919,23 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (size == 4 && !optsize) {
-			outputcc("eor #0xFFFF");
+			outputnc("eor #0xFFFF");
 			const_a_set(~reg[R_A].value);
 			move_a_x();
-			output("lda @hireg");
-			output("eor #0xFFFF");
-			output("sta @hireg");
+			outputnc("lda @hireg");
+			outputnc("eor #0xFFFF");
+			outputnc("sta @hireg");
 			move_x_a();
 			return 1;
 		}
 		return 0;
 	case T_NEGATE:
 		if (size <= 2) {
-			outputcc("eor #0xFFFF");
-			outputcc("inc a");
+			outputnc("eor #0xFFFF");
+			if (size == 2)
+				outputcc("inc a");
+			else
+				outputnc("inc a");
 			const_a_set(-reg[R_A].value);
 			return 1;
 		}
