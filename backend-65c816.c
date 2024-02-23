@@ -118,6 +118,9 @@ static unsigned ccvalid;	/* CC state */
 #define T_RDEREF	(T_USER+9)	/* *regptr */
 #define T_REQ		(T_USER+10)	/* *regptr */
 #define T_DEREFPLUS	(T_USER+11)	/* *(thing + offset) */
+#define T_LDEREF	(T_USER+12)	/* *local + offset */
+#define T_LEQ		(T_USER+13)	/* *local + offset = n*/
+#define T_EQPLUS	(T_USER+14)	/*  ac[offset] =  */
 
 
 /*
@@ -132,9 +135,9 @@ static void output(const char *p, ...)
 	ccvalid = CC_NONE;
 	if (cursize != livesize) {
 		if (livesize == 1)
-			printf("\tsep #0x20\n");
+			printf("\tsep #0x20\n\t.a8\n");
 		else
-			printf("\trep #0x20\n");
+			printf("\trep #0x20\n\t.a16\n");
 		cursize = livesize;
 	}
 	putchar('\t');
@@ -150,9 +153,9 @@ static void outputcc(const char *p, ...)
 	ccvalid = CC_VALID;
 	if (cursize != livesize) {
 		if (livesize == 1)
-			printf("\tsep #0x20\n");
+			printf("\tsep #0x20\n\t.a8\n");
 		else
-			printf("\trep #0x20\n");
+			printf("\trep #0x20\n\t.a16\n");
 		cursize = livesize;
 	}
 	putchar('\t');
@@ -168,9 +171,9 @@ static void outputnc(const char *p, ...)
 	ccvalid = CC_NONE;
 	if (cursize != livesize) {
 		if (livesize == 1)
-			printf("\tsep #0x20\n");
+			printf("\tsep #0x20\n\t.a8\n");
 		else
-			printf("\trep #0x20\n");
+			printf("\trep #0x20\n\t.a16\n");
 		cursize = livesize;
 	}
 	putchar('\t');
@@ -325,6 +328,8 @@ static void set_x_node(struct node *n)
 	case T_LBSTORE:
 		op = T_LBREF;
 		break;
+	case T_LDEREF:
+	case T_LEQ:
 	case T_LSTORE:
 		op = T_LREF;
 		break;
@@ -444,6 +449,12 @@ static void force16bit(void)
 	livesize = 2;
 }
 
+static void assume16bit(void)
+{
+	printf("\t.a16\n");
+	cursize = livesize = 2;
+}
+
 
 /* Memory writes occured, invalidate according to what we know. Passing
    NULL indicates unknown memory changes */
@@ -554,6 +565,8 @@ static int do_pri(struct node *n, const char *op, void (*pre)(struct node *n), u
 	case T_CONSTANT:
 		/* These had the right squashed into them */
 	case T_LREF:
+	case T_LDEREF:
+	case T_LEQ:
 	case T_NREF:
 	case T_LBREF:
 	case T_LSTORE:
@@ -565,6 +578,8 @@ static int do_pri(struct node *n, const char *op, void (*pre)(struct node *n), u
 	}
 	/* TODO: optimize ld case for 8bit by loading 16 if not NAME */
 	s = get_size(r->type);
+	if (s == 4)
+		return 0;
 	switch (r->op) {
 	case T_CONSTANT:
 		pre(n);
@@ -994,6 +1009,7 @@ struct node *gen_rewrite_node(struct node *n)
 	struct node *r = n->right;
 	unsigned op = n->op;
 	unsigned nt = n->type;
+	unsigned off;
 
 	/* TODO
 	   - rewrite some reg ops
@@ -1035,65 +1051,95 @@ struct node *gen_rewrite_node(struct node *n)
 	/* Try and propogate CCONLY down as best we can */
 	if (cconly_down(op) == 1 && cconly_down(r->op))
 		r->flags |= n->flags & CCONLY;
-
 	/* Turn a deref of an offset to an object into a single op so we can
 	   generate a single lda offset,x in the code generator. This happens
 	   in some array dereferencing and especially struct pointer access */
 	if (op == T_DEREF || op == T_DEREFPLUS) {
-		if (r->op == T_PLUS && r->right->op == T_CONSTANT) {
-			n->op = T_DEREFPLUS;
-			free_node(r->right);
-			n->right = r->left;
-			n->value = r->right->value;
-			free_node(r);
-			return n;
-		}
 		if (op == T_DEREF)
 			n->value = 0;	/* So we can treat deref/derefplus together */
+		if (r->op == T_PLUS) {
+			off = n->value + r->right->value;
+			if (r->right->op == T_CONSTANT && off < 254) {
+				n->op = T_DEREFPLUS;
+				free_node(r->right);
+				n->right = r->left;
+				n->value = off;
+				free_node(r);
+				/* We might then rewrite this again */
+				return gen_rewrite_node(n);
+			}
+		}
+	}
+	if (op == T_EQ || op == T_EQPLUS) {
+		if (op == T_EQ)
+			n->value = 0;	/* So we can treat deref/derefplus together */
+		if (l->op == T_PLUS) {
+			off = n->value + l->right->value;
+			if (l->right->op == T_CONSTANT && off < 254) {
+				n->op = T_EQPLUS;
+				free_node(l->right);
+				n->left = l->left;
+				n->value = off;
+				free_node(l);
+				/* We might then rewrite this again */
+				return gen_rewrite_node(n);
+			}
+		}
+	}
+	if ((op == T_DEREF || op == T_DEREFPLUS) && r->op == T_LREF) {
+		/* At this point r->value is the offset for the local */
+		/* n->value is the offset for the ptr load */
+		r->val2 = n->value;		/* Save the offset so it is squashed in */
+		squash_right(n, T_LDEREF);	/* n->value becomes the local ref */
+		return n;
+	}
+	if ((op == T_EQ || op == T_EQPLUS) && l->op == T_LREF) {
+		/* At this point r->value is the offset for the local */
+		/* n->value is the offset for the ptr load */
+		l->val2 = n->value;		/* Save the offset so it is squashed in */
+		squash_left(n, T_LEQ);	/* n->value becomes the local ref */
+		return n;
 	}
 
 	/* Rewrite references into a load operation */
-	/* FIXME: rewrite long load/store also */
-	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || nt == CLONG || nt == ULONG || PTR(nt)) {
-		if (op == T_DEREF) {
-			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
-				if (r->op == T_ARGUMENT)
-					r->value += argbase + frame_len;
-				squash_right(n, T_LREF);
-				return n;
-			}
-			if (r->op == T_REG) {
-				squash_right(n, T_RREF);
-				return n;
-			}
-			if (r->op == T_NAME) {
-				squash_right(n, T_NREF);
-				return n;
-			}
-			if (r->op == T_LABEL) {
-				squash_right(n, T_LBREF);
-				return n;
-			}
+	if (op == T_DEREF) {
+		if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
+			if (r->op == T_ARGUMENT)
+				r->value += argbase + frame_len;
+			squash_right(n, T_LREF);
+			return n;
 		}
-		if (op == T_EQ) {
-			if (l->op == T_NAME) {
-				squash_left(n, T_NSTORE);
-				return n;
-			}
-			if (l->op == T_LABEL) {
-				squash_left(n, T_LBSTORE);
-				return n;
-			}
-			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
-				if (l->op == T_ARGUMENT)
-					l->value += argbase + frame_len;
-				squash_left(n, T_LSTORE);
-				return n;
-			}
-			if (l->op == T_REG) {
-				squash_left(n, T_RSTORE);
-				return n;
-			}
+		if (r->op == T_REG) {
+			squash_right(n, T_RREF);
+			return n;
+		}
+		if (r->op == T_NAME) {
+			squash_right(n, T_NREF);
+			return n;
+		}
+		if (r->op == T_LABEL) {
+			squash_right(n, T_LBREF);
+			return n;
+		}
+	}
+	if (op == T_EQ) {
+		if (l->op == T_NAME) {
+			squash_left(n, T_NSTORE);
+			return n;
+		}
+		if (l->op == T_LABEL) {
+			squash_left(n, T_LBSTORE);
+			return n;
+		}
+		if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
+			if (l->op == T_ARGUMENT)
+				l->value += argbase + frame_len;
+			squash_left(n, T_LSTORE);
+			return n;
+		}
+		if (l->op == T_REG) {
+			squash_left(n, T_RSTORE);
+			return n;
 		}
 	}
 	/* Eliminate casts for sign, pointer conversion or same */
@@ -1202,6 +1248,7 @@ void gen_epilogue(unsigned size, unsigned argsize)
 		size += argsize;
 	if (func_flags & F_VOIDRET)
 		cost -= 2;
+	assume16bit();
 	/* Use the helper for small cases */
 	if (optsize && size > 3 && size < 12) {
 		outputnc("jmp __fnexit%d", size);
@@ -1229,12 +1276,14 @@ void gen_epilogue(unsigned size, unsigned argsize)
 void gen_label(const char *tail, unsigned n)
 {
 	unreachable = 0;
+	assume16bit();
 	label("L%d%s", n, tail);
 	invalidate_regs();
 }
 
 unsigned gen_exit(const char *tail, unsigned n)
 {
+	set16bit();
 	if (frame_len + arg_len == 0) {
 		outputnc("rts");
 		unreachable = 1;
@@ -1252,6 +1301,7 @@ unsigned gen_exit(const char *tail, unsigned n)
 void gen_jump(const char *tail, unsigned n)
 {
 	/* The assembler auto converts these if needed */
+	set16bit();
 	outputnc("bra L%d%s", n, tail);
 	unreachable = 1;
 }
@@ -1269,12 +1319,14 @@ static void setjflags(struct node *n, const char *us, const char *s)
 
 void gen_jfalse(const char *tail, unsigned n)
 {
+	set16bit();
 	outputnc("j%c%c L%d%s", jflags[2], jflags[3], n, tail);
 	jflags = "neeq";
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
+	set16bit();
 	outputnc("j%c%c L%d%s", jflags[0], jflags[1], n, tail);
 	jflags = "neeq";
 }
@@ -1493,11 +1545,12 @@ unsigned gen_direct(struct node *n)
 		sp -= r->value;
 		return 1;
 	case T_EQ:
+	case T_EQPLUS:
 		if (s <= 2 && nr && r->op == T_CONSTANT && r->value == 0) {
 			setsize(s);
 			invalidate_mem();
 			move_a_x();
-			output("stz 0,x");
+			output("stz %u,x", n->val2);
 			set16bit();
 			return 1;
 		}
@@ -1506,7 +1559,7 @@ unsigned gen_direct(struct node *n)
 			invalidate_a();
 			setsize(s);
 			invalidate_mem();
-			outputnc("sta 0,x");
+			outputnc("sta %u,x", n->val2);
 			set16bit();
 			return 1;
 		}
@@ -2812,19 +2865,20 @@ unsigned gen_node(struct node *n)
 		/* Non condition code cases via helpers */
 		return 0;
 	case T_EQ:
+	case T_EQPLUS:
 		invalidate_mem();
 		if (size > 2) {
 			if (nr) {
 				output("plx");
-				outputnc("sta 0,x");
+				outputnc("sta %u,x", n->val2);
 				output("lda @hireg");
-				output("sta 2,x");
+				output("sta %u,x", n->val2 + 2);
 			} else {
 				output("plx");
-				output("sta 0,x");
+				output("sta %u,x", n->val2);
 				outputnc("pha");
 				output("lda @hireg");
-				output("sta 2,x");
+				output("sta %u,x", n->val2 + 2);
 				outputcc("pla");
 			}
 			invalidate_x();
@@ -2833,7 +2887,7 @@ unsigned gen_node(struct node *n)
 		}
 		output("plx");
 		setsize(size);
-		outputnc("sta 0,x");
+		outputnc("sta %u,x", n->val2);
 		set16bit();
 		invalidate_a();
 		invalidate_x();
@@ -2844,6 +2898,86 @@ unsigned gen_node(struct node *n)
 		invalidate_mem();
 		output("jsr (0,x)");
 		invalidate_regs();
+		return 1;
+	case T_LEQ:
+		/* val2: offset of variable, value: offset on pointer */
+		v += sp;
+		if (size <= 2) {
+			if (x_contains(n))
+				;
+			else if (a_contains(n)) {
+				if (size == 2)
+					move_a_x();
+				else
+					return 1;
+			} else {
+				setsize(size);
+				outputnc("ldx %d,y", v);
+				set16bit();
+				set_x_node(n);
+			}
+		} else {
+			outputnc("ldx %d,y", v);
+			set_x_node(n);
+		}
+		if (size <= 2) {
+			setsize(size);
+			if (size == 2)
+				outputcc("sta %d,x", n->val2);
+			else
+				outputnc("sta %d,x", n->val2);
+			set16bit();
+		} else {
+			if (!nr)
+				outputnc("pha");
+			outputnc("sta %d,x", n->val2 + sp);
+			output("lda @hireg");
+			outputnc("sta %d,x", n->val2 + sp + 2);
+			if (!nr)
+				outputnc("pla");
+			invalidate_a();
+		}
+		return 1;
+	case T_LDEREF:
+		/* val2: offset of variable, value: offset on pointer */
+		v += sp;
+		if (size <= 2) {
+			if (x_contains(n))
+				;
+			else if (a_contains(n)) {
+				if (size == 2)
+					move_a_x();
+				else
+					return 1;
+			} else {
+				setsize(size);
+				outputnc("ldx %d,y", v);
+				set16bit();
+				set_x_node(n);
+			}
+		} else {
+			outputnc("ldx %d,y", v);
+			set_x_node(n);
+		}
+		/* Now dereference */
+		if (size > 2) {
+			outputnc("lda %d,x", n->val2 + 2);
+			outputnc("sta @hireg");
+			outputnc("lda %d,x", n->val2);
+			/* Flags will not be valid because they are for
+			   both halves together */
+			invalidate_a();
+			return 1;
+		}
+		/* TODO: need to look at volatile propogation and volatile
+		   plus hardware I/O for optimizing opportunities */
+		setsize(size);
+		if (size == 2)
+			outputcc("lda %d,x", n->val2);
+		else
+			outputnc("lda %d,x", n->val2);
+		set16bit();
+		invalidate_a();
 		return 1;
 	case T_DEREF:
 	case T_DEREFPLUS:
