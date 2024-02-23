@@ -11,6 +11,11 @@ long test_lt(long a, long b)
     return a < b;
 }
 
+long test_gt(long a, long b)
+{
+    return a > b;
+}
+
 int main(int argc, char *argv[])
 {
     int n;
@@ -38,5 +43,13 @@ int main(int argc, char *argv[])
     n = -12;
     if (((long)n) != -12L)
         return 8;
+    if (test_gt(0, -1) == 0)
+        return 9;
+    if (test_gt(-1, 1) == 1)
+        return 10;
+    if (test_gt(5, 1) == 0)
+        return 11;
+    if (test_gt(-5, -1) == 1)
+        return 12;
     return 0;
 }
