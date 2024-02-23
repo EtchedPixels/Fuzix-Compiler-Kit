@@ -103,7 +103,8 @@ __ccgtlz:
 	stz @hireg
 __ccgtl:
 	jsr longcmp
-	bcc false
+	beq false
+	bcs false
 	bra true
 
 __ccgteqlz:
@@ -111,7 +112,7 @@ __ccgteqlz:
 __ccgteql:
 	jsr longcmp
 	beq true
-	bcc false
+	bcs false
 	bra true
 
 __cclteqlz:
