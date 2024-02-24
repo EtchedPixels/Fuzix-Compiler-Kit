@@ -13,15 +13,19 @@ __lsxu:
 	beq	done
 	cmp	#8
 	bcc	loop
+	sbc	#7	; we branch to loop end
+	tax
+	lda	@tmp
 	swa
 	and	#0xFF00
 	; carry is already set
-	sbc	#8
-	beq	done
-	tax
-	lda	@tmp
+	bra	next
 loop:
 	asl	a
+next:
 	dex
 	bne	loop
-done:	rts
+	rts
+done:	lda	@tmp
+	rts
+

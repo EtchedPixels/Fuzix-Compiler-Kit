@@ -23,6 +23,7 @@ OBJ = __cast2f.o __castf.o __cceqf.o __ccgteqf.o __ccgtf.o __cclteqf.o \
       __switchc.o __switch.o __switchl.o \
       __div32x32.o __mull.o \
       _memcpy.o _memset.o _strlen.o \
+      __adceql.o __andeql.o __oreql.o __eoreql.o \
       dp.o
     
 .s.o:
