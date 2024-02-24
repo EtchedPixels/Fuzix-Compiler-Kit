@@ -1555,6 +1555,16 @@ unsigned gen_direct(struct node *n)
 		}
 		sp -= r->value;
 		return 1;
+	case T_LSTORE:
+		/* Avoid lstore going via @hireg if not needed */
+		if (s == 4 && r->op == T_CONSTANT && nr) {
+			load_a(r->value >> 16);
+			outputnc("sta %u,y\n", n->value + sp + 2);
+			load_a(r->value);
+			outputnc("sta %u,y\n", n->value + sp);
+			return 1;	
+		}
+		return 0;
 	case T_EQ:
 	case T_EQPLUS:
 		if (s <= 2 && nr && r->op == T_CONSTANT && r->value == 0) {
