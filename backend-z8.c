@@ -122,7 +122,7 @@ static void gen_symref(struct node *n)
 #define REGBASE		2		/* Reg vars 4,6,8,10 numbered 1,2,3,4 */
 
 #define R_REG(x)	(((x) * 2) + REGBASE)
-#define R_REG_S(x,s)	(((x) * 2) + REGBASE + (2 - size))
+#define R_REG_S(x,s)	(((x) * 2) + REGBASE + (2 - (s)))
 
 #define R_WORK		12		/* 12/13 are work ptr */
 #define R_INDEX		14		/* 14/15 are usually index */
@@ -2464,14 +2464,18 @@ static void argstack(struct node *n)
 	unsigned sz = get_size(n->type);
 	unsigned r = R_AC + 4;
 
-	if (optsize && argstack_helper(n, sz)) {
-		sp += sz;
-		return;
+	if (n->op == T_RREF)
+		r = R_REG(n->value) + 2;
+	else {
+		if (optsize && argstack_helper(n, sz)) {
+			sp += sz;
+			return;
+		}
+		/* Generate the node */
+		codegen_lr(n);
+		/* TODO optsize case for long call __pushl (mods 12/13) ?? */
 	}
-	/* Generate the node */
-	codegen_lr(n);
 	/* And stack it */
-	/* TODO optsize case for long call __pushl (mods 12/13) */
 	sp += sz;
 	while(sz--)
 		push_r(--r);
