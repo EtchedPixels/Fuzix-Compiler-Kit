@@ -1344,9 +1344,10 @@ struct node *gen_rewrite_node(struct node *n)
 		- rewrite some reg ops
 	*/
 
+	/* BUG - these two break utol test */
 	/* Structure field references from locals. These end up big on the Z8 so use
 	   a helper for the lot */
-	if (optsize && op == T_DEREF && r->op == T_PLUS && r->right->op == T_CONSTANT) {
+	if (optsize && 0 && op == T_DEREF && r->op == T_PLUS && r->right->op == T_CONSTANT) {
 		/* For now just do lrefs of offsets within 256 bytes */
 		if (r->left->op == T_LREF && r->left->value < 256) {
 			n->op = T_LSTREF;
@@ -1361,7 +1362,7 @@ struct node *gen_rewrite_node(struct node *n)
 		}
 	}
 	/* Structure field assign - same idea */
-	if (optsize && op == T_EQ && l->op == T_PLUS && l->right->op == T_CONSTANT) {
+	if (optsize && 0 && op == T_EQ && l->op == T_PLUS && l->right->op == T_CONSTANT) {
 		/* Same restrictions */
 		if (l->left->op == T_LSTORE && l->left->value < 256) {
 			n->op = T_LSTSTORE;
@@ -2251,7 +2252,7 @@ unsigned gen_direct(struct node *n)
 	case T_PLUSPLUS:
 		if (r->type == T_FLOAT)
 			return 0;
-		if (optsize) {
+		if (optsize && 0) {
 			/* AC is at this point the address and r is the value */
 			load_r_const(R_WORK, v, size);
 			helper(n, "plusplus");
@@ -2276,7 +2277,9 @@ unsigned gen_direct(struct node *n)
 	case T_PLUSEQ:
 		if (r->type == FLOAT)
 			return 0;
-		if (optsize) {
+		/* BUG */
+		if (optsize && 0) {
+			/* TODO: onls mashes r0/r1 for most sizes */
 			/* At this point 2,3 holds the pointer */
 			if (load_direct(R_WORK, r, 1)) {
 				helper(n, "cpluseq");
@@ -2316,7 +2319,8 @@ unsigned gen_direct(struct node *n)
 	case T_MINUSMINUS:
 		if (r->type == FLOAT)
 			return 0;
-		if (optsize) {
+		/* BUG */
+		if (optsize && 0) {
 			/* AC is at this point the address and r is the value */
 			load_r_const(R_WORK, -v, size);
 			helper(n, "plusplus");
@@ -2337,7 +2341,8 @@ unsigned gen_direct(struct node *n)
 	case T_MINUSEQ:
 		if (r->type == FLOAT)
 			return 0;
-		if (optsize) {
+		/* BUG */
+		if (optsize && 0) {
 			/* At this point 2,3 holds the pointer */
 			if (load_direct(R_WORK, r, 1)) {
 				helper(n, "cminuseq");
@@ -2401,32 +2406,46 @@ unsigned gen_uni_direct(struct node *n)
  */
 static unsigned argstack_helper(struct node *n, unsigned sz)
 {
+	unsigned v = n->value;
 	if (n->op == T_CONSTANT) {
 		if (sz <= 2) {
-			if (n->value < 2) {
+			if (v < 2) {
+				r_set(3, v);
+				r_set(2, v >> 8);
+				r_modify(12, 2);
 				printf("\tcall __push%u\n", (unsigned)n->value);
 				return 1;
 			}
 			return 0;
 		}
 		if (n->value == 0) {
+			/* This clears r0/r1 */
+			r_set(0, 0);
+			r_set(1, 0);
+			r_modify(12, 2);
 			printf("\tcall __pushl0\n");
 			return 1;
 		}
 		if (!(n->value & 0xFFFF0000UL)) {
 			load_r_const(R_AC, n->value, 2);
+			r_set(0, 0);
+			r_set(1, 0);
+			r_modify(12, 2);
 			printf("\tcall __pushl0a\n");
 			return 1;
 		}
+		/* is it worth using __pushl for anything evaluated ? */
 	}
 	/* Push a local argument */
 	if (n->op == T_LREF && n->value + sp < 254) {
 		load_r_constb(R_INDEX + 1, n->value + sp + 2);
+		r_modify(12, 4);
+		r_modify(R_AC, sz);
 		if (sz == 2)
 			printf("\tcall __pushln\n");
 		else
 			printf("\tcall __pushlnl\n");
-		return 1;
+		return 1;		
 	}
 	return 0;
 }
@@ -2437,13 +2456,14 @@ static void argstack(struct node *n)
 	unsigned sz = get_size(n->type);
 	unsigned r = R_AC + 4;
 
-	if (optsize && argstack_helper(n, sz)) {
+	if (0 && optsize && argstack_helper(n, sz)) {
 		sp += sz;
 		return;
 	}
 	/* Generate the node */
 	codegen_lr(n);
 	/* And stack it */
+	/* TODO optsize case for long call __pushl (mods 12/13) */
 	sp += sz;
 	while(sz--)
 		push_r(--r);
