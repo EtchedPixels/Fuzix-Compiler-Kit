@@ -2307,6 +2307,19 @@ static void argstack(struct node *n)
 		sp += sz;
 		return;
 	}
+	/* Don't send long pushes via hireg */
+	if (sz == 4 && n->op == T_CONSTANT) {
+		output("dey");
+		output("dey");
+		output("dey");
+		output("dey");
+		load_a(n->value >> 16);
+		outputnc("sta 2,y");
+		load_a(n->value);
+		outputnc("sta 0,y");
+		sp += sz;
+		return;
+	}
 	/* Generate the node */
 	codegen_lr(n);
 	/* And stack it */
