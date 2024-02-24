@@ -42,9 +42,9 @@ __pushln:
 	clr	r14
 	add	r15,255
 	adc	r14,254
-	lde	r3,@rr14
-	incw	rr14
 	lde	r2,@rr14
+	incw	rr14
+	lde	r3,@rr14
 	jr	__pushw
 __push1:
 	ld	r3,#1
