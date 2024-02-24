@@ -2252,7 +2252,7 @@ unsigned gen_direct(struct node *n)
 	case T_PLUSPLUS:
 		if (r->type == T_FLOAT)
 			return 0;
-		if (optsize && 0) {
+		if (optsize) {
 			/* AC is at this point the address and r is the value */
 			load_r_const(R_WORK, v, size);
 			helper(n, "plusplus");
@@ -2277,8 +2277,7 @@ unsigned gen_direct(struct node *n)
 	case T_PLUSEQ:
 		if (r->type == FLOAT)
 			return 0;
-		/* BUG */
-		if (optsize && 0) {
+		if (optsize) {
 			/* TODO: onls mashes r0/r1 for most sizes */
 			/* At this point 2,3 holds the pointer */
 			if (load_direct(R_WORK, r, 1)) {
@@ -2319,8 +2318,7 @@ unsigned gen_direct(struct node *n)
 	case T_MINUSMINUS:
 		if (r->type == FLOAT)
 			return 0;
-		/* BUG */
-		if (optsize && 0) {
+		if (optsize) {
 			/* AC is at this point the address and r is the value */
 			load_r_const(R_WORK, -v, size);
 			helper(n, "plusplus");
@@ -2341,8 +2339,7 @@ unsigned gen_direct(struct node *n)
 	case T_MINUSEQ:
 		if (r->type == FLOAT)
 			return 0;
-		/* BUG */
-		if (optsize && 0) {
+		if (optsize) {
 			/* At this point 2,3 holds the pointer */
 			if (load_direct(R_WORK, r, 1)) {
 				helper(n, "cminuseq");
