@@ -451,6 +451,11 @@ static void force16bit(void)
 
 static void assume16bit(void)
 {
+	if (cursize == 1) {
+		if (livesize == 1)
+			error("a16");
+		printf("\trep #0x20\n");
+	}
 	printf("\t.a16\n");
 	cursize = livesize = 2;
 }
@@ -732,8 +737,8 @@ static int do_pri_cc(struct node *n, const char *op, void (*pre)(struct node *n)
 			ccvalid = CC_NONE;
 			invalidate_x();
 			/* X now holds our pointer */
-			setsize(s);
 			pre(r);
+			setsize(s);
 			outputcc("%s %d,x", op, r->value);
 			set16bit();
 			invalidate_a();
@@ -748,7 +753,9 @@ static void pre_taxldaclc(struct node *n)
 {
 	if (!a_contains(n)) {
 		move_a_x();
+		setsize(get_size(n->type));
 		outputcc("lda 0,x");
+		set16bit();
 	}
 	invalidate_a();
 	outputnc("clc");
@@ -758,7 +765,9 @@ static void pre_taxldasec(struct node *n)
 {
 	if (!a_contains(n)) {
 		move_a_x();
+		setsize(get_size(n->type));
 		outputcc("lda 0,x");
+		set16bit();
 	}
 	invalidate_a();
 	outputnc("sec");
@@ -768,7 +777,9 @@ static void pre_taxlda(struct node *n)
 {
 	if (!a_contains(n)) {
 		move_a_x();
+		setsize(get_size(n->type));
 		outputcc("lda 0,x");
+		set16bit();
 	}
 	invalidate_a();
 }
@@ -1547,9 +1558,9 @@ unsigned gen_direct(struct node *n)
 	case T_EQ:
 	case T_EQPLUS:
 		if (s <= 2 && nr && r->op == T_CONSTANT && r->value == 0) {
-			setsize(s);
 			invalidate_mem();
 			move_a_x();
+			setsize(s);
 			output("stz %u,x", n->val2);
 			set16bit();
 			return 1;
@@ -1557,8 +1568,8 @@ unsigned gen_direct(struct node *n)
 		/* address in A. See if right simple */
 		if (s <= 2 && do_pri_cc(n, "lda", pre_tax, 0)) {
 			invalidate_a();
-			setsize(s);
 			invalidate_mem();
+			setsize(s);
 			outputnc("sta %u,x", n->val2);
 			set16bit();
 			return 1;
@@ -2064,9 +2075,9 @@ unsigned gen_direct(struct node *n)
 		   should remain in A which is easier */
 	case T_PLUSEQ:
 		if (s <= 2) {
-			setsize(s);
 			if (r->op == T_CONSTANT && r->value <= 4) {
 				move_a_x();
+				setsize(s);
 				if (nr) {
 					repeated_op(r->value, "inc 0,x");
 					set16bit();
@@ -2080,9 +2091,11 @@ unsigned gen_direct(struct node *n)
 				set_a_node(n->left);
 				return 1;
 			} else if (do_pri_cc(n, "adc", pre_taxldaclc, 0)) {
+				/* BUG */
 				/* If we could use an operator we've generated
 				   tax lda 0,x clc, operator */
 				invalidate_mem();
+				setsize(s);
 				outputnc("sta 0,x");
 				set16bit();
 				set_a_node(n->left);
@@ -2093,9 +2106,9 @@ unsigned gen_direct(struct node *n)
 		return pri_help(n, "pluseqx");
 	case T_MINUSEQ:
 		if (s <= 2) {
-			setsize(s);
 			if (r->op == T_CONSTANT && r->value <= 4) {
 				move_a_x();
+				setsize(s);
 				if (nr) {
 					repeated_op(r->value, "inc 0,x");
 					set16bit();
@@ -2109,9 +2122,11 @@ unsigned gen_direct(struct node *n)
 				set_a_node(n->left);
 				return 1;
 			} else if (do_pri_cc(n, "sbc", pre_taxldasec, 0)) {
+				/* BUG */
 				/* If we could use an operator we've generated
 				   tax lda 0,x clc, operator */
 				invalidate_mem();
+				setsize(s);
 				outputnc("sta 0,x");
 				set16bit();
 				set_a_node(n->left);
@@ -2131,9 +2146,9 @@ unsigned gen_direct(struct node *n)
 	/* FIXME: we can do the 4 byte const versions of these */
 	case T_ANDEQ:
 		if (s <= 2) {
-			setsize(s);
 			if (do_pri_cc(n, "and", pre_taxlda, 0)) {
 				invalidate_mem();
+				setsize(s);
 				outputnc("sta 0,x");
 				set16bit();
 				set_a_node(n->left);
@@ -2144,9 +2159,9 @@ unsigned gen_direct(struct node *n)
 		return pri_help(n, "andeqx");
 	case T_OREQ:
 		if (s <= 2) {
-			setsize(s);
 			if (do_pri_cc(n, "ora", pre_taxlda, 0)) {
 				invalidate_mem();
+				setsize(s);
 				outputnc("sta 0,x");
 				set16bit();
 				set_a_node(n->left);
@@ -2157,9 +2172,9 @@ unsigned gen_direct(struct node *n)
 		return pri_help(n, "oreqx");
 	case T_HATEQ:
 		if (s <= 2) {
-			setsize(s);
 			if (do_pri_cc(n, "eor", pre_taxlda, 0)) {
 				invalidate_mem();
+				setsize(s);
 				outputnc("sta 0,x");
 				set16bit();
 				set_a_node(n->left);
@@ -2617,28 +2632,32 @@ static unsigned op_eq(struct node *n, const char *op, const char *pre, unsigned 
 		set_a_node(n->left);
 		return 1;
 	}
-	if (!optsize) {
-		output("plx");
-		if (pre)
-			output("%s", pre);
-		outputcc("%s 0,x", op);
-		invalidate_mem();
-		outputnc("sta 0,x");
-		if (!(n->flags & NORETURN))
-			output("pha");
-		output("lda @hireg");
-		output("%s 2,x", op);
-		invalidate_mem();
-		output("sta @hireg");
-		output("sta 2,x");
-		if (!(n->flags & NORETURN)) {
-			outputcc("pla");
-			set_a_node(n->left);
-		} else
-			invalidate_a();
+	output("plx");
+	if (optsize) {
+		char buf[8];
+		strcpy(buf, op);
+		strcat(buf, "eq");
+		helper(n, buf);	/* andeql etc */
 		return 1;
 	}
-	return 0;
+	if (pre)
+		output("%s", pre);
+	outputcc("%s 0,x", op);
+	invalidate_mem();
+	outputnc("sta 0,x");
+	if (!(n->flags & NORETURN))
+		output("pha");
+	output("lda @hireg");
+	output("%s 2,x", op);
+	invalidate_mem();
+	output("sta @hireg");
+	output("sta 2,x");
+	if (!(n->flags & NORETURN)) {
+		outputcc("pla");
+		set_a_node(n->left);
+	} else
+		invalidate_a();
+	return 1;
 }
 
 static unsigned op(struct node *n, const char *op, const char *pre, unsigned size)
