@@ -42,7 +42,7 @@
 =
 	call __load2ac
 
-# Another common patter, get a local arg and assign to it
+# Another common pattern, get a local arg and assign to it
 	call __garg12r2
 	lde @rr2, r12
 	incw rr2
