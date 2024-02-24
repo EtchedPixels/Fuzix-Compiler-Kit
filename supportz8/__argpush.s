@@ -14,13 +14,13 @@ __pushlnl:
 	clr	r14
 	add	r15,255
 	adc	r14,254
-	lde	r3,@rr14
-	incw	rr14
-	lde	r2,@rr14
+	lde	r0,@rr14
 	incw	rr14
 	lde	r1,@rr14
 	incw	rr14
-	lde	r0,@rr14
+	lde	r2,@rr14
+	incw	rr14
+	lde	r3,@rr14
 	jr	__pushl
 __pushl0:
 	clr	r2

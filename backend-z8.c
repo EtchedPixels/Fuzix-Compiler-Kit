@@ -2293,7 +2293,7 @@ unsigned gen_direct(struct node *n)
 		}
 		/* FIXME: will need an "and not register" check */
 		if (r->op == T_CONSTANT) {
-			if ((n->flags & NORETURN)  && size <= 2) {
+			if (nr  && size <= 2) {
 				load_r_memr(0, R_ACPTR, size);
 				add_r_const(0, v, size);
 				revstore_r_memr(0, R_ACPTR, size);
@@ -2444,9 +2444,8 @@ static unsigned argstack_helper(struct node *n, unsigned sz)
 		}
 		/* is it worth using __pushl for anything evaluated ? */
 	}
-#if 0
 	/* Push a local argument */
-	if (n->op == T_LREF && n->value + sp < 254) {
+	if (n->op == T_LREF && n->value + sp < 254 && sz != 1) {
 		load_r_constb(R_INDEX + 1, n->value + sp + 2);
 		r_modify(12, 4);
 		r_modify(R_AC, sz);
@@ -2456,7 +2455,6 @@ static unsigned argstack_helper(struct node *n, unsigned sz)
 			printf("\tcall __pushlnl\n");
 		return 1;		
 	}
-#endif
 	return 0;
 }
 
@@ -2677,20 +2675,32 @@ unsigned gen_shortcut(struct node *n)
 			sub_r_const(R_REG_S(reg, size), v, size);
 			return 1;
 		case T_PLUSEQ:
-			/* TODO : reg/const and reg/direct versions */
-			/* The value could be anything */
-			codegen_lr(r);
-			/* AC now holds stuff to add */
-			add_r_r(R_REG(reg), R_AC, size);
+			if (r->op == T_CONSTANT)
+				add_r_const(R_REG_S(reg, size), v, size);
+			else if (r->op == T_RREF)
+				add_r_r(R_REG_S(reg, size), R_REG_S(v, size), size);
+			else {
+				/* TODO: can we do direct versions ? */
+				/* The value could be anything */
+				codegen_lr(r);
+				/* AC now holds stuff to add */
+				add_r_r(R_REG_S(reg, size), R_AC, size);
+			}
 			if (!nr)
 				load_ac_reg(reg, size);
 			return 1;
 		case T_MINUSEQ:
-			/* TODO : reg/const and reg/direct versions */
-			/* The value could be anything */
-			codegen_lr(r);
-			/* AC now holds stuff to add */
-			sub_r_r(R_REG(reg), R_AC, size);
+			if (r->op == T_CONSTANT)
+				sub_r_const(R_REG_S(reg, size), v, size);
+			else if (r->op == T_RREF)
+				sub_r_r(R_REG_S(reg, size), R_REG_S(v, size), size);
+			else {
+				/* TODO: can we do direct versions ? */
+				/* The value could be anything */
+				codegen_lr(r);
+				/* AC now holds stuff to add */
+				sub_r_r(R_REG_S(reg, size), R_AC, size);
+			}
 			if (!nr)
 				load_ac_reg(reg, size);
 			return 1;
