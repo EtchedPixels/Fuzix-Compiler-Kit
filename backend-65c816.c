@@ -2091,9 +2091,6 @@ unsigned gen_direct(struct node *n)
 				set_a_node(n->left);
 				return 1;
 			} else if (do_pri_cc(n, "adc", pre_taxldaclc, 0)) {
-				/* BUG */
-				/* If we could use an operator we've generated
-				   tax lda 0,x clc, operator */
 				invalidate_mem();
 				setsize(s);
 				outputnc("sta 0,x");
@@ -2110,21 +2107,18 @@ unsigned gen_direct(struct node *n)
 				move_a_x();
 				setsize(s);
 				if (nr) {
-					repeated_op(r->value, "inc 0,x");
+					repeated_op(r->value, "dec 0,x");
 					set16bit();
 					return 1;
 				}
 				invalidate_mem();
 				outputcc("lda 0,x");
-				repeated_op_cc(r->value, "inc a");
+				repeated_op_cc(r->value, "dec a");
 				outputnc("sta 0,x");
 				set16bit();
 				set_a_node(n->left);
 				return 1;
 			} else if (do_pri_cc(n, "sbc", pre_taxldasec, 0)) {
-				/* BUG */
-				/* If we could use an operator we've generated
-				   tax lda 0,x clc, operator */
 				invalidate_mem();
 				setsize(s);
 				outputnc("sta 0,x");

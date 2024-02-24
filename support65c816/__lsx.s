@@ -28,4 +28,3 @@ next:
 	rts
 done:	lda	@tmp
 	rts
-
