@@ -1347,14 +1347,20 @@ struct node *gen_rewrite_node(struct node *n)
 	/* BUG - these two break utol test */
 	/* Structure field references from locals. These end up big on the Z8 so use
 	   a helper for the lot */
-	if (optsize && 0 && op == T_DEREF && r->op == T_PLUS && r->right->op == T_CONSTANT) {
+	if (optsize && op == T_DEREF && r->op == T_PLUS && r->right->op == T_CONSTANT) {
 		/* For now just do lrefs of offsets within 256 bytes */
 		if (r->left->op == T_LREF && r->left->value < 256) {
+			printf("; rewrite deref plus lref const\n");
+			printf("; lref %lu %u, plus %lu\n",
+				r->left->value, r->left->val2,
+				r->right->value);
 			n->op = T_LSTREF;
 			n->value = r->right->value;
 			n->val2 = r->left->value;
 			n->left = NULL;
 			n->right = NULL;
+			printf(";new v v2 %lu %u\n",
+				n->value, n->val2);
 			free_node(r->right);
 			free_node(r->left);
 			free_node(r);
@@ -1362,7 +1368,7 @@ struct node *gen_rewrite_node(struct node *n)
 		}
 	}
 	/* Structure field assign - same idea */
-	if (optsize && 0 && op == T_EQ && l->op == T_PLUS && l->right->op == T_CONSTANT) {
+	if (optsize && op == T_EQ && l->op == T_PLUS && l->right->op == T_CONSTANT) {
 		/* Same restrictions */
 		if (l->left->op == T_LSTORE && l->left->value < 256) {
 			n->op = T_LSTSTORE;
@@ -2405,7 +2411,11 @@ static unsigned argstack_helper(struct node *n, unsigned sz)
 {
 	unsigned v = n->value;
 	if (n->op == T_CONSTANT) {
-		if (sz <= 2) {
+		/* No point for bytes */
+		if (sz == 1)
+			return 0;
+		/* Handle a couple of special word cases */
+		if (sz == 2) {
 			if (v < 2) {
 				r_set(3, v);
 				r_set(2, v >> 8);
@@ -2415,6 +2425,7 @@ static unsigned argstack_helper(struct node *n, unsigned sz)
 			}
 			return 0;
 		}
+		/* Long it matters */
 		if (n->value == 0) {
 			/* This clears r0/r1 */
 			r_set(0, 0);
@@ -2433,6 +2444,7 @@ static unsigned argstack_helper(struct node *n, unsigned sz)
 		}
 		/* is it worth using __pushl for anything evaluated ? */
 	}
+#if 0
 	/* Push a local argument */
 	if (n->op == T_LREF && n->value + sp < 254) {
 		load_r_constb(R_INDEX + 1, n->value + sp + 2);
@@ -2444,6 +2456,7 @@ static unsigned argstack_helper(struct node *n, unsigned sz)
 			printf("\tcall __pushlnl\n");
 		return 1;		
 	}
+#endif
 	return 0;
 }
 
@@ -2453,7 +2466,7 @@ static void argstack(struct node *n)
 	unsigned sz = get_size(n->type);
 	unsigned r = R_AC + 4;
 
-	if (0 && optsize && argstack_helper(n, sz)) {
+	if (optsize && argstack_helper(n, sz)) {
 		sp += sz;
 		return;
 	}
@@ -2892,12 +2905,14 @@ unsigned gen_node(struct node *n)
 		set_ac_node(n);
 		return 1;
 	case T_LSTREF:
-		if (n->val2 + sp < 254) {
-			load_r_const(R_INDEX + 1, n->val2 + sp + 2, 1);
+		/* The helper calls a helper so the stack offsetting is
+		   by 4 */
+		if (n->val2 + sp < 252) {
+			load_r_const(R_INDEX + 1, n->val2 + sp + 4, 1);
 			load_r_const(R_WORK + 1, v, 1);
 			helper(n, "lstref0");
 		} else {
-			load_r_const(R_INDEX, n->val2 + sp + 2, 2);
+			load_r_const(R_INDEX, n->val2 + sp + 4, 2);
 			load_r_const(R_WORK + 1, v, 1);
 			helper(n, "lstref");
 		}
@@ -2966,6 +2981,10 @@ unsigned gen_node(struct node *n)
 		rr_incw(R_REG(v));
 		return 1;
 	case T_DEREF:
+		if (size == 1) {
+			load_r_memr(R_ACCHAR, R_ACPTR, 1);
+			return 1;
+		}
 		/* Have to deal with overlap */
 		load_r_r(R_INDEX, R_ACPTR);
 		load_r_r(R_INDEX + 1, R_ACCHAR);

@@ -15,14 +15,14 @@
 	.export __lststore0l
 
 dolst:
-	push r13		; save the offset to shift the ptr by for a minute
 	add r15,255
-	adc r14,254
+	adc r14,254		; now a pointer
+	push r13		; save the offset to shift the ptr by for a minute
 	lde r12,@rr14
 	incw rr14
-	lde r13,@rr14
+	lde r13,@rr14		; load the local
 	pop r15
-	add r13,r15
+	add r13,r15		; add the offset
 	adc r12,#0
 	ret
 
