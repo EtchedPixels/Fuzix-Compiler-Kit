@@ -17,6 +17,8 @@
 	.export __pushy6
 	.export __pushy8
 	.export __pushy10
+	.export __pushyn
+	.export __pushynl
 
 __push0:
 	lda #0
@@ -85,3 +87,32 @@ __pushy8:
 __pushy10:
 	lda 10,y
 	bra __pusha
+__pushyn:
+	plx
+	tya
+	clc
+	inx
+	adc 0,x
+	inx
+	phx
+	tax
+	lda 0,x
+	bra __pusha
+__pushynl:
+	plx
+	tya
+	clc
+	inx
+	adc 0,x
+	inx
+	phx
+	tax
+	lda 0,x
+	dey
+	dey
+	dey
+	dey
+	sta 0,y
+	lda 2,x
+	sta 2,y
+	rts
