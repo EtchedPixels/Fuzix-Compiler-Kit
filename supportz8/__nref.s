@@ -48,9 +48,9 @@ __nstore_1:
 	ret
 
 __nstore_2_0:
-	clr	r2
-__nstore_2b:
 	clr	r3
+__nstore_2b:
+	clr	r2
 __nstore_2:
 	pop	r12
 	pop	r13

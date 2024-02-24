@@ -1658,7 +1658,6 @@ void gen_jtrue(const char *tail, unsigned n)
 
 static void gen_cleanup(unsigned v, unsigned vararg)
 {
-	printf(";cleanup %d\n", v);
 	sp -= v;
 	if (vararg) {
 		if (v >= 4) {
@@ -1826,7 +1825,6 @@ void gen_value(unsigned type, unsigned long value)
 void gen_start(void)
 {
 /*	printf("\t.setcpu %u\n", cpu); */
-	printf("; opt %u optsize %u\n", opt, optsize);
 }
 
 void gen_end(void)
@@ -1952,7 +1950,6 @@ unsigned gen_direct(struct node *n)
 	/* We can do a lot of stuff because we have r14/15 as a scratch */
 	switch (n->op) {
 	case T_CLEANUP:
-		printf(";cleanup\n");
 		gen_cleanup(v, n->val2);
 		return 1;
 	case T_NSTORE:
@@ -2399,6 +2396,85 @@ unsigned gen_uni_direct(struct node *n)
 }
 
 /*
+ *	Helpers for stacking things to try and reduce the very
+ *	expensive call/return space cost.
+ */
+static unsigned argstack_helper(struct node *n, unsigned sz)
+{
+	if (n->op == T_CONSTANT) {
+		if (sz <= 2) {
+			if (n->value < 2) {
+				printf("\tcall __push%u\n", (unsigned)n->value);
+				return 1;
+			}
+			return 0;
+		}
+		if (n->value == 0) {
+			printf("\tcall __pushl0\n");
+			return 1;
+		}
+		if (!(n->value & 0xFFFF0000UL)) {
+			load_r_const(R_AC, n->value, 2);
+			printf("\tcall __pushl0a\n");
+			return 1;
+		}
+	}
+	/* Push a local argument */
+	if (n->op == T_LREF && n->value + sp < 254) {
+		load_r_constb(R_INDEX + 1, n->value + sp + 2);
+		if (sz == 2)
+			printf("\tcall __pushln\n");
+		else
+			printf("\tcall __pushlnl\n");
+		return 1;
+	}
+	return 0;
+}
+
+/* Given a node see if we can generate a short form for it */
+static void argstack(struct node *n)
+{
+	unsigned sz = get_size(n->type);
+	unsigned r = R_AC + 4;
+
+	if (optsize && argstack_helper(n, sz)) {
+		sp += sz;
+		return;
+	}
+	/* Generate the node */
+	codegen_lr(n);
+	/* And stack it */
+	sp += sz;
+	while(sz--)
+		push_r(--r);
+}
+
+/* We handle function arguments specially as we both push them to a different
+   stack and optimize them. The tree looks like this
+
+                 FUNCCALL|CALLNAME
+                  /
+	       ARGCOMMA
+	        /    \
+	      ...    EXPR
+	      /
+	    ARG
+ */
+static void gen_fcall(struct node *n)
+{
+	if (n == NULL)
+		return;
+	if (n->op == T_ARGCOMMA) {
+		/* Recurse down arguments and stack then on the way up */
+		gen_fcall(n->left);
+		argstack(n->right);
+	} else {
+		argstack(n);
+	}
+	/* Final node done */
+}
+
+/*
  *	Allow the code generator to short cut any subtrees it can directly
  *	generate.
  */
@@ -2423,6 +2499,27 @@ unsigned gen_shortcut(struct node *n)
 		/* Parent determines child node requirements */
 		r->flags |= nr;
 		codegen_lr(r);
+		return 1;
+	}
+	/* We should never meet an ARGCOMMA as they are handled by
+	   gen_fcall */
+	if (n->op == T_ARGCOMMA) {
+		fprintf(stderr, "argcomma?\n");
+	}
+	if (n->op == T_FUNCCALL) {
+		/* Generate and stack all the arguments */
+		gen_fcall(l);
+		/* Generate the address of the function */
+		codegen_lr(r);
+		invalidate_all();
+		/* Rather than mess with indirection use a helper */
+		printf("\tcall __jmpr2\n");
+		return 1;
+	}
+	if (n->op == T_CALLNAME) {
+		gen_fcall(l);
+		invalidate_all();
+		printf("\tcall _%s+%d\n", namestr(n->snum), (unsigned)n->value);
 		return 1;
 	}
 	/* We don't know if the result has set the condition flags

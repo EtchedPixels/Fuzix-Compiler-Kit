@@ -13,8 +13,6 @@ __pluseqc:
 	push r13
 	push r12
 
-	incw rr14	;	point to low byte
-
 	lde r12,@rr14
 	add r3,r12
 	lde @rr14,r3
