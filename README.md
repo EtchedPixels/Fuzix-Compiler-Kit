@@ -29,14 +29,14 @@ The other processor trees are very much a work in progress.
 
 ## Installation
 
-As a cross compiler the front end expects it all to live in /opt/cc85. The
+As a cross compiler the front end expects it all to live in /opt/fcc/. The
 tool chain provides the compiler front end and phases. For cpp for now
-symlink the native gcc /lib/cpp.
+symlink the native gcc /lib/cpp on Linux.
 
 The assembler, linker and support tools are the 8085 pieces from the
 assembler/linker toolchain currently in the CC6303 repository. In the
 as68 directory of that git do a make clean; make -f Makefile.8085 and then
-copy the various xx85 tools it produces into the /opt/cc85 space.
+copy the various xx85 tools it produces into the /opt/fcc/bin space.
 
 ## Intended C Subset
 
@@ -115,12 +115,13 @@ operations when possible.
 
 ### 65C816
 
-Early code for a 65C816 native port. As this port is designed for Fuzix and
-run in any bank it uses Y as the C stack pointer and uses the CPU stack for
-temporary values during expression evaluation and the all actual call/return
-addresses. Split code/data is supported but not multiple data or code banks
-in one application (that is pointers are 16bit). Going beyond that gets very
-ugly very fast as on 8086.
+An intial 65C816 native port that passes the test suite but probaly has some
+bugs left to find. As this port is designed for Fuzix and run in any bank it
+uses Y as the C stack pointer and uses the CPU stack for temporary values
+during expression evaluation and the all actual call/return addresses. Split
+code/data is supported but not multiple data or code banks in one application
+(that is pointers are 16bit). Going beyond that gets very ugly very fast as on
+8086.
 
 ### 8080/8085
 
@@ -144,9 +145,9 @@ This is an instruction set limitation.
 
 ### Z8
 
-This port now passes most of the self tests and the code coverage compile
+This port now passes all of the self tests and the code coverage compile
 tests. It has not yet been used except on test sets so probably contains
-quite a few bugs. Split I/D is supported.
+a few bugs. Split I/D is supported.
 
 ### Z80 / Z180
 

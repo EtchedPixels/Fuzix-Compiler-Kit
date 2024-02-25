@@ -8,7 +8,7 @@ case $# in
 	*.o)	set $1 $1
 	esac
 esac
-nm85 -g $* | sed '
+nm8080 -g $* | sed '
 	/^$/d
 	/:$/{
 		/\.o:/!d

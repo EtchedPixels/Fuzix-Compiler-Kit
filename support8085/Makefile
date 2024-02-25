@@ -52,7 +52,7 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __switchl.o __pushl.o __sex.o 
 
 lib8085.a: $(OBJ)
 	rm -f lib8085.a
-	ar qc lib8085.a `../lorder85 $(OBJ) | tsort`
+	ar qc lib8085.a `../lorder8080 $(OBJ) | tsort`
 
 clean:
 	rm -f *.o *.a *~

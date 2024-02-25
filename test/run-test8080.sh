@@ -4,6 +4,6 @@ do
 	b=$(basename $i .c)
 	echo  $b":"
 	fcc -m8080 -c tests/$b.c
-	ld85 -b -C0 testcrt0.o tests/$b.o -o tests/$b /opt/fcc/lib/8080/lib8080.a -m tests/$b.map
+	ld8080 -b -C0 testcrt0.o tests/$b.o -o tests/$b /opt/fcc/lib/8080/lib8080.a -m tests/$b.map
 	./emu85 tests/$b tests/$b.map
 done

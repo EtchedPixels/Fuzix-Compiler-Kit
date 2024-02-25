@@ -163,9 +163,11 @@ clean:
 #
 bootinst:
 	mkdir -p $(CCROOT)/bin
+	mkdir -p $(CCROOT)/lib
 	cp cc $(CCROOT)/bin/fcc
 	cp cc.hlp $(CCROOT)/lib/cc.hlp
 	cp cc0 $(CCROOT)/lib
+	cp cpp $(CCROOT)/lib
 	# 6502
 	mkdir -p $(CCROOT)/lib/6502
 	mkdir -p $(CCROOT)/lib/6502/include
@@ -183,7 +185,7 @@ bootinst:
 		# 8080/8085
 	mkdir -p $(CCROOT)/lib/8080
 	mkdir -p $(CCROOT)/lib/8080/include
-	cp lorder85 $(CCROOT)/bin/lorder85
+	cp lorder8080 $(CCROOT)/bin/lorder8080
 	cp cc1.8080 $(CCROOT)/lib
 	cp cc2.8080 $(CCROOT)/lib
 	cp rules.8080 $(CCROOT)/lib
