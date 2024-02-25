@@ -7,7 +7,7 @@ emu85: emu85.o intel_8085_emulator.o
 
 emu85.o: emu85.c intel_8085_emulator.h
 
-inte_8085_emulator.o: intel_8085_emulator.c intel_8085_emulator.h
+intel_8085_emulator.o: intel_8085_emulator.c intel_8085_emulator.h
 
 CFLAGS += -O2 -Wall -pedantic
 
@@ -17,20 +17,23 @@ byte1802: byte1802.o ../support1802/1802ops.h
 emuz8: emuz8.o z8.o
 	$(CC) emuz8.o z8.o -o emuz8
 
+emuz80.o: emuz80.c
+	(cd libz80; make)
+	$(CC) $(CFLAGS) -c emuz80.c
+
 emuz80: emuz80.o z80dis.o
 	(cd libz80; make)
 	$(CC) emuz80.o libz80/libz80.o z80dis.o -o emuz80
 
-emuz80.o: emuz80.c libz80/libz80.o
-
 emu6502: emu6502.o 6502.o 6502dis.o
 	$(CC) emu6502.o 6502.o 6502dis.o -o emu6502
 
-emu65c816: emu65c816.o
+emu65c816: emu65c816.o 
 	(cd lib65c816; make)
 	$(CC) emu65c816.o lib65c816/src/lib65816.a -o emu65c816
 
 emu65c816.o: emu65c816.c
+	(cd lib65c816; make)
 	$(CC) $(CFLAGS) -c -Ilib65c816 emu65c816.c
 
 z80dis.o: z80dis.h
