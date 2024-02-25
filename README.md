@@ -30,13 +30,13 @@ The other processor trees are very much a work in progress.
 ## Installation
 
 As a cross compiler the front end expects it all to live in /opt/fcc/. The
-tool chain provides the compiler front end and phases. For cpp for now
-symlink the native gcc /lib/cpp on Linux.
+tool chain provides the compiler front end and phases. For cpp for now it
+uses the gcc preprocessor on Linux and DECUS cpp on Fuzix.
 
-The assembler, linker and support tools are the 8085 pieces from the
-assembler/linker toolchain currently in the CC6303 repository. In the
-as68 directory of that git do a make clean; make -f Makefile.8085 and then
-copy the various xx85 tools it produces into the /opt/fcc/bin space.
+The tools required live in the Fuziz-Bintools repository. To build it all
+first pull Fuzix-Bintools and make install. Then make sure /opt/fcc is on
+your path and in the Fuzix-Compiler-Kit directory do "make install" and it
+will build a bootstrap then build the full tools and install them.
 
 ## Intended C Subset
 
