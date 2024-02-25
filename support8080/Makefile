@@ -64,7 +64,7 @@ makeldst: makeldst.c
 
 lib8080.a: makeldst $(OBJ)
 	rm -f lib8080.a
-	ar qc lib8080.a `../lorder85 $(OBJ) | tsort`
+	ar qc lib8080.a `../lorder8080 $(OBJ) | tsort`
 
 clean:
 	rm -f *.o *.a *~
