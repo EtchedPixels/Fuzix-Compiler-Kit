@@ -358,7 +358,6 @@ static void load_registers(void)
 			/* And we don't care about the return value after assignment */
 			n->flags |= NORETURN|SIDEEFFECT;
 			write_tree(n);
-			reg_load[i] = NULL;
 		}
 		i++;
 	}

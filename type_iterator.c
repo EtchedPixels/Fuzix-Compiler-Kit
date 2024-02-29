@@ -248,9 +248,7 @@ static void parse_function_arguments(unsigned *tplt)
 		if (reg)
 			reg = target_register(t, S_ARGUMENT);
 		if (an) {
-			/* Register arguments we pack the upper offset bits to indicate the need
-			   to assign it during code generation. We allow only 8 registers so this
-			   is fine */
+			/*  We allow only 8 registers so this is fine */
 			if (reg == 0) {
 				sym = update_symbol_by_name(an, S_ARGUMENT, t);
 				sym->data.offset = assign_storage(t, S_ARGUMENT);
@@ -282,6 +280,10 @@ void type_parse_function(unsigned ptr)
 	unsigned tplt[33];	/* max 32 typed arguments */
 	unsigned argsave, locsave;
 	unsigned *idx;
+	unsigned i = 1;
+
+	while(i <= NUM_REG)
+		reg_load[i++] = 0;
 
 	mark_storage(&argsave, &locsave);
 	parse_function_arguments(tplt);
