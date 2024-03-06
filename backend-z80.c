@@ -1709,7 +1709,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return gen_deop("bandde", n, r, 0);
 	case T_OR:
-		if (v == 0)
+		if (r->op == T_CONSTANT && v == 0)
 			return 1;
 		if (r->op == T_CONSTANT && s <= 2) {
 			int b = bitcheck1(v, s);
@@ -2204,8 +2204,8 @@ unsigned gen_shortcut(struct node *n)
 				return 1;
 			}
 			if (s == 4) {
-				if (!load_hl_with(r))
-					codegen_lr(r);
+				/* No fast HL load with a 32bit value */
+				codegen_lr(r);
 				printf("\tld (%s + %u),l\n", rp, n->val2);
 				printf("\tld (%s + %u),h\n", rp, n->val2 + 1);
 				printf("\tld de, (__hireg)\n");
