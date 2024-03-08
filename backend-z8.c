@@ -2978,15 +2978,16 @@ unsigned gen_node(struct node *n)
 		store_r_memr(R_AC, R_INDEX, size);
 		return 1;
 	case T_RDEREF:
-		/* Our deref actually is a ++ on the reg ptr. We optimize the *x++ as an op */
-		if (size > 1) {
-			load_r_r(R_INDEX, R_REG(v));
-			load_r_r(R_INDEX + 1, R_REG(v) + 1);
-			add_r_const(R_INDEX, n->val2, 2);
-			load_r_memr(R_AC, R_INDEX, size);
+		/* We can do byte loads really easily if not offset */
+		if (size == 1 && n->val2 == 0) {
+			load_r_memr(R_AC, R_REG(v), size);
 			return 1;
 		}
-		load_r_memr(R_AC, R_REG(v), size);
+		/* Our deref actually is a ++ on the reg ptr. We optimize the *x++ as an op */
+		load_r_r(R_INDEX, R_REG(v));
+		load_r_r(R_INDEX + 1, R_REG(v) + 1);
+		add_r_const(R_INDEX, n->val2, 2);
+		load_r_memr(R_AC, R_INDEX, size);
 		return 1;
 	case T_RDEREFPLUS:
 		/* This will do size - 1 incs as it reads */
