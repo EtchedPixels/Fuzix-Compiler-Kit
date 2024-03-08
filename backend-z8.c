@@ -106,6 +106,32 @@ static void gen_symref(struct node *n)
 		error("gsr");
 }
 
+#ifdef SUPER8
+
+/* The Z8800 register arrangement is quite different */
+
+#define R_SPL	217
+#define R_SPH	216
+
+/* 0xx is special encoding form. We borrow that internally to indicate
+   using the currennt working register byte (usually encoded as 0-3) */
+#define R_ACCHAR	0xC3
+#define R_ACINT		0xC2		/* Start reg for ptr/int */
+#define R_ACPTR		0xC2
+#define R_ACLONG	0xC0
+#define R_ISAC(x)	(((x) & 0xF0) == 0xC0)
+#define R_AC		0xC0
+
+#define REGBASE		2		/* Reg vars 4,6,8,10 numbered 1,2,3,4 */
+
+#define R_REG(x)	(((x) * 2) + REGBASE)
+#define R_REG_S(x,s)	(((x) * 2) + REGBASE + (2 - (s)))
+
+#define R_WORK		12		/* 12/13 are work ptr */
+#define R_INDEX		14		/* 14/15 are usually index */
+
+
+#else
 
 #define R_SPL	255
 #define R_SPH	254
@@ -116,7 +142,7 @@ static void gen_symref(struct node *n)
 #define R_ACINT		0xE2		/* Start reg for ptr/int */
 #define R_ACPTR		0xE2
 #define R_ACLONG	0xE0
-#define R_ISAC(x)		(((x) & 0xE0) == 0xE0)
+#define R_ISAC(x)	(((x) & 0xF0) == 0xE0)
 #define R_AC		0xE0
 
 #define REGBASE		2		/* Reg vars 4,6,8,10 numbered 1,2,3,4 */
@@ -126,6 +152,8 @@ static void gen_symref(struct node *n)
 
 #define R_WORK		12		/* 12/13 are work ptr */
 #define R_INDEX		14		/* 14/15 are usually index */
+
+#endif
 
 /*
  *	Beginning of hooks for modify trackign etc
@@ -142,7 +170,7 @@ static void r_modify(unsigned r, unsigned size)
 			r2_valid = 0;
 			invalidate_ac();
 		}
-		r_type[r++] = RV_UNKNOWN; 
+		r_type[r++] = RV_UNKNOWN;
 	}
 }
 
@@ -254,6 +282,12 @@ static void load_r_name(unsigned r, struct node *n, unsigned off)
 		set_ac_node(n);
 	}
 	r_modify(r, 2);
+#ifdef SUPER8
+	if (!(r & 1)) {
+		printf("\tld r%u,#_%s+%u\n", r, c, off);
+		return;
+	}
+#endif
 	printf("\tld r%u,#>_%s+%u\n", r, c, off);
 	printf("\tld r%u,#<_%s+%u\n", r + 1, c, off);
 }
@@ -265,6 +299,12 @@ static void load_r_label(unsigned r, struct node *n, unsigned off)
 		set_ac_node(n);
 	}
 	r_modify(r, 2);
+#ifdef SUPER8
+	if (!(r & 1)) {
+		printf("\tldw r%u,#T%u+%u\n", r, n->val2, off);
+		return;
+	}
+#endif
 	printf("\tld r%u,#>T%u+%u\n", r, n->val2, off);
 	printf("\tld r%u,#<T%u+%u\n", r + 1, n->val2, off);
 }
@@ -282,12 +322,47 @@ static void load_r_r(unsigned r1, unsigned r2)
 	printf("\tld r%u,r%u\n", r1, r2);
 }
 
+static void load_rr_rr(unsigned r1, unsigned r2)
+{
+	if (R_ISAC(r1))
+		r1 = r1 & 0x0F;
+	if (R_ISAC(r2))
+		r2 = r2 & 0x0F;
+
+	if (r1 < 4)
+		invalidate_ac();
+	r_modify(r1, 2);
+#ifdef SUPER8
+	if (!((r1 | r2) & 1)) {
+		printf("\tldw r%u,r%u\n");
+		return;
+	}
+#endif
+	printf("\tld r%u,r%u\n", r1, r2);
+	printf("\tld r%u,r%u\n", r1 + 1, r2 + 1);
+}
+
 static void load_r_R(unsigned r1, unsigned r2)
 {
 	if (R_ISAC(r1))
 		r1 = r1 & 0x0F;
 	r_modify(r1,1);
 	printf("\tld r%u,%u\n", r1, r2);
+}
+
+static void load_rr_RR(unsigned r1, unsigned r2)
+{
+	if (R_ISAC(r1))
+		r1 = r1 & 0x0F;
+	r_modify(r1,2);
+#ifdef SUPER8
+	if (!((r1 | r2) & 1)) {
+		printf("\ldw r%u,%u\n", r1, r2);
+		return;
+	}
+#endif
+	printf("\tld r%u,%u\n", r1, r2);
+	printf("\tld r%u,%u\n", r1 + 1, r2 + 1);
 }
 
 static void load_R_r(unsigned r1, unsigned r2)
@@ -359,10 +434,17 @@ static void load_r_constb(unsigned r, unsigned char v)
 	r_set(r, v);
 }
 
-static void load_rr_const(unsigned r, unsigned v)
+static void load_r_constw(unsigned r, unsigned v)
 {
-	if (r == R_ACPTR)
-		r = 2;
+	/* The Super8 has word load */
+#if SUPER8
+	if (v) {
+		printf("\tldw r%u, #%u\n", r, v);
+		r_set(r, v >> 8);
+		r_set(r + 1, v);
+		return;
+	}
+#endif
 	load_r_constb(r, v >> 8);
 	load_r_constb(r + 1, v);
 }
@@ -374,12 +456,14 @@ static void load_r_const(unsigned r, unsigned long v, unsigned size)
 	/* Lots to do here for optimizing - using clr, copying bytes
 	   between regs */
 	if (size == 4) {
-		load_r_constb(r++, v >> 24);
-		load_r_constb(r++, v >> 16);
+		load_r_constw(r, v >> 16);
+		r += 2;
+		size -= 2;
 	}
-	if (size > 1)
-		load_r_constb(r++, v >> 8);
-	load_r_constb(r++, v);
+	if (size == 2)
+		load_r_constw(r, v);
+	else
+		load_r_constb(r, v);
 }
 
 static void add_r_const(unsigned r, unsigned long v, unsigned size)
@@ -442,7 +526,6 @@ static void add_r_const(unsigned r, unsigned long v, unsigned size)
 		}
 		/* For -2 dec, dec is 4 bytes whilst add is 3 */
 	}
-		
 	printf("\tadd r%u,#%u\n", r--, (unsigned)v & 0xFF);
 	while(--size) {
 		v >>= 8;
@@ -645,16 +728,13 @@ static void rshift_r(unsigned r, unsigned size, unsigned l, unsigned uns)
 		/* These can only occur for 32bit shift */
 		if (l == 24) {
 			load_r_r(r + 3, r);
-			load_r_constb(r, 0);
-			load_r_constb(r + 1, 0);
+			load_r_constw(r, 0);
 			load_r_constb(r + 2, 0);
 			return;
 		}
 		if (l == 16) {
-			load_r_r(r + 2, r);
-			load_r_r(r + 3, r + 1);
-			load_r_constb(r, 0);
-			load_r_constb(r + 1, 0);
+			load_rr_rr(r + 2, r);
+			load_r_constw(r, 0);
 			return;
 		}
 		if (l == 8) {
@@ -755,8 +835,7 @@ static void logic_r_r(unsigned r1, unsigned r2, unsigned size, unsigned op)
 
 static void load_l_sprel(unsigned r, unsigned off)
 {
-	load_r_R(r, R_SPH);
-	load_r_R(r + 1, R_SPL);
+	load_rr_RR(r, R_SPH);
 	add_r_const(r, off, 2);
 
 	if (r == R_INDEX) {
@@ -934,8 +1013,12 @@ static void load_r_memr(unsigned val, unsigned rr, unsigned size)
 	r_modify(val, size);
 	while(--size) {
 		val++;
+#ifdef SUPER8
+		printf("\tldepi r%u, @rr%u\n", val, rr);
+#else
 		rr_incw(rr);
 		printf("\tlde r%u, @rr%u\n", val, rr);
+#endif
 	}
 }
 
@@ -953,8 +1036,12 @@ static void store_r_memr(unsigned val, unsigned rr, unsigned size)
 	printf("\tlde @rr%u, r%u\n", rr, val);
 	while(--size) {
 		val++;
+#ifdef CONFIG_SUPER8
+		print("\tldepi @rr%u, r%u\n", rr, val);
+#else
 		rr_incw(rr);
 		printf("\tlde @rr%u, r%u\n", rr, val);
+#endif
 	}
 }
 
@@ -980,8 +1067,12 @@ static void revstore_r_memr(unsigned val, unsigned rr, unsigned size)
 	printf("\tlde @rr%u, r%u\n", rr, val);
 	while(--size) {
 		val--;
+#ifdef CONFIG_SUPER8
+		printf("\tldepd @rr%u, r%u\n", rr, val);
+#else
 		rr_decw(rr);
 		printf("\tlde @rr%u, r%u\n", rr, val);
+#endif
 	}
 }
 
@@ -1091,12 +1182,13 @@ static void lshift_r(unsigned r, unsigned size, unsigned l)
 	if (size == 4) {
 		if (l >= 24) {
 			load_r_r(r, r + 3);
-			load_r_const(r, 0, 3);
+			load_r_constb(r + 1, 0);
+			load_r_constw(r + 2, 0);
 			l -= 24;
 		} else if (l >= 16) {
 			load_r_r(r, r + 2);
 			load_r_r(r + 1, r + 3);
-			load_r_const(r + 2, 0, 2);
+			load_r_constw(r + 2, 0);
 			l -= 16;
 		} else if (l >= 8) {
 			load_r_r(r, r + 1);
@@ -1276,7 +1368,7 @@ static unsigned logic_eq_direct_r(struct node *r,unsigned v, unsigned size, unsi
 		logic_r_r(R_AC, r1, size, op);
 		return 1;
 	}
-#endif	
+#endif
 	return 0;
 }
 
@@ -1558,7 +1650,7 @@ void gen_frame(unsigned size, unsigned aframe)
 	sp = 0;
 
 	argbase = ARGBASE;
-	
+
 	for (r = 1; r <= 4; r++) {
 		if (func_flags & F_REG(r)) {
 			push_rr(R_REG(r));
@@ -2453,7 +2545,7 @@ static unsigned argstack_helper(struct node *n, unsigned sz)
 			printf("\tcall __pushln\n");
 		else
 			printf("\tcall __pushlnl\n");
-		return 1;		
+		return 1;
 	}
 	return 0;
 }
@@ -2650,7 +2742,7 @@ unsigned gen_shortcut(struct node *n)
 			r_modify(R_WORK,4);
 			gen_symref(n);
 			return 1;
-		}			
+		}
 	}
 	/* Handle operations on registers as they have no address so cannot be resolved as
 	   a subtree with an addr in it */
@@ -2806,7 +2898,7 @@ unsigned gen_push(struct node *n)
 
 	/* Our push will put the object on the stack, so account for it */
 	sp += size;
-	
+
 	push_ac(size);
 	return 1;
 }
@@ -2839,8 +2931,7 @@ static unsigned gen_cast(struct node *n)
 	if (rs == 1)
 		load_r_constb(R_ACINT, 0);
 	if (ls == 4) {
-		load_r_constb(R_AC, 0);
-		load_r_constb(R_AC + 1, 0);
+		load_r_constw(R_AC, 0);
 	}
 	return 1;
 }
@@ -2851,7 +2942,7 @@ unsigned gen_node(struct node *n)
 	unsigned v;
 	unsigned nr = n->flags & NORETURN;
 	unsigned x;
-	unsigned u = n->type & UNSIGNED;
+
 	/* We adjust sp so track the pre-adjustment one too when we need it */
 
 	v = n->value;
@@ -2984,8 +3075,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		/* Our deref actually is a ++ on the reg ptr. We optimize the *x++ as an op */
-		load_r_r(R_INDEX, R_REG(v));
-		load_r_r(R_INDEX + 1, R_REG(v) + 1);
+		load_rr_rr(R_INDEX, R_REG(v));
 		add_r_const(R_INDEX, n->val2, 2);
 		load_r_memr(R_AC, R_INDEX, size);
 		return 1;
@@ -3001,8 +3091,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		/* Have to deal with overlap */
-		load_r_r(R_INDEX, R_ACPTR);
-		load_r_r(R_INDEX + 1, R_ACCHAR);
+		load_rr_rr(R_INDEX, R_ACPTR);
 		load_r_memr(R_AC, R_INDEX, size);
 		return 1;
 	case T_FUNCCALL:
@@ -3100,8 +3189,7 @@ unsigned gen_node(struct node *n)
 			/* Pop into r0,r1 which are free as accum is 16bit */
 			pop_rr(0);
 			sub_r_r(0, R_ACINT, 2);
-			load_r_r(R_ACINT, 0);
-			load_r_r(R_ACCHAR, 1);
+			load_rr_rr(R_ACINT, 0);
 			return 1;
 		}
 		/* size 1 */
@@ -3174,7 +3262,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	/* Comparisons T_EQEQ, T_BANGEQ, T_LT. T_LTEQ, T_GT, T_GTEQ */
 	/* Use helpers for now */
-#if 0	
+#if 0
 	case T_EQEQ:
 		if (n->type == T_FLOAT)
 			return 0;
@@ -3210,9 +3298,9 @@ unsigned gen_node(struct node *n)
 		pop_compare(size, u ? "ult" : "lt");
 		n->flags |= ISBOOL;
 		return 1;
-#endif		
+#endif
 	/* Need some kind of similar to the above helper for relatives, but
-	   messier so probably best done as helper call. */		
+	   messier so probably best done as helper call. */
 	case T_ANDEQ:
 		/* On entry ptr is in ACINT, stack is value to "and" by */
 		logic_popeq(size, "and");
@@ -3280,7 +3368,7 @@ unsigned gen_node(struct node *n)
 		}
 		/* Result is now in AC, and index points to start of
 		   object */
-		store_r_memr(R_AC, R_INDEX, size);			
+		store_r_memr(R_AC, R_INDEX, size);
 		return 1;
 	case T_MINUSEQ:
 		if (n->type == FLOAT || optsize)
@@ -3306,7 +3394,7 @@ unsigned gen_node(struct node *n)
 		}
 		/* Result is now in AC, and index points to start of
 		   object */
-		store_r_memr(R_AC, R_INDEX, size);			
+		store_r_memr(R_AC, R_INDEX, size);
 		return 1;
 	}
 	return 0;
