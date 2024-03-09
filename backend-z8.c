@@ -334,7 +334,7 @@ static void load_rr_rr(unsigned r1, unsigned r2)
 	r_modify(r1, 2);
 #ifdef SUPER8
 	if (!((r1 | r2) & 1)) {
-		printf("\tldw r%u,r%u\n");
+		printf("\tldw r%u,r%u\n", r1, r2);
 		return;
 	}
 #endif
@@ -357,7 +357,7 @@ static void load_rr_RR(unsigned r1, unsigned r2)
 	r_modify(r1,2);
 #ifdef SUPER8
 	if (!((r1 | r2) & 1)) {
-		printf("\ldw r%u,%u\n", r1, r2);
+		printf("\tldw r%u,%u\n", r1, r2);
 		return;
 	}
 #endif
@@ -437,7 +437,7 @@ static void load_r_constb(unsigned r, unsigned char v)
 static void load_r_constw(unsigned r, unsigned v)
 {
 	/* The Super8 has word load */
-#if SUPER8
+#ifdef SUPER8
 	if (v) {
 		printf("\tldw r%u, #%u\n", r, v);
 		r_set(r, v >> 8);
@@ -1009,16 +1009,13 @@ static void load_r_memr(unsigned val, unsigned rr, unsigned size)
 			return;
 		}
 	}
+	/* TODO: use ldei for super 8 */
 	printf("\tlde r%u, @rr%u\n", val, rr);
 	r_modify(val, size);
 	while(--size) {
 		val++;
-#ifdef SUPER8
-		printf("\tldepi r%u, @rr%u\n", val, rr);
-#else
 		rr_incw(rr);
 		printf("\tlde r%u, @rr%u\n", val, rr);
-#endif
 	}
 }
 
@@ -1262,6 +1259,106 @@ static unsigned get_size(unsigned t)
 	return 0;
 }
 
+#ifdef SUPER8
+
+/*
+ *	The Super8 has a rather better range of access functions
+ *	for data offsets.
+ */
+
+static void load_da(unsigned r, struct node *n)
+{
+	unsigned sz = get_size(n->type);
+	unsigned v = n->value;
+	if (r == R_AC)
+		r = 4 - sz;
+	if (n->op == T_NREF) {
+		const char *c = namestr(n->snum);
+		while(sz--) {
+			printf("\tlde r%u,_%s+%u\n",
+				r++, c, v++);
+		}
+	}
+	else if (n->op == T_LBREF) {
+		while(sz--) {
+			printf("\tlde r%u,T%u+%u\n",
+				r++, n->val2, v++);
+		}
+	}
+	else error("lda");
+}
+
+static void load_local(unsigned r, struct node *n)
+{
+	unsigned off = n->value + sp;
+	unsigned size = get_size(n->type);
+	int diff14 = -(r14_sp - (off - sp));
+	if (r == R_AC)
+		r = 4 - size;
+	printf("; r14_valid %u diff14 %d size %u\n", r14_valid, diff14, size);
+	if (r14_valid) {
+		/* Short form off r14 */
+		while(size--) {
+			printf("\tlde r%u, %u(r14)\n",
+				r++, diff14++ & 0xFFFF);
+		}
+		return;
+	}
+	/* Just reload SP and index off it */
+	load_l_sprel(R_INDEX, 0);
+	while(size--) {
+		printf("\tlde r%u, %u(r14)\n",
+			r++, off++ & 0xFFFF);
+	}
+}
+
+static void store_da(unsigned r, struct node *n)
+{
+	unsigned sz = get_size(n->type);
+	unsigned v = n->value;
+	if (r == R_AC)
+		r = 4 - sz;
+	if (n->op == T_NSTORE) {
+		const char *c = namestr(n->snum);
+		while(sz--) {
+			printf("\tlde _%s+%u, %u\n",
+				c, v++, r++);
+		}
+	}
+	else if (n->op == T_LBSTORE) {
+		while(sz--) {
+			printf("\tlde T%u+%u,r%u\n",
+				n->val2, v++, r++);
+		}
+	}
+	else error("lda");
+}
+
+static void store_local(unsigned r, struct node *n)
+{
+	unsigned off = n->value + sp;
+	unsigned size = get_size(n->type);
+	int diff14 = -(r14_sp - (off - sp));
+	if (r == R_AC)
+		r = 4 - size;
+	if (r14_valid) {
+		/* Short form off r14 */
+		while(size--) {
+			printf("\tlde %u(r14), r%u\n",
+				diff14++ & 0xFFFF, r++);
+		}
+		return;
+	}
+	/* Just reload SP and index off it */
+	load_l_sprel(R_INDEX, 0);
+	while(size--) {
+		printf("\tlde %u(r14), r%u\n",
+			off++ & 0xFFFF, r++);
+	}
+}
+
+#endif
+
 /* Load helpers. Try and get a value into r (usually 12/13) without messing up ac. May
    trash r14/r15. Set mm if returned reg must match requested */
 static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
@@ -1293,6 +1390,13 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 		load_r_memr(r, R_INDEX, size);
 		return r;
 	case T_NREF:
+#ifdef SUPER8
+		/* Load using lde _foo+n */
+		if (size <= 2 - optsize) {
+			load_da(r, n);
+			return 1;
+		}
+#endif
 		if (optsize) {
 			if (size <= 2 && r == R_WORK) {
 				printf("\tcall __nref12_%d\n", size);
@@ -1308,6 +1412,13 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 		load_r_memr(r, R_INDEX, size);
 		return r;
 	case T_LBREF:
+#ifdef SUPER8
+		/* Load using lde _foo+n */
+		if (size <= 2 - optsize) {
+			load_da(r, n);
+			return 1;
+		}
+#endif
 		if (optsize) {
 			if (size <= 2 && r == R_WORK) {
 				printf("\tcall __nref12_%d\n", size);
@@ -1458,6 +1569,7 @@ struct node *gen_rewrite_node(struct node *n)
 			free_node(r);
 			return n;
 		}
+		/* TODO: T_DEREFPLUS / T_EQPLUS for Super8 */
 	}
 	/* Structure field assign - same idea */
 	if (optsize && op == T_EQ && l->op == T_PLUS && l->right->op == T_CONSTANT) {
@@ -2052,14 +2164,34 @@ unsigned gen_direct(struct node *n)
 		gen_cleanup(v, n->val2);
 		return 1;
 	case T_NSTORE:
+#ifdef SUPER8
+		/* Store usign lde addr,rn */
+		if (size <= 2 - optsize) {
+			store_da(R_AC, n);
+			return 1;
+		}
+#endif
 		load_r_name(R_INDEX, n, v);
 		store_r_memr(R_AC, R_INDEX, size);
 		break;
 	case T_LBSTORE:
+#ifdef SUPER8
+		/* Store usign lde addr,rn */
+		if (size <= 2 - optsize) {
+			store_da(R_AC, n);
+			return 1;
+		}
+#endif
 		load_r_label(R_INDEX, n, v);
 		store_r_memr(R_AC, R_INDEX, size);
 		return 1;
 	case T_LSTORE:
+#ifdef SUPER8
+		if (size < 2 - optsize) {
+			store_local(R_AC, n);
+			return 1;
+		}
+#endif
 		if (opt < 1)
 			store_local_helper(r, v + sp, size);
 		else {
@@ -2958,6 +3090,12 @@ unsigned gen_node(struct node *n)
 
 	switch (n->op) {
 	case T_NREF:
+#ifdef SUPER8
+		if (size < 2 - optsize) {
+			load_da(R_AC, n);
+			return 1;
+		}
+#endif
 		if (optsize) {
 			printf("\tcall __nref_%d\n", size);
 			/* Until we track r14 objects other than local */
@@ -2972,6 +3110,12 @@ unsigned gen_node(struct node *n)
 		set_ac_node(n);
 		return 1;
 	case T_LBREF:
+#ifdef SUPER8
+		if (size < 2 - optsize) {
+			load_da(R_AC, n);
+			return 1;
+		}
+#endif
 		if (optsize) {
 			printf("\tcall __nref_%d\n", size);
 			/* Until we track r14 objects other than local */
@@ -2990,6 +3134,12 @@ unsigned gen_node(struct node *n)
 		   so can go away */
 		if (nr)
 			return 1;
+#ifdef SUPER8
+		if (size <= 2 - optsize) {
+			load_local(R_AC, n);
+			return 1;
+		}
+#endif
 		/* Is it already loaded ? */
 		if (ac_node.op == T_LREF && ac_node.value == v &&
 			get_size(ac_node.type) >= size) {
@@ -3023,6 +3173,12 @@ unsigned gen_node(struct node *n)
 		}
 		return 1;
 	case T_NSTORE:
+#ifdef SUPER8
+		if (size <= 2 - optsize) {
+			store_da(R_AC, n);
+			return 1;
+		}
+#endif
 		if (optsize) {
 			printf("\tcall __nstore_%d\n", size);
 			set_ac_node(n);
@@ -3035,6 +3191,12 @@ unsigned gen_node(struct node *n)
 			set_ac_node(n);
 		return 1;
 	case T_LBSTORE:
+#ifdef SUPER8
+		if (size <= 2 - optsize) {
+			store_da(R_AC, n);
+			return 1;
+		}
+#endif
 		if (optsize) {
 			printf("\tcall __nstore_%d\n", size);
 			set_ac_node(n);
@@ -3047,6 +3209,12 @@ unsigned gen_node(struct node *n)
 		set_ac_node(n);
 		return 1;
 	case T_LSTORE:
+#ifdef SUPER8
+		if (size <= 2 - optsize) {
+			store_local(R_AC, n);
+			return 1;
+		}
+#endif
 		if (opt < 1)
 			store_local_helper(NULL, v + sp, size);
 		else {

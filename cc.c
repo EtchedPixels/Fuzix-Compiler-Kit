@@ -141,6 +141,7 @@ const char *defz180[] = { "__z80__", "__z180__", NULL };
 const char *defbyte[] = { "__byte__", NULL };
 const char *defthread[] = { "__thread__", NULL };
 const char *defz8[] = { "__z8__", NULL };
+const char *defsuper8[] = { "__super8__", NULL };
 const char *def1802[] = { "__1802__", NULL };
 const char *def1805[] = { "__1805__", NULL };
 
@@ -171,6 +172,7 @@ struct cpu_table cpu_rules[] = {
 	   anyway because of endianness, alignment etc */
 	{ "thread", "thread", ".thread", "libthread.a", "thread", defthread, ldbyte, "0" },
 	{ "z8", "z8", ".z8", "libz8.a", "z8", defz8, ld8080, "8" , 0},
+	{ "super8", "super8", ".super8", "libsuper8.a", "super8", defsuper8, ld8080, "8" , 0},
 	{ "1802", "1802", ".1802", "lib1802.a", "1802", def1802, ld8080, "2" , 0},
 	{ "1805", "1802", ".1802", "lib1805.a", "1802", def1805, ld8080, "5" , 0},
 	{ NULL }

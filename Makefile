@@ -2,15 +2,15 @@ all: fcc cc0 \
      cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.1802 \
      cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
-     cc2.6502 cc2.z8 cc2.1802 \
+     cc2.6502 cc2.z8 cc2.super8 cc2.1802 \
      copt support6502 support65c816 support8080 support8085 supportz80 \
      supportz8
 
 bootstuff: cc cc0 \
      cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
-     cc1.65c816 cc1.z8 cc1.1802 \
+     cc1.65c816 cc1.z8 cc1.super8 cc1.1802 \
      cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
-     cc2.6502 cc2.z8 cc2.1802 \
+     cc2.6502 cc2.z8 cc2.super8 cc2.1802 \
      copt
 
 .PHONY: support6502 support65c816 support8080 support8085 supportz8 supportz80
@@ -34,7 +34,8 @@ OBJS9 = backend.o backend-threadcode.o
 OBJS11 = backend.o backend-6502.o
 OBJS12 = backend.o backend-65c816.o
 OBJS13 = backend.o backend-z8.o
-OBJS14 = backend.o backend-1802.o
+OBJS14 = backend.o backend-super8.o
+OBJS15 = backend.o backend-1802.o
 
 CFLAGS = -Wall -pedantic -g3 -DLIBPATH="\"$(CCROOT)/lib\"" -DBINPATH="\"$(CCROOT)/bin\""
 
@@ -52,6 +53,8 @@ $(OBJS1): $(INC1)
 $(OBJS2): $(INC1) $(INC2)
 
 $(OBJS3): $(INC1) $(INC2)
+
+backend-super8.o: backend-super8.c backend-z8.c
 
 fcc:	cc.o
 	gcc -g3 cc.c -o fcc0
@@ -86,6 +89,9 @@ cc1.65c816:$(OBJS1) target-65c816.o
 cc1.z8:$(OBJS1) target-z8.o
 	gcc -g3 $(OBJS1) target-z8.o -o cc1.z8
 
+cc1.super8:$(OBJS1) target-super8.o
+	gcc -g3 $(OBJS1) target-super8.o -o cc1.super8
+
 cc1.1802:$(OBJS1) target-1802.o
 	gcc -g3 $(OBJS1) target-1802.o -o cc1.1802
 
@@ -119,7 +125,10 @@ cc2.65c816:	$(OBJS12)
 cc2.z8:		$(OBJS13)
 	gcc -g3 $(OBJS13) -o cc2.z8
 
-cc2.1802:	$(OBJS14)
+cc2.super8:	$(OBJS14)
+	gcc -g3 $(OBJS14) -o cc2.super8
+
+cc2.1802:	$(OBJS15)
 	gcc -g3 $(OBJS14) -o cc2.1802
 
 support6502:
@@ -210,6 +219,13 @@ bootinst:
 	cp cc2.z8 $(CCROOT)/lib
 	cp rules.z8 $(CCROOT)/lib
 	cp lorderz8 $(CCROOT)/bin/lorderz8
+	# Z8
+	mkdir -p $(CCROOT)/lib/super8
+	mkdir -p $(CCROOT)/lib/super8/include/
+	cp cc1.super8 $(CCROOT)/lib
+	cp cc2.super8 $(CCROOT)/lib
+	cp rules.super8 $(CCROOT)/lib
+	cp lorderz8 $(CCROOT)/bin/lordersuper8
 	# 1802
 	mkdir -p $(CCROOT)/lib/1802
 	mkdir -p $(CCROOT)/lib/1802/include/
