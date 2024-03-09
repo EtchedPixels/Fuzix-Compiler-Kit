@@ -301,7 +301,7 @@ static void load_r_label(unsigned r, struct node *n, unsigned off)
 	r_modify(r, 2);
 #ifdef SUPER8
 	if (!(r & 1)) {
-		printf("\tldw r%u,#T%u+%u\n", r, n->val2, off);
+		printf("\tldw rr%u,#T%u+%u\n", r, n->val2, off);
 		return;
 	}
 #endif
@@ -334,7 +334,7 @@ static void load_rr_rr(unsigned r1, unsigned r2)
 	r_modify(r1, 2);
 #ifdef SUPER8
 	if (!((r1 | r2) & 1)) {
-		printf("\tldw r%u,r%u\n", r1, r2);
+		printf("\tldw rr%u,rr%u\n", r1, r2);
 		return;
 	}
 #endif
@@ -357,7 +357,7 @@ static void load_rr_RR(unsigned r1, unsigned r2)
 	r_modify(r1,2);
 #ifdef SUPER8
 	if (!((r1 | r2) & 1)) {
-		printf("\tldw r%u,%u\n", r1, r2);
+		printf("\tldw rr%u,%u\n", r1, r2);
 		return;
 	}
 #endif
@@ -439,7 +439,7 @@ static void load_r_constw(unsigned r, unsigned v)
 	/* The Super8 has word load */
 #ifdef SUPER8
 	if (v) {
-		printf("\tldw r%u, #%u\n", r, v);
+		printf("\tldw rr%u, #%u\n", r, v);
 		r_set(r, v >> 8);
 		r_set(r + 1, v);
 		return;
@@ -1299,7 +1299,7 @@ static void load_local(unsigned r, struct node *n)
 	if (r14_valid) {
 		/* Short form off r14 */
 		while(size--) {
-			printf("\tlde r%u, %u(r14)\n",
+			printf("\tlde r%u, %u(rr14)\n",
 				r++, diff14++ & 0xFFFF);
 		}
 		return;
@@ -1307,7 +1307,7 @@ static void load_local(unsigned r, struct node *n)
 	/* Just reload SP and index off it */
 	load_l_sprel(R_INDEX, 0);
 	while(size--) {
-		printf("\tlde r%u, %u(r14)\n",
+		printf("\tlde r%u, %u(rr14)\n",
 			r++, off++ & 0xFFFF);
 	}
 }
@@ -1344,7 +1344,7 @@ static void store_local(unsigned r, struct node *n)
 	if (r14_valid) {
 		/* Short form off r14 */
 		while(size--) {
-			printf("\tlde %u(r14), r%u\n",
+			printf("\tlde %u(rr14), r%u\n",
 				diff14++ & 0xFFFF, r++);
 		}
 		return;
@@ -1352,7 +1352,7 @@ static void store_local(unsigned r, struct node *n)
 	/* Just reload SP and index off it */
 	load_l_sprel(R_INDEX, 0);
 	while(size--) {
-		printf("\tlde %u(r14), r%u\n",
+		printf("\tlde %u(rr14), r%u\n",
 			off++ & 0xFFFF, r++);
 	}
 }
