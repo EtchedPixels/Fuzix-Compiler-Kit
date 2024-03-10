@@ -1,4 +1,4 @@
-all: emu6502 emu65c816 emu85 emuz8 emuz80 byte1802 \
+all: emu6502 emu65c816 emu85 emuz8 emuz80 byte1802 emu6809 \
      testcrt0.o testcrtz80.o testcrt0_6502.o testcrt0_65c816.o \
      testcrt0_z8.o testcrt0_byte1802.o
 
@@ -36,6 +36,15 @@ emu65c816.o: emu65c816.c
 	(cd lib65c816; make)
 	$(CC) $(CFLAGS) -c -Ilib65c816 emu65c816.c
 
+6809.o: 6809.c
+	$(CC) $(CFLAGS) -c 6809.c
+
+emu6809.o: emu6809.c
+	$(CC) $(CFLAGS) -c emu6809.c
+
+emu6809: 6809.o emu6809.o
+	$(CC) $(CFLAGS) -o emu6809 emu6809.o 6809.o
+
 z80dis.o: z80dis.h
 
 testcrt0.o: testcrt0.s
@@ -59,7 +68,7 @@ testcrt0_z8.o: testcrt0_z8.s
 
 clean:
 	rm -f *.o tests/*.o *~ tests/*~ emu85 tests/*.map *.log emuz80
-	rm -f emu6502 byte1802 emu65c816 emuz8
+	rm -f emu6502 byte1802 emu65c816 emuz8 emu6809
 	(cd libz80; make clean)
 	(cd lib65c816; make clean)
 
