@@ -9,12 +9,15 @@ __cceql:
 	lde r13,@rr14
 	cp r13, r0
 	jr nz, false
+	incw rr14
 	lde r13,@rr14
 	cp r13, r1
 	jr nz, false
+	incw rr14
 	lde r13,@rr14
 	cp r13, r2
 	jr nz, false
+	incw rr14
 	lde r13,@rr14
 	cp r13, r3
 	jr nz, false
