@@ -239,6 +239,15 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 	return off;
 }
 
+/* Get pointer to the top of stack. We can optimize this in some cases
+   when we track but it will be limited. The 6800 is quite weak on ops
+   between register so we sometimes need to build ops against top of stack */
+unsigned make_tos_ptr(void)
+{
+	printf("\ttsx\n");
+	return 0;
+}
+
 unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 {
 	unsigned v = r->value;
@@ -248,7 +257,7 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 		off = make_local_ptr(v + off, 255);
 		op8_on_ptr(op, off);
 		break;
-	case T_CONST:
+	case T_CONSTANT:
 		printf("\t%sb #%u\n", op, v + off);
 		break;
 	case T_LBSTORE:
@@ -290,7 +299,7 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
-		printf("\t%sb T%u+%u\n", op, r->val2, v + off);
+		printf("\t%sb T%u+%u\n", op, r->val2, v + off + 1);
 		printf("\t%sa T%u+%u\n", op2, r->val2, v + off);
 		break;
 	case T_LABEL:
@@ -299,8 +308,8 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 		break;
 	case T_NSTORE:
 	case T_NREF:
-		printf("\t%sb _%s+%u\n", op, namestr(r->snum), v + off);
-		printf("\t%sa _%s+%u\n", op2, namestr(r->snum), v + off + 1);
+		printf("\t%sb _%s+%u\n", op, namestr(r->snum), v + off + 1);
+		printf("\t%sa _%s+%u\n", op2, namestr(r->snum), v + off);
 		break;
 	case T_NAME:
 		printf("\t%sb #<_%s+%u\n", op, namestr(r->snum), v + off);
@@ -329,6 +338,84 @@ unsigned write_op(struct node *r, const char *op, const char *op2, unsigned off)
 	if (s == 2)
 		return op16_on_node(r, op, op2, off);
 	return op8_on_node(r, op, off);
+}
+
+void op8_on_tos(const char *op)
+{
+	unsigned off = make_tos_ptr();
+	printf("\t%sb %u,x\n", op, off);
+	printf("\tins\n");
+}
+
+void op16_on_tos(const char *op, const char *op2)
+{
+	unsigned off = make_tos_ptr();
+	printf("\t%sb %u,x\n", op, off + 1);
+	printf("\t%sa %u,x\n", op, off);
+	printf("\tins\n");
+	printf("\tins\n");
+}
+
+unsigned write_tos_op(struct node *n, const char *op, const char *op2)
+{
+	unsigned s = get_size(n->type);
+	if (s > 2)
+		return 0;
+	if (s == 2)
+		op16_on_tos(op, op2);
+	else
+		op8_on_tos(op);
+	return 1;
+}
+
+/* See if we can easily get the value we want into X rather than D. Must
+   not harm D in the process. We can make this smarter over time if needed.
+   Might be worth passing if we can trash D as it will help make_local_ptr
+   later, and will be true for some load cases */
+unsigned can_load_x_with(struct node *r, unsigned off)
+{
+	switch(r->op) {
+	case T_LREF:
+	case T_CONSTANT:
+	case T_LBREF:
+	case T_LABEL:
+	case T_NREF:
+	case T_NAME:
+	case T_RREF:
+		return 1;
+	}
+	return 0;
+}
+
+void load_x_with(struct node *r, unsigned off)
+{
+	unsigned v = r->value;
+	switch(r->op) {
+	case T_LREF:
+		off = make_local_ptr(v + off, 254);
+		printf("\tldx %u,x\n", off);
+		break;
+	case T_CONSTANT:
+		printf("\tldx #%u\n", v + off);
+		break;
+	case T_LBREF:
+		printf("\tldx T%u+%u\n", r->val2, v + off);
+		break;
+	case T_LABEL:
+		printf("\tldx #T%u+%u\n", r->val2, v + off);
+		break;
+	case T_NREF:
+		printf("\tldx _%s+%u\n", namestr(r->snum), v + off);
+		break;
+	case T_NAME:
+		printf("\tldx #<_%s+%u\n", namestr(r->snum), v + off);
+		break;
+	/* case T_RREF:
+		printf("\tldx @__reg%u\n", v);
+		break; */
+	default:
+		error("lxw");
+	}
 }
 
 /* Chance to rewrite the tree from the top rather than none by node
@@ -502,6 +589,8 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	if (sp)
 		error("sp");
 	adjust_s(size, (func_flags & F_VOIDRET) ? 0 : 1);
+	/* TODO: we are asssuming functions clean up their args if not
+	   vararg so this will have to change */
 	printf("\trts\n");
 	unreachable = 1;
 }
@@ -673,7 +762,6 @@ unsigned gen_direct(struct node *n)
 	unsigned s = get_size(n->type);
 	struct node *r = n->right;
 	unsigned nr = n->flags & NORETURN;
-	unsigned v = n->value;
 
 	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
@@ -685,6 +773,7 @@ unsigned gen_direct(struct node *n)
 			adjust_s(r->value, (func_flags & F_VOIDRET) ? 0 : 1);
 		return 1;
 	case T_PLUS:
+		/* So we can track this common case later */
 		if (r->op == T_CONSTANT) {
 			if (s == 2) {
 				add_d_const(r->value);
@@ -695,7 +784,28 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		break;
+		return write_op(r, "add", "adc", 0);
+	case T_MINUS:
+		if (r->op == T_CONSTANT) {
+			if (s == 2) {
+				add_d_const(-r->value);
+				return 1;
+			}
+			if (s == 1) {
+				add_b_const(-r->value);
+				return 1;
+			}
+		}
+		return write_op(r, "sub", "sbc", 0);
+	case T_AND:
+		/* TODO: optimize const cases for logic */
+		return write_op(r, "and", "and", 0);
+	case T_OR:
+		/* TODO: optimize const cases for logic */
+		return write_op(r, "ora", "ora", 0);
+	case T_HAT:
+		/* TODO: optimize const cases for logic */
+		return write_op(r, "eor", "eor", 0);
 	}
 	return 0;
 }
@@ -715,9 +825,70 @@ unsigned gen_uni_direct(struct node *n)
  */
 unsigned gen_shortcut(struct node *n)
 {
+	unsigned s = get_size(n->type);
+	unsigned nr = n->flags & NORETURN;
 	/* Don't generate unreachable code */
 	if (unreachable)
 		return 1;
+	switch(n->op) {
+	case T_DEREF:
+		/* Our right hand side is the thing to deref. See if we can
+		   get it into X instead */
+		if (can_load_x_with(n->right, 0)) {
+			/* Value into D */
+			codegen_lr(n->left);
+			load_x_with(n->right, 0);
+			switch(s) {
+			case 1:
+				printf("\tldab ,x\n");
+				return 1;
+			case 2:
+				printf("\tldaa ,x\n");
+				printf("\tldab 1,x\n");
+				return 1;
+			case 4:
+				printf("\tldaa ,x\n");
+				printf("\tldab 1,x\n");
+				printf("\tstaa @hireg\n");
+				printf("\tstab @hireg+1\n");
+				printf("\tldaa 2,x\n");
+				printf("\tldab 3,x\n");
+				return 1;
+			default:
+				error("sdf");
+			}
+		}
+		return 0;
+	case T_EQ:	/* Our left is the address */
+		if (can_load_x_with(n->left, 0)) {
+			codegen_lr(n->right);
+			load_x_with(n->left, 0);
+			switch(s) {
+			case 1:
+				printf("\tstab ,x\n");
+				return 1;
+			case 2:
+				printf("\tstaa ,x\n");
+				printf("\tstabab 1,x\n");
+				return 1;
+			case 4:
+				printf("\tstaa 2,x\n");
+				printf("\tstab 3,x\n");
+				if (!nr)
+					printf("\tpshb\n\tpsha\n");
+				printf("\tldaa @hireg\n");
+				printf("\tldab @hireg+1\n");
+				printf("\tstaa 0,x\n");
+				printf("\tstab 1,x\n");
+				if (!nr)
+					printf("\tpula\n\tpulb\n");
+				return 1;
+			default:
+				error("seqf");
+			}
+		}
+		return 0;
+	}
 	return 0;
 }
 
@@ -740,6 +911,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_DEREF:
 		/* TODO: rewrite deref(plus(thing, const)) as DEREFPLUS and combine */
+		/* TODO: tracking */
 		make_x_d();
 		if (s == 1) {
 			op8_on_ptr("lda", 0);
@@ -781,6 +953,36 @@ unsigned gen_node(struct node *n)
 		v += sp;
 		add_d_const(v);
 		return 1;
+	/* Single argument ops we can do directly */
+	case T_TILDE:
+		if (s == 4)
+			return 0;
+		if (s == 2)
+			printf("\tcoma\n");
+		printf("\tcomb\n");
+		return 1;
+	case T_NEGATE:
+		if (s == 2) {
+			printf("\tcoma\n");
+			printf("\tcomb\n");
+			add_d_const(1);
+			return 1;
+		}
+		if (s == 1) {
+			printf("\tcomb\n");
+			add_b_const(1);
+			return 1;
+		}
+		return 0;
+	/* Double argument ops we can handle easily */
+	case T_PLUS:
+		return write_tos_op(n, "add", "adc");
+	case T_AND:
+		return write_tos_op(n, "and", "and");
+	case T_OR:
+		return write_tos_op(n, "ora", "ora");
+	case T_HAT:
+		return write_tos_op(n, "eor", "eot");
 	}
 	return 0;
 }
