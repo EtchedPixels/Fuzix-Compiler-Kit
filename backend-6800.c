@@ -108,6 +108,16 @@ void load_d_const(uint16_t n)
 		printf("\tldb #%d\n", lo);
 }
 
+void load_b_const(uint16_t n)
+{
+	/* TODO: tracking */
+	if (n == 0)
+		printf("\tclrb\n");
+	else
+		printf("\tldb #%u\n", n & 0xFF);
+}
+
+
 void add_d_const(uint16_t n)
 {
 	/* TODO: tracking */
@@ -231,6 +241,25 @@ void op32_on_ptr(const char *op, const char *op2, unsigned off)
 	printf("\tpula\n\tpulb\n");
 }
 
+void uniop8_on_ptr(const char *op, unsigned off)
+{
+	printf("\t%s %u,x\n", op, off);
+}
+
+void uniop16_on_ptr(const char *op, unsigned off)
+{
+	printf("\t%s %u,x\n", op, off + 1);
+	printf("\t%s %u,x\n", op, off);
+}
+
+void uniop32_on_ptr(const char *op, unsigned off)
+{
+	printf("\t%s %u,x\n", op, off + 3);
+	printf("\t%s %u,x\n", op, off + 2);
+	printf("\t%s %u,x\n", op, off + 1);
+	printf("\t%s %u,x\n", op, off);
+}
+
 unsigned make_local_ptr(unsigned off, unsigned rlim)
 {
 	off += sp;
@@ -294,8 +323,8 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 		op16_on_ptr(op, op2, off);
 		break;
 	case T_CONSTANT:
+		printf("\t%sa #>%u\n", op, v + off);
 		printf("\t%sb #<%u\n", op, v + off);
-		printf("\t%sa #>%u\n", op2, v + off);
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
@@ -332,12 +361,78 @@ void op32_on_node(struct node *n, const char *op, const char *op2, unsigned off)
 unsigned write_op(struct node *r, const char *op, const char *op2, unsigned off)
 {
 	unsigned s = get_size(r->type);
-	/* For now */
-	if (s == 4)
-		return 0;
 	if (s == 2)
 		return op16_on_node(r, op, op2, off);
-	return op8_on_node(r, op, off);
+	if (s == 1)
+		return op8_on_node(r, op, off);
+	return 0;
+}
+
+unsigned uniop8_on_node(struct node *r, const char *op, unsigned off)
+{
+	unsigned v = r->value;
+	switch(r->op) {
+	case T_LSTORE:
+	case T_LREF:
+		off = make_local_ptr(v + off, 255);
+		uniop8_on_ptr(op, off);
+		break;
+	case T_LBSTORE:
+	case T_LBREF:
+		printf("\t%s T%u+%u\n", op, r->val2, v + off);
+		break;
+	case T_NSTORE:
+	case T_NREF:
+		printf("\t%s _%s+%u\n", op, namestr(r->snum), v + off);
+		break;
+	/* case T_RREF:
+		printf("\t%sb @__reg%u\n", v);
+		break; */
+	default:
+		return 0;
+	}
+	return 1;
+}
+
+/* Do the low byte first in case it's add adc etc */
+unsigned uniop16_on_node(struct node *r, const char *op, unsigned off)
+{
+	unsigned v = r->value;
+	switch(r->op) {
+	case T_LSTORE:
+	case T_LREF:
+		off = make_local_ptr(v + off, 254);
+		uniop16_on_ptr(op, off);
+		break;
+	case T_LBSTORE:
+	case T_LBREF:
+		printf("\t%s T%u+%u\n", op, r->val2, v + off + 1);
+		printf("\t%s T%u+%u\n", op, r->val2, v + off);
+		break;
+	case T_NSTORE:
+	case T_NREF:
+		printf("\t%s _%s+%u\n", op, namestr(r->snum), v + off + 1);
+		printf("\t%s _%s+%u\n", op, namestr(r->snum), v + off);
+		break;
+	/* case T_RREF:
+		printf("\t%sb @__reg%u\n", v);
+		break; */
+	default:
+		return 0;
+	}
+	return 1;
+}
+
+
+unsigned write_uni_op(struct node *n, const char *op, unsigned off)
+{
+	unsigned s = get_size(n->type);
+	if (s == 2)
+		return uniop16_on_node(n, op, off);
+	if (s == 1)
+		return uniop8_on_node(n, op, off);
+	return 0;
+	
 }
 
 void op8_on_tos(const char *op)
@@ -368,6 +463,35 @@ unsigned write_tos_op(struct node *n, const char *op, const char *op2)
 	return 1;
 }
 
+void uniop8_on_tos(const char *op)
+{
+	unsigned off = make_tos_ptr();
+	printf("\t%s %u,x\n", op, off);
+	printf("\tins\n");
+}
+
+void uniop16_on_tos(const char *op)
+{
+	unsigned off = make_tos_ptr();
+	printf("\t%s %u,x\n", op, off + 1);
+	printf("\t%s %u,x\n", op, off);
+	printf("\tins\n");
+	printf("\tins\n");
+}
+
+
+unsigned write_tos_uniop(struct node *n, const char *op)
+{
+	unsigned s = get_size(n->type);
+	if (s > 2)
+		return 0;
+	if (s == 2)
+		uniop16_on_tos(op);
+	else
+		uniop8_on_tos(op);
+	return 1;
+}
+
 /* See if we can easily get the value we want into X rather than D. Must
    not harm D in the process. We can make this smarter over time if needed.
    Might be worth passing if we can trash D as it will help make_local_ptr
@@ -382,6 +506,8 @@ unsigned can_load_x_with(struct node *r, unsigned off)
 	case T_NREF:
 	case T_NAME:
 	case T_RREF:
+	case T_LOCAL:
+	case T_ARGUMENT:
 		return 1;
 	}
 	return 0;
@@ -391,7 +517,14 @@ void load_x_with(struct node *r, unsigned off)
 {
 	unsigned v = r->value;
 	switch(r->op) {
+	case T_ARGUMENT:
+		v += argbase;
+	case T_LOCAL:
+		v += sp;
+		make_local_ptr(v + off, 0);
+		break;
 	case T_LREF:
+		v += sp;
 		off = make_local_ptr(v + off, 254);
 		printf("\tldx %u,x\n", off);
 		break;
@@ -448,6 +581,28 @@ static void squash_right(struct node *n, unsigned op)
 	n->op = op;
 	squash_node(n, r);
 	n->right = NULL;
+}
+
+/*
+ *	There isn't a lot we can do the easy way except constants, so stick
+ *	constants on the right when we can.
+ */
+static unsigned is_simple(struct node *n)
+{
+	unsigned op = n->op;
+
+	/* We can load these directly */
+	if (op == T_CONSTANT)
+		return 10;
+	/* These are as easy but we also have some helpers that benefit
+	   most from right constant */
+	if (op == T_NAME || op == T_LABEL)
+		return 9;
+	if (op == T_LBREF || op == T_NREF)
+		return 9;
+	if (op == T_LOCAL || op == T_ARGUMENT || op == T_LREF)
+		return 9;
+	return 0;
 }
 
 /*
@@ -538,6 +693,16 @@ struct node *gen_rewrite_node(struct node *n)
 			}
 		}
 	}
+	/* Commutive operations. We can swap the sides over on these */
+	/* We want to put things we can easily use on the right so that
+	   we have the best chance of being able to do operations without
+	   having to stack values */
+	if (op == T_AND || op == T_OR || op == T_HAT || op == T_STAR || op == T_PLUS) {
+		if (is_simple(n->left) > is_simple(n->right)) {
+			n->right = l;
+			n->left = r;
+		}
+	}
 	return n;
 }
 
@@ -578,14 +743,12 @@ void gen_prologue(const char *name)
 void gen_frame(unsigned size, unsigned aframe)
 {
 	frame_len = size;
-	sp += size;
 	adjust_s(-size, 0);
 	argbase = ARGBASE;
 }
 
 void gen_epilogue(unsigned size, unsigned argsize)
 {
-	sp -= size;
 	if (sp)
 		error("sp");
 	adjust_s(size, (func_flags & F_VOIDRET) ? 0 : 1);
@@ -817,7 +980,48 @@ unsigned gen_direct(struct node *n)
  */
 unsigned gen_uni_direct(struct node *n)
 {
+	unsigned s = get_size(n->type);
+	struct node *r = n->right;
+	unsigned nr = n->flags & NORETURN;
+
+	switch(n->op) {
+	/* Writes of 0 to an object we can use clr for providing the
+	   result is not then re-used */
+	case T_LSTORE:
+	case T_LBSTORE:
+	case T_NSTORE:
+		/* Optimizations for constants */
+		printf(";nr %d\n", nr);
+		if (nr && r->op == T_CONSTANT && r->value == 0) {
+			printf(";try uniop clr\n");
+			if (write_uni_op(n, "clr", 0))
+				return 1;
+		}
+		return 0;
+	}
 	return 0;
+}
+
+/*
+ *	Try and build an op where we load X with the pointer,
+ *	AB with the data and call a helper. Some of these may also
+ *	benefit from inline forms later. 32bit also works as the
+ *	value ends up in @hireg/ab which is all safe from the load of
+ *	the X pointer.
+ */
+
+unsigned do_xeqop(struct node *n, const char *op)
+{
+	unsigned s = get_size(n->type);
+	struct node *r = n->right;
+	if (!can_load_x_with(n->left, 0))
+		return 0;
+	/* Get the value part into AB */
+	codegen_lr(n->right);
+	/* Load X (lval of the eq op) up (doesn't disturb AB) */
+	load_x_with(n->left, 0);
+	helper_s(n, op);
+	return 1;
 }
 
 /*
@@ -835,8 +1039,6 @@ unsigned gen_shortcut(struct node *n)
 		/* Our right hand side is the thing to deref. See if we can
 		   get it into X instead */
 		if (can_load_x_with(n->right, 0)) {
-			/* Value into D */
-			codegen_lr(n->left);
 			load_x_with(n->right, 0);
 			switch(s) {
 			case 1:
@@ -861,6 +1063,13 @@ unsigned gen_shortcut(struct node *n)
 		return 0;
 	case T_EQ:	/* Our left is the address */
 		if (can_load_x_with(n->left, 0)) {
+			if (n->right->op == T_CONSTANT && nr && n->right->value == 0) {
+				/* We can optimize thing = 0 for the case
+				   we don't also need the value */
+				load_x_with(n->left, 0);
+				write_uni_op(n, "clr", 0);
+				return 1;
+			}
 			codegen_lr(n->right);
 			load_x_with(n->left, 0);
 			switch(s) {
@@ -888,6 +1097,30 @@ unsigned gen_shortcut(struct node *n)
 			}
 		}
 		return 0;
+	case T_PLUSEQ:
+		return do_xeqop(n, "xpluseq");
+	case T_MINUSEQ:
+		return do_xeqop(n, "xminuseq");
+	case T_PLUSPLUS:
+		return do_xeqop(n, "xplusplus");
+	case T_MINUSMINUS:
+		return do_xeqop(n, "xminusminus");
+	case T_STAREQ:
+		return do_xeqop(n, "xmuleq");
+	case T_SLASHEQ:
+		return do_xeqop(n, "xdiveq");
+	case T_PERCENTEQ:
+		return do_xeqop(n, "xremeq");
+	case T_SHLEQ:
+		return do_xeqop(n, "xshleq");
+	case T_SHREQ:
+		return do_xeqop(n, "xshreq");
+	case T_ANDEQ:
+		return do_xeqop(n, "xandeq");
+	case T_OREQ:
+		return do_xeqop(n, "xoreq");
+	case T_HATEQ:
+		return do_xeqop(n, "xhateq");
 	}
 	return 0;
 }
@@ -936,6 +1169,15 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_CONSTANT:
+		if (s == 1) {
+			load_b_const(v);
+			return 1;
+		}
+		if (s == 2) {
+			load_d_const(v);
+			return 1;
+		}
+		return 0;
 	case T_LABEL:
 	case T_NAME:
 	case T_LREF:
@@ -949,6 +1191,8 @@ unsigned gen_node(struct node *n)
 	case T_ARGUMENT:
 		v += argbase;
 	case T_LOCAL:
+		/* For v != 0 case it would be more efficient to load
+		   const then add @tmp/tmp+1 TODO */
 		move_s_d();
 		v += sp;
 		add_d_const(v);
