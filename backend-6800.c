@@ -123,7 +123,7 @@ void add_d_const(uint16_t n)
 	/* TODO: tracking */
 	if (n == 0)
 		return;
-	if (n & 0xFF) { 
+	if (n & 0xFF) {
 		printf("\taddb #%u\n", n & 0xFF);
 		printf("\tadca #%u\n", n >> 8);
 		return;
@@ -260,12 +260,36 @@ void uniop32_on_ptr(const char *op, unsigned off)
 	printf("\t%s %u,x\n", op, off);
 }
 
+/* TODO: propogate down if we need to save B */
 unsigned make_local_ptr(unsigned off, unsigned rlim)
 {
 	off += sp;
 	/* TODO X tracking and range checks */
+	printf(";make local ptr off %u, rlim %u\n", off, rlim);
 	printf("\ttsx\n");
-	return off;
+	if (off <= rlim )
+		return off;
+	/* It is cheaper to inx than mess around with calls for smaller
+	   values - 7 or 5 if no save needed */
+	if (off - rlim < 7) {
+		repeated_op(off - rlim, "inx");
+		/* TODO: track */
+		return rlim;
+	}
+	if (off - rlim < 256) {
+		printf("\tpshb\n");
+		load_b_const(off - rlim);
+		printf("\tjsr __abx\n");
+		printf("\tpulb\n");
+		return rlim;
+	} else {
+		/* This case is (thankfully) fairly rare */
+		printf("\tpshb\npsha\n");
+		load_d_const(off);
+		printf("\tjsr __adx\n");
+		printf("\tpula\n\tpulb\n");
+		return 0;
+	}
 }
 
 /* Get pointer to the top of stack. We can optimize this in some cases
@@ -432,7 +456,6 @@ unsigned write_uni_op(struct node *n, const char *op, unsigned off)
 	if (s == 1)
 		return uniop8_on_node(n, op, off);
 	return 0;
-	
 }
 
 void op8_on_tos(const char *op)
@@ -754,7 +777,16 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	adjust_s(size, (func_flags & F_VOIDRET) ? 0 : 1);
 	/* TODO: we are asssuming functions clean up their args if not
 	   vararg so this will have to change */
-	printf("\trts\n");
+	if (argsize == 0 || func_flags & F_VARARG)
+		printf("\trts\n");
+	else if (argsize <= 8)
+		printf("\tjmp __cleanup%u\n", argsize);
+	else {
+		/* Icky - can we do better remembering AB is live for
+		   non void funcs */
+		printf("\tjmp __cleanup\n");
+		printf("\t.word %u\n", argsize);
+	}
 	unreachable = 1;
 }
 
@@ -1025,10 +1057,43 @@ unsigned do_xeqop(struct node *n, const char *op)
 }
 
 /*
+ *	Things we can try and do as a direct memory op for bytes
+ */
+
+unsigned memop_const(struct node *n, const char *op)
+{
+	char buf[32];
+	unsigned v;
+	struct node *l = n->left;
+	struct node *r = n->right;
+	v = l->value;
+	if (r->op != T_CONSTANT)
+		return 0;
+	/* The helper has to load x and a value and make a cal
+	   so is quite expensive */
+	if (r->value > 5)
+		return 0;
+	switch(l->op) {
+	case T_LABEL:
+		sprintf(buf, "%s T%u+%u", op, l->val2, v);
+		repeated_op(r->value, buf);
+		return 1;
+	case T_NAME:
+		sprintf(buf, "%s _%s+%u", op, namestr(l->snum), v);
+		repeated_op(r->value, buf);
+		return 1;
+	/* No ,x forms so cannot do locals */
+	}
+	return 0;
+}
+
+/*
  *	Allow the code generator to shortcut trees it knows
  */
 unsigned gen_shortcut(struct node *n)
 {
+	struct node *l = n->left;
+	struct node *r = n->right;
 	unsigned s = get_size(n->type);
 	unsigned nr = n->flags & NORETURN;
 	/* Don't generate unreachable code */
@@ -1038,8 +1103,8 @@ unsigned gen_shortcut(struct node *n)
 	case T_DEREF:
 		/* Our right hand side is the thing to deref. See if we can
 		   get it into X instead */
-		if (can_load_x_with(n->right, 0)) {
-			load_x_with(n->right, 0);
+		if (can_load_x_with(r, 0)) {
+			load_x_with(r, 0);
 			switch(s) {
 			case 1:
 				printf("\tldab ,x\n");
@@ -1062,16 +1127,16 @@ unsigned gen_shortcut(struct node *n)
 		}
 		return 0;
 	case T_EQ:	/* Our left is the address */
-		if (can_load_x_with(n->left, 0)) {
-			if (n->right->op == T_CONSTANT && nr && n->right->value == 0) {
+		if (can_load_x_with(l, 0)) {
+			if (r->op == T_CONSTANT && nr && r->value == 0) {
 				/* We can optimize thing = 0 for the case
 				   we don't also need the value */
-				load_x_with(n->left, 0);
+				load_x_with(l, 0);
 				write_uni_op(n, "clr", 0);
 				return 1;
 			}
-			codegen_lr(n->right);
-			load_x_with(n->left, 0);
+			codegen_lr(r);
+			load_x_with(l, 0);
 			switch(s) {
 			case 1:
 				printf("\tstab ,x\n");
@@ -1098,12 +1163,20 @@ unsigned gen_shortcut(struct node *n)
 		}
 		return 0;
 	case T_PLUSEQ:
+		if (s == 1 && nr && memop_const(n, "inc"))
+			return 1;
 		return do_xeqop(n, "xpluseq");
 	case T_MINUSEQ:
+		if (s == 1 && nr && memop_const(n, "dec"))
+			return 1;
 		return do_xeqop(n, "xminuseq");
 	case T_PLUSPLUS:
+		if (s == 1 && nr && memop_const(n, "inc"))
+			return 1;
 		return do_xeqop(n, "xplusplus");
 	case T_MINUSMINUS:
+		if (s == 1 && nr && memop_const(n, "dec"))
+			return 1;
 		return do_xeqop(n, "xminusminus");
 	case T_STAREQ:
 		return do_xeqop(n, "xmuleq");
