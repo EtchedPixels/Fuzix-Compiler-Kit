@@ -1,19 +1,20 @@
 all: fcc cc0 \
      cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
-     cc1.65c816 cc1.z8 cc1.1802 \
+     cc1.65c816 cc1.z8 cc1.1802 cc1.6800 \
      cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
-     cc2.6502 cc2.z8 cc2.super8 cc2.1802 \
+     cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 \
      copt support6502 support65c816 support8080 support8085 supportz80 \
-     supportz8
+     supportz8 supportsuper8 test
 
 bootstuff: cc cc0 \
      cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
-     cc1.65c816 cc1.z8 cc1.super8 cc1.1802 \
+     cc1.65c816 cc1.z8 cc1.super8 cc1.1802 cc1.6800 \
      cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
-     cc2.6502 cc2.z8 cc2.super8 cc2.1802 \
+     cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 \
      copt
 
-.PHONY: support6502 support65c816 support8080 support8085 supportz8 supportz80
+.PHONY: support6502 support65c816 support8080 support8085 \
+        supportsuper8 supportz8 supportz80 test
 
 CCROOT ?=/opt/fcc/
 
@@ -36,6 +37,7 @@ OBJS12 = backend.o backend-65c816.o
 OBJS13 = backend.o backend-z8.o
 OBJS14 = backend.o backend-super8.o
 OBJS15 = backend.o backend-1802.o
+OBJS16 = backend.o backend-6800.o
 
 CFLAGS = -Wall -pedantic -g3 -DLIBPATH="\"$(CCROOT)/lib\"" -DBINPATH="\"$(CCROOT)/bin\""
 
@@ -95,6 +97,9 @@ cc1.super8:$(OBJS1) target-super8.o
 cc1.1802:$(OBJS1) target-1802.o
 	gcc -g3 $(OBJS1) target-1802.o -o cc1.1802
 
+cc1.6800:$(OBJS1) target-6800.o
+	gcc -g3 $(OBJS1) target-6800.o -o cc1.6800
+
 cc2:	$(OBJS2)
 	gcc -g3 $(OBJS2) -o cc2
 
@@ -129,7 +134,10 @@ cc2.super8:	$(OBJS14)
 	gcc -g3 $(OBJS14) -o cc2.super8
 
 cc2.1802:	$(OBJS15)
-	gcc -g3 $(OBJS14) -o cc2.1802
+	gcc -g3 $(OBJS15) -o cc2.1802
+
+cc2.6800:	$(OBJS16)
+	gcc -g3 $(OBJS16) -o cc2.6800
 
 support6502:
 	(cd support6502; make)
@@ -143,11 +151,17 @@ support8080:
 support8085:
 	(cd support8085; make)
 
+supportsuper8:
+	(cd supportsuper8; make)
+
 supportz8:
 	(cd supportz8; make)
 
 supportz80:
 	(cd supportz80; make)
+
+test:
+	(cd test; make)
 
 clean:
 	rm -f cc cc85 ccz80 ccthread cc0 copt
@@ -156,6 +170,8 @@ clean:
 	rm -f cc1.6502 cc1.65c816 cc1.6809 cc1.byte
 	rm -f cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803
 	rm -f cc2.8070 cc2.thread cc2.byte cc2.6502
+	rm -f cc1.super8 cc2.super8
+	rm -f cc1.z8 cc2.z8
 	rm -f *~ *.o
 	(cd support6502; make clean)
 	(cd support65c816; make clean)
@@ -163,6 +179,7 @@ clean:
 	(cd support8085; make clean)
 	(cd supportz80; make clean)
 	(cd supportz8; make clean)
+	(cd supportsuper8; make clean)
 
 # New install version. This is used by both the install rules, as we need
 # to bootstrap build a toolchain with no support library to build the toolchain
@@ -219,7 +236,7 @@ bootinst:
 	cp cc2.z8 $(CCROOT)/lib
 	cp rules.z8 $(CCROOT)/lib
 	cp lorderz8 $(CCROOT)/bin/lorderz8
-	# Z8
+	# Super8
 	mkdir -p $(CCROOT)/lib/super8
 	mkdir -p $(CCROOT)/lib/super8/include/
 	cp cc1.super8 $(CCROOT)/lib
@@ -232,6 +249,12 @@ bootinst:
 	cp cc1.1802 $(CCROOT)/lib
 	cp cc2.1802 $(CCROOT)/lib
 	cp rules.1802 $(CCROOT)/lib
+	# 6800
+	mkdir -p $(CCROOT)/lib/6800
+	mkdir -p $(CCROOT)/lib/6800/include/
+	cp cc1.6800 $(CCROOT)/lib
+	cp cc2.6800 $(CCROOT)/lib
+	cp rules.6800 $(CCROOT)/lib
 
 #
 #	Install the support libraries

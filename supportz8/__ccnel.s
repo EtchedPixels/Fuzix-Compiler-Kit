@@ -14,12 +14,15 @@ __ccnel:
 	lde r13,@rr14
 	cp r13, r0
 	jr nz, true
+	incw rr14
 	lde r13,@rr14
 	cp r13, r1
 	jr nz, true
+	incw rr14
 	lde r13,@rr14
 	cp r13, r2
 	jr nz, true
+	incw rr14
 	lde r13,@rr14
 	cp r13, r3
 	jr nz, true
