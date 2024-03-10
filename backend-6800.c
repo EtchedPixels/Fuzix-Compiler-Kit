@@ -243,6 +243,7 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 {
 	unsigned v = r->value;
 	switch(r->op) {
+	case T_LSTORE:
 	case T_LREF:
 		off = make_local_ptr(v + off, 255);
 		op8_on_ptr(op, off);
@@ -250,12 +251,14 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 	case T_CONST:
 		printf("\t%sb #%u\n", op, v + off);
 		break;
+	case T_LBSTORE:
 	case T_LBREF:
 		printf("\t%sb T%u+%u\n", op, r->val2, v + off);
 		break;
 	case T_LABEL:
 		printf("\t%sb #<T%u+%u\n", op, r->val2, v + off);
 		break;
+	case T_NSTORE:
 	case T_NREF:
 		printf("\t%sb _%s+%u\n", op, namestr(r->snum), v + off);
 		break;
@@ -276,6 +279,7 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 {
 	unsigned v = r->value;
 	switch(r->op) {
+	case T_LSTORE:
 	case T_LREF:
 		off = make_local_ptr(v + off, 254);
 		op16_on_ptr(op, op2, off);
@@ -284,6 +288,7 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 		printf("\t%sb #<%u\n", op, v + off);
 		printf("\t%sa #>%u\n", op2, v + off);
 		break;
+	case T_LBSTORE:
 	case T_LBREF:
 		printf("\t%sb T%u+%u\n", op, r->val2, v + off);
 		printf("\t%sa T%u+%u\n", op2, r->val2, v + off);
@@ -292,6 +297,7 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 		printf("\t%sb #<T%u+%u\n", op, r->val2, v + off);
 		printf("\t%sa #>T%u+%u\n", op2, r->val2, v + off);
 		break;
+	case T_NSTORE:
 	case T_NREF:
 		printf("\t%sb _%s+%u\n", op, namestr(r->snum), v + off);
 		printf("\t%sa _%s+%u\n", op2, namestr(r->snum), v + off + 1);
@@ -333,6 +339,30 @@ struct node *gen_rewrite(struct node *n)
 	return n;
 }
 
+static void squash_node(struct node *n, struct node *o)
+{
+	n->value = o->value;
+	n->val2 = o->val2;
+	n->snum = o->snum;
+	free_node(o);
+}
+
+static void squash_left(struct node *n, unsigned op)
+{
+	struct node *l = n->left;
+	n->op = op;
+	squash_node(n, l);
+	n->left = NULL;
+}
+
+static void squash_right(struct node *n, unsigned op)
+{
+	struct node *r = n->right;
+	n->op = op;
+	squash_node(n, r);
+	n->right = NULL;
+}
+
 /*
  *	Our chance to do tree rewriting. We don't do much
  *	at this point, but we do rewrite name references and function calls
@@ -361,6 +391,65 @@ struct node *gen_rewrite_node(struct node *n)
 		n->value = r->value;
 		free_node(r);
 		n->right = NULL;
+	}
+	/* Merge offset to object into a  single direct reference */
+	if (op == T_PLUS && r->op == T_CONSTANT &&
+		(l->op == T_LOCAL || l->op == T_NAME || l->op == T_LABEL || l->op == T_ARGUMENT)) {
+		/* We don't care if the right offset is 16bit or 32 as we've
+		   got 16bit pointers */
+		l->value += r->value;
+		free_node(r);
+		free_node(n);
+		return l;
+	}
+	/* Rewrite references into a load operation */
+	/* For now leave long types out of this */
+	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt)) {
+		if (op == T_DEREF) {
+			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
+				if (r->op == T_ARGUMENT)
+					r->value += argbase + frame_len;
+				squash_right(n, T_LREF);
+				return n;
+			}
+			if (r->op == T_REG) {
+				squash_right(n, T_RREF);
+				return n;
+			}
+			if (r->op == T_NAME) {
+				squash_right(n, T_NREF);
+				return n;
+			}
+			if (r->op == T_LABEL) {
+				squash_right(n, T_LBREF);
+				return n;
+			}
+			if (r->op == T_RREF) {
+				squash_right(n, T_RDEREF);
+				n->val2 = 0;
+				return n;
+			}
+		}
+		if (op == T_EQ) {
+			if (l->op == T_NAME) {
+				squash_left(n, T_NSTORE);
+				return n;
+			}
+			if (l->op == T_LABEL) {
+				squash_left(n, T_LBSTORE);
+				return n;
+			}
+			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
+				if (l->op == T_ARGUMENT)
+					l->value += argbase + frame_len;
+				squash_left(n, T_LSTORE);
+				return n;
+			}
+			if (l->op == T_REG) {
+				squash_left(n, T_RSTORE);
+				return n;
+			}
+		}
 	}
 	return n;
 }
@@ -403,21 +492,17 @@ void gen_frame(unsigned size, unsigned aframe)
 {
 	frame_len = size;
 	sp += size;
-	gen_helpcall(NULL);
-	printf("enter\n");
-	gen_value(UINT, size);
+	adjust_s(-size, 0);
+	argbase = ARGBASE;
 }
 
 void gen_epilogue(unsigned size, unsigned argsize)
 {
-	if (sp != size) {
-		error("sp");
-	}
 	sp -= size;
-	gen_helpcall(NULL);
-	printf("exit\n");
-	gen_value(UINT, size);
-	printf("\tret\n");
+	if (sp)
+		error("sp");
+	adjust_s(size, (func_flags & F_VOIDRET) ? 0 : 1);
+	printf("\trts\n");
 	unreachable = 1;
 }
 
@@ -681,7 +766,14 @@ unsigned gen_node(struct node *n)
 	case T_CONSTANT:
 	case T_LABEL:
 	case T_NAME:
-		return write_op(n, "ld", "ld", 0);
+	case T_LREF:
+	case T_NREF:
+	case T_LBREF:
+		return write_op(n, "lda", "lda", 0);
+	case T_LSTORE:
+	case T_NSTORE:
+	case T_LBSTORE:
+		return write_op(n, "sta", "sta", 0);
 	case T_ARGUMENT:
 		v += argbase;
 	case T_LOCAL:
