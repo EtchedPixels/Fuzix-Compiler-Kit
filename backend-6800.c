@@ -82,15 +82,69 @@ void repeated_op(unsigned n, const char *op)
  */
 static uint16_t x_fpoff;
 static unsigned x_fprel;
+static uint8_t a_val;
+static uint8_t b_val;
+static unsigned a_valid;
+static unsigned b_valid;
+static struct node d_node;
+static unsigned d_valid;
 
 void invalidate_all(void)
 {
 	x_fprel = 0;
+	a_valid = 0;
+	b_valid = 0;
+	d_valid = 0;
 }
 
 void invalidate_x(void)
 {
 	x_fprel = 0;
+}
+
+void invalidate_a(void)
+{
+	a_valid = 0;
+}
+
+void invalidate_b(void)
+{
+	b_valid = 0;
+}
+
+void invalidate_d(void)
+{
+	d_valid = 0;
+}
+
+void invalidate_work(void)
+{
+	a_valid = 0;
+	b_valid = 0;
+	d_valid = 0;
+}
+
+void invalidate_mem(void)
+{
+	/* TODO : work out if it matters */
+	d_valid = 0;
+}
+
+void set_d_node(struct node *n)
+{
+	/* TODO */
+}
+
+void modify_a(uint8_t val)
+{
+	a_val = val;
+	d_valid = 0;
+}
+
+void modify_b(uint8_t val)
+{
+	b_val = val;
+	d_valid = 0;
 }
 
 /* 16bit constant load */
@@ -100,66 +154,103 @@ void load_d_const(uint16_t n)
 	/* TODO: track AB here and see if we can use existing values */
 	lo = n & 0xFF;
 	hi = n >> 8;
-	if (hi == 0)
-		printf("\tclra\n");
-	else
-		printf("\tlda #%d\n", hi);
-
-	if (lo == 0)
-		printf("\tclrb\n");
-	else if (lo == hi) {
-		printf("\ttab\n");
+	if (a_valid == 0 || hi != a_val) {
+		if (hi == 0)
+			printf("\tclra\n");
+		else if (hi == b_val) {
+			printf("\ttba\n");
+			printf("\tlda #%d\n", hi);
+		}
+	}
+	if (b_valid == 0 || lo != b_val) {
+		if (lo == 0)
+			printf("\tclrb\n");
+		else if (lo == hi)
+			printf("\ttab\n");
 		return;
 	} else
 		printf("\tldb #%d\n", lo);
+	a_valid = 1;	/* We know the byte values */
+	b_valid = 1;
+	d_valid = 0;	/* No longer an object reference */
+	a_val = hi;
+	b_val = lo;
+
 }
 
-void load_a_const(uint16_t n)
+void load_a_const(uint8_t n)
 {
-	/* TODO: tracking */
+	if (a_valid && n == a_val)
+		return;
 	if (n == 0)
 		printf("\tclra\n");
+	else if (b_valid && n == b_val)
+		printf("\ttba\n");
 	else
 		printf("\tlda #%u\n", n & 0xFF);
+	a_valid = 1;
+	a_val = n;
+	d_valid = 0;
 }
 
-void load_b_const(uint16_t n)
+void load_b_const(uint8_t n)
 {
-	/* TODO: tracking */
+	if (b_valid && n == b_val)
+		return;
 	if (n == 0)
 		printf("\tclrb\n");
+	else if (a_valid && n == a_val)
+		printf("\ttab\n");
 	else
 		printf("\tldb #%u\n", n & 0xFF);
+	b_valid = 1;
+	b_val = n;
+	d_valid = 0;
 }
 
 void add_d_const(uint16_t n)
 {
-	/* TODO: tracking */
 	if (n == 0)
 		return;
+	/* TODO: can do better in terms of obj/offset but not clear it is
+	   that useful */
+	d_valid = 0;
 	if (n & 0xFF) {
 		printf("\taddb #%u\n", n & 0xFF);
 		printf("\tadca #%u\n", n >> 8);
-		return;
-	}
-	printf("\tadda #%u\n", n >> 8);
+	} else
+		printf("\tadda #%u\n", n >> 8);
+	if (b_val + (n & 0xFF) < b_val)
+		a_val += (n >> 8) + 1;
+	else
+		a_val += (n >> 8);
+	b_val += (n & 0xFF);
 }
-void add_b_const(uint16_t n)
+
+void add_b_const(uint8_t n)
 {
-	/* TODO: tracking */
 	if (n == 0)
 		return;
 	printf("\taddb #%u\n", n & 0xFF);
+	b_val += n;
+	d_valid = 0;
+
 }
 
 void load_a_b(void)
 {
 	printf("\ttba\n");
+	a_val = b_val;
+	a_valid = b_valid;
+	d_valid = 0;
 }
 
 void load_b_a(void)
 {
 	printf("\ttab\n");
+	b_val = a_val;
+	b_valid = a_valid;
+	d_valid = 0;
 }
 
 void move_s_d(void)
@@ -167,6 +258,7 @@ void move_s_d(void)
 	printf("\tsts @tmp\n");
 	printf("\tldaa @tmp\n");
 	printf("\tldab @tmp+1\n");
+	invalidate_work();
 }
 
 void move_d_s(void)
@@ -181,6 +273,8 @@ void make_x_d(void)
 {
 	printf("\tstaa @tmp\n\tstab @tmp+1\n");
 	printf("\tldx @tmp\n");
+	/* TODO: d -> x see if we know d type */
+	invalidate_x();
 }
 
 void pop_x(void)
@@ -230,6 +324,7 @@ void adjust_s(int n, unsigned save_d)
 		repeated_op(-n, "des");
 		return;
 	}
+	/* TODO: if we save_d we need to keep abd valid */
 	/* Inline */
 	if (save_d)
 		printf("\tpshb\n\tpsha\n");
@@ -398,6 +493,7 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 	case T_LABEL:
 		printf("\t%sb #<T%u+%u\n", op, r->val2, v + off);
 		printf("\t%sa #>T%u+%u\n", op2, r->val2, v + off);
+		set_d_node(r);
 		break;
 	case T_NSTORE:
 	case T_NREF:
@@ -407,6 +503,7 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 	case T_NAME:
 		printf("\t%sb #<_%s+%u\n", op, namestr(r->snum), v + off);
 		printf("\t%sa #>_%s+%u\n", op2, namestr(r->snum), v + off);
+		set_d_node(r);
 		break;
 	/* case T_RREF:
 		printf("\t%sb @__reg%u\n", v);
@@ -523,6 +620,7 @@ unsigned write_tos_op(struct node *n, const char *op, const char *op2)
 		op16_on_tos(op, op2);
 	else
 		op8_on_tos(op);
+	invalidate_work();
 	return 1;
 }
 
@@ -570,6 +668,7 @@ unsigned left_shift(struct node *n)
 			load_b_const(0);
 			return 1;
 		}
+		invalidate_work();
 		repeated_op(v, "lslb");
 		return 1;
 	}
@@ -581,11 +680,16 @@ unsigned left_shift(struct node *n)
 		if (v >= 8) {
 			load_a_b();
 			load_b_const(0);
-			repeated_op(v - 8, "lsl");
+			v -= 8;
+			if (v) {
+				invalidate_work();
+				repeated_op(v, "lsl");
+			}
 			return 1;
 		}
 		while(v--)
 			printf("\tlslb\n\trola\n");
+		invalidate_work();
 		return 1;
 	}
 	return 0;
@@ -608,6 +712,7 @@ unsigned right_shift(struct node *n)
 			load_b_const(0);
 			return 1;
 		}
+		invalidate_work();
 		repeated_op(v, op);
 		return 1;
 	}
@@ -620,12 +725,16 @@ unsigned right_shift(struct node *n)
 			load_b_a();
 			load_a_const(0);
 			v -= 8;
-			while(v--)
-				printf("\t%sb\n", op);
+			if (v) {
+				while(v--)
+					printf("\t%sb\n", op);
+				invalidate_work();
+			}
 			return 1;
 		}
 		while(v--)
 			printf("\t%sa\n\trorb\n", op);
+		invalidate_work();
 		return 1;
 	}
 	return 0;
@@ -641,9 +750,9 @@ unsigned can_load_x_with(struct node *r, unsigned off)
 	case T_LREF:
 	case T_CONSTANT:
 	case T_LBREF:
-	case T_LABEL:
 	case T_NREF:
 	case T_NAME:
+	case T_LABEL:
 	case T_LOCAL:
 	case T_ARGUMENT:
 		return 1;
@@ -1102,6 +1211,7 @@ unsigned gen_push(struct node *n)
 		printf("\tpsha\n");
 		printf("\tlda @tmp\n");
 		printf("\tpsha\n");
+		invalidate_work();
 		return 1;
 	}
 	return 0;
@@ -1149,6 +1259,7 @@ unsigned gen_direct(struct node *n)
 			}
 			if (s == 1) {
 				add_b_const(-r->value);
+				b_val -= r->value;
 				return 1;
 			}
 		}
@@ -1161,6 +1272,7 @@ unsigned gen_direct(struct node *n)
 					printf("\tandb #%u\n", v & 0xFF);
 				else
 					printf("\tclrb\n");
+				modify_b(b_val & v);
 			}
 			if (s == 2) {
 				v >>= 8;
@@ -1170,6 +1282,7 @@ unsigned gen_direct(struct node *n)
 					else
 						printf("\tclra");
 				}
+				modify_a(a_val & v);
 			}
 			return 1;
 		}
@@ -1177,13 +1290,16 @@ unsigned gen_direct(struct node *n)
 	case T_OR:
 		if (r->op == T_CONSTANT && s <= 2) {
 			v = r->value;
-			if (v & 0xFF)
+			if (v & 0xFF) {
 				printf("\torab #%u\n", v & 0xFF);
+				modify_b(b_val | v);
+			}
 			if (s == 2) {
 				v >>= 8;
 				if (v)
 					printf("\toraa #%u\n", v);
 			}
+			modify_a(a_val | v);
 			return 1;
 		}
 		return write_op(r, "ora", "ora", 0);
@@ -1195,6 +1311,7 @@ unsigned gen_direct(struct node *n)
 					printf("\tcomb\n");
 				else
 					printf("\teorb #%u\n", v & 0xFF);
+				modify_b(b_val ^ v);
 			}
 			if (s == 2) {
 				v >>= 8;
@@ -1204,6 +1321,7 @@ unsigned gen_direct(struct node *n)
 					else
 						printf("\teora #%u\n", v);
 				}
+				modify_a(a_val ^ v);
 			}
 			return 1;
 		}
@@ -1245,7 +1363,7 @@ unsigned gen_uni_direct(struct node *n)
 			else if (s == 2)
 				uniop16_on_ptr("clr", n->val2);
 			else
-				uniop32_on_ptr("clr", n->val2);	
+				uniop32_on_ptr("clr", n->val2);
 			return 1;
 		}
 		return 0;
@@ -1256,8 +1374,10 @@ unsigned gen_uni_direct(struct node *n)
 	case T_NSTORE:
 		/* Optimizations for constants */
 		if (nr && r->op == T_CONSTANT && r->value == 0) {
-			if (write_uni_op(n, "clr", 0))
+			if (write_uni_op(n, "clr", 0)) {
+				set_d_node(n);
 				return 1;
+			}
 		}
 		return 0;
 	}
@@ -1307,10 +1427,12 @@ unsigned memop_const(struct node *n, const char *op)
 	case T_LABEL:
 		sprintf(buf, "%s T%u+%u", op, l->val2, v);
 		repeated_op(r->value, buf);
+		invalidate_mem();
 		return 1;
 	case T_NAME:
 		sprintf(buf, "%s _%s+%u", op, namestr(l->snum), v);
 		repeated_op(r->value, buf);
+		invalidate_mem();
 		return 1;
 	/* No ,x forms so cannot do locals */
 	}
@@ -1343,10 +1465,12 @@ unsigned memop_shift(struct node *n, const char *op, const char *opu)
 	case T_LABEL:
 		sprintf(buf, "%s T%u+%u", op, l->val2, v);
 		repeated_op(r->value, buf);
+		invalidate_mem();
 		return 1;
 	case T_NAME:
 		sprintf(buf, "%s _%s+%u", op, namestr(l->snum), v);
 		repeated_op(r->value, buf);
+		invalidate_mem();
 		return 1;
 	/* No ,x forms so cannot do locals */
 	}
@@ -1372,6 +1496,9 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 		op8_on_ptr("sta", 0);
 		if (!retres)
 			printf("\tpula\n");
+		invalidate_work();
+		invalidate_mem();
+		set_d_node(n->left);
 		return 1;
 	}
 	op16_on_ptr("lda", "lda", 0);
@@ -1381,6 +1508,9 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 	op16_on_ptr("sta", "sta", 0);
 	if (!retres)
 		printf("\tpula\n\tpulb\n");
+	invalidate_work();
+	invalidate_mem();
+	set_d_node(n->left);
 	return 1;
 }
 
@@ -1405,6 +1535,7 @@ unsigned gen_shortcut(struct node *n)
 		if (can_load_x_with(r, 0)) {
 			v = n->value;
 			load_x_with(r, 0);
+			invalidate_work();
 			switch(s) {
 			case 1:
 				printf("\tldab %u,x\n", v);
@@ -1434,11 +1565,13 @@ unsigned gen_shortcut(struct node *n)
 				   we don't also need the value */
 				load_x_with(l, 0);
 				write_uni_op(n, "clr", 0);
+				invalidate_mem();
 				return 1;
 			}
 			v = n->value;
 			codegen_lr(r);
 			load_x_with(l, 0);
+			invalidate_mem();
 			switch(s) {
 			case 1:
 				printf("\tstab %u,x\n", v);
@@ -1512,6 +1645,38 @@ unsigned gen_shortcut(struct node *n)
 	return 0;
 }
 
+static unsigned gen_cast(struct node *n)
+{
+	unsigned lt = n->type;
+	unsigned rt = n->right->type;
+	unsigned ls;
+	unsigned rs;
+
+	if (PTR(rt))
+		rt = USHORT;
+	if (PTR(lt))
+		lt = USHORT;
+
+	/* Floats and stuff handled by helper */
+	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
+		return 0;
+
+	ls = get_size(lt);
+	rs = get_size(rt);
+
+	/* Size shrink is free */
+	if (ls <= rs)
+		return 1;
+	/* Don't do the harder ones */
+	if (!(rt & UNSIGNED))
+		return 0;
+	if (rs == 1)
+		load_a_const(0);
+	if (ls == 4)
+		printf("\tclr @hireg\n\tclr @hireg+1\n");
+	return 1;
+}
+
 unsigned gen_node(struct node *n)
 {
 	unsigned s = get_size(n->type);
@@ -1532,19 +1697,21 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_DEREF:
 	case T_DEREFPLUS:
-		/* TODO: tracking */
 		make_x_d();
 		if (s == 1) {
 			op8_on_ptr("lda", v);
+			invalidate_a();
 			return 1;
 		}
 		if (s == 2) {
 			op16_on_ptr("lda", "lda", v);
+			set_d_node(n);
 			return 1;
 		}
 		break;
 	case T_EQ:	/* Assign - ToS is address, working value is value */
 	case T_EQPLUS:
+		invalidate_mem();
 		if (s == 1) {
 			pop_x();
 			op8_on_ptr("sta", v);
@@ -1571,11 +1738,20 @@ unsigned gen_node(struct node *n)
 	case T_LREF:
 	case T_NREF:
 	case T_LBREF:
-		return write_op(n, "lda", "lda", 0);
+		if (write_op(n, "lda", "lda", 0)) {
+			set_d_node(n);
+			return 1;
+		}
+		return 0;
 	case T_LSTORE:
 	case T_NSTORE:
 	case T_LBSTORE:
-		return write_op(n, "sta", "sta", 0);
+		if (write_op(n, "sta", "sta", 0)) {
+			invalidate_mem();
+			set_d_node(n);
+			return 1;
+		}
+		break;
 	case T_ARGUMENT:
 		v += argbase;
 	case T_LOCAL:
@@ -1584,6 +1760,7 @@ unsigned gen_node(struct node *n)
 		move_s_d();
 		v += sp;
 		add_d_const(v);
+		set_d_node(n);
 		return 1;
 	case T_LDEREF:
 		/* Offset of pointer in local */
@@ -1598,7 +1775,8 @@ unsigned gen_node(struct node *n)
 		else if (s == 2)
 			op16_on_ptr("lda", "lda", v);
 		else
-			op32_on_ptr("lda", "lda", v);	
+			op32_on_ptr("lda", "lda", v);
+		invalidate_work();
 		return 1;
 	case T_LEQ:
 		/* Offset of pointer in local */
@@ -1612,25 +1790,39 @@ unsigned gen_node(struct node *n)
 		else if (s == 2)
 			op16_on_ptr("sta", "sta", v);
 		else
-			op32_on_ptr("sta", "sta", v);	
+			op32_on_ptr("sta", "sta", v);
 		return 1;
+	/* Type casting */
+	case T_CAST:
+		if (nr)
+			return 1;
+		return gen_cast(n);
 	/* Single argument ops we can do directly */
 	case T_TILDE:
 		if (s == 4)
 			return 0;
-		if (s == 2)
+		if (s == 2) {
 			printf("\tcoma\n");
-		printf("\tcomb\n");
+			printf("\tcomb\n");
+			modify_a(~a_val);
+			modify_b(~b_val);
+		} else {
+			printf("\tcomb\n");
+			modify_b(~b_val);
+		}
 		return 1;
 	case T_NEGATE:
 		if (s == 2) {
 			printf("\tcoma\n");
 			printf("\tcomb\n");
+			modify_a(~a_val);
+			modify_b(~b_val);
 			add_d_const(1);
 			return 1;
 		}
 		if (s == 1) {
 			printf("\tcomb\n");
+			modify_b(~b_val);
 			add_b_const(1);
 			return 1;
 		}
