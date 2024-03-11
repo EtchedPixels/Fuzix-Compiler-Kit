@@ -35,6 +35,8 @@ void write6502(uint16_t addr, uint8_t val)
             putchar(val);
         fflush(stdout);
         return;
+    case 0xFFFF:	/* Exit cleanly on write to $FFFF */
+        exit(0);
     case 0xFEFF:
         if (val)
             fprintf(stderr, "***FAIL %d\n", val);
