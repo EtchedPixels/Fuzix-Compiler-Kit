@@ -588,6 +588,7 @@ unsigned left_shift(struct node *n)
 			printf("\tlslb\n\trola\n");
 		return 1;
 	}
+	return 0;
 }
 
 unsigned right_shift(struct node *n)
@@ -627,6 +628,7 @@ unsigned right_shift(struct node *n)
 			printf("\t%sa\n\trorb\n", op);
 		return 1;
 	}
+	return 0;
 }
 
 /* See if we can easily get the value we want into X rather than D. Must
@@ -1351,6 +1353,37 @@ unsigned memop_shift(struct node *n, const char *op, const char *opu)
 	return 0;
 }
 
+/* Generate inline code for ++ and -- operators when it makes sense */
+unsigned add_to_node(struct node *n, int sign, int retres)
+{
+	struct node *r = n->right;
+	unsigned s = get_size(n->type);
+	if (s > 2 || r->op != T_CONSTANT)
+		return 0;
+	/* It's marginal whether we should go via X or not */
+	if (!can_load_x_with(n->left, 0))
+		return 0;
+	load_x_with(n->left, 0);
+	if (s == 1) {
+		op8_on_ptr("lda", 0);
+		if (!retres)
+			printf("\tpshb\n");
+		add_b_const(sign * r->value);
+		op8_on_ptr("sta", 0);
+		if (!retres)
+			printf("\tpula\n");
+		return 1;
+	}
+	op16_on_ptr("lda", "lda", 0);
+	if (!retres)
+		printf("\tpshb\n\tpsha\n");
+	add_d_const(sign * r->value);
+	op16_on_ptr("sta", "sta", 0);
+	if (!retres)
+		printf("\tpula\n\tpulb\n");
+	return 1;
+}
+
 /*
  *	Allow the code generator to shortcut trees it knows
  */
@@ -1434,17 +1467,25 @@ unsigned gen_shortcut(struct node *n)
 	case T_PLUSEQ:
 		if (s == 1 && nr && memop_const(n, "inc"))
 			return 1;
+		if (s == 2 && add_to_node(n, 1, 0))
+			return 1;
 		return do_xeqop(n, "xpluseq");
 	case T_MINUSEQ:
 		if (s == 1 && nr && memop_const(n, "dec"))
+			return 1;
+		if (s == 2 && add_to_node(n, -1, nr))
 			return 1;
 		return do_xeqop(n, "xminuseq");
 	case T_PLUSPLUS:
 		if (s == 1 && nr && memop_const(n, "inc"))
 			return 1;
+		if (s == 2 && add_to_node(n, 1, nr))
+			return 1;
 		return do_xeqop(n, "xplusplus");
 	case T_MINUSMINUS:
 		if (s == 1 && nr && memop_const(n, "dec"))
+			return 1;
+		if (s == 2 && add_to_node(n, -1, nr))
 			return 1;
 		return do_xeqop(n, "xminusminus");
 	case T_STAREQ:
