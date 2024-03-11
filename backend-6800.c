@@ -26,15 +26,10 @@
 #define T_LSTORE	(T_USER+4)
 #define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
 #define T_LBSTORE	(T_USER+6)
-#define T_RREF		(T_USER+7)
-#define T_RSTORE	(T_USER+8)
-#define T_RDEREF	(T_USER+9)		/* *regptr */
-#define T_REQ		(T_USER+10)		/* *regptr = */
-#define T_RDEREFPLUS	(T_USER+11)		/* *regptr++ */
-#define T_REQPLUS	(T_USER+12)		/* *regptr++ =  */
-#define T_LSTREF	(T_USER+13)		/* reference via a local ptr to struct field */
-#define T_LSTSTORE	(T_USER+14)		/* store ref via a local ptr to struct field */
-
+#define T_DEREFPLUS	(T_USER+7)
+#define T_EQPLUS	(T_USER+8)
+#define T_LDEREF	(T_USER+9)	/* *local + offset */
+#define T_LEQ		(T_USER+10)	/* *local + offset = n*/
 /*
  *	State for the current function
  */
@@ -306,7 +301,7 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 		return rlim;
 	} else {
 		/* This case is (thankfully) fairly rare */
-		printf("\tpshb\npsha\n");
+		printf("\tpshb\n\tpsha\n");
 		load_d_const(off);
 		printf("\tjsr __adx\n");
 		x_fpoff += off;
@@ -553,7 +548,6 @@ unsigned can_load_x_with(struct node *r, unsigned off)
 	case T_LABEL:
 	case T_NREF:
 	case T_NAME:
-	case T_RREF:
 	case T_LOCAL:
 	case T_ARGUMENT:
 		return 1;
@@ -670,6 +664,7 @@ struct node *gen_rewrite_node(struct node *n)
 	struct node *r = n->right;
 	unsigned op = n->op;
 	unsigned nt = n->type;
+	unsigned off;
 
 	/* Eliminate casts for sign, pointer conversion or same */
 	if (op == T_CAST) {
@@ -698,6 +693,56 @@ struct node *gen_rewrite_node(struct node *n)
 		free_node(n);
 		return l;
 	}
+	/* Turn a deref of an offset to an object into a single op so we can
+	   generate a single lda offset,x in the code generator. This happens
+	   in some array dereferencing and especially struct pointer access */
+	if (op == T_DEREF || op == T_DEREFPLUS) {
+		if (op == T_DEREF)
+			n->value = 0;	/* So we can treat deref/derefplus together */
+		if (r->op == T_PLUS) {
+			off = n->value + r->right->value;
+			if (r->right->op == T_CONSTANT && off < 253) {
+				n->op = T_DEREFPLUS;
+				free_node(r->right);
+				n->right = r->left;
+				n->value = off;
+				free_node(r);
+				/* We might then rewrite this again */
+				return gen_rewrite_node(n);
+			}
+		}
+	}
+	if (op == T_EQ || op == T_EQPLUS) {
+		if (op == T_EQ)
+			n->value = 0;	/* So we can treat deref/derefplus together */
+		if (l->op == T_PLUS) {
+			off = n->value + l->right->value;
+			if (l->right->op == T_CONSTANT && off < 253) {
+				n->op = T_EQPLUS;
+				free_node(l->right);
+				n->left = l->left;
+				n->value = off;
+				free_node(l);
+				/* We might then rewrite this again */
+				return gen_rewrite_node(n);
+			}
+		}
+	}
+	if ((op == T_DEREF || op == T_DEREFPLUS) && r->op == T_LREF) {
+		/* At this point r->value is the offset for the local */
+		/* n->value is the offset for the ptr load */
+		r->val2 = n->value;		/* Save the offset so it is squashed in */
+		squash_right(n, T_LDEREF);	/* n->value becomes the local ref */
+		return n;
+	}
+	if ((op == T_EQ || op == T_EQPLUS) && l->op == T_LREF) {
+		/* At this point r->value is the offset for the local */
+		/* n->value is the offset for the ptr load */
+		l->val2 = n->value;		/* Save the offset so it is squashed in */
+		squash_left(n, T_LEQ);	/* n->value becomes the local ref */
+		return n;
+	}
+
 	/* Rewrite references into a load operation */
 	/* For now leave long types out of this */
 	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt)) {
@@ -708,21 +753,12 @@ struct node *gen_rewrite_node(struct node *n)
 				squash_right(n, T_LREF);
 				return n;
 			}
-			if (r->op == T_REG) {
-				squash_right(n, T_RREF);
-				return n;
-			}
 			if (r->op == T_NAME) {
 				squash_right(n, T_NREF);
 				return n;
 			}
 			if (r->op == T_LABEL) {
 				squash_right(n, T_LBREF);
-				return n;
-			}
-			if (r->op == T_RREF) {
-				squash_right(n, T_RDEREF);
-				n->val2 = 0;
 				return n;
 			}
 		}
@@ -739,10 +775,6 @@ struct node *gen_rewrite_node(struct node *n)
 				if (l->op == T_ARGUMENT)
 					l->value += argbase + frame_len;
 				squash_left(n, T_LSTORE);
-				return n;
-			}
-			if (l->op == T_REG) {
-				squash_left(n, T_RSTORE);
 				return n;
 			}
 		}
@@ -1094,8 +1126,29 @@ unsigned gen_uni_direct(struct node *n)
 	unsigned s = get_size(n->type);
 	struct node *r = n->right;
 	unsigned nr = n->flags & NORETURN;
+	unsigned off;
+	unsigned v;
 
 	switch(n->op) {
+	case T_LEQ:
+		/* We have a specific optimization case that occurs a lot
+		   *auto = 0, that we can optimize nicely */
+		if (r->op == T_CONSTANT && r->value == 0) {
+			/* Offset of pointer in local */
+			/* val2 is the local offset, value the data offset */
+			off = make_local_ptr(n->value, 256 - s);
+			/* off,X is now the pointer */
+			printf("\tldx %u,x\n", off);
+			invalidate_x();
+			if (s == 1)
+				uniop8_on_ptr("clr", n->val2);
+			else if (s == 2)
+				uniop16_on_ptr("clr", n->val2);
+			else
+				uniop32_on_ptr("clr", n->val2);	
+			return 1;
+		}
+		return 0;
 	/* Writes of 0 to an object we can use clr for providing the
 	   result is not then re-used */
 	case T_LSTORE:
@@ -1211,30 +1264,33 @@ unsigned gen_shortcut(struct node *n)
 	struct node *r = n->right;
 	unsigned s = get_size(n->type);
 	unsigned nr = n->flags & NORETURN;
+	unsigned v;
 	/* Don't generate unreachable code */
 	if (unreachable)
 		return 1;
 	switch(n->op) {
 	case T_DEREF:
+	case T_DEREFPLUS:
 		/* Our right hand side is the thing to deref. See if we can
 		   get it into X instead */
 		if (can_load_x_with(r, 0)) {
+			v = n->value;
 			load_x_with(r, 0);
 			switch(s) {
 			case 1:
-				printf("\tldab ,x\n");
+				printf("\tldab %u,x\n", v);
 				return 1;
 			case 2:
-				printf("\tldaa ,x\n");
-				printf("\tldab 1,x\n");
+				printf("\tldaa %u,x\n", v);
+				printf("\tldab %u,x\n", v + 1);
 				return 1;
 			case 4:
-				printf("\tldaa ,x\n");
-				printf("\tldab 1,x\n");
+				printf("\tldaa %u,x\n", v);
+				printf("\tldab %u,x\n", v + 1);
 				printf("\tstaa @hireg\n");
 				printf("\tstab @hireg+1\n");
-				printf("\tldaa 2,x\n");
-				printf("\tldab 3,x\n");
+				printf("\tldaa %u,x\n", v + 2);
+				printf("\tldab %u,x\n", v + 3);
 				return 1;
 			default:
 				error("sdf");
@@ -1242,6 +1298,7 @@ unsigned gen_shortcut(struct node *n)
 		}
 		return 0;
 	case T_EQ:	/* Our left is the address */
+	case T_EQPLUS:
 		if (can_load_x_with(l, 0)) {
 			if (r->op == T_CONSTANT && nr && r->value == 0) {
 				/* We can optimize thing = 0 for the case
@@ -1250,25 +1307,26 @@ unsigned gen_shortcut(struct node *n)
 				write_uni_op(n, "clr", 0);
 				return 1;
 			}
+			v = n->value;
 			codegen_lr(r);
 			load_x_with(l, 0);
 			switch(s) {
 			case 1:
-				printf("\tstab ,x\n");
+				printf("\tstab %u,x\n", v);
 				return 1;
 			case 2:
-				printf("\tstaa ,x\n");
-				printf("\tstabab 1,x\n");
+				printf("\tstaa %u,x\n", v);
+				printf("\tstab %u,x\n", v + 1);
 				return 1;
 			case 4:
-				printf("\tstaa 2,x\n");
-				printf("\tstab 3,x\n");
+				printf("\tstaa %u,x\n", v + 2);
+				printf("\tstab %u,x\n", v + 3);
 				if (!nr)
 					printf("\tpshb\n\tpsha\n");
 				printf("\tldaa @hireg\n");
 				printf("\tldab @hireg+1\n");
-				printf("\tstaa 0,x\n");
-				printf("\tstab 1,x\n");
+				printf("\tstaa %u,x\n", v);
+				printf("\tstab %u,x\n", v + 1);
 				if (!nr)
 					printf("\tpula\n\tpulb\n");
 				return 1;
@@ -1323,6 +1381,7 @@ unsigned gen_node(struct node *n)
 	struct node *r = n->right;
 	unsigned nr = n->flags & NORETURN;
 	unsigned v;
+	unsigned off;
 
 	/* Function call arguments are special - they are removed by the
 	   act of call/return and reported via T_CLEANUP */
@@ -1335,28 +1394,28 @@ unsigned gen_node(struct node *n)
 		printf("\tcall _%s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_DEREF:
-		/* TODO: rewrite deref(plus(thing, const)) as DEREFPLUS and combine */
+	case T_DEREFPLUS:
 		/* TODO: tracking */
 		make_x_d();
 		if (s == 1) {
-			op8_on_ptr("lda", 0);
+			op8_on_ptr("lda", v);
 			return 1;
 		}
 		if (s == 2) {
-			op16_on_ptr("lda", "lda", 0);
+			op16_on_ptr("lda", "lda", v);
 			return 1;
 		}
 		break;
 	case T_EQ:	/* Assign - ToS is address, working value is value */
-		/* Again rewriting the plus version would be good */
+	case T_EQPLUS:
 		if (s == 1) {
 			pop_x();
-			op8_on_ptr("sta", 0);
+			op8_on_ptr("sta", v);
 			return 1;
 		}
 		if (s == 2) {
 			pop_x();
-			op16_on_ptr("sta", "sta", 0);
+			op16_on_ptr("sta", "sta", v);
 			return 1;
 		}
 		break;
@@ -1388,6 +1447,35 @@ unsigned gen_node(struct node *n)
 		move_s_d();
 		v += sp;
 		add_d_const(v);
+		return 1;
+	case T_LDEREF:
+		/* Offset of pointer in local */
+		/* val2 is the local offset, value the data offset */
+		off = make_local_ptr(v, 256 - s);
+		/* off,X is now the pointer */
+		printf("\tldx %u,x\n", off);
+		invalidate_x();
+		v = n->val2;
+		if (s == 1)
+			op8_on_ptr("lda", v);
+		else if (s == 2)
+			op16_on_ptr("lda", "lda", v);
+		else
+			op32_on_ptr("lda", "lda", v);	
+		return 1;
+	case T_LEQ:
+		/* Offset of pointer in local */
+		off = make_local_ptr(v, 256 - s);
+		/* off,X is now the pointer */
+		printf("\tldx %u,x\n", off);
+		invalidate_x();
+		v = n->val2;
+		if (s == 1)
+			op8_on_ptr("sta", v);
+		else if (s == 2)
+			op16_on_ptr("sta", "sta", v);
+		else
+			op32_on_ptr("sta", "sta", v);	
 		return 1;
 	/* Single argument ops we can do directly */
 	case T_TILDE:
