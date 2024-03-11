@@ -153,9 +153,9 @@ void move_s_d(void)
 
 void move_d_s(void)
 {
-	printf("\tsts @tmp\n");
-	printf("\tldaa @tmp\n");
-	printf("\tldab @tmp+1\n");
+	printf("\tstaa @tmp\n");
+	printf("\tstab @tmp+1\n");
+	printf("\tlds @tmp\n");
 }
 
 /* Get D into X (may trash D) */
