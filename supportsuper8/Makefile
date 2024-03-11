@@ -26,8 +26,8 @@ OBJ =	__cast.o __nref.o __nrefl.o __nref12.o __lstref.o __cleanup.o \
 	fcc -msuper8 -O -c $<
 
 libsuper8.a: $(OBJ)
-	rm -f libz8.a
-	ar qc libz8.a `../lorderz80 $(OBJ) | tsort`
+	rm -f libsuper8.a
+	ar qc libsuper8.a `../lorderz80 $(OBJ) | tsort`
 
 clean:
 	rm -f *.o *.a *~ makeops
