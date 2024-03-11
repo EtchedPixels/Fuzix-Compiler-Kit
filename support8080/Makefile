@@ -67,5 +67,5 @@ lib8080.a: makeldst $(OBJ)
 	ar qc lib8080.a `../lorder8080 $(OBJ) | tsort`
 
 clean:
-	rm -f *.o *.a *~
-	rm -f ldword/* stword/*
+	rm -f *.o *.a *~ makeldst
+	rm -rf ldword ldbyte stword stbyte
