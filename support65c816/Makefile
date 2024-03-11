@@ -1,7 +1,5 @@
 all: lib65c816.a crt0.o
 
-# This currently is in a working sort order but needs fixing to use lorder
-# properly
 OBJ = __cast2f.o __castf.o __cceqf.o __ccgteqf.o __ccgtf.o __cclteqf.o \
       __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o \
       __andeqx.o __diveqx.o __diveqxu.o __divx.o __eqeqx.o __gteqx.o \
