@@ -44,6 +44,7 @@ static unsigned cpu_has_d;	/* 16bit ops and 'D' are present */
 static unsigned cpu_has_xgdx;	/* XGDX is present */
 static unsigned cpu_has_abx;	/* ABX is present */
 static unsigned cpu_has_pshx;	/* Has PSHX PULX */
+static unsigned cpu_has_y;	/* Has Y register */
 
 /*
  *	Helpers for code generation and trackign
@@ -369,6 +370,18 @@ void pop_x(void)
 }
 
 /*
+ *	Fix up weirdness in the asm formats.
+ */
+static const char *remap_op(const char *op)
+{
+	if (strcmp(op, "lda") == 0)
+		return "ld";
+	if (strcmp(op, "sta") == 0)
+		return "st";
+	return op;
+}
+
+/*
  *	There are multiple strategies depnding on chip features
  *	available.
  */
@@ -497,16 +510,58 @@ void op16_on_ptr(const char *op, const char *op2, unsigned off)
 	printf("\t%sa %u,x\n", op2, off);
 }
 
+/* Operations where D can be used on later processors */
+void op16d_on_ptr(const char *op, const char *op2, unsigned off)
+{
+	/* Big endian */
+	if (cpu_has_d) {
+		/* ldd not ldab, std not stad ! */
+		op = remap_op(op);
+		printf("\t%sd %u,x\n", op, off);
+	} else {
+		printf("\t%sb %u,x\n", op, off + 1);
+		printf("\t%sa %u,x\n", op2, off);
+	}
+}
+
 void op32_on_ptr(const char *op, const char *op2, unsigned off)
 {
 	printf("\t%sb %u,x\n", op, off + 3);
 	printf("\t%sa %u,x\n", op2, off + 2);
-	printf("\tpshb\n\tpsha");
-	printf("\tldaa @hireg\n\tldab @hireg+1\n");
-	printf("\t%sb %u,x\n", op2, off + 1);
-	printf("\t%sa %u,x\n", op2, off);
-	printf("\tstaa @hireg\n\tstab @hireg+1\n");
-	printf("\tpula\n\tpulb\n");
+	if (cpu_has_y) {
+		printf("\txgdy\n\t%sb %u,x\n", op2, off + 1);
+		printf("\t%sa %u,x\n\txgdy\n", op2, off);
+	} else {
+		printf("\tpshb\n\tpsha");
+		printf("\tldaa @hireg\n\tldab @hireg+1\n");
+		printf("\t%sb %u,x\n", op2, off + 1);
+		printf("\t%sa %u,x\n", op2, off);
+		printf("\tstaa @hireg\n\tstab @hireg+1\n");
+		printf("\tpula\n\tpulb\n");
+	}
+}
+
+void op32d_on_ptr(const char *op, const char *op2, unsigned off)
+{
+	if (!cpu_has_d) {
+		op32_on_ptr(op, op2, off);
+		return;
+	}
+	op = remap_op(op);
+	printf("\t%sd %u,x\n", op, off + 2);
+	if (cpu_has_y) {
+		printf("\txgdy\n");
+		printf("\t%sb %u,x\n", op2, off + 1);
+		printf("\t%sa %u,x\n", op2, off);
+		printf("\txgdy\n");
+	} else {
+		printf("\tpshb\n\tpsha");
+		printf("\tldd @hireg\n");
+		printf("\t%sb %u,x\n", op2, off + 1);
+		printf("\t%sa %u,x\n", op2, off);
+		printf("\tstd @hireg\n");
+		printf("\tpula\n\tpulb\n");
+	}
 }
 
 void uniop8_on_ptr(const char *op, unsigned off)
@@ -663,6 +718,44 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 	return 1;
 }
 
+unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned off)
+{
+	unsigned v = r->value;
+	op = remap_op(op);
+	switch(r->op) {
+	case T_LSTORE:
+	case T_LREF:
+		off = make_local_ptr(v + off, 254);
+		op16d_on_ptr(op, op2, off);
+		break;
+	case T_CONSTANT:
+		printf("\t%sd #%u\n", op, v + off);
+		break;
+	case T_LBSTORE:
+	case T_LBREF:
+		printf("\t%sd T%u+%u\n", op, r->val2, v + off);
+		break;
+	case T_LABEL:
+		printf("\t%sd #T%u+%u\n", op, r->val2, v + off);
+		set_d_node(r);
+		break;
+	case T_NSTORE:
+	case T_NREF:
+		printf("\t%sd _%s+%u\n", op, namestr(r->snum), v + off);
+		break;
+	case T_NAME:
+		printf("\t%sd #_%s+%u\n", op, namestr(r->snum), v + off);
+		set_d_node(r);
+		break;
+	/* case T_RREF:
+		printf("\t%sd @__reg%u\n", v);
+		break; */
+	default:
+		return 0;
+	}
+	return 1;
+}
+
 void op32_on_node(struct node *n, const char *op, const char *op2, unsigned off)
 {
 	/* TODO */
@@ -673,6 +766,19 @@ unsigned write_op(struct node *r, const char *op, const char *op2, unsigned off)
 	unsigned s = get_size(r->type);
 	if (s == 2)
 		return op16_on_node(r, op, op2, off);
+	if (s == 1)
+		return op8_on_node(r, op, off);
+	return 0;
+}
+
+unsigned write_opd(struct node *r, const char *op, const char *op2, unsigned off)
+{
+	unsigned s = get_size(r->type);
+	if (s == 2) {
+		if (!cpu_has_d) 
+			return op16_on_node(r, op, op2, off);
+		return op16d_on_node(r, op, op2, off);
+	}
 	if (s == 1)
 		return op8_on_node(r, op, off);
 	return 0;
@@ -1414,7 +1520,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		return write_op(r, "add", "adc", 0);
+		return write_opd(r, "add", "adc", 0);
 	case T_MINUS:
 		if (r->op == T_CONSTANT) {
 			if (s == 2) {
@@ -1552,7 +1658,7 @@ unsigned gen_uni_direct(struct node *n)
  *	Try and build an op where we load X with the pointer,
  *	AB with the data and call a helper. Some of these may also
  *	benefit from inline forms later. 32bit also works as the
- *	value ends up in @hireg/ab which is all safe from the load of
+ *	value ends up in @hireg|Y/AB which is all safe from the load of
  *	the X pointer.
  */
 
@@ -1665,11 +1771,11 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 		set_d_node(n->left);
 		return 1;
 	}
-	op16_on_ptr("lda", "lda", 0);
+	op16d_on_ptr("lda", "lda", 0);
 	if (!retres)
 		printf("\tpshb\n\tpsha\n");
 	add_d_const(sign * r->value);
-	op16_on_ptr("sta", "sta", 0);
+	op16d_on_ptr("sta", "sta", 0);
 	if (!retres)
 		printf("\tpula\n\tpulb\n");
 	invalidate_work();
@@ -1705,16 +1811,34 @@ unsigned gen_shortcut(struct node *n)
 				printf("\tldab %u,x\n", v);
 				return 1;
 			case 2:
-				printf("\tldaa %u,x\n", v);
-				printf("\tldab %u,x\n", v + 1);
+				if (cpu_has_d)
+					printf("\tldd %u,x\n", v);
+				else {
+					printf("\tldaa %u,x\n", v);
+					printf("\tldab %u,x\n", v + 1);
+				}
 				return 1;
 			case 4:
-				printf("\tldaa %u,x\n", v);
-				printf("\tldab %u,x\n", v + 1);
-				printf("\tstaa @hireg\n");
-				printf("\tstab @hireg+1\n");
-				printf("\tldaa %u,x\n", v + 2);
-				printf("\tldab %u,x\n", v + 3);
+				if (cpu_has_d)
+					printf("\tldd %u,x\n", v);
+				else {
+					printf("\tldaa %u,x\n", v);
+					printf("\tldab %u,x\n", v + 1);
+				}
+				if (cpu_has_y)
+					printf("xgdy\n");
+				else if (cpu_has_d)
+					printf("\tldd @hireg\n");
+				else {
+					printf("\tstaa @hireg\n");
+					printf("\tstab @hireg+1\n");
+				}
+				if (cpu_has_d)
+					printf("\tldd %u,x\n", v + 2);
+				else {
+					printf("\tldaa %u,x\n", v + 2);
+					printf("\tldab %u,x\n", v + 3);
+				}
 				return 1;
 			default:
 				error("sdf");
@@ -1741,18 +1865,37 @@ unsigned gen_shortcut(struct node *n)
 				printf("\tstab %u,x\n", v);
 				return 1;
 			case 2:
-				printf("\tstaa %u,x\n", v);
-				printf("\tstab %u,x\n", v + 1);
+				if (cpu_has_d)
+					printf("\tstd %u,x\n", v);
+				else {
+					printf("\tstaa %u,x\n", v);
+					printf("\tstab %u,x\n", v + 1);
+				}
 				return 1;
 			case 4:
-				printf("\tstaa %u,x\n", v + 2);
-				printf("\tstab %u,x\n", v + 3);
+				if (cpu_has_d)
+					printf("\tstd %u,x\n", v + 2);
+				else {
+					printf("\tstaa %u,x\n", v + 2);
+					printf("\tstab %u,x\n", v + 3);
+				}
+				if (cpu_has_y) {
+					printf("\txgdy\n");
+					printf("\tstd %u,x\n", v);
+					printf("\txgdy\n");
+					return 1;
+				}					
 				if (!nr)
 					printf("\tpshb\n\tpsha\n");
-				printf("\tldaa @hireg\n");
-				printf("\tldab @hireg+1\n");
-				printf("\tstaa %u,x\n", v);
-				printf("\tstab %u,x\n", v + 1);
+				if (cpu_has_d) {
+					printf("\tldd @hireg\n");
+					printf("\tstd %u,x\n", v);
+				} else {
+					printf("\tldaa @hireg\n");
+					printf("\tldab @hireg+1\n");
+					printf("\tstaa %u,x\n", v);
+					printf("\tstab %u,x\n", v + 1);
+				}
 				if (!nr)
 					printf("\tpula\n\tpulb\n");
 				return 1;
@@ -1836,8 +1979,12 @@ static unsigned gen_cast(struct node *n)
 		return 0;
 	if (rs == 1)
 		load_a_const(0);
-	if (ls == 4)
-		printf("\tclr @hireg\n\tclr @hireg+1\n");
+	if (ls == 4) {
+		if (cpu_has_y)
+			printf("\tldy #0\n");
+		else
+			printf("\tclr @hireg\n\tclr @hireg+1\n");
+	}
 	return 1;
 }
 
@@ -1868,7 +2015,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (s == 2) {
-			op16_on_ptr("lda", "lda", v);
+			op16d_on_ptr("lda", "lda", v);
 			set_d_node(n);
 			return 1;
 		}
@@ -1883,7 +2030,7 @@ unsigned gen_node(struct node *n)
 		}
 		if (s == 2) {
 			pop_x();
-			op16_on_ptr("sta", "sta", v);
+			op16d_on_ptr("sta", "sta", v);
 			return 1;
 		}
 		break;
@@ -1904,7 +2051,7 @@ unsigned gen_node(struct node *n)
 	case T_LBREF:
 		if (d_holds_node(n))
 			return 1;
-		if (write_op(n, "lda", "lda", 0)) {
+		if (write_opd(n, "lda", "lda", 0)) {
 			set_d_node(n);
 			return 1;
 		}
@@ -1912,7 +2059,7 @@ unsigned gen_node(struct node *n)
 	case T_LSTORE:
 	case T_NSTORE:
 	case T_LBSTORE:
-		if (write_op(n, "sta", "sta", 0)) {
+		if (write_opd(n, "sta", "sta", 0)) {
 			invalidate_mem();
 			set_d_node(n);
 			return 1;
@@ -1943,9 +2090,9 @@ unsigned gen_node(struct node *n)
 		if (s == 1)
 			op8_on_ptr("lda", v);
 		else if (s == 2)
-			op16_on_ptr("lda", "lda", v);
+			op16d_on_ptr("lda", "lda", v);
 		else
-			op32_on_ptr("lda", "lda", v);
+			op32d_on_ptr("lda", "lda", v);
 		invalidate_work();
 		return 1;
 	case T_LEQ:
@@ -1958,9 +2105,9 @@ unsigned gen_node(struct node *n)
 		if (s == 1)
 			op8_on_ptr("sta", v);
 		else if (s == 2)
-			op16_on_ptr("sta", "sta", v);
+			op16d_on_ptr("sta", "sta", v);
 		else
-			op32_on_ptr("sta", "sta", v);
+			op32d_on_ptr("sta", "sta", v);
 		return 1;
 	/* Type casting */
 	case T_CAST:
@@ -1998,6 +2145,7 @@ unsigned gen_node(struct node *n)
 		return 0;
 	/* Double argument ops we can handle easily */
 	case T_PLUS:
+		/* TODO - with D reg this one needs special handling */
 		return write_tos_op(n, "add", "adc");
 	case T_AND:
 		return write_tos_op(n, "and", "and");
@@ -2005,6 +2153,103 @@ unsigned gen_node(struct node *n)
 		return write_tos_op(n, "ora", "ora");
 	case T_HAT:
 		return write_tos_op(n, "eor", "eot");
+	/* Comparisons. TODO const variants */
+	case T_EQEQ:
+		make_tos_ptr();
+		if (s == 1) {
+			op8_on_ptr("cmp", 0);
+			printf("\tins\n");
+			printf("\tjsr booleq\n");
+			return 1;
+		}
+		if (s == 2 && cpu_has_d) {
+			op16d_on_ptr("sub", "sbc", 0);
+			printf("\tins\n");
+			printf("\tins\n");
+			printf("\tjsr booleq\n");
+			return 1;
+		}
+		return 0;
+	case T_BANGEQ:
+		make_tos_ptr();
+		if (s == 1) {
+			op8_on_ptr("cmp", 0);
+			printf("\tins\n");
+			printf("\tjsr boolne\n");
+			return 1;
+		}
+		if (s == 2 && cpu_has_d) {
+			op16d_on_ptr("sub", "sbc", 0);
+			printf("\tins\n");
+			printf("\tins\n");
+			printf("\tjsr boolne\n");
+			return 1;
+		}
+		return 0;
+	case T_LT:
+		make_tos_ptr();
+		if (s == 1) {
+			op8_on_ptr("cmp", 0);
+			printf("\tins\n");
+		} else if (s == 2 && cpu_has_d) {
+			op16d_on_ptr("sub", "sbc", 0);
+			printf("\tins\n");
+			printf("\tins\n");
+		} else
+			return 0;
+		if (n->type & T_UNSIGNED)
+			printf("\tjsr boolult\n");
+		else
+			printf("\tjsr boollt\n");
+		return 1;
+	case T_GT:
+		make_tos_ptr();
+		if (s == 1) {
+			op8_on_ptr("cmp", 0);
+			printf("\tins\n");
+		} else if (s == 2 && cpu_has_d) {
+			op16d_on_ptr("sub", "sbc", 0);
+			printf("\tins\n");
+			printf("\tins\n");
+		} else
+			return 0;
+		if (n->type & T_UNSIGNED)
+			printf("\tjsr boolugt\n");
+		else
+			printf("\tjsr boolgt\n");
+		return 1;
+	case T_LTEQ:
+		make_tos_ptr();
+		if (s == 1) {
+			op8_on_ptr("cmp", 0);
+			printf("\tins\n");
+		} else if (s == 2 && cpu_has_d) {
+			op16d_on_ptr("sub", "sbc", 0);
+			printf("\tins\n");
+			printf("\tins\n");
+		} else
+			return 0;
+		if (n->type & T_UNSIGNED)
+			printf("\tjsr boolule\n");
+		else
+			printf("\tjsr boolle\n");
+		return 1;
+	case T_GTEQ:
+		make_tos_ptr();
+		if (s == 1) {
+			op8_on_ptr("cmp", 0);
+			printf("\tins\n");
+		} else if (s == 2 && cpu_has_d) {
+			op16d_on_ptr("sub", "sbc", 0);
+			printf("\tins\n");
+			printf("\tins\n");
+		} else
+			return 0;
+		if (n->type & T_UNSIGNED)
+			printf("\tjsr booluge\n");
+		else
+			printf("\tjsr boolge\n");
+		return 1;
 	}
 	return 0;
 }
