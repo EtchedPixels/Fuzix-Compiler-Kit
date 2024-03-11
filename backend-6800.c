@@ -957,6 +957,7 @@ unsigned gen_direct(struct node *n)
 	unsigned s = get_size(n->type);
 	struct node *r = n->right;
 	unsigned nr = n->flags & NORETURN;
+	unsigned v;
 
 	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
@@ -993,13 +994,59 @@ unsigned gen_direct(struct node *n)
 		}
 		return write_op(r, "sub", "sbc", 0);
 	case T_AND:
-		/* TODO: optimize const cases for logic */
+		if (r->op == T_CONSTANT && s <= 2) {
+			v = r->value;
+			if ((v & 0xFF) != 0xFF) {
+				if (v & 0xFF)
+					printf("\tandb #%u\n", v & 0xFF);
+				else
+					printf("\tclrb\n");
+			}
+			if (s == 2) {
+				v >>= 8;
+				if (v != 0xFF) {
+					if (v)
+						printf("\tanda #%u\n", v);
+					else
+						printf("\tclra");
+				}
+			}
+			return 1;
+		}
 		return write_op(r, "and", "and", 0);
 	case T_OR:
-		/* TODO: optimize const cases for logic */
+		if (r->op == T_CONSTANT && s <= 2) {
+			v = r->value;
+			if (v & 0xFF)
+				printf("\torab #%u\n", v & 0xFF);
+			if (s == 2) {
+				v >>= 8;
+				if (v)
+					printf("\toraa #%u\n", v);
+			}
+			return 1;
+		}
 		return write_op(r, "ora", "ora", 0);
 	case T_HAT:
-		/* TODO: optimize const cases for logic */
+		if (r->op == T_CONSTANT && s <= 2) {
+			v = r->value;
+			if (v & 0xFF) {
+				if ((v & 0xFF) == 0xFF)
+					printf("\tcomb\n");
+				else
+					printf("\teorb #%u\n", v & 0xFF);
+			}
+			if (s == 2) {
+				v >>= 8;
+				if (v ) {
+					if (v == 0xFF)
+						printf("\tcoma\n");
+					else
+						printf("\teora #%u\n", v);
+				}
+			}
+			return 1;
+		}
 		return write_op(r, "eor", "eor", 0);
 	}
 	return 0;
