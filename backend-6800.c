@@ -1991,9 +1991,8 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (s == 1) {
-			printf("\tcomb\n");
-			modify_b(~b_val);
-			add_b_const(1);
+			printf("\tnegb\n");
+			modify_b(-b_val);
 			return 1;
 		}
 		return 0;
