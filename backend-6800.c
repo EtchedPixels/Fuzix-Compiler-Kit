@@ -81,10 +81,21 @@ void repeated_op(unsigned n, const char *op)
 }
 
 
-/* Tracking: TODO */
+/*
+ *	Start with some simple X versus S tracking
+ *	to clean up the local accesses
+ */
+static uint16_t x_fpoff;
+static unsigned x_fprel;
 
 void invalidate_all(void)
 {
+	x_fprel = 0;
+}
+
+void invalidate_x(void)
+{
+	x_fprel = 0;
 }
 
 /* 16bit constant load */
@@ -130,7 +141,6 @@ void add_d_const(uint16_t n)
 	}
 	printf("\tadda #%u\n", n >> 8);
 }
-
 void add_b_const(uint16_t n)
 {
 	/* TODO: tracking */
@@ -166,6 +176,7 @@ void pop_x(void)
 	   when we track and use offsets of current X then ins ins */
 	/* Easier said than done on a 6800 */
 	printf("\ttsx\n\tldx ,x\n\tins\n\tins\n");
+	invalidate_x();
 }
 
 void adjust_s(int n, unsigned save_d)
@@ -263,23 +274,34 @@ void uniop32_on_ptr(const char *op, unsigned off)
 /* TODO: propogate down if we need to save B */
 unsigned make_local_ptr(unsigned off, unsigned rlim)
 {
+	/* Both relative to frame base */
+	int noff = off - x_fpoff;
+
+	printf(";make local ptr off %u, rlim %u noff %u\n", off, rlim, noff);
+
+	if (x_fprel == 0 ||  noff < 0) {
+		printf("\ttsx\n");
+		x_fprel = 1;
+		x_fpoff = 0;
+	} else
+		off = noff;
+
 	off += sp;
-	/* TODO X tracking and range checks */
-	printf(";make local ptr off %u, rlim %u\n", off, rlim);
-	printf("\ttsx\n");
-	if (off <= rlim )
+	if (off <= rlim)
 		return off;
 	/* It is cheaper to inx than mess around with calls for smaller
 	   values - 7 or 5 if no save needed */
 	if (off - rlim < 7) {
 		repeated_op(off - rlim, "inx");
 		/* TODO: track */
+		x_fpoff += off - rlim;
 		return rlim;
 	}
 	if (off - rlim < 256) {
 		printf("\tpshb\n");
 		load_b_const(off - rlim);
 		printf("\tjsr __abx\n");
+		x_fpoff += off - rlim;
 		printf("\tpulb\n");
 		return rlim;
 	} else {
@@ -287,6 +309,7 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 		printf("\tpshb\npsha\n");
 		load_d_const(off);
 		printf("\tjsr __adx\n");
+		x_fpoff += off;
 		printf("\tpula\n\tpulb\n");
 		return 0;
 	}
@@ -298,6 +321,8 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 unsigned make_tos_ptr(void)
 {
 	printf("\ttsx\n");
+	x_fpoff = sp;
+	x_fprel = 1;
 	return 0;
 }
 
@@ -550,21 +575,27 @@ void load_x_with(struct node *r, unsigned off)
 		v += sp;
 		off = make_local_ptr(v + off, 254);
 		printf("\tldx %u,x\n", off);
+		invalidate_x();
 		break;
 	case T_CONSTANT:
 		printf("\tldx #%u\n", v + off);
+		invalidate_x();
 		break;
 	case T_LBREF:
 		printf("\tldx T%u+%u\n", r->val2, v + off);
+		invalidate_x();
 		break;
 	case T_LABEL:
 		printf("\tldx #T%u+%u\n", r->val2, v + off);
+		invalidate_x();
 		break;
 	case T_NREF:
 		printf("\tldx _%s+%u\n", namestr(r->snum), v + off);
+		invalidate_x();
 		break;
 	case T_NAME:
 		printf("\tldx #<_%s+%u\n", namestr(r->snum), v + off);
+		invalidate_x();
 		break;
 	/* case T_RREF:
 		printf("\tldx @__reg%u\n", v);
@@ -837,6 +868,7 @@ void gen_switchdata(unsigned n, unsigned size)
 void gen_case_label(unsigned tag, unsigned entry)
 {
 	unreachable = 0;
+	invalidate_all();
 	printf("Sw%d_%d:\n", tag, entry);
 }
 
