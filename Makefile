@@ -3,7 +3,8 @@ all: fcc cc0 \
      cc1.65c816 cc1.z8 cc1.1802 cc1.6800 \
      cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 \
-     copt support6502 support65c816 support8080 support8085 supportz80 \
+     copt support6502 support65c816 support6800 support6803 \
+     support8080 support8085 supportz80 \
      supportz8 supportsuper8 test
 
 bootstuff: cc cc0 \
@@ -13,8 +14,8 @@ bootstuff: cc cc0 \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 \
      copt
 
-.PHONY: support6502 support65c816 support8080 support8085 \
-        supportsuper8 supportz8 supportz80 test
+.PHONY: support6502 support65c816 support6800 support6803 \
+	support8080 support8085 supportsuper8 supportz8 supportz80 test
 
 CCROOT ?=/opt/fcc/
 
@@ -145,6 +146,12 @@ support6502:
 support65c816:
 	(cd support65c816; make)
 
+support6800:
+	(cd support6800; make)
+
+support6803:
+	(cd support6803; make)
+
 support8080:
 	(cd support8080; make)
 
@@ -175,6 +182,8 @@ clean:
 	rm -f *~ *.o
 	(cd support6502; make clean)
 	(cd support65c816; make clean)
+	(cd support6800; make clean)
+	(cd support6803; make clean)
 	(cd support8080; make clean)
 	(cd support8085; make clean)
 	(cd supportz80; make clean)
@@ -208,7 +217,16 @@ bootinst:
 	cp cc2.65c816 $(CCROOT)/lib
 	cp copt $(CCROOT)/lib
 	cp rules.65c816 $(CCROOT)/lib
-		# 8080/8085
+	# 6800
+	mkdir -p $(CCROOT)/lib/6800
+	mkdir -p $(CCROOT)/lib/6800/include
+	mkdir -p $(CCROOT)/lib/6803
+	mkdir -p $(CCROOT)/lib/6803/include
+	cp cc1.6800 $(CCROOT)/lib
+	cp cc2.6800 $(CCROOT)/lib
+	cp copt $(CCROOT)/lib
+	cp rules.6800 $(CCROOT)/lib
+	# 8080/8085
 	mkdir -p $(CCROOT)/lib/8080
 	mkdir -p $(CCROOT)/lib/8080/include
 	cp lorder8080 $(CCROOT)/bin/lorder8080
@@ -249,12 +267,6 @@ bootinst:
 	cp cc1.1802 $(CCROOT)/lib
 	cp cc2.1802 $(CCROOT)/lib
 	cp rules.1802 $(CCROOT)/lib
-	# 6800
-	mkdir -p $(CCROOT)/lib/6800
-	mkdir -p $(CCROOT)/lib/6800/include/
-	cp cc1.6800 $(CCROOT)/lib
-	cp cc2.6800 $(CCROOT)/lib
-	cp rules.6800 $(CCROOT)/lib
 
 #
 #	Install the support libraries
@@ -267,6 +279,12 @@ libinst:
 	cp support65c816/crt0.o $(CCROOT)/lib/65c816/
 	cp support65c816/lib65c816.a $(CCROOT)/lib/65c816/lib65c816.a
 	ar cq $(CCROOT)/lib/65c816/libc.a
+#	cp support6800/crt0.o $(CCROOT)/lib/6800/
+#	cp support6800/lib6800.a $(CCROOT)/lib/6800/lib6800.a
+	ar cq $(CCROOT)/lib/6800/libc.a
+	cp support6803/crt0.o $(CCROOT)/lib/6800/
+	cp support6803/lib6803.a $(CCROOT)/lib/6803/lib6803.a
+	ar cq $(CCROOT)/lib/6803/libc.a
 	cp support8085/crt0.o $(CCROOT)/lib/8080/
 	cp support8080/lib8080.a $(CCROOT)/lib/8080/lib8080.a
 	cp support8085/lib8085.a $(CCROOT)/lib/8080/lib8085.a
