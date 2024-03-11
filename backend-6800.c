@@ -1118,7 +1118,43 @@ unsigned memop_const(struct node *n, const char *op)
 		return 0;
 	/* The helper has to load x and a value and make a cal
 	   so is quite expensive */
-	if (r->value > 5)
+	if (r->value > 5 && opt < 2)
+		return 0;
+	switch(l->op) {
+	case T_LABEL:
+		sprintf(buf, "%s T%u+%u", op, l->val2, v);
+		repeated_op(r->value, buf);
+		return 1;
+	case T_NAME:
+		sprintf(buf, "%s _%s+%u", op, namestr(l->snum), v);
+		repeated_op(r->value, buf);
+		return 1;
+	/* No ,x forms so cannot do locals */
+	}
+	return 0;
+}
+
+unsigned memop_shift(struct node *n, const char *op, const char *opu)
+{
+	char buf[32];
+	unsigned v;
+	unsigned rv;
+	struct node *l = n->left;
+	struct node *r = n->right;
+	v = l->value;
+	rv = r->value;
+	if (r->op != T_CONSTANT)
+		return 0;
+
+	/* Right shifts are sign specific */
+	if (n->type & UNSIGNED)
+		op = opu;
+	if (rv > 7) {
+		/* Undefined but do something nice */
+		rv = 1;
+		op = "clr";
+	}
+	if (rv > 2 && opt < 2)
 		return 0;
 	switch(l->op) {
 	case T_LABEL:
@@ -1232,8 +1268,12 @@ unsigned gen_shortcut(struct node *n)
 	case T_PERCENTEQ:
 		return do_xeqop(n, "xremeq");
 	case T_SHLEQ:
+		if (s == 1 && nr && memop_shift(n, "lsl", "lsl"))
+			return 1;
 		return do_xeqop(n, "xshleq");
 	case T_SHREQ:
+		if (s == 1 && nr && memop_shift(n, "asr", "lsr"))
+			return 1;
 		return do_xeqop(n, "xshreq");
 	case T_ANDEQ:
 		return do_xeqop(n, "xandeq");
@@ -1350,3 +1390,22 @@ unsigned gen_node(struct node *n)
 	}
 	return 0;
 }
+
+/* TODO
+	Track X v S offset
+	Conditions (EQEQ BANGEQ LT GT LTEQ GTEQ) - optimize < 0 and
+	other easy ones ?
+	CAST
+	BANG
+	BOOL
+	LTLT
+	GTGT
+	STAR SLASH PERCENT (const optimizations)
+	+=/-= const fastpaths for some inline cases ?
+	Track register values
+	Track condition codes
+	Think about how to improve long handling
+	Arg helpers like Z8 etc so we can optimize post 6800 a bit
+	and also optimize push const cases and long consts especially
+	(and probably push arg)
+*/
