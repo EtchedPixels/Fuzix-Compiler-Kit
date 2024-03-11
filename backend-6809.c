@@ -277,6 +277,11 @@ void gen_helpcall(struct node *n)
 
 void gen_helpclean(struct node *n)
 {
+        unsigned s;
+
+        s = get_size(n->right->type);
+	if (s)
+		printf("\tleas %d,s\n", s);
 }
 
 void gen_data_label(const char *name, unsigned align)

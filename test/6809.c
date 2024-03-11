@@ -51,8 +51,12 @@ unsigned imm_word (void)
 
 static void WRMEM (unsigned addr, unsigned data)
 {
-  /* Exit cleanly on writes to $FFFF */
-  if (addr == 0xFFFF) exit(0);
+  /* Exit on writes to $FFFF */
+  if (addr == 0xFFFF) {
+    if (data)
+      fprintf(stderr, "***FAIL %d\n", data);
+    exit(data);
+  }
 
   /* Write value to stdout when $FFFE */
   if (addr == 0xFFFE) {

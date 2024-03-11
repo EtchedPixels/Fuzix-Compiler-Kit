@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
     }
 
     /* 0200-0xFDFF */
-    if (read(fd, &memory[0x200], 0xFC00) < 520) {
+    if (read(fd, &memory[0x200], 0xFC00) < 1) {
         fprintf(stderr, "emu6809: bad test.\n");
         perror(argv[1]);
         exit(1);
