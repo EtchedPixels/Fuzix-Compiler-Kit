@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include "compiler.h"
 #include "backend.h"
 
@@ -126,13 +127,57 @@ void invalidate_work(void)
 
 void invalidate_mem(void)
 {
-	/* TODO : work out if it matters */
-	d_valid = 0;
+	/* If memory changes it might be an alias to the value cached in AB */
+	switch(d_node.op) {
+	case T_LREF:
+	case T_LBREF:
+	case T_NREF:
+		d_valid = 0;
+	}
 }
 
 void set_d_node(struct node *n)
 {
-	/* TODO */
+	memcpy(&d_node, n, sizeof(struct node));
+	switch(d_node.op) {
+	case T_LSTORE:
+		d_node.op = T_LREF;
+		break;
+	case T_LBSTORE:
+		d_node.op = T_LBREF;
+		break;
+	case T_NSTORE:
+		d_node.op = T_NREF;
+		break;
+	case T_NREF:
+	case T_LBREF:
+	case T_LREF:
+	case T_NAME:
+	case T_LABEL:
+	case T_LOCAL:
+	case T_ARGUMENT:
+		break;
+	default:
+		d_valid = 0;
+	}
+	d_valid = 1;
+}
+
+/* Do we need to check fields by type or will the default filling
+   be sufficient ? */
+unsigned d_holds_node(struct node *n)
+{
+	if (d_valid == 0)
+		return 0;
+	if (d_node.op != n->op)
+		return 0;
+	if (d_node.val2 != n->val2)
+		return 0;
+	if (d_node.snum != n->snum)
+		return 0;
+	if (d_node.value != n->value)
+		return 0;
+	return 1;
 }
 
 void modify_a(uint8_t val)
@@ -760,6 +805,8 @@ unsigned can_load_x_with(struct node *r, unsigned off)
 	return 0;
 }
 
+/* For 6800 at least it is usually cheaper to reload even if the value
+   we want is in D */
 void load_x_with(struct node *r, unsigned off)
 {
 	unsigned v = r->value;
@@ -1738,6 +1785,8 @@ unsigned gen_node(struct node *n)
 	case T_LREF:
 	case T_NREF:
 	case T_LBREF:
+		if (d_holds_node(n))
+			return 1;
 		if (write_op(n, "lda", "lda", 0)) {
 			set_d_node(n);
 			return 1;
@@ -1753,10 +1802,14 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_ARGUMENT:
+		if (d_holds_node(n))
+			return 1;
 		v += argbase;
 	case T_LOCAL:
 		/* For v != 0 case it would be more efficient to load
 		   const then add @tmp/tmp+1 TODO */
+		if (d_holds_node(n))
+			return 1;
 		move_s_d();
 		v += sp;
 		add_d_const(v);
