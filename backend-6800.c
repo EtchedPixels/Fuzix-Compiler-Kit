@@ -40,6 +40,11 @@ static unsigned argbase;	/* Argument offset in current function */
 static unsigned unreachable;	/* Code following an unconditional jump */
 static unsigned label_count;	/* Used for internal labels X%u: */
 
+static unsigned cpu_has_d;	/* 16bit ops and 'D' are present */
+static unsigned cpu_has_xgdx;	/* XGDX is present */
+static unsigned cpu_has_abx;	/* ABX is present */
+static unsigned cpu_has_pshx;	/* Has PSHX PULX */
+
 /*
  *	Helpers for code generation and trackign
  */
@@ -196,25 +201,39 @@ void modify_b(uint8_t val)
 void load_d_const(uint16_t n)
 {
 	unsigned hi,lo;
-	/* TODO: track AB here and see if we can use existing values */
-	lo = n & 0xFF;
-	hi = n >> 8;
-	if (a_valid == 0 || hi != a_val) {
-		if (hi == 0)
-			printf("\tclra\n");
-		else if (hi == b_val) {
-			printf("\ttba\n");
-			printf("\tlda #%d\n", hi);
+	
+	if (cpu_has_d) {
+		if (n == 0) {
+			if (a_valid && a_val)
+				printf("\tclra\n");
+			if (b_valid && b_val)
+				printf("\tclrb\n");
+		} else {
+			/* TODO: There are some fringe cases where we can
+			   do better - eg if A is already valid and right */
+			printf("\tldd #%u\n", n);
 		}
+	} else {
+		/* TODO: track AB here and see if we can use existing values */
+		lo = n & 0xFF;
+		hi = n >> 8;
+		if (a_valid == 0 || hi != a_val) {
+			if (hi == 0)
+				printf("\tclra\n");
+			else if (hi == b_val) {
+				printf("\ttba\n");
+				printf("\tlda #%d\n", hi);
+			}
+		}
+		if (b_valid == 0 || lo != b_val) {
+			if (lo == 0)
+				printf("\tclrb\n");
+			else if (lo == hi)
+				printf("\ttab\n");
+			return;
+		} else
+			printf("\tldab #%d\n", lo);
 	}
-	if (b_valid == 0 || lo != b_val) {
-		if (lo == 0)
-			printf("\tclrb\n");
-		else if (lo == hi)
-			printf("\ttab\n");
-		return;
-	} else
-		printf("\tldb #%d\n", lo);
 	a_valid = 1;	/* We know the byte values */
 	b_valid = 1;
 	d_valid = 0;	/* No longer an object reference */
@@ -247,7 +266,7 @@ void load_b_const(uint8_t n)
 	else if (a_valid && n == a_val)
 		printf("\ttab\n");
 	else
-		printf("\tldb #%u\n", n & 0xFF);
+		printf("\tldab #%u\n", n & 0xFF);
 	b_valid = 1;
 	b_val = n;
 	d_valid = 0;
@@ -257,14 +276,18 @@ void add_d_const(uint16_t n)
 {
 	if (n == 0)
 		return;
-	/* TODO: can do better in terms of obj/offset but not clear it is
-	   that useful */
-	d_valid = 0;
-	if (n & 0xFF) {
-		printf("\taddb #%u\n", n & 0xFF);
-		printf("\tadca #%u\n", n >> 8);
-	} else
-		printf("\tadda #%u\n", n >> 8);
+	if (cpu_has_d)
+		printf("\taddd #%u\n", n);
+	else {
+		/* TODO: can do better in terms of obj/offset but not clear it is
+		   that useful */
+		d_valid = 0;
+		if (n & 0xFF) {
+			printf("\taddb #%u\n", n & 0xFF);
+			printf("\tadca #%u\n", n >> 8);
+		} else
+			printf("\tadda #%u\n", n >> 8);
+	}
 	if (b_val + (n & 0xFF) < b_val)
 		a_val += (n >> 8) + 1;
 	else
@@ -301,22 +324,33 @@ void load_b_a(void)
 void move_s_d(void)
 {
 	printf("\tsts @tmp\n");
-	printf("\tldaa @tmp\n");
-	printf("\tldab @tmp+1\n");
+	if (cpu_has_d)
+		printf("\tldd @tmp\n");
+	else {
+		printf("\tldaa @tmp\n");
+		printf("\tldab @tmp+1\n");
+	}
 	invalidate_work();
 }
 
 void move_d_s(void)
 {
-	printf("\tstaa @tmp\n");
-	printf("\tstab @tmp+1\n");
+	if (cpu_has_d)
+		printf("\tstd @tmp\n");
+	else {
+		printf("\tstaa @tmp\n");
+		printf("\tstab @tmp+1\n");
+	}
 	printf("\tlds @tmp\n");
 }
 
 /* Get D into X (may trash D) */
 void make_x_d(void)
 {
-	printf("\tstaa @tmp\n\tstab @tmp+1\n");
+	if (cpu_has_d)
+		printf("\tstd @tmp\n");
+	else
+		printf("\tstaa @tmp\n\tstab @tmp+1\n");
 	printf("\tldx @tmp\n");
 	/* TODO: d -> x see if we know d type */
 	invalidate_x();
@@ -327,19 +361,89 @@ void pop_x(void)
 	/* Must remember this trashes X, or could make it smart
 	   when we track and use offsets of current X then ins ins */
 	/* Easier said than done on a 6800 */
-	printf("\ttsx\n\tldx ,x\n\tins\n\tins\n");
+	if (cpu_has_pshx)
+		printf("\tpulx\n");
+	else
+		printf("\ttsx\n\tldx ,x\n\tins\n\tins\n");
 	invalidate_x();
 }
 
+/*
+ *	There are multiple strategies depnding on chip features
+ *	available.
+ */
 void adjust_s(int n, unsigned save_d)
 {
-	/* It costs us 16 bytes to modify S by adjusting values. 20 if
-	   we must save the working registers */
-	if (n == 0)
+	unsigned abxcost = 3 + 2 * save_d +  n / 255;
+	unsigned hardcost;
+	unsigned cost;
+
+	if (cpu_has_d)
+		hardcost = 15 + 4 * save_d;
+	else
+		hardcost = 18 + 2 * save_d;
+
+	cost = hardcost;
+
+	/* Processors with XGDX always have PULX so we use whichever is
+	   the shorter of the two approaches */
+	if (cpu_has_xgdx) {
+		if (n > 14) {
+			printf("\ttsx\n\txgdx\n\taddd #%u\n\txgdx\n\ttxs\n", WORD(n));
+			invalidate_x();
+			return;
+		}
+		/* Otherwise we know pulx is cheapest */
+		repeated_op(n / 2, "pulx");
+		if (n & 1)
+			printf("\tins\n");
 		return;
+	}
+
+	if (cpu_has_abx && abxcost < hardcost)
+		cost = abxcost;
+	/* PULX might be fastest */
+	if (n > 0 && cpu_has_pshx && (n / 2) + (n & 1) <= cost) {
+		repeated_op(n / 2, "pulx");
+		if (n & 1)
+			printf("\tins\n");
+		return;
+	}
+	/* If not check if ins is */
+	if (n >= 0 && n <= cost) { 
+		repeated_op(n, "ins");
+		return;
+	}
+	/* ABX is the cheapest option if we have it */
+	if (n > 0 && cpu_has_abx && cost == abxcost) {
+		/* TODO track b properly when save save_d */
+		if (save_d)
+			printf("\tpshb\n");
+		if(n > 255) {
+			load_b_const(255);
+			while(n >= 255) {
+				printf("\tabx\n");
+				n -= 255;
+			}
+		}
+		if (n) {
+			load_b_const(n);
+			printf("\tabx\n");
+		}
+		if (save_d)
+			printf("\tpulb\n");
+		return;
+			
+	}
 	/* Forms where ins/des are always best */
 	if (n >=0 && n <= 4) {
 		repeated_op(n, "ins");
+		return;
+	}
+	if (cpu_has_pshx && n < 0 && -n/2 + (n & 1) <= hardcost) {
+		repeated_op(-n/2, "pshx");
+		if (n & 1)
+			printf("\tdes\n");
 		return;
 	}
 	if (n < 0 && n >= -4) {
@@ -361,11 +465,11 @@ void adjust_s(int n, unsigned save_d)
 		printf("\t.word %u\n", WORD(n));
 		return;
 	}
-	if (n >=0 && n <= 18 + 4 * save_d) {
+	if (n >=0 && n <= hardcost) {
 		repeated_op(n, "ins");
 		return;
 	}
-	if (n < 0 && n >= -4 - 18 - 4 * save_d) {
+	if (n < 0 && -n <= hardcost) {
 		repeated_op(-n, "des");
 		return;
 	}
@@ -398,10 +502,10 @@ void op32_on_ptr(const char *op, const char *op2, unsigned off)
 	printf("\t%sb %u,x\n", op, off + 3);
 	printf("\t%sa %u,x\n", op2, off + 2);
 	printf("\tpshb\n\tpsha");
-	printf("\tlda @hireg\n\tldb @hireg+1\n");
+	printf("\tldaa @hireg\n\tldab @hireg+1\n");
 	printf("\t%sb %u,x\n", op2, off + 1);
 	printf("\t%sa %u,x\n", op2, off);
-	printf("\tsta @hireg\n\tstb @hireg+1\n");
+	printf("\tstaa @hireg\n\tstab @hireg+1\n");
 	printf("\tpula\n\tpulb\n");
 }
 
@@ -1054,7 +1158,7 @@ void gen_segment(unsigned s)
 {
 	switch(s) {
 	case A_CODE:
-		printf("\t.text\n");
+		printf("\t.code\n");
 		break;
 	case A_DATA:
 		printf("\t.data\n");
@@ -1092,7 +1196,7 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	adjust_s(size, (func_flags & F_VOIDRET) ? 0 : 1);
 	/* TODO: we are asssuming functions clean up their args if not
 	   vararg so this will have to change */
-	if (argsize == 0 || func_flags & F_VARARG)
+	if (argsize == 0 || cpu_has_d || (func_flags & F_VARARG))
 		printf("\trts\n");
 	else if (argsize <= 8)
 		printf("\tjmp __cleanup%u\n", argsize);
@@ -1164,7 +1268,7 @@ void gen_case_data(unsigned tag, unsigned entry)
 void gen_helpcall(struct node *n)
 {
 	invalidate_all();
-	printf("\tcall __");
+	printf("\tjsr __");
 }
 
 void gen_helpclean(struct node *n)
@@ -1226,6 +1330,19 @@ void gen_value(unsigned type, unsigned long value)
 
 void gen_start(void)
 {
+	switch(cpu) {
+	case 6811:
+	case 6303:
+		cpu_has_xgdx = 1;
+		/* Fall through */
+	case 6803:
+		cpu_has_d = 1;
+		cpu_has_abx = 1;
+		cpu_has_pshx = 1;
+	case 6800:
+		break;
+	}
+	printf("\t.setcpu %u\n", cpu);
 	printf("\t.code\n");
 }
 
@@ -1282,7 +1399,7 @@ unsigned gen_direct(struct node *n)
 	   in n->right */
 	case T_CLEANUP:
 		sp -= r->value;
-		if (n->val2) /* Varargs */
+		if (cpu_has_d || n->val2) /* Varargs */
 			adjust_s(r->value, (func_flags & F_VOIDRET) ? 0 : 1);
 		return 1;
 	case T_PLUS:
@@ -1740,7 +1857,7 @@ unsigned gen_node(struct node *n)
 	switch (n->op) {
 	case T_CALLNAME:
 		invalidate_all();
-		printf("\tcall _%s+%u\n", namestr(n->snum), v);
+		printf("\tjsr _%s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_DEREF:
 	case T_DEREFPLUS:
@@ -1894,20 +2011,18 @@ unsigned gen_node(struct node *n)
 }
 
 /* TODO
-	Track X v S offset
+	WIP Track X v S offset
 	Conditions (EQEQ BANGEQ LT GT LTEQ GTEQ) - optimize < 0 and
 	other easy ones ?
-	CAST
 	BANG
 	BOOL
-	LTLT
-	GTGT
 	STAR SLASH PERCENT (const optimizations)
-	+=/-= const fastpaths for some inline cases ?
-	Track register values
+	WIP Track register values
 	Track condition codes
 	Think about how to improve long handling
 	Arg helpers like Z8 etc so we can optimize post 6800 a bit
 	and also optimize push const cases and long consts especially
 	(and probably push arg)
+	Optimize arg pushes if have pshx by using LDX PSHX for consts
+	Add all the general operations we can do 16bit with a 6803
 */
