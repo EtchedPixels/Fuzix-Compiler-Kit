@@ -1923,6 +1923,7 @@ static int m6800_execute_one(struct m6800 *cpu)
             /* TRAP pushes the faulting address */
             fprintf(stderr, "illegal instruction %02X:%02X at %04X\n",
                 opcode, m6800_do_read(cpu, fetch_pc + 1), fetch_pc);
+            exit(1);	/* For the debug emu case */
             cpu->pc = fetch_pc;
             if (cpu->type == CPU_6303)
                 m6800_vector(cpu, 0xFFEE);
@@ -1933,6 +1934,7 @@ static int m6800_execute_one(struct m6800 *cpu)
             /* An invalid instruction we don't yet model */
             fprintf(stderr, "illegal instruction %02X at %04X\n",
                 opcode, fetch_pc);
+            exit(1);	/* For the debug emu case */
             return clocks;
         }
     }
