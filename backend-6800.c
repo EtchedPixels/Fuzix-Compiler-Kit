@@ -114,6 +114,15 @@ void load_d_const(uint16_t n)
 		printf("\tldb #%d\n", lo);
 }
 
+void load_a_const(uint16_t n)
+{
+	/* TODO: tracking */
+	if (n == 0)
+		printf("\tclra\n");
+	else
+		printf("\tlda #%u\n", n & 0xFF);
+}
+
 void load_b_const(uint16_t n)
 {
 	/* TODO: tracking */
@@ -122,7 +131,6 @@ void load_b_const(uint16_t n)
 	else
 		printf("\tldb #%u\n", n & 0xFF);
 }
-
 
 void add_d_const(uint16_t n)
 {
@@ -142,6 +150,16 @@ void add_b_const(uint16_t n)
 	if (n == 0)
 		return;
 	printf("\taddb #%u\n", n & 0xFF);
+}
+
+void load_a_b(void)
+{
+	printf("\ttba\n");
+}
+
+void load_b_a(void)
+{
+	printf("\ttab\n");
 }
 
 void move_s_d(void)
@@ -201,7 +219,7 @@ void adjust_s(int n, unsigned save_d)
 			return;
 		}
 		printf("\tjsr __modsp16\n");
-		printf("\t.word %u\n", n);
+		printf("\t.word %u\n", WORD(n));
 		return;
 	}
 	if (n >=0 && n <= 18 + 4 * save_d) {
@@ -274,6 +292,8 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 
 	printf(";make local ptr off %u, rlim %u noff %u\n", off, rlim, noff);
 
+	/* TODO: if we can d a small < 7 or so shift by decreement then
+	   it may beat going via tsx */
 	if (x_fprel == 0 ||  noff < 0) {
 		printf("\ttsx\n");
 		x_fprel = 1;
@@ -533,6 +553,80 @@ unsigned write_tos_uniop(struct node *n, const char *op)
 	else
 		uniop8_on_tos(op);
 	return 1;
+}
+
+/* TODO: decide how much we inline for -Os */
+
+unsigned left_shift(struct node *n)
+{
+	unsigned s = get_size(n->type);
+	unsigned v;
+
+	if (s > 2 || n->right->op != T_CONSTANT)
+		return 0;
+	v = n->right->value;
+	if (s == 1) {
+		if (v >= 8) {
+			load_b_const(0);
+			return 1;
+		}
+		repeated_op(v, "lslb");
+		return 1;
+	}
+	if (s == 2) {
+		if (v >= 16) {
+			load_d_const(0);
+			return 1;
+		}
+		if (v >= 8) {
+			load_a_b();
+			load_b_const(0);
+			repeated_op(v - 8, "lsl");
+			return 1;
+		}
+		while(v--)
+			printf("\tlslb\n\trola\n");
+		return 1;
+	}
+}
+
+unsigned right_shift(struct node *n)
+{
+	unsigned s = get_size(n->type);
+	unsigned v;
+	const char *op = "asr";
+
+	if (n->type & UNSIGNED)
+		op = "lsr";
+
+	if (s > 2 || n->right->op != T_CONSTANT)
+		return 0;
+	v = n->right->value;
+	if (s == 1) {
+		if (v >= 8) {
+			load_b_const(0);
+			return 1;
+		}
+		repeated_op(v, op);
+		return 1;
+	}
+	if (s == 2) {
+		if (v >= 16) {
+			load_d_const(0);
+			return 1;
+		}
+		if (v >= 8 && (n->type & UNSIGNED)) {
+			load_b_a();
+			load_a_const(0);
+			v -= 8;
+			while(v--)
+				printf("\t%sb\n", op);
+			return 1;
+		}
+		while(v--)
+			printf("\t%sa\n\trorb\n", op);
+		return 1;
+	}
 }
 
 /* See if we can easily get the value we want into X rather than D. Must
@@ -1112,6 +1206,10 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		return write_op(r, "eor", "eor", 0);
+	case T_LTLT:
+		return left_shift(n);
+	case T_GTGT:
+		return right_shift(n);
 	}
 	return 0;
 }
@@ -1155,9 +1253,7 @@ unsigned gen_uni_direct(struct node *n)
 	case T_LBSTORE:
 	case T_NSTORE:
 		/* Optimizations for constants */
-		printf(";nr %d\n", nr);
 		if (nr && r->op == T_CONSTANT && r->value == 0) {
-			printf(";try uniop clr\n");
 			if (write_uni_op(n, "clr", 0))
 				return 1;
 		}
