@@ -222,23 +222,23 @@ void gen_label(const char *tail, unsigned n)
 
 unsigned gen_exit(const char *tail, unsigned n)
 {
-	printf("\tjmp L%d%s\n", n, tail);
+	printf("\tbra L%d%s\n", n, tail);
 	return 0;
 }
 
 void gen_jump(const char *tail, unsigned n)
 {
-	printf("\tjmp L%d%s\n", n, tail);
+	printf("\tbra L%d%s\n", n, tail);
 }
 
 void gen_jfalse(const char *tail, unsigned n)
 {
-	printf("\tjz L%d%s\n", n, tail);
+	printf("\tbeq L%d%s\n", n, tail);
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
-	printf("\tjnz L%d%s\n", n, tail);
+	printf("\tbne L%d%s\n", n, tail);
 }
 
 void gen_switch(unsigned n, unsigned type)
@@ -277,6 +277,11 @@ void gen_helpcall(struct node *n)
 
 void gen_helpclean(struct node *n)
 {
+        unsigned s;
+
+        s = get_size(n->right->type);
+	if (s)
+		printf("\tleas %d,s\n", s);
 }
 
 void gen_data_label(const char *name, unsigned align)
@@ -575,18 +580,40 @@ unsigned gen_uni_direct(struct node *n)
 	return 0;
 }
 
-unsigned gen_compare(struct node *n, const char *p)
+/* Incrementing loop label id for comparisons */
+static unsigned cmplabel= 0;
+
+/* List of (un)signed comparisons in op order */
+static char *scmpname[]= { "beq", "bne", "bgt", "bge", "blt", "ble" };
+static char *ucmpname[]= { "beq", "bne", "bhi", "bhs", "blo", "bls" };
+
+/* Perform an (un)signed byte/word comparison
+   of D against the value in n->right
+   and branch based on the given operation */
+unsigned gen_compare(struct node *n, int op)
 {
 	unsigned v = n->right->value;
 	unsigned s = get_size(n->type);
+	unsigned u = (n->right->type & UNSIGNED);
+
 	if (s == 1)
 		printf("\tcmpb #%d\n", v & 0xFF);
 	else if (s == 2)
 		printf("\tcmpd #%d\n", v & 0xFFFF);
 	else
 		return 0;
-	/* Sets the bool and flags */
-	printf("jsr %s\n", p);
+
+	if (u)
+		printf("\t%s L%d%s\n", ucmpname[op], cmplabel, "_cmp");
+	else
+		printf("\t%s L%d%s\n", scmpname[op], cmplabel, "_cmp");
+	printf("\tldd #0\n");
+	gen_jump("_cmp", cmplabel+1);
+	gen_label("_cmp", cmplabel);
+	printf("\tldd #1\n");
+	gen_label("_cmp", cmplabel+1);
+	cmplabel+=2;
+
 	/* Tell the core backend that it doesn't need to bool this */
 	n->flags |= ISBOOL;
 	return 1;
@@ -704,17 +731,17 @@ unsigned gen_direct(struct node *n)
 	case T_HAT:
 		return gen_constpair("eor", r);
 	case T_EQEQ:
-		return gen_compare(n, "booleq");
+		return gen_compare(n, 0);
 	case T_BANGEQ:
-		return gen_compare(n, "boolne");
+		return gen_compare(n, 1);
 	case T_GT:
-		return gen_compare(n, "boolgt");
+		return gen_compare(n, 2);
 	case T_GTEQ:
-		return gen_compare(n, "boolgteq");
+		return gen_compare(n, 3);
 	case T_LT:
-		return gen_compare(n, "boollt");
+		return gen_compare(n, 4);
 	case T_LTEQ:
-		return gen_compare(n, "boollteq");
+		return gen_compare(n, 5);
 	}
 	return 0;
 }
@@ -742,28 +769,48 @@ static unsigned gen_xeqop(struct node *n, const char *cop, unsigned has16)
 	return 1;
 }
 
-/* Helpers for comparisons we can do cleanly. We might have the good stuff
-   on either side so we have to pick the right compare operator according
-   to our direction */
-static unsigned gen_compop(struct node *n, const char *lo, const char *ro)
+/* Perform an (un)signed byte/word comparison of n->left and
+   n->right and branch based on the given operation.
+   We might have the good stuff on either side so we have to
+   pick the right compare operator according to our direction */
+static unsigned gen_compop(struct node *n, int op)
 {
+        unsigned u;
+
 	if (can_constop(n->left)) {
 		codegen_lr(n->right);
-		gen_constop("subd", 0, n->left);
-		printf("\tjsr bool%s\n", ro);
-		/* Tell the core backend that it doesn't need to bool this */
-		n->flags |= ISBOOL;
-		return 1;
-	}
-	if (can_constop(n->right)) {
+        	gen_constop("cmp", 0, n->left);
+        	u = (n->left->type & UNSIGNED);
+
+		/* Switch some comparisons around */
+		switch(op) {
+			case 2: op= 4; break;
+			case 4: op= 2; break;
+			case 3: op= 5; break;
+			case 5: op= 3; break;
+		}
+		
+	} else if (can_constop(n->right)) {
 		codegen_lr(n->left);
-		gen_constop("subd", 0, n->right);
-		printf("\tjsr bool%s\n", lo);
-		/* Tell the core backend that it doesn't need to bool this */
-		n->flags |= ISBOOL;
-		return 1;
-	}
-	return 0;
+        	gen_constop("cmp", 0, n->right);
+        	u = (n->right->type & UNSIGNED);
+	} else
+		return 0;
+
+        if (u)
+                printf("\t%s L%d%s\n", ucmpname[op], cmplabel, "_cmp");
+        else
+                printf("\t%s L%d%s\n", scmpname[op], cmplabel, "_cmp");
+        printf("\tldd #0\n");
+        gen_jump("_cmp", cmplabel+1);
+        gen_label("_cmp", cmplabel);
+        printf("\tldd #1\n");
+        gen_label("_cmp", cmplabel+1);
+        cmplabel+=2;
+
+	/* Tell the core backend that it doesn't need to bool this */
+	n->flags |= ISBOOL;
+	return 1;
 }
 
 unsigned gen_shortcut(struct node *n)
@@ -803,17 +850,17 @@ unsigned gen_shortcut(struct node *n)
 		return 1;
 	/* Some compares */
 	case T_EQEQ:
-		return gen_compop(n, "eq", "eq");
+		return gen_compop(n, 0);
 	case T_BANGEQ:
-		return gen_compop(n, "ne", "ne");
-	case T_LT:
-		return gen_compop(n, "lt", "ge");
-	case T_LTEQ:
-		return gen_compop(n, "le", "gt");
+		return gen_compop(n, 1);
 	case T_GT:
-		return gen_compop(n, "gt", "le");
+		return gen_compop(n, 2);
 	case T_GTEQ:
-		return gen_compop(n, "ge", "lt");
+		return gen_compop(n, 3);
+	case T_LT:
+		return gen_compop(n, 4);
+	case T_LTEQ:
+		return gen_compop(n, 5);
 	/* And the mul/div/mod ones need helpers anyway */
 	default:
 		return 0;
