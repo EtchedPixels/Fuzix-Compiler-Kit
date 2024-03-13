@@ -398,13 +398,13 @@ unsigned gen_constop(const char *op, char r, struct node *n)
 		printf("\t%s%c #%d\n", op, r, v);
 		return 1;
 	case T_NAME:
-		printf("\t%s%c #%s+%d\n", op, r, namestr(n->snum), v);
+		printf("\t%s%c #_%s+%d\n", op, r, namestr(n->snum), v);
 		return 1;
 	case T_LABEL:
 		printf("\t%s%c #T%d\n\n", op, r, v);
 		return 1;
 	case T_NREF:
-		printf("\t%s%c %s + %d\n", op, r, namestr(n->snum), v);
+		printf("\t%s%c _%s + %d\n", op, r, namestr(n->snum), v);
 		return 1;
 	case T_LREF:
 		printf("\t%s%c %d,s\n", op, r, v + sp);
@@ -463,16 +463,16 @@ unsigned gen_constpair(const char *op, struct node *n)
 		printf("\t%sb #%d\n", op, (v & 0xFF));
 		return 1;
 	case T_NAME:
-		printf("\t%sa >#%s+%d\n", op, namestr(n->snum), v);
-		printf("\t%sb <#%s+%d\n", op, namestr(n->snum), v);
+		printf("\t%sa >#_%s+%d\n", op, namestr(n->snum), v);
+		printf("\t%sb <#_%s+%d\n", op, namestr(n->snum), v);
 		return 1;
 	case T_LABEL:
 		printf("\t%sa >#T%d\n\n", op, v);
 		printf("\t%sa <#T%d\n\n", op, v);
 		return 1;
 	case T_NREF:
-		printf("\t%sa %s + %d\n", op, namestr(n->snum), v);
-		printf("\t%sb %s + %d\n", op, namestr(n->snum), v + 1);
+		printf("\t%sa _%s + %d\n", op, namestr(n->snum), v);
+		printf("\t%sb _%s + %d\n", op, namestr(n->snum), v + 1);
 		return 1;
 	case T_LREF:
 		printf("\t%sa %d,s\n", op, v);
@@ -985,7 +985,7 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_NAME:
-		printf("ldd #%s+%d\n", namestr(n->snum), nv);
+		printf("ldd #_%s+%d\n", namestr(n->snum), nv);
 		return 1;
 	case T_LOCAL:
 		/* FIXME: correct offsets */
