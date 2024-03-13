@@ -107,6 +107,32 @@ struct node *gen_rewrite_node(struct node *n)
 	struct node *l = n->left;
 	unsigned s = get_size(n->type);
 	unsigned op = n->op;
+
+	switch(op) {
+		case T_EQEQ:
+		case T_BANGEQ:
+		case T_GT:
+		case T_GTEQ:
+		case T_LT:
+		case T_LTEQ:
+			/* For comparisons, lose double casts from characters */
+			if (l->op == T_CAST && l->right->type==UCHAR &&
+			    r->op == T_CAST && r->right->type==UCHAR) {
+				n->left= l->right;
+				n->right= r->right;
+				free_node(l);
+				free_node(r);
+			}
+			if (l->op == T_CAST && l->right->type==CCHAR &&
+			    r->op == T_CAST && r->right->type==CCHAR) {
+				n->left= l->right;
+				n->right= r->right;
+				free_node(l);
+				free_node(r);
+			}
+	}
+
+
 	/* Rewrite references into a load or store operation */
 	if (s <= 2) {
 		if (op == T_DEREF) {
