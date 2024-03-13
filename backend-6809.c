@@ -596,6 +596,9 @@ unsigned gen_compare(struct node *n, int op)
 	unsigned s = get_size(n->type);
 	unsigned u = (n->right->type & UNSIGNED);
 
+	if (n->right->op != T_CONSTANT)
+		return 0;
+
 	if (s == 1)
 		printf("\tcmpb #%d\n", v & 0xFF);
 	else if (s == 2)
