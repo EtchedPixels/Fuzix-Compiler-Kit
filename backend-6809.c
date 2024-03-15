@@ -875,6 +875,7 @@ unsigned gen_node(struct node *n)
 {
 	unsigned s;
 	unsigned nv = n->value;
+	unsigned u = (n->type & UNSIGNED);
 	/* Function call arguments are special - they are removed by the
 	   act of call/return and reported via T_CLEANUP */
 	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL && n->op != T_CALLNAME)
@@ -1029,6 +1030,37 @@ unsigned gen_node(struct node *n)
 	/* Some casts are easy.. */
 	case T_CAST:
 		return gen_cast(n, n->right);
+	case T_BANG:
+		/* Use exclusive or if argument is already boolean */
+		if (n->right->op == T_BOOL) {
+			printf("\teorb #1\n");
+			n->flags |= ISBOOL;
+			return 1;
+		}
+		printf("\tbeq L%d%s\n", cmplabel, "_cmp");
+		printf("\tldd #0\n");
+		gen_jump("_cmp", cmplabel+1);
+		gen_label("_cmp", cmplabel);
+		printf("\tldd #1\n");
+		gen_label("_cmp", cmplabel+1);
+		cmplabel += 2;
+		n->flags |= ISBOOL;
+		return 1;
+	case T_BOOL:
+		/* Do nothing if argument is already boolean */
+		if (n->right->op == T_BOOL) {
+			n->flags |= ISBOOL;
+			return 1;
+		}
+		printf("\tbeq L%d%s\n", cmplabel, "_cmp");
+		printf("\tldd #1\n");
+		gen_jump("_cmp", cmplabel+1);
+		gen_label("_cmp", cmplabel);
+		printf("\tldd #0\n");
+		gen_label("_cmp", cmplabel+1);
+		cmplabel += 2;
+		n->flags |= ISBOOL;
+		return 1;
 	}
 	return 0;
 }
