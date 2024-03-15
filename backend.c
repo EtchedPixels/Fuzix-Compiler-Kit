@@ -208,14 +208,137 @@ static struct node *rewrite_tree(struct node *n)
 
 #ifdef DEBUG
 
+/* Return the operation's name, or NULL */
+static char *getopname(int op) {
+	switch(op) {
+		case 0x8000: return("T_SYMBOL");
+		case 0x7F00: return("T_EOF");
+		case 0x7F01: return("T_INVALID");
+		case 0x7F02: return("T_POT");
+		case 0x0110: return("T_SHLEQ");
+		case 0x0111: return("T_SHREQ");
+		case 0x0112: return("T_POINTSTO");
+		case 0x0113: return("T_ELLIPSIS");
+		case 0x0120: return("T_PLUSPLUS");
+		case 0x0121: return("T_MINUSMINUS");
+		case 0x0122: return("T_EQEQ");
+		case 0x0123: return("T_LTLT");
+		case 0x0124: return("T_GTGT");
+		case 0x0125: return("T_OROR");
+		case 0x0126: return("T_ANDAND");
+		case 0x0201: return("T_MINUSEQ");
+		case 0x0202: return("T_SLASHEQ");
+		case 0x0203: return("T_STAREQ");
+		case 0x0204: return("T_HATEQ");
+		case 0x0205: return("T_BANGEQ");
+		case 0x0206: return("T_OREQ");
+		case 0x0207: return("T_ANDEQ");
+		case 0x0208: return("T_PERCENTEQ");
+		case 0x0209: return("T_LTEQ");
+		case 0x020A: return("T_GTEQ");
+		case 0x0200: return("T_UNI");
+		case '(': return("T_LPAREN");
+		case ')': return("T_RPAREN");
+		case '[': return("T_LSQUARE");
+		case ']': return("T_RSQUARE");
+		case '{': return("T_LCURLY");
+		case '}': return("T_RCURLY");
+		case '&': return("T_AND");
+		case '*': return("T_STAR");
+		case '/': return("T_SLASH");
+		case '%': return("T_PERCENT");
+		case '+': return("T_PLUS");
+		case '-': return("T_MINUS");
+		case '?': return("T_QUESTION");
+		case ':': return("T_COLON");
+		case '^': return("T_HAT");
+		case '<': return("T_LT");
+		case '>': return("T_GT");
+		case '|': return("T_OR");
+		case '~': return("T_TILDE");
+		case '!': return("T_BANG");
+		case '=': return("T_EQ");
+		case ';': return("T_SEMICOLON");
+		case '.': return("T_DOT");
+		case ',': return("T_COMMA");
+		case 0x1000: return("T_CHAR");
+		case 0x1001: return("T_DOUBLE");
+		case 0x1002: return("T_ENUM");
+		case 0x1003: return("T_FLOAT");
+		case 0x1004: return("T_INT");
+		case 0x1005: return("T_LONG");
+		case 0x1006: return("T_SHORT");
+		case 0x1007: return("T_SIGNED");
+		case 0x1008: return("T_STRUCT");
+		case 0x1009: return("T_UNION");
+		case 0x100A: return("T_UNSIGNED");
+		case 0x100B: return("T_VOID");
+		case 0x100C: return("T_AUTO");
+		case 0x100D: return("T_EXTERN");
+		case 0x100E: return("T_REGISTER");
+		case 0x100F: return("T_STATIC");
+		case 0x1010: return("T_CONST");
+		case 0x1011: return("T_VOLATILE");
+		case 0x1012: return("T_BREAK");
+		case 0x1013: return("T_CASE");
+		case 0x1014: return("T_CONTINUE");
+		case 0x1015: return("T_DEFAULT");
+		case 0x1016: return("T_DO");
+		case 0x1017: return("T_ELSE");
+		case 0x1018: return("T_FOR");
+		case 0x1019: return("T_GOTO");
+		case 0x101A: return("T_IF");
+		case 0x101B: return("T_RETURN");
+		case 0x101C: return("T_SIZEOF");
+		case 0x101D: return("T_SWITCH");
+		case 0x101E: return("T_TYPEDEF");
+		case 0x101F: return("T_WHILE");
+		case 0x1020: return("T_RESTRICT");
+		case 0x1100: return("T_INTVAL");
+		case 0x1101: return("T_UINTVAL");
+		case 0x1102: return("T_LONGVAL");
+		case 0x1103: return("T_ULONGVAL");
+		case 0x1104: return("T_FLOATVAL");
+		case 0x1105: return("T_STRING");
+		case 0x1106: return("T_STRING_END");
+		case 0x1200: return("T_CAST");
+		case 0x1201: return("T_CONSTANT");
+		case 0x1202: return("T_NAME");
+		case 0x1203: return("T_LOCAL");
+		case 0x1204: return("T_LABEL");
+		case 0x1205: return("T_ARGUMENT");
+		case 0x1206: return("T_DEREF");
+		case 0x1207: return("T_ADDROF");
+		case 0x1208: return("T_NULL");
+		case 0x1209: return("T_NEGATE");
+		case 0x120A: return("T_FUNCCALL");
+		case 0x120B: return("T_BOOL");
+		case 0x120C: return("T_PAD");
+		case 0x120D: return("T_CLEANUP");
+		case 0x120E: return("T_CASELABEL");
+		case 0x120F: return("T_ARGCOMMA");
+		case 0x1210: return("T_REG");
+		case 0x2000: return("T_USER");
+		case 0x3FFF: return("T_LINE");
+		default:     return(NULL);
+	}
+}
+
 static void dump_tree(struct node *n, unsigned depth)
 {
 	unsigned i;
+	char *name;
 	if (n == NULL)
 		return;
 	for (i = 0; i < depth; i++)
 		fputs("    ", stderr);
-	fprintf(stderr, "%x v%lx t%x f%x \n", n->op, n->value, n->type, n->flags);
+	name= getopname(n->op);
+	if (name)
+		fprintf(stderr, "%s v%lx t%x f%x \n", name, n->value,
+							 n->type, n->flags);
+	else
+		fprintf(stderr, "%04X v%lx t%x f%x \n", n->op, n->value,
+							n->type, n->flags);
 	dump_tree(n->left, depth + 1);
 	dump_tree(n->right, depth + 1);
 }
