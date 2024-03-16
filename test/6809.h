@@ -24,6 +24,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 typedef unsigned char UINT8;
 typedef signed char INT8;
@@ -74,12 +76,8 @@ extern void set_d  (unsigned);
 /* monitor.c */
 extern int monitor_on;
 extern int check_break (unsigned);
-extern void monitor_init (void); 
+extern void monitor_init (int); 
 extern int monitor6809 (void);
 extern int dasm (char *, int);
-
-extern int load_hex (char *);
-extern int load_s19 (char *);
-extern int load_bin (char *,int);
 
 #endif /* M6809_H */

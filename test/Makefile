@@ -47,11 +47,14 @@ emu6800: 6800.o emu6800.o
 6809.o: 6809.c
 	$(CC) $(CFLAGS) -c 6809.c
 
+6809mon.o: 6809mon.c
+	$(CC) $(CFLAGS) -c 6809mon.c
+
 emu6809.o: emu6809.c
 	$(CC) $(CFLAGS) -c emu6809.c
 
-emu6809: 6809.o emu6809.o
-	$(CC) $(CFLAGS) -o emu6809 emu6809.o 6809.o
+emu6809: 6809.o emu6809.o 6809mon.o
+	$(CC) $(CFLAGS) -o emu6809 emu6809.o 6809.o 6809mon.o -lreadline
 
 z80dis.o: z80dis.h
 

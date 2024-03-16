@@ -21,12 +21,12 @@
 
 #include "6809.h"
 
-unsigned X, Y, S, U, PC;
+unsigned X, Y, S, U, cPC;
 unsigned A, B, DP;
 unsigned H, N, Z, V, C;
 unsigned EFI;
 
-unsigned iPC;
+unsigned icPC;
 
 UINT8 *memory = NULL;
 
@@ -39,13 +39,13 @@ unsigned *index_regs[4] = { &X, &Y, &U, &S };
 
 unsigned imm_byte (void)
 {
-  unsigned val = memory[PC & 0xffff]; PC++;
+  unsigned val = memory[cPC & 0xffff]; cPC++;
   return val;
 }
 
 unsigned imm_word (void)
 {
-  unsigned val = (memory[PC & 0xffff] << 8) | memory[(PC + 1) & 0xffff]; PC += 2; 
+  unsigned val = (memory[cPC & 0xffff] << 8) | memory[(cPC + 1) & 0xffff]; cPC += 2; 
   return val;
 }
 
@@ -58,14 +58,19 @@ static void WRMEM (unsigned addr, unsigned data)
     exit(data);
   }
 
-  /* Write value to stdout when $FFFE */
+  /* Write char/hex value to stdout when $FFFE */
   if (addr == 0xFFFE) {
     if (data < 32 || data > 127)
-      printf("\\x%02X", data);
+      printf("\\x%02X", data & 0xff);
     else
       putchar(data);
     fflush(stdout);
     return;
+  }
+
+  /* Write char value to stdout when $FFFB */
+  if (addr == 0xFFFB) {
+      putchar(data & 0xff);
   }
 
   memory[addr] = (UINT8)data;
@@ -73,6 +78,11 @@ static void WRMEM (unsigned addr, unsigned data)
 
 void WRMEM16 (unsigned addr, unsigned data)
 {
+  /* 16-bit writes to $FFFC/D will print the decimal value out */
+  if (addr == 0xFFFC) {
+    printf("%d\n", data & 0xffff); return;
+  }
+
   WRMEM(addr,data >> 8);
   cpu_clk--;
   WRMEM((addr + 1) & 0xffff,data & 0xff);
@@ -107,7 +117,7 @@ unsigned read_stack16 (unsigned addr)
 
 void direct (void)
 {
-  unsigned val = memory[PC & 0xffff] | DP; PC++;
+  unsigned val = memory[cPC & 0xffff] | DP; cPC++;
   ea = val;
 }
 
@@ -130,8 +140,8 @@ void indexed (void) /* note take 1 extra cycle */
        case 0x08: ea = (*R + ((INT8)imm_byte())) & 0xffff;          cpu_clk -= 5; break;
        case 0x09: ea = (*R + imm_word()) & 0xffff;                  cpu_clk -= 8; break;
        case 0x0b: ea = (*R + get_d()) & 0xffff;                     cpu_clk -= 8; break;
-       case 0x0c: ea = (INT8)imm_byte(); ea = (ea + PC) & 0xffff;   cpu_clk -= 5; break; 
-       case 0x0d: ea = imm_word(); ea = (ea + PC) & 0xffff;         cpu_clk -= 9; break;
+       case 0x0c: ea = (INT8)imm_byte(); ea = (ea + cPC) & 0xffff;   cpu_clk -= 5; break; 
+       case 0x0d: ea = imm_word(); ea = (ea + cPC) & 0xffff;         cpu_clk -= 9; break;
 
        case 0x11: ea = *R; *R = (*R + 2) & 0xffff;                  cpu_clk -= 7; ea = RDMEM16(ea); cpu_clk -= 2; break;
        case 0x13: *R = (*R - 2) & 0xffff; ea = *R;                  cpu_clk -= 7; ea = RDMEM16(ea); cpu_clk -= 2; break;
@@ -141,10 +151,10 @@ void indexed (void) /* note take 1 extra cycle */
        case 0x18: ea = (*R + ((INT8)imm_byte())) & 0xffff;          cpu_clk -= 5; ea = RDMEM16(ea); cpu_clk -= 2; break;
        case 0x19: ea = (*R + imm_word()) & 0xffff;                  cpu_clk -= 8; ea = RDMEM16(ea); cpu_clk -= 2; break;
        case 0x1b: ea = (*R + get_d()) & 0xffff;                     cpu_clk -= 8; ea = RDMEM16(ea); cpu_clk -= 2; break;
-       case 0x1c: ea = (INT8)imm_byte(); ea = (ea + PC) & 0xffff;   cpu_clk -= 5; ea = RDMEM16(ea); cpu_clk -= 2; break;
-       case 0x1d: ea = imm_word(); ea = (ea + PC) & 0xffff;         cpu_clk -= 9; ea = RDMEM16(ea); cpu_clk -= 2; break;
+       case 0x1c: ea = (INT8)imm_byte(); ea = (ea + cPC) & 0xffff;   cpu_clk -= 5; ea = RDMEM16(ea); cpu_clk -= 2; break;
+       case 0x1d: ea = imm_word(); ea = (ea + cPC) & 0xffff;         cpu_clk -= 9; ea = RDMEM16(ea); cpu_clk -= 2; break;
        case 0x1f: ea = imm_word();                                  cpu_clk -= 6; ea = RDMEM16(ea); cpu_clk -= 2; break;      
-       default:   ea = 0;  printf("%X: invalid index post $%02X\n",iPC,post); break;
+       default:   ea = 0;  printf("%X: invalid index post $%02X\n",icPC,post); monitor_on = 1;                     break;
      }
    }
    else
@@ -157,7 +167,7 @@ void indexed (void) /* note take 1 extra cycle */
 
 void extended (void)
 {
-  unsigned val = (memory[PC & 0xffff] << 8) | memory[(PC + 1) & 0xffff]; PC += 2; 
+  unsigned val = (memory[cPC & 0xffff] << 8) | memory[(cPC + 1) & 0xffff]; cPC += 2; 
   ea = val;
 }
 
@@ -170,7 +180,7 @@ unsigned get_x  (void) { return X; }
 unsigned get_y  (void) { return Y; }
 unsigned get_s  (void) { return S; }
 unsigned get_u  (void) { return U; }
-unsigned get_pc (void) { return PC & 0xffff; }
+unsigned get_pc (void) { return cPC & 0xffff; }
 unsigned get_d  (void) { return (A<<8)|B; }
 
 void set_a  (unsigned val) { A = val & 0xff; }
@@ -180,7 +190,7 @@ void set_x  (unsigned val) { X = val & 0xffff; }
 void set_y  (unsigned val) { Y = val & 0xffff; }
 void set_s  (unsigned val) { S = val & 0xffff; }
 void set_u  (unsigned val) { U = val & 0xffff; }
-void set_pc (unsigned val) { PC = val & 0xffff; }
+void set_pc (unsigned val) { cPC = val & 0xffff; }
 void set_d  (unsigned val) { A = (val >> 8) & 0xff; B = val & 0xff; }
 
 /* handle condition code register */
@@ -219,7 +229,7 @@ unsigned get_reg (unsigned nro)
     case  2: val = Y;            break;
     case  3: val = U;            break;
     case  4: val = S;            break;
-    case  5: val = PC & 0xffff;  break;
+    case  5: val = cPC & 0xffff;  break;
     case  8: val = A;            break;
     case  9: val = B;            break;
     case 10: val = get_cc();     break;
@@ -239,7 +249,7 @@ void set_reg (unsigned nro, unsigned val)
     case  2: Y = val;        break;
     case  3: U = val;        break;
     case  4: S = val;        break;
-    case  5: PC = val;       break;
+    case  5: cPC = val;       break;
     case  8: A = val;        break;
     case  9: B = val;        break;
     case 10: set_cc(val);    break;
@@ -641,7 +651,7 @@ void pshs (void)
 
   cpu_clk -= 5;
   
-  if(post & 0x80) { cpu_clk -= 2; S = (S - 2) & 0xffff; write_stack16(S, PC & 0xffff); }
+  if(post & 0x80) { cpu_clk -= 2; S = (S - 2) & 0xffff; write_stack16(S, cPC & 0xffff); }
   if(post & 0x40) { cpu_clk -= 2; S = (S - 2) & 0xffff; write_stack16(S, U);      }
   if(post & 0x20) { cpu_clk -= 2; S = (S - 2) & 0xffff; write_stack16(S,  Y);     }
   if(post & 0x10) { cpu_clk -= 2; S = (S - 2) & 0xffff; write_stack16(S,  X);     }
@@ -657,7 +667,7 @@ void pshu (void)
 
   cpu_clk -= 5;
 
-  if(post & 0x80) { cpu_clk -= 2; U = (U - 2) & 0xffff; write_stack16(U, PC & 0xffff); }
+  if(post & 0x80) { cpu_clk -= 2; U = (U - 2) & 0xffff; write_stack16(U, cPC & 0xffff); }
   if(post & 0x40) { cpu_clk -= 2; U = (U - 2) & 0xffff; write_stack16(U, S);      }
   if(post & 0x20) { cpu_clk -= 2; U = (U - 2) & 0xffff; write_stack16(U,  Y);     }
   if(post & 0x10) { cpu_clk -= 2; U = (U - 2) & 0xffff; write_stack16(U,  X);     }
@@ -680,7 +690,7 @@ void puls (void)
   if(post & 0x10) { cpu_clk -= 2; X   = read_stack16(S);     S = (S + 2) & 0xffff; }
   if(post & 0x20) { cpu_clk -= 2; Y   = read_stack16(S);     S = (S + 2) & 0xffff; }
   if(post & 0x40) { cpu_clk -= 2; U   = read_stack16(S);     S = (S + 2) & 0xffff; }
-  if(post & 0x80) { cpu_clk -= 2; PC  = read_stack16(S);     S = (S + 2) & 0xffff; }
+  if(post & 0x80) { cpu_clk -= 2; cPC  = read_stack16(S);     S = (S + 2) & 0xffff; }
 }
 
 void pulu (void)
@@ -696,7 +706,7 @@ void pulu (void)
   if(post & 0x10) { cpu_clk -= 2; X   = read_stack16(U);     U = (U + 2) & 0xffff; }
   if(post & 0x20) { cpu_clk -= 2; Y   = read_stack16(U);     U = (U + 2) & 0xffff; }
   if(post & 0x40) { cpu_clk -= 2; S   = read_stack16(U);     U = (U + 2) & 0xffff; }
-  if(post & 0x80) { cpu_clk -= 2; PC  = read_stack16(U);     U = (U + 2) & 0xffff; }
+  if(post & 0x80) { cpu_clk -= 2; cPC  = read_stack16(U);     U = (U + 2) & 0xffff; }
 }
 
 /* Miscellaneous Instructions */
@@ -708,8 +718,8 @@ void nop (void)
 
 void jsr (void)
 {
-  S = (S - 2) & 0xffff; write_stack16(S, PC & 0xffff);     
-  PC = ea;
+  S = (S - 2) & 0xffff; write_stack16(S, cPC & 0xffff);     
+  cPC = ea;
 }
 
 void rti (void)
@@ -727,20 +737,20 @@ void rti (void)
     Y   = read_stack16(S);     S = (S + 2) & 0xffff;
     U   = read_stack16(S);     S = (S + 2) & 0xffff;
   }
-  PC  = read_stack16(S);     S = (S + 2) & 0xffff;
+  cPC  = read_stack16(S);     S = (S + 2) & 0xffff;
 }
 
 void rts (void)
 {
   cpu_clk -= 5;
-  PC  = read_stack16(S);     S = (S + 2) & 0xffff;
+  cPC  = read_stack16(S);     S = (S + 2) & 0xffff;
 }
 
 void swi (void)
 {
   cpu_clk -= 19;
   EFI |= E_FLAG;
-  S = (S - 2) & 0xffff; write_stack16(S, PC & 0xffff);
+  S = (S - 2) & 0xffff; write_stack16(S, cPC & 0xffff);
   S = (S - 2) & 0xffff; write_stack16(S, U);
   S = (S - 2) & 0xffff; write_stack16(S,  Y);
   S = (S - 2) & 0xffff; write_stack16(S,  X);
@@ -750,14 +760,14 @@ void swi (void)
   S = (S - 1) & 0xffff; write_stack(S, get_cc());
   EFI |= (I_FLAG|F_FLAG);
 
-  PC = (memory[0xfffa] << 8) | memory[0xfffb];
+  cPC = (memory[0xfffa] << 8) | memory[0xfffb];
 }
 
 void swi2 (void)
 {
   cpu_clk -= 20;
   EFI |= E_FLAG;
-  S = (S - 2) & 0xffff; write_stack16(S, PC & 0xffff);
+  S = (S - 2) & 0xffff; write_stack16(S, cPC & 0xffff);
   S = (S - 2) & 0xffff; write_stack16(S, U);
   S = (S - 2) & 0xffff; write_stack16(S,  Y);
   S = (S - 2) & 0xffff; write_stack16(S,  X);
@@ -766,14 +776,14 @@ void swi2 (void)
   S = (S - 1) & 0xffff; write_stack(S, A);
   S = (S - 1) & 0xffff; write_stack(S, get_cc());
 
-  PC = (memory[0xfff4] << 8) | memory[0xfff5];
+  cPC = (memory[0xfff4] << 8) | memory[0xfff5];
 }
 
 void swi3 (void)
 {
   cpu_clk -= 20;
   EFI |= E_FLAG;
-  S = (S - 2) & 0xffff; write_stack16(S, PC & 0xffff);
+  S = (S - 2) & 0xffff; write_stack16(S, cPC & 0xffff);
   S = (S - 2) & 0xffff; write_stack16(S, U);
   S = (S - 2) & 0xffff; write_stack16(S,  Y);
   S = (S - 2) & 0xffff; write_stack16(S,  X);
@@ -782,7 +792,7 @@ void swi3 (void)
   S = (S - 1) & 0xffff; write_stack(S, A);
   S = (S - 1) & 0xffff; write_stack(S, get_cc());
 
-  PC = (memory[0xfff2] << 8) | memory[0xfff3];
+  cPC = (memory[0xfff2] << 8) | memory[0xfff3];
 }
 
 void cwai (void)
@@ -832,13 +842,13 @@ void andcc (void)
 void bra (void)
 {
   INT8 tmp = (INT8)imm_byte();
-  PC += tmp;
+  cPC += tmp;
 }
 
 void branch (unsigned cond)
 {
   if (cond) bra();
-  else PC++;
+  else cPC++;
 
   cpu_clk -= 3;
 }
@@ -846,7 +856,7 @@ void branch (unsigned cond)
 void long_bra (void)
 {
   INT16 tmp = (INT16)imm_word();
-  PC += tmp;
+  cPC += tmp;
 }
 
 void long_branch (unsigned cond)
@@ -858,7 +868,7 @@ void long_branch (unsigned cond)
   }
   else
   {
-    PC += 2;
+    cPC += 2;
     cpu_clk -= 5;
   }
 }
@@ -866,18 +876,18 @@ void long_branch (unsigned cond)
 void long_bsr (void)
 {
   INT16 tmp = (INT16)imm_word();
-  ea = PC + tmp;
-  S = (S - 2) & 0xffff; write_stack16(S, PC & 0xffff);     
-  PC = ea;
+  ea = cPC + tmp;
+  S = (S - 2) & 0xffff; write_stack16(S, cPC & 0xffff);     
+  cPC = ea;
   cpu_clk -= 9;
 }
 
 void bsr (void)
 {
   INT8 tmp = (INT8)imm_byte();
-  ea = PC + tmp;
-  S = (S - 2) & 0xffff; write_stack16(S, PC & 0xffff);     
-  PC = ea;
+  ea = cPC + tmp;
+  S = (S - 2) & 0xffff; write_stack16(S, cPC & 0xffff);     
+  cPC = ea;
   cpu_clk -= 7;
 }
 
@@ -891,7 +901,10 @@ int cpu_execute (int cycles)
 
   do
   {
-    iPC = PC;
+    if (check_break(cPC) != 0) monitor_on = 1;
+    if (monitor_on != 0) if (monitor6809() != 0) return cpu_period - cpu_clk;
+
+    icPC = cPC;
     opcode = imm_byte();
 
     switch (opcode)
@@ -906,7 +919,7 @@ int cpu_execute (int cycles)
       case 0x0a: direct();   cpu_clk -= 4; WRMEM(ea, dec(RDMEM(ea))); break; /* DEC direct */
       case 0x0c: direct();   cpu_clk -= 4; WRMEM(ea, inc(RDMEM(ea))); break; /* INC direct */
       case 0x0d: direct();   cpu_clk -= 4;           tst(RDMEM(ea));  break; /* TST direct */
-      case 0x0e: direct();   cpu_clk -= 3;           PC = ea;         break; /* JMP direct */
+      case 0x0e: direct();   cpu_clk -= 3;           cPC = ea;         break; /* JMP direct */
       case 0x0f: direct();   cpu_clk -= 4; WRMEM(ea, clr(RDMEM(ea))); break; /* CLR direct */
 
       case 0x10:
@@ -915,7 +928,7 @@ int cpu_execute (int cycles)
 
         switch (opcode)
         {
-          case 0x21:                        cpu_clk -= 5; PC += 2;                               break;
+          case 0x21:                        cpu_clk -= 5; cPC += 2;                               break;
           case 0x22:                                      long_branch( cond_HI() );              break;
           case 0x23:                                      long_branch( cond_LS() );              break;
           case 0x24:                                      long_branch( cond_HS() );              break;
@@ -953,7 +966,7 @@ int cpu_execute (int cycles)
           case 0xef: cpu_clk--; indexed();                st16(S);                               break; 
           case 0xfe:            extended(); cpu_clk -= 6; S = ld16(RDMEM16(ea));                 break;
           case 0xff:            extended(); cpu_clk -= 6; st16(S);                               break;
-          default:   printf("%X: invalid opcode $10%02X\n",iPC,opcode); break;
+          default:   printf("%X: invalid opcode $10%02X\n",icPC,opcode); monitor_on = 1;          break;
         }           
       }
       break;
@@ -973,7 +986,7 @@ int cpu_execute (int cycles)
           case 0xac: cpu_clk--; indexed();                cmp16(S,RDMEM16(ea));       cpu_clk--; break;
           case 0xb3:            extended(); cpu_clk -= 6; cmp16(U,RDMEM16(ea));       cpu_clk--; break;
           case 0xbc:            extended(); cpu_clk -= 6; cmp16(S,RDMEM16(ea));       cpu_clk--; break;
-          default:   printf("%X: invalid opcode $11%02X\n",iPC,opcode); break;
+          default:   printf("%X: invalid opcode $11%02X\n",icPC,opcode); monitor_on = 1;          break;
         }
       }
       break;
@@ -990,7 +1003,7 @@ int cpu_execute (int cycles)
       case 0x1f: tfr();                    break;
 
       case 0x20: bra();               cpu_clk -= 3; break;
-      case 0x21: PC++;                cpu_clk -= 3; break;
+      case 0x21: cPC++;                cpu_clk -= 3; break;
       case 0x22: branch( cond_HI() );               break;
       case 0x23: branch( cond_LS() );               break;
       case 0x24: branch( cond_HS() );               break;
@@ -1055,7 +1068,7 @@ int cpu_execute (int cycles)
       case 0x6a: indexed();                WRMEM(ea, dec(RDMEM(ea))); break; /* DEC indexed */
       case 0x6c: indexed();                WRMEM(ea, inc(RDMEM(ea))); break; /* INC indexed */
       case 0x6d: indexed();                          tst(RDMEM(ea));  break; /* TST indexed */
-      case 0x6e: indexed();  cpu_clk += 1;           PC = ea;         break; /* JMP indexed */
+      case 0x6e: indexed();  cpu_clk += 1;           cPC = ea;         break; /* JMP indexed */
       case 0x6f: indexed();                WRMEM(ea, clr(RDMEM(ea))); break; /* CLR indexed */
 
       case 0x70: extended(); cpu_clk -= 5; WRMEM(ea, neg(RDMEM(ea))); break; /* NEG extended */
@@ -1068,7 +1081,7 @@ int cpu_execute (int cycles)
       case 0x7a: extended(); cpu_clk -= 5; WRMEM(ea, dec(RDMEM(ea))); break; /* DEC extended */
       case 0x7c: extended(); cpu_clk -= 5; WRMEM(ea, inc(RDMEM(ea))); break; /* INC extended */
       case 0x7d: extended(); cpu_clk -= 5;           tst(RDMEM(ea));  break; /* TST extended */
-      case 0x7e: extended(); cpu_clk -= 4;           PC = ea;         break; /* JMP extended */
+      case 0x7e: extended(); cpu_clk -= 4;           cPC = ea;         break; /* JMP extended */
       case 0x7f: extended(); cpu_clk -= 5; WRMEM(ea, clr(RDMEM(ea))); break; /* CLR extended */
 
       case 0x80:             cpu_clk -= 2; A = sub(A, imm_byte());    break;
@@ -1202,7 +1215,8 @@ int cpu_execute (int cycles)
       case 0xfe: extended(); cpu_clk -= 5; U = ld16(RDMEM16(ea));     break;
       case 0xff: extended(); cpu_clk -= 5; st16(U);                   break;
 
-	default:   printf("%04X: invalid opcode $%02X\n",iPC,opcode); cpu_clk -= 2; 
+	default:   printf("%04X: invalid opcode $%02X\n",icPC,opcode); cpu_clk -= 2; 
+          monitor_on = 1;
           break;
     }
 
@@ -1217,6 +1231,5 @@ void cpu_reset (void)
   H = N = V = C = 0; Z = 1;
   EFI = F_FLAG|I_FLAG;
 
-  /* Not a real 6809: we start at $0200 */
-  PC = 0x200;
+  cPC = 0x0200;
 }
