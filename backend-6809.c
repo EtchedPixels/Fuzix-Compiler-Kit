@@ -1020,12 +1020,30 @@ unsigned gen_node(struct node *n)
 	/* We rewrote these into a new form so must handle them. We can also
 	   do better probably TODO .. */
 	case T_PLUSPLUS:
-		helper(n, "postinc");
-		printf("\t.word %d\n", n->val2);
+		switch (s) {
+			case 1: suffix='b'; break;
+			case 2: suffix='d'; break;
+			default: error("no ++ on size >2 yet");
+		}
+		/* Value is already loaded so push, increment, save, pop old */
+		printf("\tpshs %c\n", suffix);
+		printf("\tadd%c #1\n", suffix);
+		n->right->op= T_NSTORE;
+		gen_node(n->right);
+		printf("\tpuls %c\n", suffix);
 		return 1;
 	case T_MINUSMINUS:
-		helper(n, "postdec");
-		printf("\t.word -%d\n", n->val2);
+		switch (s) {
+			case 1: suffix='b'; break;
+			case 2: suffix='d'; break;
+			default: error("no -- on size >2 yet");
+		}
+		/* Value is already loaded so push, decrement, save, pop old */
+		printf("\tpshs %c\n", suffix);
+		printf("\tsub%c #1\n", suffix);
+		n->right->op= T_NSTORE;
+		gen_node(n->right);
+		printf("\tpuls %c\n", suffix);
 		return 1;
 	/* Some casts are easy.. */
 	case T_CAST:
