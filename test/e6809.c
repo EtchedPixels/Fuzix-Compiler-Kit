@@ -1,6 +1,7 @@
 /* From VecX :  Valavan Manohararajah */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "e6809.h"
 
 /* code assumptions:
@@ -506,7 +507,7 @@ static einline unsigned ea_indexed (unsigned *cycles)
 		break;
 	default:
 		printf ("undefined post-byte\n");
-		break;
+		exit(1);
 	}
 
 	return ea;
@@ -1034,7 +1035,7 @@ static einline unsigned exgtfr_read (unsigned reg)
 	default:
 		data = 0xffff;
 		printf ("illegal exgtfr reg %.1x\n", reg);
-		break;
+		exit(1);
 	}
 
 	return data;
@@ -1075,7 +1076,7 @@ static einline void exgtfr_write (unsigned reg, unsigned data)
 		break;
 	default:
 		printf ("illegal exgtfr reg %.1x\n", reg);
-		break;
+		exit(1);
 	}
 }
 
@@ -2557,7 +2558,7 @@ unsigned e6809_sstep (unsigned irq_i, unsigned irq_f)
 			break;
 		default:
 			printf ("unknown page-1 op code: %.2x\n", op);
-			break;
+			exit(1);
 		}
 
 		break;
@@ -2617,14 +2618,14 @@ unsigned e6809_sstep (unsigned irq_i, unsigned irq_f)
 			break;
 		default:
 			printf ("unknown page-2 op code: %.2x\n", op);
-			break;
+			exit(1);
 		}
 
 		break;
 
 	default:
 		printf ("unknown page-0 op code: %.2x\n", op);
-		break;
+		exit(1);
 	}
 
 	return cycles;
