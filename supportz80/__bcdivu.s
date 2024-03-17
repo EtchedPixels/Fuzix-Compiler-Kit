@@ -8,7 +8,7 @@ __bcdivu:
 		ld h,b
 		call __divdeu
 		ld c,l
-		ld h,b
+		ld b,h
 		ret
 
 __bcremu:
@@ -17,5 +17,5 @@ __bcremu:
 		ld h,b
 		call __remdeu
 		ld c,l
-		ld h,b
+		ld b,h
 		ret

@@ -8,7 +8,7 @@ __bcdivu:
 		mov d,b
 		call __divdeu
 		mov c,l
-		mov h,b
+		mov b,h
 		ret
 
 __bcremu:
@@ -18,5 +18,5 @@ __bcremu:
 		call __divdeu
 		xchg
 		mov c,l
-		mov h,b
+		mov b,h
 		ret
