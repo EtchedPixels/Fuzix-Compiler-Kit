@@ -284,7 +284,7 @@ static void load_r_name(unsigned r, struct node *n, unsigned off)
 	r_modify(r, 2);
 #ifdef SUPER8
 	if (!(r & 1)) {
-		printf("\tld r%u,#_%s+%u\n", r, c, off);
+		printf("\tldw rr%u,#_%s+%u\n", r, c, off);
 		return;
 	}
 #endif
@@ -292,6 +292,7 @@ static void load_r_name(unsigned r, struct node *n, unsigned off)
 	printf("\tld r%u,#<_%s+%u\n", r + 1, c, off);
 }
 
+/* ?? should these be including n->value as well */
 static void load_r_label(unsigned r, struct node *n, unsigned off)
 {
 	if (R_ISAC(r)) {
@@ -1321,7 +1322,7 @@ static void store_da(unsigned r, struct node *n)
 	if (n->op == T_NSTORE) {
 		const char *c = namestr(n->snum);
 		while(sz--) {
-			printf("\tlde _%s+%u, %u\n",
+			printf("\tlde _%s+%u, r%u\n",
 				c, v++, r++);
 		}
 	}
@@ -1518,7 +1519,9 @@ static unsigned is_simple(struct node *n)
 {
 	unsigned op = n->op;
 
+	/* TODO: we can direct load more on Super8: FIXME */
 	/* We can load these directly */
+	/* TODO: we can also direct load label and name */
 	if (op == T_CONSTANT)
 		return 1;
 	return 0;
