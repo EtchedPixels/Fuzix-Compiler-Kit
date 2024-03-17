@@ -402,7 +402,7 @@ void swap_d_y(void)
 void make_x_d(void)
 {
 	if (cpu_is_09)
-		printf("\ttfr x,d\n");
+		printf("\ttfr d,x\n");
 	else if (cpu_has_xgdx) {
 		/* Should really track on the exchange later */
 		invalidate_d();
@@ -719,7 +719,7 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 	   this path to make pointers to locals. We do need to go through
 	   the cases we can just use ,s to make sure we avoid two steps */
 	if (cpu_is_09) {
-		printf("\tleax %u,s", off + sp);
+		printf("\tleax %u,s\n", off + sp);
 		return 0;
 	}
 
@@ -1913,7 +1913,31 @@ unsigned gen_uni_direct(struct node *n)
  *	value ends up in @hireg|Y/AB which is all safe from the load of
  *	the X pointer.
  */
+ 
+void op_on_ptr(struct node *n, const char *op)
+{
+	unsigned s = get_size(n->type);
+	if (s == 1)
+		op8_on_ptr(op, 0);
+	else if (s == 2)
+		op16_on_ptr(op, op, 0);
+	else
+		op32_on_ptr(op,op, 0);
+}
+		
+void opd_on_ptr(struct node *n, const char *op, const char *op2)
+{
+	unsigned s = get_size(n->type);
+	if (s == 1)
+		op8_on_ptr(op, 0);
+	else if (s == 2)
+		op16d_on_ptr(op, op2, 0);
+	else
+		op32_on_ptr(op, op2, 0);
+}
 
+/* TODO: 6809 could index locals via S so if n->left is LOCAL or
+   ARGUMENT we can special case it */
 unsigned do_xeqop(struct node *n, const char *op)
 {
 	if (!can_load_x_with(n->left, 0))
@@ -1922,8 +1946,28 @@ unsigned do_xeqop(struct node *n, const char *op)
 	codegen_lr(n->right);
 	/* Load X (lval of the eq op) up (doesn't disturb AB) */
 	load_x_with(n->left, 0);
-	helper_s(n, op);
-	return 1;
+	/* Things we can then inline */
+	switch(n->op) {
+	case T_ANDEQ:
+		op_on_ptr(n, "and");
+		break;
+	case T_OREQ:
+		op_on_ptr(n, remap_op("or"));
+		break;
+	case T_HATEQ:
+		op_on_ptr(n, "eor");
+		break;
+	/* TODO: PLUSEQ
+	   MINUSEQ
+	   PLUSPLUS
+	   MINUSMINUS
+	   shift prob not */
+	default:
+		helper_s(n, op);
+		return 1;
+	}
+	/* Stuff D back into ,X */
+	opd_on_ptr(n, "st", "st");
 }
 
 /*
@@ -1992,7 +2036,14 @@ unsigned memop_shift(struct node *n, const char *op, const char *opu)
 		repeated_op(r->value, buf);
 		invalidate_mem();
 		return 1;
-	/* No ,x forms so cannot do locals */
+	case T_LOCAL:
+		/* No ,x forms so cannot do locals */
+		if (!cpu_is_09)
+			return 0;
+		sprintf(buf, "%s %u,s", op, v + sp);
+		repeated_op(r->value, buf);
+		invalidate_mem();
+		return 1;
 	}
 	return 0;
 }
@@ -2004,6 +2055,12 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 	unsigned s = get_size(n->type);
 	if (s > 2 || r->op != T_CONSTANT)
 		return 0;
+	/* Might be worth special casing 6809 TODO
+	   Something for local like
+	           ldd #n
+	           addd [n,s]
+	           std [n,s]
+	           {subd #n} */
 	/* It's marginal whether we should go via X or not */
 	if (!can_load_x_with(n->left, 0))
 		return 0;
@@ -2175,13 +2232,13 @@ unsigned gen_shortcut(struct node *n)
 	case T_PLUSEQ:
 		if (s == 1 && nr && memop_const(n, "inc"))
 			return 1;
-		if (s == 2 && add_to_node(n, 1, 0))
+		if (s == 2 && add_to_node(n, 1, 1))
 			return 1;
 		return do_xeqop(n, "xpluseq");
 	case T_MINUSEQ:
 		if (s == 1 && nr && memop_const(n, "dec"))
 			return 1;
-		if (s == 2 && add_to_node(n, -1, nr))
+		if (s == 2 && add_to_node(n, -1, 1))
 			return 1;
 		return do_xeqop(n, "xminuseq");
 	case T_PLUSPLUS:
@@ -2216,6 +2273,25 @@ unsigned gen_shortcut(struct node *n)
 		return do_xeqop(n, "xoreq");
 	case T_HATEQ:
 		return do_xeqop(n, "xhateq");
+	case T_MINUS:
+		/* Do it backwards if not a const and on a 6809 */
+		if (r->op == T_CONSTANT || s > 2 || cpu_is_09 == 0)
+			return 0;
+		codegen_lr(r);
+		/* Try and write it as 
+			ldd foo  subd 1,s or similar */
+		if (write_opd(l, "sub", "sbc", 0))
+			return 1;
+		/* Ok then we have to write it the long way */
+		gen_push(r);
+		codegen_lr(l);
+		if (s == 1)
+			op8_on_spi("sub");
+		else
+			op16d_on_spi("sub");
+		/* our op takes it back off stack */
+		sp -= get_stack_size(r->type);
+		return 1;
 	}
 	return 0;
 }
@@ -2389,11 +2465,23 @@ unsigned gen_node(struct node *n)
 		set_d_node(n);
 		return 1;
 	case T_LDEREF:
-		/* Offset of pointer in local */
-		/* val2 is the local offset, value the data offset */
-		off = make_local_ptr(v, 256 - s);
-		/* off,X is now the pointer */
-		printf("\tldx %u,x\n", off);
+		if (cpu_is_09) {
+			if (n->val2 == 0 && s <= 2) {
+				if (s == 1)
+					printf("\tldb [%u,s]\n", v + sp);
+				else
+					printf("\tldd [%u,s]\n", v + sp);
+				return 1;
+			} else {
+				printf("\tldx %u,s\n", v + sp);
+			}
+		} else {
+			/* Offset of pointer in local */
+			/* val2 is the local offset, value the data offset */
+			off = make_local_ptr(v, 256 - s);
+			/* off,X is now the pointer */
+			printf("\tldx %u,x\n", off);
+		}
 		invalidate_x();
 		v = n->val2;
 		if (s == 1)

@@ -33,3 +33,16 @@
 	bra L%2
 =
 	bra L%1
+
+# Pop and transfer (this is ok as D is always invalidated
+	ldd ,s++
+	tfr d,x
+=
+	ldx ,s++
+
+# Pop transfer and load (D and X will be invalidated so this is ok
+	ldx ,s++
+	ld%1 0,x
+=
+	ld%1 [,s++]
+
