@@ -867,11 +867,16 @@ void expression_or_null(unsigned mkbool, unsigned flags)
 	}
 }
 
+/* This is used for return */
 void expression_typed(unsigned type)
 {
+	struct node *n;
 	if (type == VOID && token == T_SEMICOLON) {
 		write_tree(tree(T_NULL, NULL, NULL));
 		return;
 	}
-	write_tree(typeconv(expression_tree(0), type, 0));
+	n = typeconv(expression_tree(0), type, 0);
+	/* Don't lose return statements */
+	n->flags |= SIDEEFFECT;
+	write_tree(n);
 }
