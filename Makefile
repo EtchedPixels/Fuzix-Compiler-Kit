@@ -1,16 +1,16 @@
 all: fcc cc0 \
-     cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
+     cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.1802 cc1.6800 \
-     cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
+     cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800\
      copt support6502 support65c816 support6800 support6803 \
      support6809 support8080 support8085 supportz80 \
      supportz8 supportsuper8 test
 
 bootstuff: cc cc0 \
-     cc1.8080 cc1.6803 cc1.6809 cc1.z80 cc1.thread cc1.byte cc1.6502 \
+     cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.super8 cc1.1802 cc1.6800 \
-     cc2 cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803 cc2.thread \
+     cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 \
      copt
 
@@ -27,10 +27,8 @@ OBJS1 = body.o declaration.o enum.o error.o expression.o header.o idxdata.o \
 
 OBJS2 = backend.o backend-default.o
 OBJS3 = backend.o backend-8080.o
-OBJS4 = backend.o backend-6809.o
 OBJS5 = backend.o backend-z80.o
 OBJS6 = backend.o backend-65c816.o
-OBJS7 = backend.o backend-6803.o
 OBJS8 = backend.o backend-8070.o
 OBJS9 = backend.o backend-threadcode.o
 OBJS11 = backend.o backend-6502.o
@@ -70,12 +68,6 @@ cc1.8080:$(OBJS1) target-8080.o
 cc1.z80:$(OBJS1) target-z80.o
 	gcc -g3 $(OBJS1) target-z80.o -o cc1.z80
 
-cc1.6803:$(OBJS1) target-6803.o
-	gcc -g3 $(OBJS1) target-6803.o -o cc1.6803
-
-cc1.6809:$(OBJS1) target-6809.o
-	gcc -g3 $(OBJS1) target-6809.o -o cc1.6809
-
 cc1.thread:$(OBJS1) target-threadcode.o
 	gcc -g3 $(OBJS1) target-threadcode.o -o cc1.thread
 
@@ -106,17 +98,8 @@ cc2:	$(OBJS2)
 cc2.8080:	$(OBJS3)
 	gcc -g3 $(OBJS3) -o cc2.8080
 
-cc2.6809:	$(OBJS4)
-	gcc -g3 $(OBJS4) -o cc2.6809
-
 cc2.z80:	$(OBJS5)
 	gcc -g3 $(OBJS5) -o cc2.z80
-
-cc2.6803:	$(OBJS7)
-	gcc -g3 $(OBJS7) -o cc2.6803
-
-cc2.8070:	$(OBJS8)
-	gcc -g3 $(OBJS8) -o cc2.8070
 
 cc2.thread:	$(OBJS9)
 	gcc -g3 $(OBJS9) -o cc2.thread
@@ -175,9 +158,9 @@ test:
 clean:
 	rm -f cc cc85 ccz80 ccthread cc0 copt
 	rm -f cc6502 cc65c816
-	rm -f cc1.8080 cc1.z80 cc1.6803 cc1.thread
-	rm -f cc1.6502 cc1.65c816 cc1.6809 cc1.byte
-	rm -f cc2.8080 cc2.6809 cc2.z80 cc2.65c816 cc2.6803
+	rm -f cc1.8080 cc1.z80 cc1.thread
+	rm -f cc1.6502 cc1.65c816 cc1.byte
+	rm -f cc2.8080 cc2.z80 cc2.65c816
 	rm -f cc2.8070 cc2.thread cc2.byte cc2.6502
 	rm -f cc1.super8 cc2.super8
 	rm -f cc1.z8 cc2.z8
@@ -229,13 +212,6 @@ bootinst:
 	cp cc2.6800 $(CCROOT)/lib
 	cp copt $(CCROOT)/lib
 	cp rules.6800 $(CCROOT)/lib
-	# 6800
-	mkdir -p $(CCROOT)/lib/6809
-	mkdir -p $(CCROOT)/lib/6809/include
-	cp cc1.6809 $(CCROOT)/lib
-	cp cc2.6809 $(CCROOT)/lib
-	cp copt $(CCROOT)/lib
-	cp rules.6809 $(CCROOT)/lib
 	# 8080/8085
 	mkdir -p $(CCROOT)/lib/8080
 	mkdir -p $(CCROOT)/lib/8080/include
