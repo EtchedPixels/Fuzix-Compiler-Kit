@@ -1,6 +1,6 @@
 all: emu6502 emu65c816 emu6800 emu85 emuz8 emuz80 byte1802 emu6809 \
      testcrt0.o testcrtz80.o testcrt0_6502.o testcrt0_65c816.o \
-     testcrt0_6803.o testcrt0_z8.o testcrt0_byte1802.o
+     testcrt0_6803.o testcrt0_6809.o testcrt0_z8.o testcrt0_byte1802.o
 
 emu85: emu85.o intel_8085_emulator.o
 	$(CC) emu85.o intel_8085_emulator.o -o emu85
@@ -44,14 +44,17 @@ emu65c816.o: emu65c816.c
 emu6800: 6800.o emu6800.o
 	$(CC) $(CFLAGS) -o emu6800 emu6800.o 6800.o
 
-6809.o: 6809.c
-	$(CC) $(CFLAGS) -c 6809.c
+e6809.o: e6809.c e6809.h
+	$(CC) $(CFLAGS) -c e6809.c
 
-emu6809.o: emu6809.c
+d6809.o: d6809.c d6809.h e6809.h
+	$(CC) $(CFLAGS) -c d6809.c
+
+emu6809.o: emu6809.c d6809.h e6809.h
 	$(CC) $(CFLAGS) -c emu6809.c
 
-emu6809: 6809.o emu6809.o
-	$(CC) $(CFLAGS) -o emu6809 emu6809.o 6809.o
+emu6809: emu6809.o e6809.o d6809.o
+	$(CC) $(CFLAGS) -o emu6809 emu6809.o e6809.o d6809.o
 
 z80dis.o: z80dis.h
 
@@ -72,6 +75,9 @@ testcrt0_65c816.o: testcrt0_65c816.s
 
 testcrt0_6803.o: testcrt0_6803.s
 	fcc -m6803 -c testcrt0_6803.s
+
+testcrt0_6809.o: testcrt0_6809.s
+	fcc -m6809 -c testcrt0_6809.s
 
 testcrt0_z8.o: testcrt0_z8.s
 	fcc -mz8 -c testcrt0_z8.s
