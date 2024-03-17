@@ -1,0 +1,6 @@
+#!/bin/sh
+b=$(basename $1 .c)
+echo  $b":"
+fcc -m6809 -O -X -c tests/$b.c
+ld6809 -b -C256 testcrt0_6809.o tests/$b.o -o tests/$b /opt/fcc/lib/6809/lib6809.a
+./emu6809 -d tests/$b tests/$b.map 2> $b.log
