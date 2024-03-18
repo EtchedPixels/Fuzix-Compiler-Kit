@@ -5,8 +5,10 @@ OBJ =  dp.o makebool.o divide.o __div.o __divu.o __xdiveq.o __mul.o \
        __xminuseq.o \
        __cceql.o __ccnel.o __ccgtl.o __ccgteql.o __ccltl.o __cclteql.o \
        __switch.o __switchc.o \
-       __cpll.o __castl.o __negatel.o  \
-       __xplusplusuc.o
+       __cpll.o __castl.o __negatel.o __booll.o __notl.o \
+       __xplusplusuc.o __xshleq.o __xshreq.o __xshrequ.o \
+       __xshleqc.o __xshreqc.o __xshrequc.o \
+       __xplusplusl.o __xpluseql.o \
     
 .s.o:
 	fcc -m6809 -c $<
