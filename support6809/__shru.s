@@ -8,6 +8,7 @@ __shru:	clra
 	andb #15
 	beq load_out
 	cmpb #8
+	beq bytemove
 	bcs nofast
 	subb #8
 	tfr d,x
@@ -31,4 +32,8 @@ shrs:	lsra
 	bra done
 load_out:
 	ldd 2,s
+	bra done
+bytemove:
+	ldb 2,s
+	clra
 	bra done

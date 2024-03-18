@@ -10,6 +10,7 @@ __xshrequ:
 	beq	nowork
 	cmpb	#8
 	tfr	d,y
+	beq	bytemove
 	bcc	fast
 	ldd	,x
 right16:
@@ -33,3 +34,9 @@ right16f:
 nowork:
 	ldd	,x
 	rts
+bytemove:
+	ldb	,x
+	clra
+	std	,x
+	rts
+
