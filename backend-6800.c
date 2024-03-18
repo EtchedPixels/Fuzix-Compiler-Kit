@@ -1056,8 +1056,7 @@ unsigned write_tos_op(struct node *n, const char *op, const char *op2)
 		op16_on_tos(op2, op2);
 		swap_d_y();
 		op16_on_tos(op, op2);
-	}
-	if (s == 2)
+	} else if (s == 2)
 		op16_on_tos(op, op2);
 	else
 		op8_on_tos(op);
