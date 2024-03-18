@@ -1551,10 +1551,10 @@ void gen_jtrue(const char *tail, unsigned n)
 
 void gen_switch(unsigned n, unsigned type)
 {
-	gen_helpcall(NULL);
-	printf("switch");
+	printf("\tldx #Sw%u\n", n);
+	printf("\tjmp __switch");
 	helper_type(type, 0);
-	printf("\n\t.word Sw%d\n", n);
+	printf("\n");
 }
 
 void gen_switchdata(unsigned n, unsigned size)
