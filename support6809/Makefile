@@ -8,7 +8,7 @@ OBJ =  dp.o makebool.o divide.o __div.o __divu.o __xdiveq.o __mul.o \
        __cpll.o __castl.o __negatel.o __booll.o __notl.o \
        __xplusplusuc.o __xshleq.o __xshreq.o __xshrequ.o \
        __xshleqc.o __xshreqc.o __xshrequc.o \
-       __xplusplusl.o __xpluseql.o \
+      __xminusminusl.o __xminuseql.o __xplusplusl.o __xpluseql.o \
     
 .s.o:
 	fcc -m6809 -c $<
