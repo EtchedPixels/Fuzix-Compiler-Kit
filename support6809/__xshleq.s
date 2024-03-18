@@ -18,7 +18,7 @@ __xshlequ:
 right16:
 	lslb
 	rora
-	ldy	-1,y
+	leay	-1,y
 	bne	right16
 	std	,x
 	rts
@@ -29,7 +29,7 @@ fast:
 	clra
 right16f:
 	lslb
-	ldy	-1,y
+	leay	-1,y
 	bne	right16f
 	std	,x
 	rts

@@ -7,18 +7,22 @@
 
 __ccltequl:
 	cmpy	2,s
-	bhi	false
+	blo	false
+	bhi	true
 	bra	cclow
 __cclteql:
 	cmpy	2,s
-	bgt	false
+	blt	false
+	bgt	true
 cclow:
 	cmpd	4,s
-	bhi	false
+	blo	false
+true:
 	ldd	@one
 out:
 	ldx	,s
 	leas	6,s
+	tstb
 	jmp	,x
 false:
 	clra

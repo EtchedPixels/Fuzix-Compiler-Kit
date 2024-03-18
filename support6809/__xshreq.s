@@ -13,7 +13,7 @@ __xshreq:
 right16:
 	asra
 	rorb
-	ldy	-1,y
+	leay	-1,y
 	bne	right16
 	std	,x
 	rts

@@ -12,6 +12,7 @@ __cceql:
 out:
 	ldx	,s
 	leas	6,s
+	tstb
 	jmp	,x
 false:
 	clra
