@@ -607,6 +607,12 @@ void op16d_on_spi(const char *op)
 	printf("\t%sd ,s++\n", op);
 }
 
+void op16_on_spi(const char *op)
+{
+	printf("\t%sa ,s+\n", op);
+	printf("\t%sb ,s+\n", op);
+}
+
 void op16d_on_s(const char *op, const char *op2, unsigned off)
 {
 	/* Big endian */
@@ -1018,24 +1024,39 @@ unsigned write_uni_op(struct node *n, const char *op, unsigned off)
 void op8_on_tos(const char *op)
 {
 	unsigned off = make_tos_ptr();
-	printf("\t%sb %u,x\n", remap_op(op), off);
-	printf("\tins\n");
+	if (cpu_is_09)
+		op8_on_spi(op);
+	else {
+		printf("\t%sb %u,x\n", remap_op(op), off);
+		printf("\tins\n");
+	}
 }
 
 void op16_on_tos(const char *op, const char *op2)
 {
-	unsigned off = make_tos_ptr();
-	printf("\t%sb %u,x\n", remap_op(op), off + 1);
-	printf("\t%sa %u,x\n", remap_op(op2), off);
-	printf("\tins\n");
-	printf("\tins\n");
+	unsigned off;
+	if (cpu_is_09)
+		op16_on_spi(op);
+	else {
+		off = make_tos_ptr();
+		printf("\t%sb %u,x\n", remap_op(op), off + 1);
+		printf("\t%sa %u,x\n", remap_op(op2), off);
+		printf("\tins\n");
+		printf("\tins\n");
+	}
 }
 
 unsigned write_tos_op(struct node *n, const char *op, const char *op2)
 {
 	unsigned s = get_size(n->type);
-	if (s > 2)
+	if (s > 2 && !cpu_has_y)
 		return 0;
+	if (s == 4) {
+		swap_d_y();
+		op16_on_tos(op2, op2);
+		swap_d_y();
+		op16_on_tos(op, op2);
+	}
 	if (s == 2)
 		op16_on_tos(op, op2);
 	else
@@ -1957,7 +1978,10 @@ unsigned do_xeqop(struct node *n, const char *op)
 	case T_HATEQ:
 		op_on_ptr(n, "eor");
 		break;
-	/* TODO: PLUSEQ
+	case T_PLUSEQ:
+		opd_on_ptr(n, "add", "adc");
+		break;
+	/* TODO:
 	   MINUSEQ
 	   PLUSPLUS
 	   MINUSMINUS
@@ -1968,6 +1992,7 @@ unsigned do_xeqop(struct node *n, const char *op)
 	}
 	/* Stuff D back into ,X */
 	opd_on_ptr(n, "st", "st");
+	return 1;
 }
 
 /*
@@ -2404,6 +2429,12 @@ unsigned gen_node(struct node *n)
 			set_d_node(n);
 			return 1;
 		}
+		if (s == 4 && cpu_has_y) {
+			printf("\tldy ,x\n");
+			printf("\tldd 2,x\n");
+			set_d_node(n);	/* TODO: review 32 bit cases */
+			return 1;
+		}
 		break;
 	case T_EQ:	/* Assign - ToS is address, working value is value */
 	case T_EQPLUS:
@@ -2428,7 +2459,24 @@ unsigned gen_node(struct node *n)
 			load_d_const(v);
 			return 1;
 		}
-		return 0;
+		/* size 4 varies */
+		if (cpu_has_y) {
+			load_d_const(v);
+			/* TODO: tracking on Y ? */
+			printf("\tldy #%u\n", (unsigned)(n->value >> 16));
+			return 1;
+		}
+		if (cpu_has_d) {
+			load_d_const(n->value >> 16);
+			printf("\tstd @hireg\n");
+			load_d_const(n->value);
+			return 1;
+		}
+		load_d_const(n->value >> 16);
+		printf("\tstaa @hireg\n");
+		printf("\tstab @hireg\n");
+		load_d_const(n->value);
+		return 1;
 	case T_LABEL:
 	case T_NAME:
 	case T_LREF:
@@ -2560,7 +2608,7 @@ unsigned gen_node(struct node *n)
 	case T_OR:
 		return write_tos_op(n, "or", "or");
 	case T_HAT:
-		return write_tos_op(n, "eor", "eot");
+		return write_tos_op(n, "eor", "eor");
 	/* These do the maths backwards in effect so use the other equvialent
 	   compare for the ordered part */
 	case T_EQEQ:
