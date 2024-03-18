@@ -19,6 +19,8 @@
 ;
 ;	On exit X holds the quotient, D holds the remainder
 ;
+;	Assumed to preserve Y in the eq helpers (but easily changed if
+;	useful)
 ;
 	.export div16x16
 
