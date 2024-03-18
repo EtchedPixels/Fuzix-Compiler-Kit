@@ -2,12 +2,12 @@
 	.code
 __booll:
 	cmpy	#0
-	bne	false
+	bne	true
 	cmpd	#0
-	bne	false
-	ldd	@one
-	rts
-false:
+	bne	true
 	clra
 	clrb
+	rts
+true:
+	ldd	@one
 	rts

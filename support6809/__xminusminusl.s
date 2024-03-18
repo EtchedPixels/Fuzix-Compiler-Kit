@@ -11,11 +11,11 @@ __xmminusul:
 	ldy ,x		; Get old value into YD
 	ldd 2,x
 	pshs y,d	; Save old value
-	subd 6,s	; Do the lower subtract
+	subd 4,s	; Do the lower subtract
 	std 2,x
 	exg d,y
-	sbcb 5,s	; and upper subtract
-	sbca 4,s
+	sbcb 6,s	; and upper subtract
+	sbca 7,s
 	std ,x		; save it
 	puls y,d	; recover the original value
 	leas 4,s	; throw away the temporaries

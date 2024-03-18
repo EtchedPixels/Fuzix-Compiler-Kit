@@ -1,5 +1,4 @@
 ;
-;	Preserve original value as result
 ;	Messy need to think how to do it better
 ;
 	.export __xpluseql

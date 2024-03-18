@@ -2200,7 +2200,7 @@ unsigned gen_shortcut(struct node *n)
 	case T_EQ:	/* Our left is the address */
 	case T_EQPLUS:
 		if (can_load_x_with(l, 0)) {
-			if (r->op == T_CONSTANT && nr && r->value == 0) {
+			if (r->op == T_CONSTANT && nr && r->value == 0 && s <= 2) {
 				/* We can optimize thing = 0 for the case
 				   we don't also need the value */
 				load_x_with(l, 0);

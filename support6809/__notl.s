@@ -8,6 +8,6 @@ __notl:
 	clra
 	clrb
 	rts
-false:
+true:
 	ldd	@one
 	rts
