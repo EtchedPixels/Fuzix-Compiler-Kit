@@ -1217,13 +1217,11 @@ void load_x_with(struct node *r, unsigned off)
 	case T_ARGUMENT:
 		v += argbase;
 	case T_LOCAL:
-		v += sp;
 		make_local_ptr(v + off, 0);
 		break;
 	case T_LREF:
-		v += sp;
 		if (cpu_is_09)
-			printf("\tldx %u,s\n", v);
+			printf("\tldx %u,s\n", v + sp);
 		else {
 			off = make_local_ptr(v + off, 254);
 			printf("\tldx %u,x\n", off);
@@ -1347,6 +1345,8 @@ struct node *gen_rewrite_node(struct node *n)
 		(l->op == T_LOCAL || l->op == T_NAME || l->op == T_LABEL || l->op == T_ARGUMENT)) {
 		/* We don't care if the right offset is 16bit or 32 as we've
 		   got 16bit pointers */
+		printf(";merge right %x %lu+%lu\n",
+			op, l->value, r->value);
 		l->value += r->value;
 		free_node(r);
 		free_node(n);
@@ -1692,8 +1692,9 @@ unsigned gen_push(struct node *n)
 		case 2:
 			printf("\tstd ,--s\n");
 			return 1;
-		case 4:
-			printf("\tpshs d,y\n");	/* Check ordering! */
+		case 4:	/* Have to split them to get the order right */
+			printf("\tstd ,--s\n");
+			printf("\tsty ,--s\n");
 			return 1;
 		}
 		return 0;
@@ -2150,6 +2151,7 @@ unsigned gen_shortcut(struct node *n)
 	case T_DEREFPLUS:
 		/* Our right hand side is the thing to deref. See if we can
 		   get it into X instead */
+		printf(";deref r %x %u\n", r->op, (unsigned)r->value);
 		if (can_load_x_with(r, 0)) {
 			v = n->value;
 			load_x_with(r, 0);
