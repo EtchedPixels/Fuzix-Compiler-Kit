@@ -2279,7 +2279,7 @@ unsigned gen_shortcut(struct node *n)
 			return 1;
 		if (s == 2 && add_to_node(n, -1, nr))
 			return 1;
-		return do_xeqop(n, "xminusminus");
+		return do_xeqop(n, "xmminus");
 	case T_STAREQ:
 		return do_xeqop(n, "xmuleq");
 	case T_SLASHEQ:

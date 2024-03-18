@@ -1,12 +1,12 @@
 ;
 ;	,X - Y:D, return old ,X
 ;
-	.export __xminusminusl
-	.export __xminusminusul
+	.export __xmminusl
+	.export __xmminusul
 
 	.code
-__xminusminusl:
-__xminusminusul:
+__xmminusl:
+__xmminusul:
 	pshs y,d	; Value into memory
 	ldy ,x		; Get old value into YD
 	ldd 2,x
