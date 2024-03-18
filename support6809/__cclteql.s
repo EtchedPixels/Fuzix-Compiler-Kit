@@ -17,8 +17,8 @@ cclow:
 	bhi	false
 	ldd	@one
 out:
-	ldx	,x
-	leas	4,s
+	ldx	,s
+	leas	6,s
 	jmp	,x
 false:
 	clra

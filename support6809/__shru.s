@@ -13,7 +13,7 @@ __shru:	clra
 	subb #8
 	tfr d,x
 	clra
-	ldb 2,x		; high byte to low
+	ldb 2,s		; high byte to low
 shrf:	
 	lsrb
 	leax -1,x

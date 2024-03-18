@@ -8,7 +8,7 @@ __shr:	clra
 	andb #15
 	beq load_out
 	tfr d,x
-	ldd 2,x
+	ldd 2,s
 shrs:	asra
 	rorb
 	leax -1,x

@@ -11,8 +11,8 @@ __ccnel:
 	clra
 	clrb
 out:
-	ldx	,x
-	leas	4,s
+	ldx	,s
+	leas	6,s
 	jmp	,x
 true:
 	ldd	@one

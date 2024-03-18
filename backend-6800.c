@@ -1247,7 +1247,7 @@ void load_x_with(struct node *r, unsigned off)
 		invalidate_x();
 		break;
 	case T_NAME:
-		printf("\tldx #<_%s+%u\n", namestr(r->snum), v + off);
+		printf("\tldx #_%s+%u\n", namestr(r->snum), v + off);
 		invalidate_x();
 		break;
 	/* case T_RREF:

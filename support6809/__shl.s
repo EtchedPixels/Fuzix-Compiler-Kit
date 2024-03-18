@@ -13,7 +13,7 @@ __shl:	clra
 	subb #8
 	tfr d,x
 	clrb
-	lda 3,x		; low byte to high
+	lda 3,s		; low byte to high
 shlf:	
 	lsla
 	leax -1,x
@@ -24,7 +24,7 @@ done:
 	jmp ,x
 nofast:
 	tfr d,x
-	ldd 2,x
+	ldd 2,s
 shls:	lslb
 	rola
 	leax -1,x

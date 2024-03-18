@@ -8,6 +8,7 @@ __xshreq:
 	clra
 	andb	#15
 	beq	nowork
+	tfr	d,y
 	ldd	,x
 right16:
 	asra
