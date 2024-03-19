@@ -1,9 +1,9 @@
 ;
 ;	,X -= D
 ;
-	.export __minuseq
+	.export __xminuseq
 
-__minuseq:
+__xminuseq:
 	std ,--s
 	ldd ,x
 	subd ,s++
