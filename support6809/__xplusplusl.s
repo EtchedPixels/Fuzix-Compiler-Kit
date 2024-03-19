@@ -8,20 +8,21 @@
 	.code
 __xplusplusl:
 __xplusplusul:
-	std ,--s
+	std ,--s		; save original D
 	ldd ,x
-	std ,--s
+	std ,--s		; save original high
 	ldd 2,x
-	std ,--s
+	std ,--s		; save original low
+	ldd 4,s			; get original D back
 	; add Y,D to ,X
-	addd 2,x
-	std 2,x
+	addd 2,x		; add low words
+	std 2,x			; save
 	bcc no_overflow
-	leay 1,y
+	leay 1,y		; carry one if needed
 no_overflow:
-	exg d,y
-	addd 0,x
-	std 0,x
-	puls d,y
+	exg d,y			; now do high words
+	addd 0,x		; add original high
+	std 0,x			; store back
+	puls d,y		; recover 
 	leas 2,s
 	rts

@@ -2,8 +2,13 @@
 
 __switchl:
 	; X holds the switch table, Y:D the value
-	stx ,--s		; Top of stack is now pointer to counter
-	inc [1,s]
+	; Juggle as we are short of regs here - TODO find a nicer approach
+	leas -4,s
+	sty ,s			; Save a reg for scratch
+	ldy ,x++		; Get count
+	sty 2,s			; Save count
+	ldy ,s++		; Recover saved pointer
+	inc 1,s
 	bra moveon
 next:
 	cmpy ,x++
@@ -12,7 +17,7 @@ next:
 	beq gotit
 	leax 2,x
 moveon:
-	dec [1,s]		; We know < 256 entries per switch
+	dec 1,s			; We know < 256 entries per switch
 	bne next
 gotit:
 	ldx ,x
