@@ -6,29 +6,25 @@
 
 	.code
 
-;
-; 6	Value to multiply (2)
-; 4	Return address (2)
-; 0	Work (4 byte)
-;	Word popped off bit by bit
-;
 __mul:
-	leas	-4,s		; workspace
-	std	,--s		; save value
-	lda	9,s		; low byte
-	mul			; D is now low x low
-	std	2,s
-	lda	8,s		; high byte
-	ldb	,s+
-	mul			; D is now high x low
-	std	1,s
-	lda	8,s		; low byte
-	ldb	,s+		; high byte of D
-	mul			; D is now low x high
-	addd	2,s		; High bytes
-	tfr	b,a		; Shift left 8, discarding
-	clrb
-	addd	0,s		; Add the low x low
-	ldx	4,s		; return value
-	leas	8,s		; clean stack
-	jmp	,x		; home
+	std	,--s		; Save one half
+	; We are now doing mul 0,s with 4,s
+	lda	5,s		; low byte
+	mul			; low x low
+	std	,--s		; save low
+	lda	7,s		; low byte of arg1
+	ldb	2,s		; high byte of arg2
+	mul
+	addb	0,s		; add to upper half of result
+	stb	0,s
+	lda	6,s		; upper byte of arg1
+	ldb	3,s		; lower byte of arg2
+	mul
+	addb	0,s		; add to upper half
+	tfr	b,a
+	ldb	1,s		; get into D
+	ldx	4,s		; return address
+	leas	8,s		; fix the stack
+	jmp	,x
+
+	
