@@ -27,6 +27,9 @@ DIVIS		.equ	0
 DIVID		.equ	6
 
 		.dp
+
+		.export tmp2
+		.export tmp3
 tmp2:		.word	0
 tmp3:		.word	0
 
