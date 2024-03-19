@@ -30,7 +30,7 @@ nosignfix:
 	com	9,x
 nosignfix2:
 	tfr	s,d
-	jsr	div3x32
+	jsr	div32x32
 	;
 	;	Get the result
 	;
