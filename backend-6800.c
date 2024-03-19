@@ -1628,9 +1628,9 @@ void gen_value(unsigned type, unsigned long value)
 	case CLONG:
 	case ULONG:
 	case FLOAT:
-		/* We are little endian */
-		printf("\t.word %d\n", (unsigned) (value & 0xFFFF));
+		/* We are big endian */
 		printf("\t.word %d\n", (unsigned) ((value >> 16) & 0xFFFF));
+		printf("\t.word %d\n", (unsigned) (value & 0xFFFF));
 		break;
 	default:
 		error("unsuported type");
