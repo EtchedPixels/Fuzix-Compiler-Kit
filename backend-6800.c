@@ -1786,7 +1786,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		return write_op(r, "sub", "sbc", 0);
+		return write_opd(r, "sub", "sbc", 0);
 	case T_AND:
 		if (r->op == T_CONSTANT && s <= 2) {
 			v = r->value;
@@ -1885,7 +1885,7 @@ unsigned gen_uni_direct(struct node *n)
 	case T_LEQ:
 		/* We have a specific optimization case that occurs a lot
 		   *auto = 0, that we can optimize nicely */
-		if (r->op == T_CONSTANT && r->value == 0) {
+		if (r->op == T_CONSTANT && r->value == 0 && nr) {
 			if (cpu_is_09) {
 				if (s == 1)
 					uniop8_on_s("clr", n->val2 + sp);
@@ -1918,7 +1918,7 @@ unsigned gen_uni_direct(struct node *n)
 		/* Optimizations for constants */
 		if (nr && r->op == T_CONSTANT && r->value == 0) {
 			if (write_uni_op(n, "clr", 0)) {
-				set_d_node(n);
+				invalidate_d();
 				return 1;
 			}
 		}
@@ -2299,6 +2299,9 @@ unsigned gen_shortcut(struct node *n)
 		return do_xeqop(n, "xoreq");
 	case T_HATEQ:
 		return do_xeqop(n, "xhateq");
+#if 0
+	/* This won't work as is and requires a rethink	*/
+	/* Thankfully it's only the expression/expression case */
 	case T_MINUS:
 		/* Do it backwards if not a const and on a 6809 */
 		if (r->op == T_CONSTANT || s > 2 || cpu_is_09 == 0)
@@ -2318,6 +2321,7 @@ unsigned gen_shortcut(struct node *n)
 		/* our op takes it back off stack */
 		sp -= get_stack_size(r->type);
 		return 1;
+#endif
 	}
 	return 0;
 }
