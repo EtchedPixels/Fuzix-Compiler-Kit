@@ -11,7 +11,8 @@ OBJ =  dp.o makebool.o divide.o __div.o __divu.o __xdiveq.o __mul.o \
       __xminusminusl.o __xminuseql.o __xplusplusl.o __xpluseql.o \
       __xminusminus.o __xminusminusc.o \
       __shll.o __shrl.o __shrul.o \
-      __xshleql.o __xshreql.o __xshrequl.o
+      __xshleql.o __xshreql.o __xshrequl.o \
+      __minus.o
     
 .s.o:
 	fcc -m6809 -c $<
