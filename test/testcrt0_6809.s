@@ -7,13 +7,14 @@
 
 hireg:	.word	0
 tmp:	.word	0
-zero:	.byte	0
+zero:	.word	0
 one:	.word	1
 
 	.code ; (at 0x0100)
 
 start:
-	clr	@zero
+	ldd	#0
+	std	@zero
 	ldd	#1
 	std	@one
 	jsr	_main

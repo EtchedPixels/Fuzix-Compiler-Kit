@@ -27,22 +27,22 @@
 ;	is appropriately set
 ;
 
-__boolc:
+__notc:
 	cmpb	#0
 	bra	booleq
-__bool:
-	subd	@zero
+__not:
+	cmpd	@zero
 booleq:
 	bne	ret0
 ret1:
 	ldd	@one
 	rts
 
-__notc:
+__boolc:
 	cmpb	#0
 	bra	boolne
-__not:
-	subd	@zero
+__bool:
+	cmpd	@zero
 boolne:
 	bne	ret1
 ret0:

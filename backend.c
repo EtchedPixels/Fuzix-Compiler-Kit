@@ -236,7 +236,7 @@ static char *getopname(int op) {
 		case 0x0208: return("T_PERCENTEQ");
 		case 0x0209: return("T_LTEQ");
 		case 0x020A: return("T_GTEQ");
-		case 0x0200: return("T_UNI");
+		case 0x0200: return("T_PLUSEQ");
 		case '(': return("T_LPAREN");
 		case ')': return("T_RPAREN");
 		case '[': return("T_LSQUARE");
@@ -334,11 +334,14 @@ static void dump_tree(struct node *n, unsigned depth)
 		fputs("    ", stderr);
 	name= getopname(n->op);
 	if (name)
-		fprintf(stderr, "%s v%lx t%x f%x \n", name, n->value,
+		fprintf(stderr, "%s v%lx t%x f%x ", name, n->value,
 							 n->type, n->flags);
 	else
-		fprintf(stderr, "%04X v%lx t%x f%x \n", n->op, n->value,
+		fprintf(stderr, "%04X v%lx t%x f%x ", n->op, n->value,
 							n->type, n->flags);
+	if (n->snum)
+		fprintf(stderr, "\t%s", namestr(n->snum));
+	fputc('\n', stderr);
 	dump_tree(n->left, depth + 1);
 	dump_tree(n->right, depth + 1);
 }
