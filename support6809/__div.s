@@ -16,11 +16,10 @@
 ;
 __rem:
 	bsr absd
-	std ,s++
-	ldb 4,s
+	tfr d,x			; into X
+	ldd 2,s
 	bmi negmod
-	ldx 4,s			; get the dividend (unsigned)
-	ldd ,--s
+	exg d,x
 	jsr div16x16		; do the unsigned divide
 pop2:				; X = quotient, D = remainder
 	ldx ,s
@@ -28,9 +27,7 @@ pop2:				; X = quotient, D = remainder
 	jmp ,x
 negmod:
 	bsr negd
-	std 4,s
-	ldd , --s
-	ldx 4,s
+	exg d,x
 	jsr div16x16
 	bsr negd
 	bra pop2
@@ -43,28 +40,24 @@ negmod:
 ;	sign, otherwise negative
 ;
 __div:
-	ldx #0			; Count number of sign changes
+	ldy #0			; Count number of sign changes
 	bsr absd
-	std ,--s
-	ldd 4,s
+	tfr d,x			; Save divisor in X
+	ldd 2,s			; Get the argument
 	bsr absd
-	std 4,s
-	ldd ,s++
-	stx ,--s		; Save sign change
-	ldx 4,s
+	exg d,x
 	jsr div16x16		; do the maths
 				; X = quotient, D = remainder
-	ldd ,s++		; Get sign changes back in D
-	rora
 	tfr x,d
-	bcc pop2		; low bit set -> negate
+	cmpy #1			; if we inverted one invert the result
+	bne pop2	
 	bsr negd
 	bra pop2
 
 absd:
 	bita #$80
 	beq ispos
-	leax 1,x		; count sign changes in X
+	leay 1,y		; count sign changes in Y
 negd:
 	subd @one		; negate d
 	coma

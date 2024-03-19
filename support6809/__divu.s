@@ -26,19 +26,15 @@ __xdivequ:
 	; ,X / D
 	stx ,--s		; Save pointer
 	ldx ,x			; Value
-	exg d,x			; It computes D / X
 	jsr div16x16
 	exg d,x			; result now in D
-	ldx ,s++		; Get pointer back
-	std ,x			; Save
+	std [,s++]		; Get pointer back and save
 	rts
 
 __xremequ:
 	; ,X % D
 	stx ,--s		; Save pointer
 	ldx ,x			; Value
-	exg d,x			; It computes D / X
 	jsr div16x16
-	ldx ,s++		; Get pointer back
-	std ,x			; Save
+	std [,s++]		; Get pointer back and save
 	rts

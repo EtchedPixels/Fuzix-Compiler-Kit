@@ -17,11 +17,12 @@
 __xremeq:
 	stx ,--s		; save pointer
 	ldy #0
-	ldx ,x			; Get value
 	bsr absd
+	ldx ,x
 	exg d,x
 	bita #0x80
 	bne negmod
+	exg d,x
 	jsr div16x16		; do the unsigned divide
 store:
 	ldx ,s++
@@ -29,6 +30,7 @@ store:
 	rts
 negmod:
 	bsr negd
+	exg d,x
 	jsr div16x16
 	bsr negd
 	bra store
@@ -43,16 +45,16 @@ negmod:
 __xdiveq:
 	stx, --s
 	ldy #0			; Count number of sign changes
-	ldx ,x
+	ldx ,x			; Data value
 	bsr absd
 	exg d,x
 	bsr absd
+	exg d,x
 	jsr div16x16		; do the maths
 				; X = quotient, D = remainder
-	ldd ,s++		; Get sign changes back in D
-	rora
 	tfr x,d
-	bcc store		; low bit set -> negate
+	cmpy #1
+	bne store		; low bit set -> negate
 	bsr negd
 	bra store
 	
