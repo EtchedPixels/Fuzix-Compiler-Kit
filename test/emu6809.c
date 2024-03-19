@@ -28,15 +28,38 @@ unsigned char e6809_read8_debug(unsigned addr)
 		return 0xFF;
 }
 
+static unsigned char fefcval=0;
+
 void e6809_write8(unsigned addr, unsigned char val)
 {
-	if (addr == 0xFEFF) {
+	int x;
+
+	/* Writes to certain addresses act like system calls */
+	/* 0xFEFF:  exit() with the val as the exit value */
+	/* 0xFEFE:  putchar(val) */
+	/* 0xFEFC/D: print out the 16-bit value as a decimal */
+
+	switch(addr) {
+	    case 0xFEFF:
 		if (val == 0)
 			exit(0);
 		fprintf(stderr, "***FAIL %u\n", val);
 		exit(1);
+	    case 0xFEFE:
+		putchar(val);
+		break;
+	    case 0xFEFD:
+		/* Make the value signed */
+		x= (fefcval << 8) | val;
+		if (x>0x8000) x-= 0x10000;
+		printf("%d\n", x);
+		break;
+	    case 0xFEFC:
+		fefcval= val;	/* Save high byte for now */
+		break;
+	    default:
+		ram[addr] = val;
 	}
-	ram[addr] = val;
 }
 
 static const char *make_flags(uint8_t cc)
