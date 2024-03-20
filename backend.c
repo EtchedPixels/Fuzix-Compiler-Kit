@@ -691,7 +691,7 @@ void do_helper(struct node *n, const char *h, unsigned t, unsigned s)
 	/* Bool and cast are special as they type convert. In the case of
 	   bool we care about the type below the bool, and the result is
 	   always integer. In the case of a cast we care about everything */
-	if (n->op == T_BOOL)
+	if (n->op == T_BOOL || n->op == T_BANG)
 		helper_type(n->right->type, 0);
 	else {
 		if (n->op == T_CAST) {
@@ -882,6 +882,7 @@ void make_node(struct node *n)
 	case T_BOOL:
 		/* Check if we know it's already bool */
 		n->flags |= ISBOOL;
+		/* FIXME: we should run this through as a node in case it can inline */
 		if (!(n->right && (n->right->flags & ISBOOL)))
 			helper(n, "bool");
 		break;
