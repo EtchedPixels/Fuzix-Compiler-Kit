@@ -21,3 +21,15 @@ start:
 	; return and exit (value is in XA)
 	stb	$FEFF
 	; Write to FEFF terminates
+
+	.export _printint
+_printint:
+	ldd	2,s
+	std	$FEFC
+	rts
+
+	.export _putchar
+_putchar:
+	ldd	2,s
+	stb	$FEFE
+	rts
