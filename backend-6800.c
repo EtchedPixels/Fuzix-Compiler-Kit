@@ -1769,12 +1769,14 @@ unsigned cmp_direct(struct node *n, const char *uop, const char *op)
 		printf("\tcmpb #%u\n", v);
 		printf("\tjsr %s\n", op);
 		n->flags |= ISBOOL;
+		invalidate_b();
 		return 1;
 	}
 	if (s == 2 && cpu_has_d) {
 		printf("\tsubd #%u\n", v);
 		printf("\tjsr %s\n", op);
 		n->flags |= ISBOOL;
+		invalidate_d();
 		return 1;
 	}
 	return 0;
