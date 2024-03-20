@@ -2589,27 +2589,27 @@ unsigned gen_node(struct node *n)
 	case T_LEQ:
 		/* We probably want some indirecting helpers later */
 		if (cpu_is_09) {
-			if (v == 0 && s <= 2) {
+			if (n->val2 == 0 && s <= 2) {
 				if (s == 1)
-					printf("\tstb [%u,s]\n", n->val2 + sp);
+					printf("\tstb [%u,s]\n", v + sp);
 				else
-					printf("\tstd [%u,s]\n", n->val2 + sp);
+					printf("\tstd [%u,s]\n", v + sp);
 				return 1;
 			}
-			printf("\tldx %u,s\n", n->val2 + sp);
+			printf("\tldx %u,s\n", v + sp);
 		} else {
 			/* Offset of pointer in local */
-			off = make_local_ptr(n->val2, 256 - s);
+			off = make_local_ptr(v, 256 - s);
 			/* off,X is now the pointer */
 			printf("\tldx %u,x\n", off);
 		}
 		invalidate_x();
 		if (s == 1)
-			op8_on_ptr("st", v);
+			op8_on_ptr("st", n->val2);
 		else if (s == 2)
-			op16d_on_ptr("st", "st", v);
+			op16d_on_ptr("st", "st", n->val2);
 		else
-			op32d_on_ptr("st", "st", v);
+			op32d_on_ptr("st", "st", n->val2);
 		return 1;
 	/* Type casting */
 	case T_CAST:
