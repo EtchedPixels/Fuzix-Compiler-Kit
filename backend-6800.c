@@ -2594,7 +2594,7 @@ unsigned gen_node(struct node *n)
 					printf("\tstd [%u,s]\n", n->val2 + sp);
 				return 1;
 			}
-			printf("\nldx %u,s\n", n->val2 + sp);
+			printf("\tldx %u,s\n", n->val2 + sp);
 		} else {
 			/* Offset of pointer in local */
 			off = make_local_ptr(n->val2, 256 - s);
