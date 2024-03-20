@@ -25,6 +25,7 @@ struct node *new_node(void)
 	n->value = 0;
 	n->flags = 0;
 	n->type = 0;
+	n->snum = 0;
 	return n;
 }
 
@@ -728,15 +729,15 @@ struct node *constify(struct node *n)
 			break;
 		case T_GT:
 			if (l->type & UNSIGNED)
-				value = value < r->value;
+				value = value > r->value;
 			else
-				value = (signed long)value < (signed long )r->value;
+				value = (signed long)value > (signed long )r->value;
 			break;
 		case T_GTEQ:
 			if (l->type & UNSIGNED)
-				value = value < r->value;
+				value = value >= r->value;
 			else
-				value = (signed long)value < (signed long )r->value;
+				value = (signed long)value >= (signed long )r->value;
 			break;
 		default:
 			return NULL;
