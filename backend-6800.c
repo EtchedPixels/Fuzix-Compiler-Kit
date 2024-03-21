@@ -1783,6 +1783,107 @@ unsigned cmp_direct(struct node *n, const char *uop, const char *op)
 }
 
 /*
+ *	Do fast multiplies were we can
+ */
+static int count_mul_cost(unsigned n)
+{
+	int cost = 0;
+	if ((n & 0xFF) == 0) {
+		n >>= 8;
+		cost += 3;		/* tfr a,b clrb */
+	}
+	while(n > 1) {
+		if (n & 1)
+			cost += 4;	/* std s++, addd ,--s */
+		n >>= 1;
+		cost += 2;		/* lslb rola */
+	}
+	return cost;
+}
+
+/* Write the multiply for any value > 0 */
+static void write_mul(unsigned n)
+{
+	unsigned pops = 0;
+	if ((n & 0xFF) == 0) {
+		load_a_b();
+		load_b_const(0);
+		n >>= 8;
+	}
+	while(n > 1) {
+		if (n & 1) {
+			pops++;
+			printf("\tstd ,s++\n");
+		}
+		printf("\tlslb\n\trola\n");
+		n >>= 1;
+	}
+	while(pops--) {
+		printf("\taddd ,s++\n");
+	}
+}
+
+static unsigned can_fast_mul(unsigned s, unsigned n)
+{
+	/* Pulled out of my hat 8) */
+	unsigned cost = 15 + 3 * opt;
+	if (s > 2)
+		return 0;
+
+	/* For the moment */
+	if (!cpu_is_09)
+		return 0;
+
+	/* The base cost of a helper is 8 */
+	if (optsize)
+		cost = 8;
+	if (n == 0 || count_mul_cost(n) <= cost)
+		return 1;
+	return 0;
+}
+
+static void gen_fast_mul(unsigned s, unsigned n)
+{
+
+	if (n == 0)
+		load_d_const(0);
+	else { 
+		write_mul(n);
+		invalidate_d();
+	}
+}
+
+
+static unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
+{
+	u &= UNSIGNED;
+	if (s != 2)
+		return 0;
+	if (n == 1)
+		return 1;
+	if (n == 256 && u) {
+		load_b_a();
+		load_a_const(0);
+		return 1;
+	}
+	if (n & (n - 1))
+		return 0;
+	if (u) {
+		while(n > 1) {
+			printf("\tlsra\n\trorb\n");
+			n >>= 1;
+		}
+	} else {
+		while(n > 1) {
+			printf("\tasra\n\trorb\n");
+			n >>= 1;
+		}
+	}
+	invalidate_d();
+	return 1;
+}
+
+/*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
  *	fall back to doing it stack based.
@@ -1906,6 +2007,21 @@ unsigned gen_direct(struct node *n)
 		return cmp_direct(n, "boolule", "boolle");
 	case T_GTEQ:
 		return cmp_direct(n, "booluge", "boolge");
+	case T_SLASH:
+		if (r->op == T_CONSTANT) {
+			if (s <= 2 && gen_fast_div(s, r->value, n->type))
+				return 1;
+		}
+		break;
+	case T_STAR:
+		if (r->op == T_CONSTANT) {
+			v = r->value;
+			if (s <= 2 && can_fast_mul(s, v)) {
+				gen_fast_mul(s, v);
+				return 1;
+			}
+		}
+		break;
 	}
 	return 0;
 }
