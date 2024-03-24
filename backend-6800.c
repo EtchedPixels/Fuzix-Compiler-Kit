@@ -61,7 +61,7 @@ static unsigned cpu_has_y;	/* Has Y register */
 static unsigned cpu_is_09;	/* Bulding for 6x09 so a bit different */
 
 /*
- *	Helpers for code generation and trackign
+ *	Helpers for code generation and tracking
  */
 
 /*
@@ -731,7 +731,7 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 
 	printf(";make local ptr off %u, rlim %u noff %u\n", off, rlim, noff);
 
-	/* TODO: if we can d a small < 7 or so shift by decreement then
+	/* TODO: if we can d a small < 7 or so shift by decrement then
 	   it may beat going via tsx */
 	if (x_fprel == 0 ||  noff < 0) {
 		printf("\ttsx\n");
@@ -1339,7 +1339,7 @@ struct node *gen_rewrite_node(struct node *n)
 		free_node(r);
 		n->right = NULL;
 	}
-	/* Merge offset to object into a  single direct reference */
+	/* Merge offset to object into a single direct reference */
 	if (op == T_PLUS && r->op == T_CONSTANT &&
 		(l->op == T_LOCAL || l->op == T_NAME || l->op == T_LABEL || l->op == T_ARGUMENT)) {
 		/* We don't care if the right offset is 16bit or 32 as we've
@@ -1397,7 +1397,7 @@ struct node *gen_rewrite_node(struct node *n)
 		/* At this point r->value is the offset for the local */
 		/* n->value is the offset for the ptr load */
 		l->val2 = n->value;		/* Save the offset so it is squashed in */
-		squash_left(n, T_LEQ);	/* n->value becomes the local ref */
+		squash_left(n, T_LEQ);		/* n->value becomes the local ref */
 		return n;
 	}
 
@@ -2165,7 +2165,7 @@ unsigned memop_const(struct node *n, const char *op)
 	v = l->value;
 	if (r->op != T_CONSTANT)
 		return 0;
-	/* The helper has to load x and a value and make a cal
+	/* The helper has to load x and a value and make a call
 	   so is quite expensive */
 	if (r->value > 5 && opt < 2)
 		return 0;
