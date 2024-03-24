@@ -1945,7 +1945,7 @@ unsigned gen_direct(struct node *n)
 					if (v)
 						printf("\tanda #%u\n", v);
 					else
-						printf("\tclra");
+						printf("\tclra\n");
 				}
 				modify_a(a_val & v);
 			}
