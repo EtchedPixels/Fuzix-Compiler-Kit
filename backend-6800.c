@@ -2663,7 +2663,7 @@ unsigned gen_node(struct node *n)
 	case T_ARGUMENT:
 		if (d_holds_node(n))
 			return 1;
-		v += argbase;
+		v += argbase + frame_len;
 	case T_LOCAL:
 		/* For v != 0 case it would be more efficient to load
 		   const then add @tmp/tmp+1 TODO */
