@@ -423,7 +423,7 @@ void pop_x(void)
 	/* Must remember this trashes X, or could make it smart
 	   when we track and use offsets of current X then ins ins */
 	if (cpu_is_09)
-		printf("\tldx ,--s\n");
+		printf("\tpuls x\n");
 	else {
 		/* Easier said than done on a 6800 */
 		if (cpu_has_pshx)
