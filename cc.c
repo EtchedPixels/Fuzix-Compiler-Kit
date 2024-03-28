@@ -145,10 +145,12 @@ const char *defz8[] = { "__z8__", NULL };
 const char *defsuper8[] = { "__super8__", NULL };
 const char *def1802[] = { "__1802__", NULL };
 const char *def1805[] = { "__1805__", NULL };
+const char *def8070[] = { "__8070__", NULL };
 
 const char *ld6502[] = { "-b", "-C", "512", "-Z", "0x00", NULL };
 const char *ld6800[] = { "-b", "-C", "256", "-Z", "0x40", NULL };
 const char *ld6809[] = { "-b", "-C", "256", NULL };
+const char *ld8070[] = { "-b", "-C", "1", NULL };
 const char *ld8080[] = { "-b", "-C", "256", NULL };
 const char *ldbyte[] =  { NULL };
 const char *ldthread[] = { NULL };
@@ -177,6 +179,7 @@ struct cpu_table cpu_rules[] = {
 	{ "super8", "super8", ".super8", "libsuper8.a", "super8", defsuper8, ld8080, "8" , 0},
 	{ "1802", "1802", ".1802", "lib1802.a", "1802", def1802, ld8080, "2" , 0},
 	{ "1805", "1802", ".1802", "lib1805.a", "1802", def1805, ld8080, "5" , 0},
+	{ "8070", "8070", ".8070", "lib8070.a", "8070", def8070, ld8070, "8070" , 0},
 	{ NULL }
 };
 

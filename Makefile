@@ -1,17 +1,19 @@
 all: fcc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.1802 cc1.6800 \
+     cc1.8070 \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
-     cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800\
+     cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 \
+     cc2.8070 \
      copt support6502 support65c816 support6800 support6803 \
      support6809 support8080 support8085 supportz80 \
      supportz8 supportsuper8 test
 
 bootstuff: cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
-     cc1.65c816 cc1.z8 cc1.super8 cc1.1802 cc1.6800 \
+     cc1.65c816 cc1.z8 cc1.super8 cc1.1802 cc1.6800 cc1.8070 \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
-     cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 \
+     cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.8070 \
      copt
 
 .PHONY: support6502 support65c816 support6800 support6803 support6809 \
@@ -92,6 +94,9 @@ cc1.1802:$(OBJS1) target-1802.o
 cc1.6800:$(OBJS1) target-6800.o
 	gcc -g3 $(OBJS1) target-6800.o -o cc1.6800
 
+cc1.8070:$(OBJS1) target-8070.o
+	gcc -g3 $(OBJS1) target-8070.o -o cc1.8070
+
 cc2:	$(OBJS2)
 	gcc -g3 $(OBJS2) -o cc2
 
@@ -121,6 +126,10 @@ cc2.1802:	$(OBJS15)
 
 cc2.6800:	$(OBJS16)
 	gcc -g3 $(OBJS16) -o cc2.6800
+
+cc2.8070:	$(OBJS8)
+	gcc -g3 $(OBJS8) -o cc2.8070
+
 
 support6502:
 	(cd support6502; make)
@@ -156,10 +165,11 @@ test:
 	(cd test; make)
 
 clean:
-	rm -f cc cc85 ccz80 ccthread cc0 copt
+	rm -f cc cc0 copt
 	rm -f cc6502 cc65c816
 	rm -f cc1.8080 cc1.z80 cc1.thread
 	rm -f cc1.6502 cc1.65c816 cc1.byte
+	rm -f cc1.8070
 	rm -f cc2.8080 cc2.z80 cc2.65c816
 	rm -f cc2.8070 cc2.thread cc2.byte cc2.6502
 	rm -f cc1.super8 cc2.super8
@@ -212,6 +222,12 @@ bootinst:
 	cp cc2.6800 $(CCROOT)/lib
 	cp copt $(CCROOT)/lib
 	cp rules.6800 $(CCROOT)/lib
+	# 8070 (WIP)
+	mkdir -p $(CCROOT)/lib/8070
+	mkdir -p $(CCROOT)/lib/8070/include
+	cp cc1.8070 $(CCROOT)/lib
+	cp cc2.8070 $(CCROOT)/lib
+	cp rules.8070 $(CCROOT)/lib
 	# 8080/8085
 	mkdir -p $(CCROOT)/lib/8080
 	mkdir -p $(CCROOT)/lib/8080/include
