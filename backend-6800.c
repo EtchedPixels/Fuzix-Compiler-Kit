@@ -2303,6 +2303,16 @@ unsigned gen_shortcut(struct node *n)
 	if (unreachable)
 		return 1;
 	switch(n->op) {
+	case T_COMMA:
+		/* The comma operator discards the result of the left side,
+		   then evaluates the right. Avoid pushing/popping and
+		   generating stuff that is surplus */
+		l->flags |= NORETURN;
+		codegen_lr(l);
+		/* Parent determines child node requirements */
+		codegen_lr(r);
+		r->flags |= nr;
+		return 1;
 	case T_DEREF:
 	case T_DEREFPLUS:
 		/* Our right hand side is the thing to deref. See if we can
