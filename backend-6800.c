@@ -2138,6 +2138,15 @@ unsigned do_xeqop(struct node *n, const char *op)
 	case T_PLUSEQ:
 		opd_on_ptr(n, "add", "adc");
 		break;
+	case T_STAREQ:
+		/* If we have D we have mul */
+		if (get_size(n->type) == 1 && cpu_has_d) {
+			printf("\tlda ,x\n");
+			printf("\tmul\n");
+			printf("\tstb ,x\n");
+			break;
+		}
+		/* Fall through */
 	/* TODO:
 	   MINUSEQ
 	   PLUSPLUS
