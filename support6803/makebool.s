@@ -4,8 +4,8 @@
 ;	optimizer will turn it into a 2 byte load of 'one' in the direct page)
 ;
 
-	.setcpu 6803
 	.code
+	.setcpu 6803
 
 	.export booleq
 	.export boolne
@@ -28,10 +28,10 @@
 ;	is appropriately set
 ;
 
-__boolc:
+__notc:
 	cmpb	#0
 	bra	booleq
-__bool:
+__not:
 	subd	@zero
 booleq:
 	bne	ret0
@@ -39,10 +39,10 @@ ret1:
 	ldd	@one
 	rts
 
-__notc:
+__boolc:
 	cmpb	#0
 	bra	boolne
-__not:
+__bool:
 	subd	@zero
 boolne:
 	bne	ret1
