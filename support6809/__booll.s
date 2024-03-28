@@ -4,10 +4,8 @@ __booll:
 	cmpy	#0
 	bne	true
 	cmpd	#0
-	bne	true
-	clra
-	clrb
-	rts
+	beq	false	; If this passes then D is already zero
 true:
 	ldd	@one
+false:
 	rts
