@@ -1813,7 +1813,7 @@ static void write_mul(unsigned n)
 	while(n > 1) {
 		if (n & 1) {
 			pops++;
-			printf("\tstd ,s++\n");
+			printf("\tpshs d\n");
 		}
 		printf("\tlslb\n\trola\n");
 		n >>= 1;
