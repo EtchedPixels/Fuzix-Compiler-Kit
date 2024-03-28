@@ -1413,7 +1413,7 @@ static unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 		return 0;
 	if (n == 1)
 		return 1;
-	if (n == 256) {
+	if (n == 256 && u) {
 		printf("\tld l,h\n\tld h,0x0\n");
 		return 1;
 	}
