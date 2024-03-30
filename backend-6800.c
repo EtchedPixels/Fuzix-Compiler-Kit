@@ -1728,11 +1728,12 @@ unsigned gen_push(struct node *n)
 			printf("\tstb ,-s\n");
 			return 1;
 		case 2:
-			printf("\tstd ,--s\n");
+			printf("\tpshs d\n");
 			return 1;
 		case 4:	/* Have to split them to get the order right */
-			printf("\tstd ,--s\n");
-			printf("\tsty ,--s\n");
+			/* Or we could go PDP11 style mixed endian long ? */
+			printf("\tpshs d\n");
+			printf("\tpshs y\n");
 			return 1;
 		}
 		return 0;
@@ -2114,17 +2115,8 @@ void opd_on_ptr(struct node *n, const char *op, const char *op2)
 		op32_on_ptr(op, op2, 0);
 }
 
-/* TODO: 6809 could index locals via S so if n->left is LOCAL or
-   ARGUMENT we can special case it */
-unsigned do_xeqop(struct node *n, const char *op)
+unsigned do_xptrop(struct node *n, const char *op)
 {
-	if (!can_load_x_with(n->left, 0))
-		return 0;
-	/* Get the value part into AB */
-	codegen_lr(n->right);
-	/* Load X (lval of the eq op) up (doesn't disturb AB) */
-	load_x_with(n->left, 0);
-	/* Things we can then inline */
 	switch(n->op) {
 	case T_ANDEQ:
 		op_on_ptr(n, "and");
@@ -2159,6 +2151,32 @@ unsigned do_xeqop(struct node *n, const char *op)
 	/* Stuff D back into ,X */
 	opd_on_ptr(n, "st", "st");
 	return 1;
+}
+
+/* TODO: 6809 could index locals via S so if n->left is LOCAL or
+   ARGUMENT we can special case it */
+unsigned do_xeqop(struct node *n, const char *op)
+{
+	if (!can_load_x_with(n->left, 0))
+		return 0;
+	/* Get the value part into AB */
+	codegen_lr(n->right);
+	/* Load X (lval of the eq op) up (doesn't disturb AB) */
+	load_x_with(n->left, 0);
+	/* Things we can then inline */
+	return do_xptrop(n, op);
+}
+
+unsigned do_stkeqop(struct node *n, const char *op)
+{
+	if (cpu_is_09)
+		printf("\tpuls x\n");
+	else if (cpu_has_pshx)
+		printf("\tpulx\n");
+	else	/** Fun fun. Fake pulx on a 6800 */
+		printf("\ttsx\n\tldx ,x\n\tins\n\tins\n");
+	invalidate_x();
+	return do_xptrop(n, op);
 }
 
 /*
@@ -2260,7 +2278,7 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 		op8_on_ptr("ld", 0);
 		if (!retres) {
 			if (cpu_is_09)
-				printf("\tstb ,-s\n");
+				printf("\tpshs b\n");
 			else
 				printf("\tpshb\n");
 		}
@@ -2268,7 +2286,7 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 		op8_on_ptr("st", 0);
 		if (!retres) {
 			if (cpu_is_09)
-				printf("\tldb ,s+\n");
+				printf("\tpuls b\n");
 			else
 				printf("\tpulb\n");
 		}
@@ -2280,7 +2298,7 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 	op16d_on_ptr("ld", "ld", 0);
 	if (!retres) {
 		if (cpu_is_09)
-			printf("\tstd ,--s\n");
+			printf("\tpshs d\n");
 		else
 			printf("\tpshb\n\tpsha\n");
 	}
@@ -2288,7 +2306,7 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 	op16d_on_ptr("st", "st", 0);
 	if (!retres) {
 		if (cpu_is_09)
-			printf("\tldd ,s++\n");
+			printf("\tpuls d\n");
 		else
 			printf("\tpula\n\tpulb\n");
 	}
@@ -2804,6 +2822,34 @@ unsigned gen_node(struct node *n)
 		return cmp_op(n, "booluge", "boolge");
 	case T_GTEQ:
 		return cmp_op(n, "boolule", "boolle");
+	/* EQ ops via top of stack. Simpler ones alreadu got handled
+	   by direct or shortcut. For a complex one we try and inline it
+	   by pulling X, but if we can't then we will use a helper between
+	   X and D (or Y:D for long) */
+	case T_STAREQ:
+		return do_xeqop(n, "xmuleq");
+	case T_SLASHEQ:
+		return do_xeqop(n, "xdiveq");
+	case T_PERCENTEQ:
+		return do_xeqop(n, "xremeq");
+	case T_SHLEQ:
+		if (s == 1 && nr && memop_shift(n, "lsl", "lsl"))
+			return 1;
+		return do_xeqop(n, "xshleq");
+	case T_SHREQ:
+		if (s == 1 && nr && memop_shift(n, "asr", "lsr"))
+			return 1;
+		return do_xeqop(n, "xshreq");
+	case T_ANDEQ:
+		return do_stkeqop(n, "xandeq");
+	case T_OREQ:
+		return do_stkeqop(n, "xoreq");
+	case T_HATEQ:
+		return do_stkeqop(n, "xhateq");
+	case T_PLUSEQ:
+		return do_stkeqop(n, "xpluseq");
+	case T_MINUSEQ:
+		return do_stkeqop(n, "xminuseq");
 	}
 	return 0;
 }
