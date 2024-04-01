@@ -964,15 +964,15 @@ int main(int argc, char *argv[]) {
 			mapfile = 1;
 			break;
 		case 't':
-			if (strcmp(*p + 2, "fuzix") == 0) {
+			if (strcmp(*p + 2, "none") == 0) {
+				targetos = OS_NONE;
+			} else if (strcmp(*p + 2, "fuzix") == 0) {
 				targetos = OS_FUZIX;
 				fuzixsub = 0;
-			}
-			else if (strcmp(*p + 2, "fuzixrel1") == 0) {
+			} else if (strcmp(*p + 2, "fuzixrel1") == 0) {
 				targetos = OS_FUZIX;
 				fuzixsub = 1;
-			}
-			else if (strcmp(*p + 2, "fuzixrel2") == 0) {
+			} else if (strcmp(*p + 2, "fuzixrel2") == 0) {
 				targetos = OS_FUZIX;
 				fuzixsub = 2;
 			} else {
