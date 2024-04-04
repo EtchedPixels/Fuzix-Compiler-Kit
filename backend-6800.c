@@ -1214,7 +1214,7 @@ void load_x_with(struct node *r, unsigned off)
 	unsigned v = r->value;
 	switch(r->op) {
 	case T_ARGUMENT:
-		v += argbase;
+		v += argbase + frame_len;
 	case T_LOCAL:
 		make_local_ptr(v + off, 0);
 		break;
