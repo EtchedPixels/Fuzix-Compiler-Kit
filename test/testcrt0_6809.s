@@ -28,8 +28,8 @@ _printint:
 	std	$FEFC
 	rts
 
-	.export _putchar
-_putchar:
+	.export _printchar
+_printchar:
 	ldd	2,s
 	stb	$FEFE
 	rts
