@@ -28,11 +28,6 @@ DIVID		.equ	6
 
 		.dp
 
-		.export tmp2
-		.export tmp3
-tmp2:		.word	0
-tmp3:		.word	0
-
 		.export div32x32
 		.code
 

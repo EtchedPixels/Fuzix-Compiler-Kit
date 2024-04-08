@@ -1,7 +1,6 @@
 ;
 ;	D = top of stack * D
 ;
-
 	.export __mul
 
 	.code
