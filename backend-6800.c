@@ -2850,6 +2850,18 @@ unsigned gen_node(struct node *n)
 		return do_stkeqop(n, "xpluseq");
 	case T_MINUSEQ:
 		return do_stkeqop(n, "xminuseq");
+	/* Function calls that were not to a constant name */
+	case T_FUNCCALL:
+		if (cpu_has_xgdx) {
+			make_x_d();
+			printf("\tjsr ,x\n");
+		} else {
+			printf("\tstaa @tmp\n");
+			printf("\tstab @tmp+1\n");
+			printf("\tjsr @tmp\n");
+		}
+		invalidate_all();
+		return 1;
 	}
 	return 0;
 }
