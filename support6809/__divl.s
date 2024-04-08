@@ -36,14 +36,14 @@ nosignfix2:
 	ldb	@tmp4
 	rorb
 	bcc	nosignfix3
-	ldy	6,x
-	ldd	8,x
+	ldy	6,s
+	ldd	8,s
 	jsr	__negatel
 out:
 	ldx	4,s
 	leas	10,s
 	jmp	,x
 nosignfix3:
-	ldy	6,x
-	ldd	8,x
+	ldy	6,s
+	ldd	8,s
 	bra	out

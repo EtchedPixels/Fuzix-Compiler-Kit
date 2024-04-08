@@ -1,6 +1,9 @@
 	.export __reml
 	.code
 
+;
+;	FIXME: relies on accidentally useful value of X!
+;
 __reml:
 	exg	d,y
 	sta	,-s		; Save as we need to sign check at end
@@ -15,21 +18,21 @@ nosignfix:
 	;
 	;	Sign check
 	;
-	lda	6,x
+	lda	6,s
 	bpl	nosignfix2
-	ldd	8,x
+	ldd	8,s
 	subd	#1
-	std	8,x
-	ldd	6,x
+	std	8,s
+	ldd	6,s
 	sbcb	#0
 	sbca	#0
 	coma
 	comb
-	std	6,x
-	com	8,x
-	com	9,x
+	std	6,s
+	com	8,s
+	com	9,s
 nosignfix2:
-	tfr	s,d
+	tfr	s,x
 	jsr	div32x32
 	;
 	;	Get the result
