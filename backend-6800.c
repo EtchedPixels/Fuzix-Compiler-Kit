@@ -2852,7 +2852,7 @@ unsigned gen_node(struct node *n)
 		return do_stkeqop(n, "xminuseq");
 	/* Function calls that were not to a constant name */
 	case T_FUNCCALL:
-		if (cpu_has_xgdx) {
+		if (cpu_has_xgdx || cpu_is_09) {
 			make_x_d();
 			printf("\tjsr ,x\n");
 		} else {
