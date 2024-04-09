@@ -253,15 +253,22 @@ void load_d_const(uint16_t n)
 			if (hi == 0)
 				printf("\tclra\n");
 			else if (hi == b_val) {
-				printf("\ttba\n");
+				if (cpu_is_09)
+					printf("\ttfr b,a\n");
+				else
+					printf("\ttba\n");
 				printf("\t%sa #%d\n", remap_op("ld"), hi);
 			}
 		}
 		if (b_valid == 0 || lo != b_val) {
 			if (lo == 0)
 				printf("\tclrb\n");
-			else if (lo == hi)
-				printf("\ttab\n");
+			else if (lo == hi) {
+				if (cpu_is_09)
+					printf("\ttfr a,b\n");
+				else
+					printf("\ttab\n");
+			}
 			return;
 		} else
 			printf("\t%sb #%d\n", remap_op("ld"), lo);
@@ -345,7 +352,10 @@ void add_b_const(uint8_t n)
 
 void load_a_b(void)
 {
-	printf("\ttba\n");
+	if (cpu_is_09)
+		printf("\ttfr b,a\n");
+	else
+		printf("\ttba\n");
 	a_val = b_val;
 	a_valid = b_valid;
 	d_valid = 0;
@@ -353,7 +363,10 @@ void load_a_b(void)
 
 void load_b_a(void)
 {
-	printf("\ttab\n");
+	if (cpu_is_09)
+		printf("\ttfr a,b\n");
+	else
+		printf("\ttab\n");
 	b_val = a_val;
 	b_valid = a_valid;
 	d_valid = 0;
