@@ -235,15 +235,19 @@ void load_d_const(uint16_t n)
 {
 	unsigned hi,lo;
 
+	lo = n & 0xFF;
+	hi = n >> 8;
+
+/*	printf(";want %04X have %02X:%02X val %d %d\n",
+		n, a_val, b_val, a_valid, b_valid); */
+
 	if (cpu_has_d) {
 		if (n == 0) {
 			if (!a_valid || a_val)
 				printf("\tclra\n");
 			if (!b_valid || b_val)
 				printf("\tclrb\n");
-		} else {
-			/* TODO: There are some fringe cases where we can
-			   do better - eg if A is already valid and right */
+		} else if (!a_valid || !b_valid || a_val != hi || b_val != lo) {
 			printf("\tldd #%u\n", n);
 		}
 	} else {
@@ -2279,7 +2283,11 @@ unsigned do_xeqop(struct node *n, const char *op)
 	/* Load X (lval of the eq op) up (doesn't disturb AB) */
 	load_x_with(n->left, 0);
 	/* Things we can then inline */
-	return do_xptrop(n, op);
+	if (do_xptrop(n, op) == 0)
+		return 0;
+	/* TODO: need a "as pointed to by set_d_node form that turns NAME into NREF etc */
+	/* set_d_node(n->left); */
+	return 1;
 }
 
 unsigned do_stkeqop(struct node *n, const char *op)
@@ -2679,6 +2687,8 @@ static unsigned gen_cast(struct node *n)
 	return 1;
 }
 
+/* TODO; compare and flip the boolify test rather than go via stack
+   when we can */
 unsigned cmp_op(struct node *n, const char *uop, const char *op)
 {
 	unsigned s = get_size(n->right->type);
@@ -2688,18 +2698,21 @@ unsigned cmp_op(struct node *n, const char *uop, const char *op)
 		if (s > 2)	/* For now anyway */
 			return 0;
 		/* We can do this versus s+ or s++ */
+		/* FIXME: 6809 has cmpd unlike 6803 */
 		if (s == 1)
 			op8_on_spi("cmp");
 		else if (s == 2)
 			op16d_on_spi("sub");
 		printf("\tjsr %s\n", op);
 		n->flags |= ISBOOL;
+		invalidate_d();
 		return 1;
 	}
 	if (s == 1) {
 		op8_on_ptr("cmp", 0);
 		printf("\tjsr %s\n", op);
 		n->flags |= ISBOOL;
+		invalidate_d();
 		return 1;
 	}
 	if (s == 2 && cpu_has_d) {
@@ -2708,6 +2721,7 @@ unsigned cmp_op(struct node *n, const char *uop, const char *op)
 		printf("\tins\n");
 		printf("\tjsr %s\n", op);
 		n->flags |= ISBOOL;
+		invalidate_d();
 		return 1;
 	}
 	return 0;
