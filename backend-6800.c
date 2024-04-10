@@ -1739,14 +1739,17 @@ unsigned gen_push(struct node *n)
 		switch(size) {
 		case 1:
 			printf("\tstb ,-s\n");
+			invalidate_b();
 			return 1;
 		case 2:
 			printf("\tpshs d\n");
+			invalidate_d();
 			return 1;
 		case 4:	/* Have to split them to get the order right */
 			/* Or we could go PDP11 style mixed endian long ? */
 			printf("\tpshs d\n");
 			printf("\tpshs y\n");
+			invalidate_all();
 			return 1;
 		}
 		return 0;
@@ -2865,7 +2868,7 @@ unsigned gen_node(struct node *n)
 		return do_stkeqop(n, "xminuseq");
 	/* Function calls that were not to a constant name */
 	case T_FUNCCALL:
-		if (cpu_has_xgdx) {
+		if (cpu_has_xgdx || cpu_is_09) {
 			make_x_d();
 			printf("\tjsr ,x\n");
 		} else {
