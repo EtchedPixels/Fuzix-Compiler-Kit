@@ -930,6 +930,47 @@ unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned
 	return 1;
 }
 
+unsigned op16y_on_node(struct node *r, const char *op, unsigned off)
+{
+	unsigned v = r->value;
+	switch(r->op) {
+	case T_LSTORE:
+	case T_LREF:
+		if (cpu_is_09)
+			printf("\t%sy %u,s\n", op, v + off + sp);
+		else {
+			off = make_local_ptr(v + off, 254);
+			printf("\t%sy %u,x\n", op, off);
+		}
+		break;
+	case T_CONSTANT:
+		printf("\t%sy #%u\n", op, v + off);
+		break;
+	case T_LBSTORE:
+	case T_LBREF:
+		printf("\t%sy T%u+%u\n", op, r->val2, v + off);
+		break;
+	case T_LABEL:
+		printf("\t%sy #T%u+%u\n", op, r->val2, v + off);
+		set_d_node(r);
+		break;
+	case T_NSTORE:
+	case T_NREF:
+		printf("\t%sy _%s+%u\n", op, namestr(r->snum), v + off);
+		break;
+	case T_NAME:
+		printf("\t%sy #_%s+%u\n", op, namestr(r->snum), v + off);
+		set_d_node(r);
+		break;
+	/* case T_RREF:
+		printf("\t%sy @__reg%u\n", v);
+		break; */
+	default:
+		return 0;
+	}
+	return 1;
+}
+
 void op32_on_node(struct node *n, const char *op, const char *op2, unsigned off)
 {
 	/* TODO */
@@ -1059,6 +1100,24 @@ void op16_on_tos(const char *op, const char *op2)
 	}
 }
 
+void op16d_on_tos(const char *op, const char *op2)
+{
+	unsigned off;
+	if (cpu_is_09)
+		op16d_on_spi(op);
+	else {
+		off = make_tos_ptr();
+		if (cpu_has_d)
+			printf("\t%sd %u,x\n", op, off);
+		else {
+			printf("\t%sb %u,x\n", remap_op(op), off + 1);
+			printf("\t%sa %u,x\n", remap_op(op2), off);
+		}
+		printf("\tins\n");
+		printf("\tins\n");
+	}
+}
+
 unsigned write_tos_op(struct node *n, const char *op, const char *op2)
 {
 	unsigned s = get_size(n->type);
@@ -1093,7 +1152,6 @@ void uniop16_on_tos(const char *op)
 	printf("\tins\n");
 }
 
-/* TODO: addd  subd etc cases of this */
 unsigned write_tos_uniop(struct node *n, const char *op)
 {
 	unsigned s = get_size(n->type);
@@ -1415,8 +1473,9 @@ struct node *gen_rewrite_node(struct node *n)
 	}
 
 	/* Rewrite references into a load operation */
-	/* For now leave long types out of this */
-	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt)) {
+	/* For now leave long types out of this unless we have a Y register as the @hireg forms
+	   are more complex */
+	if (cpu_has_y || nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt)) {
 		if (op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
 				if (r->op == T_ARGUMENT)
@@ -1699,6 +1758,7 @@ void gen_start(void)
 		cpu_has_pshx = 1;
 		cpu_has_y = 1;
 		cpu_has_abx = 1;
+		cpu_has_xgdx = 1;
 		break;
 	case 6811:
 		cpu_has_y = 1;
@@ -1919,7 +1979,28 @@ unsigned gen_direct(struct node *n)
 		return 1;
 	case T_PLUS:
 		/* So we can track this common case later */
+		/* TODO: if the low word is zero or low 24 bits are 0 we can generate stuff like
+			leay %d,y */
 		if (r->op == T_CONSTANT) {
+			if (s == 4 && cpu_has_y) {
+				/* Handle the zero case specially as we can optimzie it, and also
+				   because add_d_const will not leave carry right if it optimizes
+				   itself out */
+				if (r->value & 0xFFFF) {
+					add_d_const(r->value & 0xFFFF);
+					swap_d_y();
+					printf("\tadcb #%u\n", (unsigned)((r->value >> 16) & 0xFF));
+					printf("\tadca #%u\n", (unsigned)((r->value >> 24) & 0xFF));
+					swap_d_y();
+				} else if (cpu_is_09)
+					printf("\tleay %u,y\n", (unsigned)(r->value >> 16));
+				else {
+					swap_d_y();
+					printf("\taddd #%u\n", (unsigned)(r->value >> 16));
+					swap_d_y();
+				}
+				return 1;
+			}
 			if (s == 2) {
 				add_d_const(r->value);
 				return 1;
@@ -1932,6 +2013,23 @@ unsigned gen_direct(struct node *n)
 		return write_opd(r, "add", "adc", 0);
 	case T_MINUS:
 		if (r->op == T_CONSTANT) {
+			if (s == 4 && cpu_has_y) {
+				r->value = -r->value;
+				if (r->value & 0xFFFF) {
+					add_d_const(r->value);
+					swap_d_y();
+					printf("\tadcb #%u\n", (unsigned)((r->value >> 16) & 0xFF));
+					printf("\tadca #%u\n", (unsigned)((r->value >> 24) & 0xFF));
+					swap_d_y();
+				} else if (cpu_is_09)
+					printf("\tleay %u,y\n", (unsigned)(r->value >> 16));
+				else {
+					swap_d_y();
+					printf("\taddd #%u\n", (unsigned)(r->value >> 16));
+					swap_d_y();
+				}
+				return 1;
+			}
 			if (s == 2) {
 				add_d_const(-r->value);
 				return 1;
@@ -2700,6 +2798,13 @@ unsigned gen_node(struct node *n)
 			set_d_node(n);
 			return 1;
 		}
+		if (s == 4 && cpu_has_y) {
+			op16y_on_node(n, "ld", 0);
+			op16d_on_node(n, "ld", "ld",  2);
+			invalidate_d();
+			return 1;
+		}
+		/* TODO: 6800/3 cases for dword */
 		return 0;
 	case T_LSTORE:
 	case T_NSTORE:
@@ -2707,6 +2812,11 @@ unsigned gen_node(struct node *n)
 		if (write_opd(n, "st", "st", 0)) {
 			invalidate_mem();
 			set_d_node(n);
+			return 1;
+		}
+		if (s == 4 && cpu_has_y) {
+			op16y_on_node(n, "st", 0);
+			op16d_on_node(n, "st", "st", 2);
 			return 1;
 		}
 		break;
@@ -2813,8 +2923,16 @@ unsigned gen_node(struct node *n)
 		return 0;
 	/* Double argument ops we can handle easily */
 	case T_PLUS:
-		/* TODO - with D reg this one needs special handling */
-		return write_tos_op(n, "add", "adc");
+		if (s < 4 && cpu_has_d)
+			return write_tos_op(n, "add", "adc");
+		if (cpu_is_09) {
+			printf("\taddd 2,s\n");
+			printf("\tadcb 1,s\n");
+			printf("\tadca ,s\n");
+			printf("\tleas 4,s\n");
+			return 1;
+		}
+		return 0;
 	case T_AND:
 		return write_tos_op(n, "and", "and");
 	case T_OR:
