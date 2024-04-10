@@ -1126,6 +1126,7 @@ void op16d_on_tos(const char *op, const char *op2)
 	}
 }
 
+/* TODO: this seems to be buggy for 32bit */
 unsigned write_tos_op(struct node *n, const char *op, const char *op2)
 {
 	unsigned s = get_size(n->type);
@@ -1974,7 +1975,7 @@ unsigned gen_direct(struct node *n)
 {
 	unsigned s = get_size(n->type);
 	struct node *r = n->right;
-	unsigned v;
+	uint16_t v;
 
 	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
@@ -2050,8 +2051,8 @@ unsigned gen_direct(struct node *n)
 		}
 		return write_opd(r, "sub", "sbc", 0);
 	case T_AND:
-		if (r->op == T_CONSTANT && s <= 2) {
-			v = r->value;
+		if (r->op == T_CONSTANT) {	/* No need to type check - canno tbe float */
+			v = r->value & 0xFFFF;
 			if ((v & 0xFF) != 0xFF) {
 				if (v & 0xFF)
 					printf("\tandb #%u\n", v & 0xFF);
@@ -2059,7 +2060,7 @@ unsigned gen_direct(struct node *n)
 					printf("\tclrb\n");
 				modify_b(b_val & v);
 			}
-			if (s == 2) {
+			if (s >= 2) {
 				v >>= 8;
 				if (v != 0xFF) {
 					if (v)
@@ -2069,44 +2070,77 @@ unsigned gen_direct(struct node *n)
 				}
 				modify_a(a_val & v);
 			}
+			if (s == 4 && cpu_has_y) {
+				v = r->value >> 16;
+				swap_d_y();
+				if (v & 0xFF)
+					printf("\tandb #%u\n", v & 0xFF);
+				else
+					printf("\tclrb\n");
+				v >>= 8;
+				if (v & 0xFF)
+					printf("\tanda #%u\n", v & 0xFF);
+				else
+					printf("\tclra\n");
+				swap_d_y();
+			}
 			return 1;
 		}
 		return write_op(r, "and", "and", 0);
 	case T_OR:
-		if (r->op == T_CONSTANT && s <= 2) {
-			v = r->value;
+		if (r->op == T_CONSTANT) {
+			v = r->value & 0xFFFF;
 			if (v & 0xFF) {
 				printf("\t%sb #%u\n", remap_op("or"), v & 0xFF);
 				modify_b(b_val | v);
 			}
-			if (s == 2) {
+			if (s >= 2) {
 				v >>= 8;
 				if (v)
 					printf("\t%sa #%u\n", remap_op("or"), v);
+				modify_a(a_val | v);
 			}
-			modify_a(a_val | v);
+			if (s == 4 && cpu_has_y) {
+				v = r->value >> 16;
+				swap_d_y();
+				if (v & 0xFF)
+					printf("\t%sb #%u\n", remap_op("or"), v & 0xFF);
+				if (v & 0xFF)
+					printf("\t%sa #%u\n", remap_op("or"), v & 0xFF);
+				swap_d_y();
+			}
 			return 1;
 		}
 		return write_op(r, "or", "or", 0);
 	case T_HAT:
-		if (r->op == T_CONSTANT && s <= 2) {
-			v = r->value;
-			if (v & 0xFF) {
+		if (r->op == T_CONSTANT) {
+			v = r->value & 0xFFFF;
+			if ((v & 0xFF) == 0xFF)
+				printf("\tcomb\n");
+			else if (v & 0xFF)
+				printf("\teorb #%u\n", v & 0xFF);
+			modify_b(b_val ^ v);
+			if (s >= 2) {
+				v >>= 8;
+				if (v == 0xFF)
+					printf("\tcoma\n");
+				else if (v & 0xFF)
+					printf("\teora #%u\n", v);
+				modify_a(a_val ^ v);
+			}
+			if (s == 4 && cpu_has_y) {
+				v = r->value >> 16;
+				swap_d_y();
 				if ((v & 0xFF) == 0xFF)
 					printf("\tcomb\n");
-				else
+				else if (v & 0xFF)
 					printf("\teorb #%u\n", v & 0xFF);
-				modify_b(b_val ^ v);
-			}
-			if (s == 2) {
 				v >>= 8;
-				if (v ) {
-					if (v == 0xFF)
-						printf("\tcoma\n");
-					else
-						printf("\teora #%u\n", v);
-				}
-				modify_a(a_val ^ v);
+				if (v == 0xFF)
+					printf("\tcoma\n");
+				else if (v & 0xFF)
+					printf("\teora #%u\n", v);
+				swap_d_y();
 			}
 			return 1;
 		}
