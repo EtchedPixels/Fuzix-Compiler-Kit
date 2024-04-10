@@ -196,6 +196,7 @@ void set_d_node(struct node *n)
 		break;
 	default:
 		d_valid = 0;
+		return;
 	}
 	d_valid = 1;
 }
@@ -321,12 +322,15 @@ void add_d_const(uint16_t n)
 {
 	if (n == 0)
 		return;
+
+	/* TODO: can do better in terms of obj/offset but not clear it is
+	   that useful */
+
+	d_valid = 0;
+
 	if (cpu_has_d)
 		printf("\taddd #%u\n", n);
 	else {
-		/* TODO: can do better in terms of obj/offset but not clear it is
-		   that useful */
-		d_valid = 0;
 		if (n & 0xFF) {
 			printf("\taddb #%u\n", n & 0xFF);
 			printf("\tadca #%u\n", n >> 8);
