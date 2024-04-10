@@ -1,24 +1,21 @@
 	.export __reml
 	.code
 
-;
-;	FIXME: relies on accidentally useful value of X!
-;
 __reml:
 	exg	d,y
-	sta	,-s		; Save as we need to sign check at end
 	bita	#0x80
-	bpl	nosignfix
+	beq	nosignfix
 	exg	d,y
 	jsr	__negatel
 	exg	d,y
 nosignfix:
-	std	,--s
 	sty	,--s
+	std	,--s
 	;
 	;	Sign check
 	;
 	lda	6,s
+	sta	@tmp4
 	bpl	nosignfix2
 	ldd	8,s
 	subd	#1
@@ -38,7 +35,7 @@ nosignfix2:
 	;	Get the result
 	;
 	ldy	@tmp2
-	lda	,-s
+	lda	@tmp4
 	bpl	done
 	ldd	@tmp3
 	jsr	__negatel

@@ -11,8 +11,8 @@ __xremequl:
 	std	6,s
 	ldd	2,x
 	std	8,s
-	tfr	s,x
 	stx	,--s
+	leax	2,s
 	jsr	div32x32
 	ldy	@tmp2
 	ldd	@tmp3
@@ -20,6 +20,5 @@ __xremequl:
 	sty	,x
 	std	2,x
 
-	ldx	10,x
-	leas	14,s
-	jmp	,x
+	leas	10,s
+	rts

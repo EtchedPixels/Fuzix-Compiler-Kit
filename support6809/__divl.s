@@ -5,14 +5,14 @@ __divl:
 	clr	@tmp4		; Sign tracking
 	exg	d,y
 	bita	#0x80
-	bpl	nosignfix
+	beq	nosignfix
 	exg	d,y
 	jsr	__negatel
 	inc	@tmp4
 	exg	d,y
 nosignfix:
-	std	,--s
 	sty	,--s
+	std	,--s
 	;
 	;	Now do other argument
 	;

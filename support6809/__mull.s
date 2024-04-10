@@ -96,8 +96,8 @@ norip16:
 ;	Into our working register
 ;
 is_done:
-	ldy ,--s
-	ldd ,--s
-	ldx 0,s
+	ldy ,s++
+	ldd ,s++
+	ldx ,s++
 	leas 4,s
 	jmp ,x
