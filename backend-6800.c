@@ -201,6 +201,30 @@ void set_d_node(struct node *n)
 	d_valid = 1;
 }
 
+/* D holds the content pointed to by n */
+void set_d_node_ptr(struct node *n)
+{
+	memcpy(&d_node, n, sizeof(struct node));
+	switch(d_node.op) {
+	case T_NAME:
+		d_node.op = T_NREF;
+		break;
+	case T_LABEL:
+		d_node.op = T_LBREF;
+		break;
+	case T_ARGUMENT:
+		d_node.value += argbase + frame_len;
+		/* Fall through */
+	case T_LOCAL:
+		d_node.op = T_LREF;
+		break;
+	default:
+		d_valid = 0;
+		return;
+	}
+	d_valid = 1;
+}
+
 /* Do we need to check fields by type or will the default filling
    be sufficient ? */
 unsigned d_holds_node(struct node *n)
@@ -808,6 +832,8 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 {
 	unsigned v = r->value;
 
+	invalidate_d();
+
 	op = remap_op(op);
 
 	switch(r->op) {
@@ -851,6 +877,8 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 {
 	unsigned v = r->value;
 
+	invalidate_d();
+
 	op = remap_op(op);
 	op2 = remap_op(op);
 
@@ -886,7 +914,6 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 	case T_NAME:
 		printf("\t%sb #<_%s+%u\n", op, namestr(r->snum), v + off);
 		printf("\t%sa #>_%s+%u\n", op2, namestr(r->snum), v + off);
-		set_d_node(r);
 		break;
 	/* case T_RREF:
 		printf("\t%sb @__reg%u\n", v);
@@ -900,6 +927,8 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned off)
 {
 	unsigned v = r->value;
+
+	invalidate_d();
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:
@@ -927,7 +956,6 @@ unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned
 		break;
 	case T_NAME:
 		printf("\t%sd #_%s+%u\n", op, namestr(r->snum), v + off);
-		set_d_node(r);
 		break;
 	/* case T_RREF:
 		printf("\t%sd @__reg%u\n", v);
@@ -968,7 +996,6 @@ unsigned op16y_on_node(struct node *r, const char *op, unsigned off)
 		break;
 	case T_NAME:
 		printf("\t%sy #_%s+%u\n", op, namestr(r->snum), v + off);
-		set_d_node(r);
 		break;
 	/* case T_RREF:
 		printf("\t%sy @__reg%u\n", v);
@@ -1010,6 +1037,7 @@ unsigned write_opd(struct node *r, const char *op, const char *op2, unsigned off
 unsigned uniop8_on_node(struct node *r, const char *op, unsigned off)
 {
 	unsigned v = r->value;
+	invalidate_d();
 	op = remap_op(op);
 	switch(r->op) {
 	case T_LSTORE:
@@ -1097,6 +1125,7 @@ void op8_on_tos(const char *op)
 void op16_on_tos(const char *op, const char *op2)
 {
 	unsigned off;
+	invalidate_d();
 	if (cpu_is_09)
 		op16_on_spi(op);
 	else {
@@ -1111,6 +1140,7 @@ void op16_on_tos(const char *op, const char *op2)
 void op16d_on_tos(const char *op, const char *op2)
 {
 	unsigned off;
+	invalidate_d();
 	if (cpu_is_09)
 		op16d_on_spi(op);
 	else {
@@ -1148,6 +1178,7 @@ unsigned write_tos_op(struct node *n, const char *op, const char *op2)
 void uniop8_on_tos(const char *op)
 {
 	unsigned off = make_tos_ptr();
+	invalidate_d();
 	printf("\t%s %u,x\n", op, off);
 	printf("\tins\n");
 }
@@ -1155,6 +1186,7 @@ void uniop8_on_tos(const char *op)
 void uniop16_on_tos(const char *op)
 {
 	unsigned off = make_tos_ptr();
+	invalidate_d();
 	printf("\t%s %u,x\n", op, off + 1);
 	printf("\t%s %u,x\n", op, off);
 	printf("\tins\n");
@@ -2319,8 +2351,7 @@ unsigned do_xeqop(struct node *n, const char *op)
 	/* Things we can then inline */
 	if (do_xptrop(n, op) == 0)
 		return 0;
-	/* TODO: need a "as pointed to by set_d_node form that turns NAME into NREF etc */
-	/* set_d_node(n->left); */
+	set_d_node_ptr(n->left);
 	return 1;
 }
 
@@ -2469,7 +2500,7 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 	}
 	invalidate_work();
 	invalidate_mem();
-	set_d_node(n->left);
+	set_d_node_ptr(n->left);
 	return 1;
 }
 
@@ -2809,6 +2840,11 @@ unsigned gen_node(struct node *n)
 		if (s == 2) {
 			pop_x();
 			op16d_on_ptr("st", "st", v);
+			return 1;
+		}
+		if (s == 4) {
+			pop_x();
+			op32d_on_ptr("st", "st", v);
 			return 1;
 		}
 		break;
