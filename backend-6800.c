@@ -45,7 +45,12 @@
 #define T_DEREFPLUS	(T_USER+7)
 #define T_EQPLUS	(T_USER+8)
 #define T_LDEREF	(T_USER+9)	/* *local + offset */
-#define T_LEQ		(T_USER+10)	/* *local + offset = n*/
+#define T_LEQ		(T_USER+10)	/* *local + offset = n */
+#define T_NDEREF	(T_USER+11)	/* *(name + offset) */
+#define T_LBDEREF	(T_USER+12)	/* *(name + offset) */
+#define T_NEQ		(T_USER+13)	/* *(name + offset) = n */
+#define T_LBEQ		(T_USER+14)	/* *(label + offset) = n */
+
 /*
  *	State for the current function
  */
@@ -1512,6 +1517,28 @@ struct node *gen_rewrite_node(struct node *n)
 		squash_left(n, T_LEQ);		/* n->value becomes the local ref */
 		return n;
 	}
+	/* Optimizations for 6809 indirect addressing */
+	if (cpu_is_09 && n->value == 0 && (op == T_DEREF || op == T_DEREFPLUS) && r->op == T_NREF) {
+		/* At this point r->value is the offset for the local */
+		/* n->value is the offset for the ptr load */
+		squash_right(n, T_NDEREF);	/* n->value becomes the local ref */
+		return n;
+	}
+	if (cpu_is_09 && n->value == 0 && (op == T_DEREF || op == T_DEREFPLUS) && r->op == T_LBREF) {
+		/* At this point r->value is the offset for the local */
+		/* n->value is the offset for the ptr load */
+		squash_right(n, T_LBDEREF);	/* n->value becomes the local ref */
+		return n;
+	}
+	if (cpu_is_09 && n->value == 0 && (op == T_EQ || op == T_EQPLUS) && l->op == T_NREF) {
+		squash_left(n, T_NEQ);		/* n->value becomes the local ref */
+		return n;
+	}
+	if (cpu_is_09 && n->value == 0 && (op == T_EQ || op == T_EQPLUS) && l->op == T_LBREF) {
+		l->val2 = n->value;		/* Save the offset so it is squashed in */
+		squash_left(n, T_LBEQ);		/* n->value becomes the local ref */
+		return n;
+	}
 
 	/* Rewrite references into a load operation */
 	/* For now leave long types out of this unless we have a Y register as the @hireg forms
@@ -2253,6 +2280,22 @@ unsigned gen_uni_direct(struct node *n)
 			return 1;
 		}
 		return 0;
+	case T_LBEQ:
+		if (r->op == T_CONSTANT && r->value == 0 && nr) {
+			if (s == 1 && nr) {
+				printf("\tclr [T%u+%u]\n", n->val2, (unsigned)n->value);
+				return 1;
+			}
+		}
+		return 0;
+	case T_NEQ:
+		if (r->op == T_CONSTANT && r->value == 0 && nr) {
+			if (s == 1 && nr) {
+				printf("\tclr [_%s+%u]\n", namestr(n->snum), (unsigned)n->value);
+				return 1;
+			}
+		}
+		return 0;
 	/* Writes of 0 to an object we can use clr for providing the
 	   result is not then re-used */
 	case T_LSTORE:
@@ -2929,6 +2972,7 @@ unsigned gen_node(struct node *n)
 					printf("\tldb [%u,s]\n", v + sp);
 				else
 					printf("\tldd [%u,s]\n", v + sp);
+				invalidate_d();
 				return 1;
 			} else {
 				printf("\tldx %u,s\n", v + sp);
@@ -2949,6 +2993,24 @@ unsigned gen_node(struct node *n)
 		else
 			op32d_on_ptr("ld", "ld", v);
 		invalidate_work();
+		return 1;
+	case T_NDEREF:
+		/* Deref through a name. Only generated for the 6809
+		   and only when the object offset is 0 and size is 1 or 2 */
+		if (s == 1)
+			printf("\tldb [_%s + %u]\n", namestr(n->snum), v);
+		else
+			printf("\tldd [_%s + %u]\n", namestr(n->snum), v);
+		invalidate_d();
+		return 1;
+	case T_LBDEREF:
+		/* Deref through a label. Only generated for the 6809
+		   and only when the object offset is 0 and size is 1 or 2 */
+		if (s == 1)
+			printf("\tldb [T%u + %u]\n", n->val2, v);
+		else
+			printf("\tldd [T%u + %u]\n", n->val2, v);
+		invalidate_d();
 		return 1;
 	case T_LEQ:
 		/* We probably want some indirecting helpers later */
@@ -2974,6 +3036,18 @@ unsigned gen_node(struct node *n)
 			op16d_on_ptr("st", "st", n->val2);
 		else
 			op32d_on_ptr("st", "st", n->val2);
+		return 1;
+	case T_NEQ:
+		if (s == 1)
+			printf("\tstb [_%s + %u]\n", namestr(n->snum), v);
+		else
+			printf("\tstd [_%s + %u]\n", namestr(n->snum), v);
+		return 1;
+	case T_LBEQ:
+		if (s == 1)
+			printf("\tstb [T%u + %u]\n", n->val2, v);
+		else
+			printf("\tstd [T%u + %u]\n", n->val2, v);
 		return 1;
 	/* Type casting */
 	case T_CAST:
