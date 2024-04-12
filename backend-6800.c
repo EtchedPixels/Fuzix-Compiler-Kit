@@ -455,7 +455,7 @@ void make_x_d(void)
 		printf("\ttfr d,x\n");
 	else if (cpu_has_xgdx) {
 		/* Should really track on the exchange later */
-		invalidate_d();
+		invalidate_work();
 		printf("\txgdx\n");
 	} else {
 		if (cpu_has_d)
@@ -837,7 +837,7 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 {
 	unsigned v = r->value;
 
-	invalidate_d();
+	invalidate_work();
 
 	op = remap_op(op);
 
@@ -882,7 +882,7 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 {
 	unsigned v = r->value;
 
-	invalidate_d();
+	invalidate_work();
 
 	op = remap_op(op);
 	op2 = remap_op(op);
@@ -933,7 +933,7 @@ unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned
 {
 	unsigned v = r->value;
 
-	invalidate_d();
+	invalidate_work();
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:
@@ -1042,7 +1042,7 @@ unsigned write_opd(struct node *r, const char *op, const char *op2, unsigned off
 unsigned uniop8_on_node(struct node *r, const char *op, unsigned off)
 {
 	unsigned v = r->value;
-	invalidate_d();
+	invalidate_work();
 	op = remap_op(op);
 	switch(r->op) {
 	case T_LSTORE:
@@ -1130,7 +1130,7 @@ void op8_on_tos(const char *op)
 void op16_on_tos(const char *op, const char *op2)
 {
 	unsigned off;
-	invalidate_d();
+	invalidate_work();
 	if (cpu_is_09)
 		op16_on_spi(op);
 	else {
@@ -1145,7 +1145,7 @@ void op16_on_tos(const char *op, const char *op2)
 void op16d_on_tos(const char *op, const char *op2)
 {
 	unsigned off;
-	invalidate_d();
+	invalidate_work();
 	if (cpu_is_09)
 		op16d_on_spi(op);
 	else {
@@ -1183,7 +1183,7 @@ unsigned write_tos_op(struct node *n, const char *op, const char *op2)
 void uniop8_on_tos(const char *op)
 {
 	unsigned off = make_tos_ptr();
-	invalidate_d();
+	invalidate_work();
 	printf("\t%s %u,x\n", op, off);
 	printf("\tins\n");
 }
@@ -1191,7 +1191,7 @@ void uniop8_on_tos(const char *op)
 void uniop16_on_tos(const char *op)
 {
 	unsigned off = make_tos_ptr();
-	invalidate_d();
+	invalidate_work();
 	printf("\t%s %u,x\n", op, off + 1);
 	printf("\t%s %u,x\n", op, off);
 	printf("\tins\n");
@@ -1918,7 +1918,7 @@ unsigned cmp_direct(struct node *n, const char *uop, const char *op)
 		printf("\tsubd #%u\n", v);
 		printf("\tjsr %s\n", op);
 		n->flags |= ISBOOL;
-		invalidate_d();
+		invalidate_work();
 		return 1;
 	}
 	return 0;
@@ -1991,7 +1991,7 @@ static void gen_fast_mul(unsigned s, unsigned n)
 		load_d_const(0);
 	else { 
 		write_mul(n);
-		invalidate_d();
+		invalidate_work();
 	}
 }
 
@@ -2021,7 +2021,7 @@ static unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 			n >>= 1;
 		}
 	}
-	invalidate_d();
+	invalidate_work();
 	return 1;
 }
 
@@ -2492,19 +2492,32 @@ unsigned memop_shift(struct node *n, const char *op, const char *opu)
 unsigned add_to_node(struct node *n, int sign, int retres)
 {
 	struct node *r = n->right;
+	struct node *l = n->left;
+	unsigned v = l->value;
 	unsigned s = get_size(n->type);
+
 	if (s > 2 || r->op != T_CONSTANT)
 		return 0;
-	/* Might be worth special casing 6809 TODO
-	   Something for local like
-	           ldd #n
-	           addd [n,s]
-	           std [n,s]
-	           {subd #n} */
+	if (cpu_is_09) {
+		if (l->op == T_ARGUMENT || l->op == T_LOCAL) {
+			if (l->op == T_ARGUMENT)
+				v += argbase + frame_len;
+			v += sp;
+			load_d_const(sign * r->value);
+			printf("\taddd %u,s\n", v);
+			printf("\tstd %u,s\n", v);
+			invalidate_work();
+			if (retres)
+				set_d_node_ptr(r);
+			else
+				add_d_const(-sign * r->value);
+			return 1;
+		}
+	}
 	/* It's marginal whether we should go via X or not */
-	if (!can_load_x_with(n->left, 0))
+	if (!can_load_x_with(l, 0))
 		return 0;
-	load_x_with(n->left, 0);
+	load_x_with(l, 0);
 	if (s == 1) {
 		op8_on_ptr("ld", 0);
 		if (!retres) {
@@ -2523,7 +2536,7 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 		}
 		invalidate_work();
 		invalidate_mem();
-		set_d_node(n->left);
+		set_d_node(l);
 		return 1;
 	}
 	op16d_on_ptr("ld", "ld", 0);
@@ -2543,7 +2556,7 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 	}
 	invalidate_work();
 	invalidate_mem();
-	set_d_node_ptr(n->left);
+	set_d_node_ptr(l);
 	return 1;
 }
 
@@ -2813,14 +2826,14 @@ unsigned cmp_op(struct node *n, const char *uop, const char *op)
 			op16d_on_spi("sub");
 		printf("\tjsr %s\n", op);
 		n->flags |= ISBOOL;
-		invalidate_d();
+		invalidate_work();
 		return 1;
 	}
 	if (s == 1) {
 		op8_on_ptr("cmp", 0);
 		printf("\tjsr %s\n", op);
 		n->flags |= ISBOOL;
-		invalidate_d();
+		invalidate_work();
 		return 1;
 	}
 	if (s == 2 && cpu_has_d) {
@@ -2829,7 +2842,7 @@ unsigned cmp_op(struct node *n, const char *uop, const char *op)
 		printf("\tins\n");
 		printf("\tjsr %s\n", op);
 		n->flags |= ISBOOL;
-		invalidate_d();
+		invalidate_work();
 		return 1;
 	}
 	return 0;
@@ -2932,7 +2945,7 @@ unsigned gen_node(struct node *n)
 		if (s == 4 && cpu_has_y) {
 			op16y_on_node(n, "ld", 0);
 			op16d_on_node(n, "ld", "ld",  2);
-			invalidate_d();
+			invalidate_work();
 			return 1;
 		}
 		/* TODO: 6800/3 cases for dword */
@@ -2972,7 +2985,7 @@ unsigned gen_node(struct node *n)
 					printf("\tldb [%u,s]\n", v + sp);
 				else
 					printf("\tldd [%u,s]\n", v + sp);
-				invalidate_d();
+				invalidate_work();
 				return 1;
 			} else {
 				printf("\tldx %u,s\n", v + sp);
@@ -3001,7 +3014,7 @@ unsigned gen_node(struct node *n)
 			printf("\tldb [_%s + %u]\n", namestr(n->snum), v);
 		else
 			printf("\tldd [_%s + %u]\n", namestr(n->snum), v);
-		invalidate_d();
+		invalidate_work();
 		return 1;
 	case T_LBDEREF:
 		/* Deref through a label. Only generated for the 6809
@@ -3010,7 +3023,7 @@ unsigned gen_node(struct node *n)
 			printf("\tldb [T%u + %u]\n", n->val2, v);
 		else
 			printf("\tldd [T%u + %u]\n", n->val2, v);
-		invalidate_d();
+		invalidate_work();
 		return 1;
 	case T_LEQ:
 		/* We probably want some indirecting helpers later */
