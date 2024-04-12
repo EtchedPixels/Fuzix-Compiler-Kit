@@ -511,15 +511,23 @@ void adjust_s(int n, unsigned save_d)
 	/* Processors with XGDX always have PULX so we use whichever is
 	   the shorter of the two approaches */
 	if (cpu_has_xgdx) {
-		if (n > 14) {
+		if (n > 14 || n < -14) {
 			printf("\ttsx\n\txgdx\n\taddd #%u\n\txgdx\n\ttxs\n", WORD(n));
 			invalidate_x();
 			return;
 		}
-		/* Otherwise we know pulx is cheapest */
-		repeated_op(n / 2, "pulx");
-		if (n & 1)
-			printf("\tins\n");
+		if (n > 0) {
+			/* Otherwise we know pulx is cheapest */
+			repeated_op(n / 2, "pulx");
+			if (n & 1)
+				printf("\tins\n");
+		}
+		if (n < 0) {
+			/* pshx likewise is an option */
+			repeated_op(-n / 2, "pshx");
+			if (n & 1)
+				printf("\tdes\n");
+		}
 		return;
 	}
 
