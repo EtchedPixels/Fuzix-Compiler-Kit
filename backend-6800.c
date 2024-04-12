@@ -513,9 +513,11 @@ void adjust_s(int n, unsigned save_d)
 	if (cpu_has_xgdx) {
 		if (n > 14 || n < -14) {
 			printf("\ttsx\n\txgdx\n\taddd #%u\n\txgdx\n\ttxs\n", WORD(n));
-			invalidate_x();
+			x_fprel = 1;
+			x_fpoff = 0;			
 			return;
 		}
+		invalidate_x();
 		if (n > 0) {
 			/* Otherwise we know pulx is cheapest */
 			repeated_op(n / 2, "pulx");
@@ -548,8 +550,10 @@ void adjust_s(int n, unsigned save_d)
 	/* ABX is the cheapest option if we have it */
 	if (n > 0 && cpu_has_abx && cost == abxcost) {
 		/* TODO track b properly when save save_d */
+		/* FIXME: need top put S into X and back.. */
 		if (save_d)
 			printf("\tpshb\n");
+		printf("\ttsx\n");
 		if(n > 255) {
 			load_b_const(255);
 			while(n >= 255) {
@@ -561,8 +565,11 @@ void adjust_s(int n, unsigned save_d)
 			load_b_const(n);
 			printf("\tabx\n");
 		}
+		printf("\ttsx\n");
 		if (save_d)
 			printf("\tpulb\n");
+		x_fprel = 1;
+		x_fpoff = 0;
 		return;
 			
 	}
@@ -604,7 +611,7 @@ void adjust_s(int n, unsigned save_d)
 		repeated_op(-n, "des");
 		return;
 	}
-	/* TODO: if we save_d we need to keep abd valid */
+	/* TODO: if we save_d we need to keep and valid */
 	/* Inline */
 	if (save_d)
 		printf("\tpshb\n\tpsha\n");
@@ -1319,14 +1326,14 @@ unsigned right_shift(struct node *n)
 unsigned can_load_x_with(struct node *r, unsigned off)
 {
 	switch(r->op) {
+	case T_ARGUMENT:
+	case T_LOCAL:
 	case T_LREF:
 	case T_CONSTANT:
 	case T_LBREF:
 	case T_NREF:
 	case T_NAME:
 	case T_LABEL:
-	case T_LOCAL:
-	case T_ARGUMENT:
 		return 1;
 	}
 	return 0;
@@ -1334,20 +1341,20 @@ unsigned can_load_x_with(struct node *r, unsigned off)
 
 /* For 6800 at least it is usually cheaper to reload even if the value
    we want is in D */
-void load_x_with(struct node *r, unsigned off)
+unsigned load_x_with(struct node *r, unsigned off)
 {
 	unsigned v = r->value;
 	switch(r->op) {
 	case T_ARGUMENT:
 		v += argbase + frame_len;
 	case T_LOCAL:
-		make_local_ptr(v + off, 0);
-		break;
+		/* Worst case for size is 252 */
+		return make_local_ptr(v + off, 252);
 	case T_LREF:
 		if (cpu_is_09)
 			printf("\tldx %u,s\n", v + sp);
 		else {
-			off = make_local_ptr(v + off, 254);
+			off = make_local_ptr(v + off, 252);
 			printf("\tldx %u,x\n", off);
 		}
 		invalidate_x();
@@ -1378,6 +1385,7 @@ void load_x_with(struct node *r, unsigned off)
 	default:
 		error("lxw");
 	}
+	return 0;
 }
 
 /* Chance to rewrite the tree from the top rather than none by node
@@ -2329,42 +2337,42 @@ unsigned gen_uni_direct(struct node *n)
  *	the X pointer.
  */
  
-void op_on_ptr(struct node *n, const char *op)
+void op_on_ptr(struct node *n, const char *op, unsigned off)
 {
 	unsigned s = get_size(n->type);
 	if (s == 1)
-		op8_on_ptr(op, 0);
+		op8_on_ptr(op, off);
 	else if (s == 2)
-		op16_on_ptr(op, op, 0);
+		op16_on_ptr(op, op, off);
 	else
-		op32_on_ptr(op,op, 0);
+		op32_on_ptr(op,op, off);
 }
 		
-void opd_on_ptr(struct node *n, const char *op, const char *op2)
+void opd_on_ptr(struct node *n, const char *op, const char *op2, unsigned off)
 {
 	unsigned s = get_size(n->type);
 	if (s == 1)
-		op8_on_ptr(op, 0);
+		op8_on_ptr(op, off);
 	else if (s == 2)
-		op16d_on_ptr(op, op2, 0);
+		op16d_on_ptr(op, op2, off);
 	else
-		op32_on_ptr(op, op2, 0);
+		op32_on_ptr(op, op2, off);
 }
 
-unsigned do_xptrop(struct node *n, const char *op)
+unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 {
 	switch(n->op) {
 	case T_ANDEQ:
-		op_on_ptr(n, "and");
+		op_on_ptr(n, "and", off);
 		break;
 	case T_OREQ:
-		op_on_ptr(n, remap_op("or"));
+		op_on_ptr(n, remap_op("or"), off);
 		break;
 	case T_HATEQ:
-		op_on_ptr(n, "eor");
+		op_on_ptr(n, "eor", off);
 		break;
 	case T_PLUSEQ:
-		opd_on_ptr(n, "add", "adc");
+		opd_on_ptr(n, "add", "adc", off);
 		break;
 	case T_STAREQ:
 		/* If we have D we have mul */
@@ -2381,11 +2389,20 @@ unsigned do_xptrop(struct node *n, const char *op)
 	   MINUSMINUS
 	   shift prob not */
 	default:
+		/* This ends up ugly with an offset but no worse than
+		   if we punted the offsetting upwards really */
+		if (off) {
+			/* Cannot occur on 6809 */
+			/* FIXME: merge this into _off versions of
+			   helpers that do the jsr as more compact */
+			printf("\tjsr __addxconst\n");
+			printf("\t.word %u\n", off);
+		}
 		helper_s(n, op);
 		return 1;
 	}
 	/* Stuff D back into ,X */
-	opd_on_ptr(n, "st", "st");
+	opd_on_ptr(n, "st", "st", off);
 	return 1;
 }
 
@@ -2393,15 +2410,16 @@ unsigned do_xptrop(struct node *n, const char *op)
    ARGUMENT we can special case it */
 unsigned do_xeqop(struct node *n, const char *op)
 {
+	unsigned off;
 	if (!can_load_x_with(n->left, 0))
 		return 0;
 	/* Get the value part into AB */
 	codegen_lr(n->right);
 	/* Load X (lval of the eq op) up (doesn't disturb AB) */
-	load_x_with(n->left, 0);
+	off = load_x_with(n->left, 0);
 	/* Things we can then inline */
-	if (do_xptrop(n, op) == 0)
-		return 0;
+	if (do_xptrop(n, op, off) == 0)
+		error("xptrop");
 	set_d_node_ptr(n->left);
 	return 1;
 }
@@ -2415,7 +2433,7 @@ unsigned do_stkeqop(struct node *n, const char *op)
 	else	/** Fun fun. Fake pulx on a 6800 */
 		printf("\ttsx\n\tldx ,x\n\tins\n\tins\n");
 	invalidate_x();
-	return do_xptrop(n, op);
+	return do_xptrop(n, op, 0);
 }
 
 /*
@@ -2503,6 +2521,7 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 	struct node *l = n->left;
 	unsigned v = l->value;
 	unsigned s = get_size(n->type);
+	unsigned off;
 
 	if (s > 2 || r->op != T_CONSTANT)
 		return 0;
@@ -2525,9 +2544,9 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 	/* It's marginal whether we should go via X or not */
 	if (!can_load_x_with(l, 0))
 		return 0;
-	load_x_with(l, 0);
+	off = load_x_with(l, 0);
 	if (s == 1) {
-		op8_on_ptr("ld", 0);
+		op8_on_ptr("ld", off);
 		if (!retres) {
 			if (cpu_is_09)
 				printf("\tpshs b\n");
@@ -2535,7 +2554,7 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 				printf("\tpshb\n");
 		}
 		add_b_const(sign * r->value);
-		op8_on_ptr("st", 0);
+		op8_on_ptr("st", off);
 		if (!retres) {
 			if (cpu_is_09)
 				printf("\tpuls b\n");
@@ -2547,7 +2566,7 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 		set_d_node(l);
 		return 1;
 	}
-	op16d_on_ptr("ld", "ld", 0);
+	op16d_on_ptr("ld", "ld", off);
 	if (!retres) {
 		if (cpu_is_09)
 			printf("\tpshs d\n");
@@ -2555,7 +2574,7 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 			printf("\tpshb\n\tpsha\n");
 	}
 	add_d_const(sign * r->value);
-	op16d_on_ptr("st", "st", 0);
+	op16d_on_ptr("st", "st", off);
 	if (!retres) {
 		if (cpu_is_09)
 			printf("\tpuls d\n");
@@ -2578,6 +2597,7 @@ unsigned gen_shortcut(struct node *n)
 	unsigned s = get_size(n->type);
 	unsigned nr = n->flags & NORETURN;
 	unsigned v;
+	
 	/* Don't generate unreachable code */
 	if (unreachable)
 		return 1;
@@ -2597,9 +2617,10 @@ unsigned gen_shortcut(struct node *n)
 		/* Our right hand side is the thing to deref. See if we can
 		   get it into X instead */
 		printf(";deref r %x %u\n", r->op, (unsigned)r->value);
+		v = n->value;
 		if (can_load_x_with(r, 0)) {
-			v = n->value;
 			load_x_with(r, 0);
+
 			invalidate_work();
 			switch(s) {
 			case 1:
@@ -2645,16 +2666,18 @@ unsigned gen_shortcut(struct node *n)
 		return 0;
 	case T_EQ:	/* Our left is the address */
 	case T_EQPLUS:
+		v = n->value;
 		if (can_load_x_with(l, 0)) {
 			if (r->op == T_CONSTANT && nr && r->value == 0 && s <= 2) {
 				/* We can optimize thing = 0 for the case
 				   we don't also need the value */
 				load_x_with(l, 0);
-				write_uni_op(n, "clr", 0);
-				invalidate_mem();
+				if (s == 1)
+					uniop8_on_ptr("clr", v);
+				else
+					uniop16_on_ptr("clr", v);
 				return 1;
 			}
-			v = n->value;
 			codegen_lr(r);
 			load_x_with(l, 0);
 			invalidate_mem();
