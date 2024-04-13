@@ -2340,6 +2340,8 @@ unsigned gen_direct(struct node *n)
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			if (v == 0)
 				helper(n, "cceqconst0");
+			else if (v < 256)
+				helper(n, "cceqconstb");
 			else {
 				load_r_const(R_WORK, v , size);
 				helper(n, "cceqconst");
@@ -2367,6 +2369,8 @@ unsigned gen_direct(struct node *n)
 			}
 			if (v == 0)
 				helper_s(n, "cclteqconst0");
+			else if (v < 256)
+				helper_s(n, "cclteqconst0");
 			else {
 				load_r_const(R_WORK, v , size);
 				helper_s(n, "cclteqconst");
@@ -2385,6 +2389,8 @@ unsigned gen_direct(struct node *n)
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			if (v == 0)
 				helper_s(n, "ccltconst0");
+			else if (v < 256)
+				helper_s(n, "ccltconstb");
 			else {
 				load_r_const(R_WORK, v , size);
 				helper_s(n, "ccltconst");
@@ -2403,6 +2409,8 @@ unsigned gen_direct(struct node *n)
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			if (v == 0)
 				helper_s(n, "ccgteqconst0");
+			else if (v < 256)
+				helper_s(n, "ccgteqconstb");
 			else {
 				load_r_const(R_WORK, v , size);
 				helper_s(n, "ccgteqconst");
@@ -2431,6 +2439,8 @@ unsigned gen_direct(struct node *n)
 			}
 			if (v == 0)
 				helper_s(n, "ccgtconst0");
+			else if (v < 256)
+				helper_s(n, "ccgtconstb");
 			else {
 				load_r_const(R_WORK, v , size);
 				helper_s(n, "ccgtconst");
@@ -2450,6 +2460,8 @@ unsigned gen_direct(struct node *n)
 			load_r_const(R_WORK, v , size);
 			if (v == 0)
 				helper(n, "ccneconst0");
+			else if (v < 256)
+				helper(n, "ccneconstb");
 			else
 				helper(n, "ccneconst");
 			n->flags |= ISBOOL;
@@ -3419,18 +3431,25 @@ unsigned gen_node(struct node *n)
 		if (n->right->flags & ISBOOL)
 			return 1;
 		/* Until we do cc only */
-		cmpne_r_0(R_AC, size);
-		n->flags |= ISBOOL;
-		return 1;
+		if (!optsize) {
+			cmpne_r_0(R_AC, size);
+			n->flags |= ISBOOL;
+			return 1;
+		}
+		return 0;
 	case T_BANG:
 		/* Until we do cc only. Also if right is bool can do
 		   a simple xor */
-		if (n->right->flags & ISBOOL)
+		if (n->right->flags & ISBOOL) {
+			n->flags |= ISBOOL;
 			op_r_c(3, 1, "xor");
-		else
+			return 1;
+		} else if (!optsize) {
 			cmpeq_r_0(R_AC, size);
-		n->flags |= ISBOOL;
-		return 1;
+			n->flags |= ISBOOL;
+			return 1;
+		}
+		return 0;
 	/* Comparisons T_EQEQ, T_BANGEQ, T_LT. T_LTEQ, T_GT, T_GTEQ */
 	/* Use helpers for now */
 #if 0

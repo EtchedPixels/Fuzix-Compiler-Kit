@@ -4,6 +4,7 @@
 	.export __cceq
 	.export __cceqconst
 	.export __cceqconst0
+	.export __cceqconstb
 	.code
 
 __cceq:
@@ -31,3 +32,6 @@ __cceqconst0:
 	clr r2
 	jr nz, c1
 	jr ct
+__cceqconstb:
+	clr r12
+	jr __cceqconst

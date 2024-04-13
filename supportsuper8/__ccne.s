@@ -4,6 +4,7 @@
 	.export __ccne
 	.export __ccneconst
 	.export __ccneconst0
+	.export __ccneconstb
 	.code
 
 __ccne:
@@ -13,7 +14,7 @@ __ccne:
 	pop r13
 	push r15
 	push r14
-__ccneconst :
+__ccneconst:
 	cp r12,r2
 	clr r2
 	jr nz, c1
@@ -31,3 +32,6 @@ __ccneconst0:
 	clr r2
 	jr  nz,c1
 	jr cf
+__ccneconstb:
+	clr r12
+	jr __ccneconst

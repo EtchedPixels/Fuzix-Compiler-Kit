@@ -4,11 +4,13 @@
 	.export __ccgteq
 	.export __ccgteqconst
 	.export __ccgteqconst0
+	.export __ccgteqconstb
 	.code
 
 __ccgteqconst0:
-	clr r12
 	clr r13
+__ccgteqconstb:
+	clr r12
 	jr __ccgteqconst
 	
 __ccgteq:

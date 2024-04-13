@@ -3,6 +3,7 @@
 ;
 	.export __cceqconstl
 	.export __cceqconst0l
+	.export __cceqconstbl
 	.code
 
 __cceqconst0l:
@@ -13,6 +14,10 @@ __cceqconst0l:
 	clr	r2
 	ld	r3,#1
 	ret
+__cceqconstbl:
+	clr	r12
+	clr	r13
+	clr	r14
 __cceqconstl:
 	cp	r0,r12
 	jr	nz,false

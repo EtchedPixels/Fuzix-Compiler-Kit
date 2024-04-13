@@ -4,11 +4,13 @@
 	.export __ccgtu
 	.export __ccgtconstu
 	.export __ccgtconst0u
+	.export __ccgtconstbu
 	.code
 
 __ccgtconst0u:
-	clr r2
-	clr r3
+	clr r13
+__ccgtconstbu:
+	clr r12
 	jr __ccgtconstu
 __ccgtu:
 	pop r14		; Return address

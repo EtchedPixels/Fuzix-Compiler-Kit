@@ -49,3 +49,56 @@
 	lde @rr2, r13
 =
 	call __garg12r2str
+
+	call __gargr2
+=
+	call @gargr2
+
+	call __pargr2
+=
+	call @pargr2
+
+	call __pushln
+=
+	call @pushln
+
+	call __cceq
+=
+	call @cceq
+
+	call __ccne
+=
+	call @ccne
+
+	call __nref_2
+=
+	call @nref_2
+
+	call __nstore_2b
+=
+	call @nstore_2b
+
+	call __nstore_2_0
+=
+	call @nstore_2_0
+
+	call __nstore_2
+=
+	call @nstore_2
+
+	call __load2
+=
+	call @load2
+
+	call __garg12r2
+=
+	call @garg12r2
+
+	call __store2
+=
+	call @store2
+
+	call __nref12_2
+=
+	call @nref12_2
+

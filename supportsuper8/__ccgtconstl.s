@@ -7,24 +7,30 @@
 	.export __ccgtconstul
 	.export __cclteqconstl
 	.export __cclteqconstul
-	.export __ccgtconstl0
-	.export __ccgtconstul0
-	.export __cclteqconstl0
-	.export __cclteqconstul0
+	.export __ccgtconst0l
+	.export __ccgtconstbl
+	.export __ccgtconst0ul
+	.export __ccgtconstbul
+	.export __cclteqconst0l
+	.export __cclteqconstbl
+	.export __cclteqconst0ul
+	.export __cclteqconstbul
 
 ;	r12-r15 > r0-r3 ?
 
-__ccgtconstul0:
-	clr r12
-	clr r13
-	clr r14
+__ccgtconst0ul:
 	clr r15
+__ccgtconstbul:
+	clr r14
+	clr r13
+	clr r12
 	jr __ccgtconstul
-__ccgtconstl0:
-	clr r12
-	clr r13
-	clr r14
+__ccgtconst0l:
 	clr r15
+__ccgtconstbl:
+	clr r14
+	clr r13
+	clr r12
 __ccgtconstl:
 	cp r12,r0
 	jr gt,true
@@ -55,21 +61,23 @@ true:
 	or r3,r3
 	ret
 
-__cclteqconstl0:
-	clr r12
-	clr r13
-	clr r14
+__cclteqconst0l:
 	clr r15
+__cclteqconstbl:
+	clr r14
+	clr r13
+	clr r12
 __cclteqconstl:
 	call __ccgtconstl
 	xor r3,#1
 	ret
 
-__cclteqconstul0:
-	clr r12
-	clr r13
-	clr r14
+__cclteqconst0ul:
 	clr r15
+__cclteqconstbul:
+	clr r14
+	clr r13
+	clr r12
 __cclteqconstul:
 	call __ccgtconstul
 	xor r3,#1

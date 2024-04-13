@@ -1,6 +1,7 @@
 ;
 ;	Compare r0-r3 with r12-r15
 ;
+	.export __ccneconstbl
 	.export __ccneconstl
 	.export __ccneconst0l
 	.code
@@ -13,6 +14,10 @@ __ccneconst0l:
 	clr	r2
 	clr	r3
 	ret
+__ccneconstbl:
+	clr	r12
+	clr	r13
+	clr	r14
 __ccneconstl:
 	cp	r0,r12
 	jr	nz,true
