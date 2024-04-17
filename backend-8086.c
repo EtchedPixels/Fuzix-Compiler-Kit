@@ -13,6 +13,7 @@
 static unsigned frame_len;	/* Number of bytes of stack frame */
 static unsigned argbase = 4;	/* Will vary once we add reg vars */
 static unsigned unreachable;
+static unsigned labelid;
 
 static unsigned get_size(unsigned t)
 {
@@ -39,6 +40,11 @@ static unsigned get_stack_size(unsigned t)
 	if (n == 1)
 		return 2;
 	return n;
+}
+
+static unsigned get_label(void)
+{
+	return ++labelid;
 }
 
 #define T_CALLNAME	(T_USER+0)		/* Function call by name */
@@ -393,6 +399,10 @@ unsigned gen_node(struct node *n)
 	case T_CALLNAME:
 		printf("\tcall_%s+%u\n", namestr(n->snum), v);
 		return 1;
+	case T_FUNCCALL:
+		printf("\tmov bx,ax\n");
+		printf("\tcall [bx]\n");
+		return 1;
 	case T_ARGUMENT:
 		v += argbase + frame_len;
 	case T_LOCAL:
@@ -545,6 +555,8 @@ unsigned gen_node(struct node *n)
 		}
 		return 1;
 	case T_PLUS:
+		if (n->type == FLOAT)
+			return 0;
 		printf("\tpop bx\n");
 		switch(size) {
 		case 1:
@@ -560,6 +572,332 @@ unsigned gen_node(struct node *n)
 			break;
 		}
 		return 1;
+	case T_MINUS:
+		if (n->type == FLOAT)
+			return 0;
+		/* Do TOS - val */
+		printf("\tpop bx\n");
+		switch(size) {
+		case 1:
+			printf("\tsub bl,al\n");
+			printf("\tmov al,bl\n");
+			break;
+		case 2:
+			printf("\tsub bx,ax\n");
+			printf("\tmov ax,bx\n");
+			break;
+		case 4:
+			printf("\tsub bx,ax\n");
+			printf("\tmov ax,bx\n");
+			printf("\tpop bx\n");
+			printf("\tsbc bx,dx\n");
+			printf("\tmov dx,bx\n");
+			break;
+		return 1;
+		}
+	case T_STAR:
+		if (size == 4)
+			return 0;
+		printf("\tpop bx\n");
+		printf("\tmul ax,bx\n");
+		return 1;
+	case T_SLASH:
+		if (size == 2) {
+			printf("\tmov bx,ax\n");
+			printf("\txor dx,dx\n");
+			printf("\tpop ax\n");
+			if (n->type & UNSIGNED)
+				printf("\tdiv ax,bx\n");
+			else
+				printf("\tidiv ax,bx\n");
+			/* Result is in AX */
+			return 1;
+		}
+		break;
+	case T_PERCENT:
+		if (size == 2) {
+			printf("\tmov bx,ax\n");
+			printf("\txor dx,dx\n");
+			printf("\tpop ax\n");
+			if (n->type & UNSIGNED)
+				printf("\tdiv ax,bx\n");
+			else
+				printf("\tidiv ax,bx\n");
+			/* Result is in DX */
+			printf("\tmov ax,dx\n");
+			return 1;
+		}
+		break;
+	case T_AND:
+		switch(size) {
+		case 1:
+			printf("\tpop bx\n");
+			printf("\tand al,bl\n");
+			return 1;
+		case 2:
+			printf("\tpop bx\n");
+			printf("\tand ax,bx\n");
+			return 1;
+		case 4:
+			printf("\tpop bx\n");
+			printf("\tand ax,bx\n");
+			printf("\tpop bx\n");
+			printf("\tand dx,bx\n");
+			return 1;
+		}
+		break;
+	case T_OR:
+		switch(size) {
+		case 1:
+			printf("\tpop bx\n");
+			printf("\tor al,bl\n");
+			return 1;
+		case 2:
+			printf("\tpop bx\n");
+			printf("\tor ax,bx\n");
+			return 1;
+		case 4:
+			printf("\tpop bx\n");
+			printf("\tor ax,bx\n");
+			printf("\tpop bx\n");
+			printf("\tor dx,bx\n");
+			return 1;
+		}
+		break;
+	case T_HAT:
+		switch(size) {
+		case 1:
+			printf("\tpop bx\n");
+			printf("\txor al,bl\n");
+			return 1;
+		case 2:
+			printf("\tpop bx\n");
+			printf("\txor ax,bx\n");
+			return 1;
+		case 4:
+			printf("\tpop bx\n");
+			printf("\txor ax,bx\n");
+			printf("\tpop bx\n");
+			printf("\txor dx,bx\n");
+			return 1;
+		}
+		break;
+	case T_TILDE:
+		switch(size) {
+		case 1:
+			printf("\tnot al\n");
+			return 1;
+		case 2:
+			printf("\tnot ax\n");
+			return 1;
+		case 4:
+			printf("\tnot ax\n");
+			printf("\tnot dx\n");
+			return 1;
+		}
+		break;
+	case T_NEGATE:
+		switch(size) {
+		case 1:
+			printf("\tneg al\n");
+			return 1;
+		case 2:
+			printf("\tneg ax\n");
+			return 1;
+		}
+		break;
+	case T_LTLT:
+		/* << for TOS by AX */
+		printf("\tmov cx,ax\n");
+		switch(size) {
+		case 1:
+			v = get_label();
+			printf("\tpop ax\n");
+			printf("X%u:\n", v);
+			printf("\tshl al\n");
+			/* If it becomes 0 it will stay 0 */
+			printf("\tloopne X%u\n", v);
+			return 1;
+		case 2:
+			v = get_label();
+			printf("\tpop ax\n");
+			printf("X%u:\n", v);
+			printf("\tshl ax\n");
+			/* If it becomes 0 it will stay 0 */
+			printf("\tloopne X%u\n", v);
+			return 1;
+		}
+		break;
+	case T_GTGT:
+		/* >> for TOS by AX */
+		printf("\tmov cx,ax\n");
+		switch(size) {
+		case 1:
+			v = get_label();
+			printf("\tpop ax\n");
+			printf("X%u:\n", v);
+			if (n->type & UNSIGNED)
+				printf("\tshr al\n");
+			else
+				printf("\tsar al\n");
+			/* If it becomes 0 it will stay 0 */
+			printf("\tloopne X%u\n", v);
+			return 1;
+		case 2:
+			v = get_label();
+			printf("\tpop ax\n");
+			printf("X%u:\n", v);
+			if (n->type & UNSIGNED)
+				printf("\tshr ax\n");
+			else
+				printf("\tsar ax\n");
+			/* If it becomes 0 it will stay 0 */
+			printf("\tloopne X%u\n", v);
+			return 1;
+		}
+		break;
+/*	case T_BANG:
+	case T_BOOL: */
+	/* TODO: conditions */
+	/* TODO T_CAST */
+	case T_PLUSEQ:
+		switch(size) {
+		case 1:
+			printf("\tpop bx\n");
+			printf("\tadd [bx],al\n");
+			printf("\tmov al,[bx]\n");
+			return 1;
+		case 2:
+			printf("\tpop bx\n");
+			printf("\tadd [bx],ax\n");
+			printf("\tmov ax,[bx]\n");
+			return 1;
+		case 4:
+			printf("\tpop bx\n");
+			printf("\tadd [bx],ax\n");
+			printf("\tadc 2[bx],dx\n");
+			printf("\tmov ax,[bx]\n");
+			printf("\tmov dx,2[bx]\n");
+			return 1;
+		}
+		break;
+	case T_MINUSEQ:
+		switch(size) {
+		case 1:
+			printf("\tpop bx\n");
+			printf("\tsub [bx],al\n");
+			printf("\tmov al,[bx]\n");
+			return 1;
+		case 2:
+			printf("\tpop bx\n");
+			printf("\tsub [bx],ax\n");
+			printf("\tmov ax,[bx]\n");
+			return 1;
+		case 4:
+			printf("\tpop bx\n");
+			printf("\tsub [bx],ax\n");
+			printf("\tsbc 2[bx],dx\n");
+			printf("\tmov ax,[bx]\n");
+			printf("\tmov dx,2[bx]\n");
+			return 1;
+		}
+		break;
+	case T_PLUSPLUS:
+		switch(size) {
+		case 1:
+			printf("\tpop bx\n");
+			printf("\tmov ah,[bx]\n");
+			printf("\tadd [bx],al\n");
+			printf("\tmov al,ah\n");
+			return 1;
+		case 2:
+			printf("\tpop bx\n");
+			printf("\tmov dx,[bx]\n");
+			printf("\tadd [bx],ax\n");
+			printf("\tmov ax,dx\n");
+			return 1;
+		}
+		break;
+	case T_MINUSMINUS:
+		switch(size) {
+		case 1:
+			printf("\tpop bx\n");
+			printf("\tmov ah,[bx]\n");
+			printf("\tsub [bx],al\n");
+			printf("\tmov al,ah\n");
+			return 1;
+		case 2:
+			printf("\tpop bx\n");
+			printf("\tmov dx,[bx]\n");
+			printf("\tsub [bx],ax\n");
+			printf("\tmov ax,dx\n");
+			return 1;
+		}
+		break;
+	case T_ANDEQ:
+		switch(size) {
+		case 1:
+			printf("\tpop bx\n");
+			printf("\tand [bx],al\n");
+			printf("\tmov al,[bx]\n");
+			return 1;
+		case 2:
+			printf("\tpop bx\n");
+			printf("\tand [bx],ax\n");
+			printf("\tmov ax,[bx]\n");
+			return 1;
+		case 4:
+			printf("\tpop bx\n");
+			printf("\tand [bx],ax\n");
+			printf("\tand 2[bx],dx\n");
+			printf("\tmov ax,[bx]\n");
+			printf("\tmov dx,2[bx]\n");
+			return 1;
+		}
+	case T_OREQ:
+		switch(size) {
+		case 1:
+			printf("\tpop bx\n");
+			printf("\tor [bx],al\n");
+			printf("\tmov al,[bx]\n");
+			return 1;
+		case 2:
+			printf("\tpop bx\n");
+			printf("\tor [bx],ax\n");
+			printf("\tmov ax,[bx]\n");
+			return 1;
+		case 4:
+			printf("\tpop bx\n");
+			printf("\tor [bx],ax\n");
+			printf("\tor 2[bx],dx\n");
+			printf("\tmov ax,[bx]\n");
+			printf("\tmov dx,2[bx]\n");
+			return 1;
+		}
+		break;
+	case T_HATEQ:
+		switch(size) {
+		case 1:
+			printf("\tpop bx\n");
+			printf("\txor [bx],al\n");
+			printf("\tmov al,[bx]\n");
+			return 1;
+		case 2:
+			printf("\tpop bx\n");
+			printf("\txor [bx],ax\n");
+			printf("\tmov ax,[bx]\n");
+			return 1;
+		case 4:
+			printf("\tpop bx\n");
+			printf("\txor [bx],ax\n");
+			printf("\txor 2[bx],dx\n");
+			printf("\tmov ax,[bx]\n");
+			printf("\tmov dx,2[bx]\n");
+			return 1;
+		}
+		break;
+/*	case T_SHLEQ:
+	case T_SHREQ: */
 	}
 	return 0;
 }
