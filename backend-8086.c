@@ -4,6 +4,22 @@
 #include "compiler.h"
 #include "backend.h"
 
+/*
+ *	TODO: assembler sort out and add syntax annotations for word
+ *	ops mem,const where size is not implied
+ *	- Optimize various mem,const cases we can use
+ *	- Track values and pointers for writeback supression
+ *	- Volatile/elimination of nstore etc
+ *	- Conditions
+ *	- CCONLY handling
+ *	- XOR for constant 0 set
+ *	- Register variables using SI and DI and maybe CX as we could
+ *	  push it for the few cases we use it
+ *	- Shift eq ops (>>= etc)
+ *	- 32bit math helpers
+ *	- *= /= %=
+ *	- Boolean ops
+ */
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
 
@@ -91,6 +107,11 @@ static void squash_right(struct node *n, unsigned op)
  *	Our chance to do tree rewriting. We don't do much
  *	at this point, but we do rewrite name references and function calls
  *	to make them easier to process.
+ *
+ *	TODO: lots of other rewrites will help from the other targets
+ *	eg EQPLUS. Also we want to rewrite *x++ and *x-- type ops on a local
+ *	that do something to the result to a single op so we can generate
+ *	mov bx,n[bp],add 1,n[bp] mov [bx],0 etc
  */
 struct node *gen_rewrite_node(struct node *n)
 {
@@ -105,12 +126,12 @@ struct node *gen_rewrite_node(struct node *n)
 			squash_right(n, T_LREF);
 			return n;
 		}
-#if 0		
+#if 0
 		if (r->op == T_REG) {
 			squash_right(n, T_RREF);
 			return n;
 		}
-#endif		
+#endif
 		if (r->op == T_NAME) {
 			squash_right(n, T_NREF);
 			return n;
@@ -135,12 +156,12 @@ struct node *gen_rewrite_node(struct node *n)
 			squash_left(n, T_LSTORE);
 			return n;
 		}
-#if 0		
+#if 0
 		if (l->op == T_REG) {
 			squash_left(n, T_RSTORE);
 			return n;
 		}
-#endif		
+#endif
 	}
 	/* Rewrite function call of a name into a new node so we can
 	   turn it easily into call xyz */
@@ -327,7 +348,6 @@ void gen_value(unsigned type, unsigned long value)
 
 void gen_start(void)
 {
-	printf("\t.code\n");
 }
 
 void gen_end(void)
@@ -412,6 +432,163 @@ unsigned op_direct(struct node *r, unsigned size, const char *op, const char *op
 	return 0;
 }
 
+/* nr is 0 if we need the result, iv is set if the result is the original
+   value (x++ and x-- cases) */
+unsigned bx_operation(unsigned size, const char *op, const char *op2,
+	unsigned nr, unsigned iv)
+{
+	/* R has been evaluated, L is in BX */
+
+	if (size == 1) {
+		if (!nr && iv)
+			printf("\tld ah,[bx]\n");
+		printf("\t%s [bx],al\n", op);
+		if (!nr) {
+			if (iv)
+				printf("\tmov al,ah\n");
+			else
+				printf("\tmov al,[bx]\n");
+		}
+	} else if (size == 2) {
+		if (!nr && iv)
+			printf("\tmov dx,[bx]\n");
+		printf("\t%s [bx],ax\n", op);
+		if (!nr) {
+			if (iv)
+				printf("\tmov ax,dx\n");
+			else
+				printf("\tmov ax,[bx]\n");
+		}
+	/* Size 4 never done with iv */
+	} else if (size == 4) {
+		printf("\t%s [bx],ax\n", op);
+		printf("\t%s 2[bx],dx\n", op2);
+		if (!nr) {
+			printf("\tmov ax,[bx]\n");
+			printf("\tmov dx,2[bx]\n");
+		}
+	}
+	return 1;
+}
+
+/* Stack relative operations (eg ++ on a local) */
+unsigned bp_operation(struct node *n, const char *op, const char *op2,
+	unsigned nr, unsigned iv)
+{
+	unsigned size = get_size(n->type);
+	unsigned v = n->value;
+
+	/* R has been evaluated, L is in BX */
+	if (n->left->op == T_ARGUMENT)
+		v += argbase + frame_len;
+	if (size == 1) {
+		if (!nr && iv)
+			printf("\tld ah,%u[bp]\n", v);
+		printf("\t%s %u[bp],al\n", op, v);
+		if (!nr) {
+			if (iv)
+				printf("\tmov al,ah\n");
+			else
+				printf("\tmov al,%u[bp]\n", v);
+		}
+	} else if (size == 2) {
+		if (!nr && iv)
+			printf("\tmov dx,%u[bp]\n", v);
+		printf("\t%s %u[bp],ax\n", op, v);
+		if (!nr) {
+			if (iv)
+				printf("\tmov ax,dx\n");
+			else
+				printf("\tmov ax,%u[bp]\n", v);
+		}
+	/* Size 4 never done with iv */
+	} else if (size == 4) {
+		printf("\t%s %u[bp],ax\n", op, v);
+		printf("\t%s %u[bp],dx\n", op2, v + 2);
+		if (!nr) {
+			printf("\tmov ax,%u[bp]\n", v);
+			printf("\tmov dx,%u[bp]\n", v + 2);
+		}
+	}
+	return 1;
+}
+
+unsigned can_load_bx(struct node *n)
+{
+	switch(n->op) {
+	case T_CONSTANT:
+	case T_NAME:
+	case T_LABEL:
+	case T_LOCAL:
+	case T_ARGUMENT:
+	case T_LREF:
+	case T_LBREF:
+	case T_NREF:
+		return 1;
+	}
+	return 0;
+}
+
+void load_bx(struct node *n)
+{
+	unsigned v = n->value;
+	switch(n->op) {
+	case T_CONSTANT:
+		printf("\tmov bx,%u\n", v);
+		break;
+	case T_NAME:
+		printf("\tmov bx,_%s+%u\n", namestr(n->snum), v);
+		break;
+	case T_LABEL:
+		printf("\tmov bx,T%u+%u\n", n->val2, v);
+		break;
+	case T_ARGUMENT:
+		v += argbase + frame_len;
+	case T_LOCAL:
+		printf("\tlea bx,%u[bp]\n", v);
+		break;
+	case T_LREF:
+		printf("\tmov bx,%u[bp]\n", v);
+		break;
+	case T_LBREF:
+		printf("\tmov bx,[T%u+%u]\n", n->val2, v);
+		break;
+	case T_NREF:
+		printf("\tmov bx,[_%s+%u]\n", namestr(n->snum), v);
+		break;
+	}
+}
+
+/* TODO: we need a shortcut form because we can do
+	cmp 4[bp],0 and the like for const + simple forms
+	also rewrites to turn 0, 4[bp] into 4[bp],0 and switch
+	the tests (lteq to gteq etc) */
+/* Use the type of the arguments as the type of the result is the
+   boolean */
+unsigned cond_direct(struct node *n, const char *opu, const char *op)
+{
+	struct node *r = n->right;
+	unsigned size = get_size(r->type);
+
+	/* Need to chain the right comparisons including signed and
+	   unsigned parts. Do this out of line */
+	if (size == 4)
+		return 0;
+
+	if (r->type & UNSIGNED)
+		op = opu;
+	/* First try it directly */
+	/* We ought to consider reversing it, but that's probably best
+	   as a rewrite rule when we add re-ordering to the rewrite
+	   rules TODO */
+	if (!op_direct(r, size,  "cmp", "cmp"))
+		return 0;
+	/* Until we have CCONLY sorted */
+	printf("\tcall __cc%s\n", op);
+	n->flags |= ISBOOL;
+	return 1;
+}
+
 /*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
@@ -443,6 +620,18 @@ unsigned gen_direct(struct node *n)
 	case T_HAT:
 		return op_direct(r, size, "and", "and");
 	/* 80186 has const multishift TODO */
+	case T_EQEQ:
+		return cond_direct(n, "z", "z");
+	case T_BANGEQ:
+		return cond_direct(n, "nz", "nz");
+	case T_LTEQ:
+		return cond_direct(n, "be", "le");
+	case T_GTEQ:
+		return cond_direct(n, "ae", "ge");
+	case T_LT:
+		return cond_direct(n, "b", "lt");
+	case T_GT:
+		return cond_direct(n, "a", "gt");
 	}
 	return 0;
 }
@@ -483,6 +672,38 @@ unsigned gen_uni_direct(struct node *n)
 	return 0;
 }
 
+/* Try and do the pluseq and other ops by evaluating the right then loading
+   the left into bx */
+unsigned bx_shortcut(struct node *n, const char *op, const char *op2,
+	unsigned nr, unsigned iv)
+{
+	unsigned size = get_size(n->type);
+	struct node *l = n->left;
+
+	/* Can't do floats this way and for now don't deal with
+	   PLUSPLUS/MINUSMINUS of dword */
+	if (n->type == FLOAT)
+		return 0;
+	if (size == 4 && !nr && iv)
+		return 0;
+
+	/* TODO: optimize constant right forms of these by doing the
+	   op between bx and a constant when possible */
+	if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
+		codegen_lr(n->right);
+		return bp_operation(n, op, op2, nr, iv);
+	}
+	if (can_load_bx(n->left)) {
+		/* Get the value into DX:AX */
+		codegen_lr(n->right);
+		/* Will not damage DX:AX */
+		load_bx(n->left);
+		/* We are now doing ops on [bx] */
+		return bx_operation(size, op, op2, nr, iv);
+	}
+	return 0;
+}
+
 /*
  *	Allow the code generator to shortcut trees it knows
  */
@@ -491,6 +712,7 @@ unsigned gen_shortcut(struct node *n)
 	struct node *l = n->left;
 	struct node *r = n->right;
 	unsigned nr = n->flags & NORETURN;
+	unsigned size = get_size(n->type);
 
 	if (unreachable)
 		return 1;
@@ -506,10 +728,97 @@ unsigned gen_shortcut(struct node *n)
 		codegen_lr(r);
 		r->flags |= nr;
 		return 1;
-	/* TODO: deref by getting left into BX directly, EQ re-ordering */
-	/* *EQ ops */
+	case T_EQ:
+		/* Need to look at (complex) = simple form later TODO */
+		if (!can_load_bx(n->left))
+			return 0;
+		/* Optimised path for the usual simple = expression case */
+		codegen_lr(n->right);
+		load_bx(n->left);
+		switch(size) {
+		case 1:
+			printf("\tmov [bx],al\n");
+			return 1;
+		case 4:
+			printf("\tmov 2[bx],dx\n");
+			/* Fall through */
+		case 2:
+			printf("\tmov [bx],ax\n");
+			return 1;
+		}
+		return 0;
+	case T_PLUSEQ:
+		return bx_shortcut(n, "add", "adc", nr, 0);
+	case T_MINUSEQ:
+		return bx_shortcut(n, "add", "adc", nr, 0);
+	case T_PLUSPLUS:
+		return bx_shortcut(n, "add", "adc", nr, 1);
+	case T_MINUSMINUS:
+		return bx_shortcut(n, "add", "adc", nr, 1);
+	case T_ANDEQ:
+		return bx_shortcut(n, "and", "and", nr, 0);
+	case T_OREQ:
+		return bx_shortcut(n, "and", "and", nr, 0);
+	case T_HATEQ:
+		return bx_shortcut(n, "and", "and", nr, 0);
+	/* SHLEQ/SHREQ */
 	}
 	return 0;
+}
+
+unsigned boolop(struct node *n, const char *opu, const char *op)
+{
+	struct node *r = n->right;
+	unsigned size = get_size(r->type);
+	if (r->type & UNSIGNED)
+		op = opu;
+	if (size == 4)
+		return 0;
+	printf("\tpop bx\n");
+	if (size == 2)
+		printf("\tcmp bx,ax\n");
+	else
+		printf("\tcmp bl,al\n");
+	printf("\tcall __cc%s\n", op);
+	n->flags |= ISBOOL;
+	return 1;
+}
+
+unsigned gen_cast(struct node *n)
+{
+	unsigned lt = n->type;
+	unsigned rt = n->right->type;
+	unsigned ls;
+	unsigned rs;
+
+	if (PTR(rt))
+		rt = USHORT;
+	if (PTR(lt))
+		lt = USHORT;
+
+	/* Floats and stuff handled by helper */
+	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
+		return 0;
+
+	ls = get_size(lt);
+	rs = get_size(rt);
+
+	/* Size shrink is free */
+	if (ls <= rs)
+		return 1;
+	if (!(rt & UNSIGNED)) {
+		/* We have helpers yay! */
+		if (rs == 1)
+			printf("\tcbw\n");
+		if (ls == 4)
+			printf("\tcwd\n");
+		return 1;
+	}
+	if (rs == 1)
+		printf("\tmov ah,0\n");
+	if (ls == 4)
+		printf("\txor dx,dx\n");
+	return 1;
 }
 
 unsigned gen_node(struct node *n)
@@ -527,6 +836,8 @@ unsigned gen_node(struct node *n)
 		printf("\tmov bx,ax\n");
 		printf("\tcall [bx]\n");
 		return 1;
+	case T_CAST:
+		return gen_cast(n);
 	case T_ARGUMENT:
 		v += argbase + frame_len;
 	case T_LOCAL:
@@ -934,7 +1245,7 @@ unsigned gen_node(struct node *n)
 			printf("\tpop bx\n");
 			printf("\tsub [bx],ax\n");
 			printf("\tsbc 2[bx],dx\n");
-			if (!nr) { 
+			if (!nr) {
 				printf("\tmov ax,[bx]\n");
 				printf("\tmov dx,2[bx]\n");
 			}
@@ -1049,6 +1360,18 @@ unsigned gen_node(struct node *n)
 		break;
 /*	case T_SHLEQ:
 	case T_SHREQ: */
+	case T_EQEQ:
+		return boolop(n, "z", "z");
+	case T_BANGEQ:
+		return boolop(n, "nz", "nz");
+	case T_LTEQ:
+		return boolop(n, "be", "le");
+	case T_GTEQ:
+		return boolop(n, "ae", "ge");
+	case T_LT:
+		return boolop(n, "b", "lt");
+	case T_GT:
+		return boolop(n, "a", "gt");
 	}
 	return 0;
 }
