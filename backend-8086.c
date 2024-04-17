@@ -349,6 +349,69 @@ unsigned gen_push(struct node *n)
 	return 1;
 }
 
+/* Perform an operation between (DX:)AX and the right hand side directly
+   if possible. */
+unsigned op_direct(struct node *r, unsigned size, const char *op, const char *op2)
+{
+	const char *lr = "ax";
+	const char *name;
+	if (size == 1)
+		lr = "al";
+	unsigned v = r->value;
+
+	/* We can't shortcut floats like this */
+	if (r->type == FLOAT)
+		return 0;
+
+	switch(r->op) {
+	case T_CONSTANT:
+		if (size == 1) {
+			printf("\t%s al,%u\n", op, v & 0xFF);
+			return 1;
+		}
+		printf("\t%s ax,%u\n", op, v);
+		if (size == 4)
+			printf("\t%s dx,%u\n", op2, (unsigned)((r->value >> 16) & 0xFFFF));
+		return 1;
+	case T_NREF:
+		name = namestr(r->snum);
+		printf("\t%s %s,_%s+%u\n", op, lr, name, v);
+		if (size == 4)
+			printf("\t%s dx,_%s+%u\n", op2, name, v + 2);
+		return 1;
+	case T_LBREF:
+		printf("\t%s %s,[T%u+%u]\n", op, lr, r->val2, v);
+		if (size == 4)
+			printf("\t%s dx,[T%u+%u]\n", op2, r->val2, v + 2);
+		return 1;
+	case T_LREF:
+		printf("\t%s %s,%u[bp]\n", op, lr, v);
+		if (size == 4)
+			printf("\t%s dx,%u[bp]\n", op2, v + 2);
+		return 1;
+	case T_NAME:
+		name = namestr(r->snum);
+		if (size == 1) {
+			printf("\t%s al,<_%s+%u\n", op, name, v);
+			return 1;
+		}
+		printf("\t%s ax,_%s+%u\n", op, name, v);
+		if (size == 4)
+		 	printf("\t%s dx,0\n", op2);
+		return 1;
+	case T_LABEL:
+		if (size == 1) {
+			printf("\t%s al,T%u+%u\n", op, r->val2, v);
+			return 1;
+		}
+		printf("\t%s ax,T%u+%u\n", op, r->val2, v);
+		if (size == 4)
+		 	printf("\t%s dx,0\n", op2);
+		return 1;
+	}
+	return 0;
+}
+
 /*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
@@ -356,14 +419,30 @@ unsigned gen_push(struct node *n)
  */
 unsigned gen_direct(struct node *n)
 {
+	struct node *r = n->right;
+	unsigned size = get_size(n->type);
+//	unsigned nr = n->flags & NORETURN;
+//	unsigned v = n->value;
+
 	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
 	   type of the function return so don't use that for the cleanup value
 	   in n->right */
 	case T_CLEANUP:
-		if (n->right->value)
-			printf("\tadd sp,%u\n", (unsigned)(n->right->value & 0xFFFF));
+		if (r->value)
+			printf("\tadd sp,%u\n", (unsigned)(r->value & 0xFFFF));
 		return 1;
+	case T_PLUS:
+		return op_direct(r, size, "add", "adc");
+	case T_MINUS:
+		return op_direct(r, size, "sub", "sbc");
+	case T_AND:
+		return op_direct(r, size, "and", "and");
+	case T_OR:
+		return op_direct(r, size, "and", "and");
+	case T_HAT:
+		return op_direct(r, size, "and", "and");
+	/* 80186 has const multishift TODO */
 	}
 	return 0;
 }
@@ -375,6 +454,32 @@ unsigned gen_direct(struct node *n)
  */
 unsigned gen_uni_direct(struct node *n)
 {
+	struct node *r = n->right;
+	unsigned size = get_size(n->type);
+	unsigned nr = n->flags & NORETURN;
+	unsigned v = n->value;
+	unsigned rv;
+
+	switch(n->op) {
+	case T_LSTORE:
+		if (nr && r->op == T_CONSTANT) {
+			rv = r->value;
+			switch(size) {
+			case 1:
+				printf("\tmov %u[bp],%u\n", v, rv & 0xFF);
+				return 1;
+			case 2:
+				printf("\tmov %u[bp],%u\n", v, rv & 0xFFFF);
+				return 1;
+			case 4:
+				printf("\tmov %u[bp],%u\n", v, rv & 0xFFFF);
+				printf("\tmov %u[bp],%u\n", v + 2,
+					((unsigned)(r->value >> 16) & 0xFFFF));
+				return 1;
+			}
+		}
+		return 0;
+	}
 	return 0;
 }
 
@@ -383,8 +488,27 @@ unsigned gen_uni_direct(struct node *n)
  */
 unsigned gen_shortcut(struct node *n)
 {
+	struct node *l = n->left;
+	struct node *r = n->right;
+	unsigned nr = n->flags & NORETURN;
+
 	if (unreachable)
 		return 1;
+
+	switch(n->op) {
+	case T_COMMA:
+		/* The comma operator discards the result of the left side,
+		   then evaluates the right. Avoid pushing/popping and
+		   generating stuff that is surplus */
+		l->flags |= NORETURN;
+		codegen_lr(l);
+		/* Parent determines child node requirements */
+		codegen_lr(r);
+		r->flags |= nr;
+		return 1;
+	/* TODO: deref by getting left into BX directly, EQ re-ordering */
+	/* *EQ ops */
+	}
 	return 0;
 }
 
@@ -436,6 +560,8 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_LBREF:
+		if (nr)
+			return 1;
 		switch(size) {
 		case 1:
 			printf("\tmov al,T%u+%u\n", n->val2, v);
@@ -450,6 +576,8 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_LREF:
+		if (nr)
+			return 1;
 		switch(size) {
 		case 1:
 			printf("\tmov al,%u[bp]\n", v);
@@ -464,6 +592,7 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_NSTORE:
+		/* TODO direct const forms */
 		name = namestr(n->snum);
 		switch(size) {
 		case 1:
@@ -479,6 +608,7 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_LBSTORE:
+		/* TODO direct const forms */
 		switch(size) {
 		case 1:
 			printf("\tmov T%u+%u, al\n", n->val2, v);
@@ -507,6 +637,7 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_CONSTANT:
+		/* TODO xor for 0 etc */
 		if (nr)
 			return 1;
 		switch(size) {
@@ -765,19 +896,23 @@ unsigned gen_node(struct node *n)
 		case 1:
 			printf("\tpop bx\n");
 			printf("\tadd [bx],al\n");
-			printf("\tmov al,[bx]\n");
+			if (!nr)
+				printf("\tmov al,[bx]\n");
 			return 1;
 		case 2:
 			printf("\tpop bx\n");
 			printf("\tadd [bx],ax\n");
-			printf("\tmov ax,[bx]\n");
+			if (!nr)
+				printf("\tmov ax,[bx]\n");
 			return 1;
 		case 4:
 			printf("\tpop bx\n");
 			printf("\tadd [bx],ax\n");
 			printf("\tadc 2[bx],dx\n");
-			printf("\tmov ax,[bx]\n");
-			printf("\tmov dx,2[bx]\n");
+			if (!nr) {
+				printf("\tmov ax,[bx]\n");
+				printf("\tmov dx,2[bx]\n");
+			}
 			return 1;
 		}
 		break;
@@ -786,19 +921,23 @@ unsigned gen_node(struct node *n)
 		case 1:
 			printf("\tpop bx\n");
 			printf("\tsub [bx],al\n");
-			printf("\tmov al,[bx]\n");
+			if (!nr)
+				printf("\tmov al,[bx]\n");
 			return 1;
 		case 2:
 			printf("\tpop bx\n");
 			printf("\tsub [bx],ax\n");
-			printf("\tmov ax,[bx]\n");
+			if (!nr)
+				printf("\tmov ax,[bx]\n");
 			return 1;
 		case 4:
 			printf("\tpop bx\n");
 			printf("\tsub [bx],ax\n");
 			printf("\tsbc 2[bx],dx\n");
-			printf("\tmov ax,[bx]\n");
-			printf("\tmov dx,2[bx]\n");
+			if (!nr) { 
+				printf("\tmov ax,[bx]\n");
+				printf("\tmov dx,2[bx]\n");
+			}
 			return 1;
 		}
 		break;
@@ -839,19 +978,23 @@ unsigned gen_node(struct node *n)
 		case 1:
 			printf("\tpop bx\n");
 			printf("\tand [bx],al\n");
-			printf("\tmov al,[bx]\n");
+			if (!nr)
+				printf("\tmov al,[bx]\n");
 			return 1;
 		case 2:
 			printf("\tpop bx\n");
 			printf("\tand [bx],ax\n");
-			printf("\tmov ax,[bx]\n");
+			if (!nr)
+				printf("\tmov ax,[bx]\n");
 			return 1;
 		case 4:
 			printf("\tpop bx\n");
 			printf("\tand [bx],ax\n");
 			printf("\tand 2[bx],dx\n");
-			printf("\tmov ax,[bx]\n");
-			printf("\tmov dx,2[bx]\n");
+			if (!nr) {
+				printf("\tmov ax,[bx]\n");
+				printf("\tmov dx,2[bx]\n");
+			}
 			return 1;
 		}
 	case T_OREQ:
@@ -859,19 +1002,23 @@ unsigned gen_node(struct node *n)
 		case 1:
 			printf("\tpop bx\n");
 			printf("\tor [bx],al\n");
-			printf("\tmov al,[bx]\n");
+			if (!nr)
+				printf("\tmov al,[bx]\n");
 			return 1;
 		case 2:
 			printf("\tpop bx\n");
 			printf("\tor [bx],ax\n");
-			printf("\tmov ax,[bx]\n");
+			if (!nr)
+				printf("\tmov ax,[bx]\n");
 			return 1;
 		case 4:
 			printf("\tpop bx\n");
 			printf("\tor [bx],ax\n");
 			printf("\tor 2[bx],dx\n");
-			printf("\tmov ax,[bx]\n");
-			printf("\tmov dx,2[bx]\n");
+			if (!nr) {
+				printf("\tmov ax,[bx]\n");
+				printf("\tmov dx,2[bx]\n");
+			}
 			return 1;
 		}
 		break;
@@ -880,19 +1027,23 @@ unsigned gen_node(struct node *n)
 		case 1:
 			printf("\tpop bx\n");
 			printf("\txor [bx],al\n");
-			printf("\tmov al,[bx]\n");
+			if (!nr)
+				printf("\tmov al,[bx]\n");
 			return 1;
 		case 2:
 			printf("\tpop bx\n");
 			printf("\txor [bx],ax\n");
-			printf("\tmov ax,[bx]\n");
+			if (!nr)
+				printf("\tmov ax,[bx]\n");
 			return 1;
 		case 4:
 			printf("\tpop bx\n");
 			printf("\txor [bx],ax\n");
 			printf("\txor 2[bx],dx\n");
-			printf("\tmov ax,[bx]\n");
-			printf("\tmov dx,2[bx]\n");
+			if (!nr) {
+				printf("\tmov ax,[bx]\n");
+				printf("\tmov dx,2[bx]\n");
+			}
 			return 1;
 		}
 		break;
