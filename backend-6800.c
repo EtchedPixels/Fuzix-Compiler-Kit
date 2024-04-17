@@ -2411,12 +2411,20 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 unsigned do_xeqop(struct node *n, const char *op)
 {
 	unsigned off;
-	if (!can_load_x_with(n->left, 0))
-		return 0;
-	/* Get the value part into AB */
-	codegen_lr(n->right);
-	/* Load X (lval of the eq op) up (doesn't disturb AB) */
-	off = load_x_with(n->left, 0);
+	if (!can_load_x_with(n->left, 0)) {
+		/* Compute the left side and stack it */
+		codegen_lr(n->left);
+		printf("\tpshs d\n");
+		/* Get D right, then pull the pointer into X */
+		codegen_lr(n->right);
+		printf("\tpuls x\n");
+		/* and drop into he helper */
+	} else {
+		/* Get the value part into AB */
+		codegen_lr(n->right);
+		/* Load X (lval of the eq op) up (doesn't disturb AB) */
+		off = load_x_with(n->left, 0);
+	}
 	/* Things we can then inline */
 	if (do_xptrop(n, op, off) == 0)
 		error("xptrop");
