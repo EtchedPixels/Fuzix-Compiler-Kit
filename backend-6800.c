@@ -1063,7 +1063,7 @@ unsigned uniop8_on_node(struct node *r, const char *op, unsigned off)
 	case T_LSTORE:
 	case T_LREF:
 		if (cpu_is_09)
-			uniop8_on_s(op, off + sp);
+			uniop8_on_s(op, v + off + sp);
 		else {
 			off = make_local_ptr(v + off, 255);
 			uniop8_on_ptr(op, off);
