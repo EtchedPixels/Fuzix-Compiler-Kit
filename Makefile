@@ -1,10 +1,10 @@
 all: fcc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.1802 cc1.6800 \
-     cc1.8070 \
+     cc1.8070 cc1.8086 \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 \
-     cc2.8070 \
+     cc2.8070 cc2.8086 \
      copt support6502 support65c816 support6800 support6803 \
      support6809 support8080 support8085 supportz80 \
      supportz8 supportsuper8 test
@@ -12,8 +12,10 @@ all: fcc cc0 \
 bootstuff: cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.super8 cc1.1802 cc1.6800 cc1.8070 \
+     cc1.8086 \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.8070 \
+     cc2.8086 \
      copt
 
 .PHONY: support6502 support65c816 support6800 support6803 support6809 \
@@ -29,6 +31,7 @@ OBJS1 = body.o declaration.o enum.o error.o expression.o header.o idxdata.o \
 
 OBJS2 = backend.o backend-default.o
 OBJS3 = backend.o backend-8080.o
+OBJS4 = backend.o backend-8086.o
 OBJS5 = backend.o backend-z80.o
 OBJS6 = backend.o backend-65c816.o
 OBJS8 = backend.o backend-8070.o
@@ -67,6 +70,9 @@ cc0:	$(OBJS0)
 cc1.8080:$(OBJS1) target-8080.o
 	gcc -g3 $(OBJS1) target-8080.o -o cc1.8080
 
+cc1.8086:$(OBJS1) target-8086.o
+	gcc -g3 $(OBJS1) target-8086.o -o cc1.8086
+
 cc1.z80:$(OBJS1) target-z80.o
 	gcc -g3 $(OBJS1) target-z80.o -o cc1.z80
 
@@ -102,6 +108,9 @@ cc2:	$(OBJS2)
 
 cc2.8080:	$(OBJS3)
 	gcc -g3 $(OBJS3) -o cc2.8080
+
+cc2.8086:	$(OBJS4)
+	gcc -g3 $(OBJS4) -o cc2.8086
 
 cc2.z80:	$(OBJS5)
 	gcc -g3 $(OBJS5) -o cc2.z80
@@ -174,6 +183,7 @@ clean:
 	rm -f cc2.8070 cc2.thread cc2.byte cc2.6502
 	rm -f cc1.super8 cc2.super8
 	rm -f cc1.z8 cc2.z8
+	rm -f cc1.8086 cc2.8086
 	rm -f *~ *.o
 	(cd support6502; make clean)
 	(cd support65c816; make clean)
@@ -228,6 +238,12 @@ bootinst:
 	cp cc1.8070 $(CCROOT)/lib
 	cp cc2.8070 $(CCROOT)/lib
 	cp rules.8070 $(CCROOT)/lib
+	# 8086 (WIP)
+	mkdir -p $(CCROOT)/lib/8086
+	mkdir -p $(CCROOT)/lib/8086/include
+	cp cc1.8086 $(CCROOT)/lib
+	cp cc2.8086 $(CCROOT)/lib
+	cp rules.8086 $(CCROOT)/lib
 	# 8080/8085
 	mkdir -p $(CCROOT)/lib/8080
 	mkdir -p $(CCROOT)/lib/8080/include
