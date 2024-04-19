@@ -543,7 +543,7 @@ void adjust_s(int n, unsigned save_d)
 		return;
 	}
 	/* If not check if ins is */
-	if (n >= 0 && n <= cost) { 
+	if (n >= 0 && n <= cost) {
 		repeated_op(n, "ins");
 		return;
 	}
@@ -907,7 +907,7 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 	case T_LREF:
 		if (cpu_is_09)
 			op16_on_s(op, op2, v + off + sp);
-		else { 
+		else {
 			off = make_local_ptr(v + off, 254);
 			op16_on_ptr(op, op2, off);
 		}
@@ -1045,7 +1045,7 @@ unsigned write_opd(struct node *r, const char *op, const char *op2, unsigned off
 {
 	unsigned s = get_size(r->type);
 	if (s == 2) {
-		if (!cpu_has_d) 
+		if (!cpu_has_d)
 			return op16_on_node(r, op, op2, off);
 		return op16d_on_node(r, op, op2, off);
 	}
@@ -1323,6 +1323,24 @@ unsigned right_shift(struct node *n)
    not harm D in the process. We can make this smarter over time if needed.
    Might be worth passing if we can trash D as it will help make_local_ptr
    later, and will be true for some load cases */
+unsigned can_load_x_simple(struct node *r, unsigned off)
+{
+	switch(r->op) {
+	case T_ARGUMENT:
+	case T_LOCAL:
+	case T_LREF:
+	case T_CONSTANT:
+	case T_LBREF:
+	case T_NREF:
+	case T_NAME:
+	case T_LABEL:
+		return 1;
+	}
+	return 0;
+}
+
+/* Also allow offset in the result and some level of complexity via
+   lea for offsets on things like struct */
 unsigned can_load_x_with(struct node *r, unsigned off)
 {
 	switch(r->op) {
@@ -1334,6 +1352,15 @@ unsigned can_load_x_with(struct node *r, unsigned off)
 	case T_NREF:
 	case T_NAME:
 	case T_LABEL:
+		return 1;
+	case T_PLUS:
+	case T_MINUS:
+		if (!cpu_is_09)
+			return 0;
+		if (!can_load_x_with(r->left, off))
+			return 0;
+		if (r->right->op != T_CONSTANT)
+			return 0;
 		return 1;
 	}
 	return 0;
@@ -1378,6 +1405,23 @@ unsigned load_x_with(struct node *r, unsigned off)
 	case T_NAME:
 		printf("\tldx #_%s+%u\n", namestr(r->snum), v + off);
 		invalidate_x();
+		break;
+	case T_PLUS:
+		/* Special case array/struct */
+		if (cpu_is_09 && can_load_x_simple(r->left, off) &&
+			r->right->op == T_CONSTANT) {
+			load_x_with(r->left, off);
+//			printf("\tleax %u,x\n", (unsigned)r->right->value);
+			return r->right->value;
+		}
+		break;
+	case T_MINUS:
+		if (cpu_is_09 && can_load_x_simple(r->left, off) &&
+			r->right->op == T_CONSTANT) {
+			load_x_with(r->right, off);
+//			printf("leax -%u,x\n", (unsigned)r->right->value);
+			return -r->right->value;
+		}
 		break;
 	/* case T_RREF:
 		printf("\tldx @__reg%u\n", v);
@@ -2005,7 +2049,7 @@ static void gen_fast_mul(unsigned s, unsigned n)
 
 	if (n == 0)
 		load_d_const(0);
-	else { 
+	else {
 		write_mul(n);
 		invalidate_work();
 	}
@@ -2336,7 +2380,7 @@ unsigned gen_uni_direct(struct node *n)
  *	value ends up in @hireg|Y/AB which is all safe from the load of
  *	the X pointer.
  */
- 
+
 void op_on_ptr(struct node *n, const char *op, unsigned off)
 {
 	unsigned s = get_size(n->type);
@@ -2377,10 +2421,10 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 	case T_STAREQ:
 		/* If we have D we have mul */
 		if (get_size(n->type) == 1 && cpu_has_d) {
-			printf("\tlda ,x\n");
+			printf("\tlda %u,x\n", off);
 			printf("\tmul\n");
-			printf("\tstb ,x\n");
-			break;
+			printf("\tstb %u,x\n", off);
+			return 1;
 		}
 		/* Fall through */
 	/* TODO:
@@ -2412,12 +2456,15 @@ unsigned do_xeqop(struct node *n, const char *op)
 {
 	unsigned off;
 	if (!can_load_x_with(n->left, 0)) {
+		printf(";can't load x %u\n", n->left->op);
 		/* Compute the left side and stack it */
 		codegen_lr(n->left);
-		printf("\tpshs d\n");
+		gen_push(n->left);
 		/* Get D right, then pull the pointer into X */
 		codegen_lr(n->right);
-		printf("\tpuls x\n");
+		pop_x();
+		sp -= 2;	/* Pulling the pointer back off */
+		off = 0;
 		/* and drop into he helper */
 	} else {
 		/* Get the value part into AB */
@@ -2626,7 +2673,10 @@ unsigned gen_shortcut(struct node *n)
 		   get it into X instead */
 		printf(";deref r %x %u\n", r->op, (unsigned)r->value);
 		v = n->value;
-		if (can_load_x_with(r, 0)) {
+		/* Need to look at off handling
+		   TODO: think v + off is all that is needed but for non
+		   6809 that means range checking complications */
+		if (can_load_x_simple(r, 0)) {
 			load_x_with(r, 0);
 
 			invalidate_work();
@@ -2675,7 +2725,7 @@ unsigned gen_shortcut(struct node *n)
 	case T_EQ:	/* Our left is the address */
 	case T_EQPLUS:
 		v = n->value;
-		if (can_load_x_with(l, 0)) {
+		if (can_load_x_simple(l, 0)) {
 			if (r->op == T_CONSTANT && nr && r->value == 0 && s <= 2) {
 				/* We can optimize thing = 0 for the case
 				   we don't also need the value */
@@ -2784,7 +2834,7 @@ unsigned gen_shortcut(struct node *n)
 		if (r->op == T_CONSTANT || s > 2 || cpu_is_09 == 0)
 			return 0;
 		codegen_lr(r);
-		/* Try and write it as 
+		/* Try and write it as
 			ldd foo  subd 1,s or similar */
 		if (write_opd(l, "sub", "sbc", 0))
 			return 1;
@@ -2828,7 +2878,7 @@ static unsigned gen_cast(struct node *n)
 	/* Don't do the harder ones */
 	if (!(rt & UNSIGNED)) {
 		if (cpu_is_09) {
-			if (rs == 1) { 
+			if (rs == 1) {
 				printf("\tsex\n");
 				return 1;
 			}
