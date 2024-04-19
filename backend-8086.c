@@ -19,7 +19,21 @@
  *	- 32bit math helpers
  *	- *= /= %=
  *	- Boolean ops
+ *
+ *	Register usage is pretty much determined by the 8086 design
+ *
+ *	DX:AX	32bit working register (DX is also sometimes used as
+ *		scratch (choice forced by CBW CWD MUL DIV)
+ *	BX	Scratch pointer/indexing register (forced by addr modes)
+ *	CX	Loop counts (could push/pop and also get an integer
+ *		register variable out of it) (forced by LOOP/REP)
+ *	SI/DI	Register pointer variables (used for rep ops but not usually
+ *			by a compiler inline)
+ *	BP	Frame pointer (forced by memory access ops. We know sp/bp
+ *		difference but there is no offset[sp] mode
+ *
  */
+
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
 
@@ -104,6 +118,24 @@ static void squash_right(struct node *n, unsigned op)
 }
 
 /*
+ *	Things we can access without messing with DX:AX. On the
+ *	8086 we have a pretty good toolset.
+ */
+static unsigned is_simple(struct node *n)
+{
+	unsigned op = n->op;
+
+	/* We want constants on the right above all other items */
+	if (op == T_CONSTANT)
+		return 10;
+	if (op == T_LOCAL || op == T_ARGUMENT || op == T_NAME || op == T_LABEL)
+		return 9;
+	if (op == T_LREF || op == T_LBREF || op == T_NREF)
+		return 8;
+	return 0;
+}
+
+/*
  *	Our chance to do tree rewriting. We don't do much
  *	at this point, but we do rewrite name references and function calls
  *	to make them easier to process.
@@ -118,6 +150,7 @@ struct node *gen_rewrite_node(struct node *n)
 	struct node *l = n->left;
 	struct node *r = n->right;
 	unsigned op = n->op;
+	unsigned nt = n->type;
 
 	if (op == T_DEREF) {
 		if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
@@ -140,8 +173,7 @@ struct node *gen_rewrite_node(struct node *n)
 			squash_right(n, T_LBREF);
 			return n;
 		}
-	}
-	if (op == T_EQ) {
+	} else if (op == T_EQ) {
 		if (l->op == T_NAME) {
 			squash_left(n, T_NSTORE);
 			return n;
@@ -162,15 +194,31 @@ struct node *gen_rewrite_node(struct node *n)
 			return n;
 		}
 #endif
-	}
+	/* Eliminate casts for sign, pointer conversion or same */
+	} else if (op == T_CAST) {
+		if (nt == r->type || (nt ^ r->type) == UNSIGNED ||
+		 (PTR(nt) && PTR(r->type))) {
+			free_node(n);
+			return r;
+		}
 	/* Rewrite function call of a name into a new node so we can
 	   turn it easily into call xyz */
-	if (op == T_FUNCCALL && r->op == T_NAME && PTR(r->type) == 1) {
+	} else if (op == T_FUNCCALL && r->op == T_NAME && PTR(r->type) == 1) {
 		n->op = T_CALLNAME;
 		n->snum = r->snum;
 		n->value = r->value;
 		free_node(r);
 		n->right = NULL;
+	}
+	/* Commutive operations. We can swap the sides over on these */
+	/* We also need to rewrite LT GT LTEQ GTEQ at some point so constants
+	   are on the right and rewrite the op */
+	if (op == T_AND || op == T_OR || op == T_HAT || op == T_STAR || op == T_PLUS) {
+/*		printf(";left %d right %d\n", is_simple(n->left), is_simple(n->right)); */
+		if (is_simple(n->left) > is_simple(n->right)) {
+			n->right = l;
+			n->left = r;
+		}
 	}
 	return n;
 }
@@ -212,18 +260,26 @@ void gen_frame(unsigned size, unsigned aframe)
 {
 	frame_len = size;
 	/* TODO: push si/di if reg args */
-	printf("\tpush bp\n");
-	printf("\tmov bp,sp\n");
-	if (size)
-		printf("\tsub sp,%d\n", size);
+	if (cpu >= 186)
+		printf("\tenter %d,0\n", size);
+	else {
+		printf("\tpush bp\n");
+		printf("\tmov bp,sp\n");
+		if (size)
+			printf("\tsub sp,%d\n", size);
+	}
 }
 
 void gen_epilogue(unsigned size, unsigned argsize)
 {
 	/* TODO: pop si/di if reg args */
 	if (!unreachable) {
-		printf("\tmov sp,bp\n");
-		printf("\tpop bp\n");
+		if (cpu >= 186) {
+			printf("\tleave\n");
+		} else {
+			printf("\tmov sp,bp\n");
+			printf("\tpop bp\n");
+		}
 		printf("\tret\n");
 	}
 	unreachable = 1;
@@ -441,7 +497,7 @@ unsigned bx_operation(unsigned size, const char *op, const char *op2,
 
 	if (size == 1) {
 		if (!nr && iv)
-			printf("\tld ah,[bx]\n");
+			printf("\tmov ah,[bx]\n");
 		printf("\t%s [bx],al\n", op);
 		if (!nr) {
 			if (iv)
@@ -471,6 +527,44 @@ unsigned bx_operation(unsigned size, const char *op, const char *op2,
 	return 1;
 }
 
+/* BP relative operation using a constant. The 8086 can do things like
+    add 4[bp],1 */
+
+unsigned bp_const_op(struct node *n, const char *op, const char *op2,
+	unsigned nr, unsigned iv)
+{
+	unsigned size = get_size(n->type);
+	unsigned v = n->value;
+	unsigned long cval = n->right->value;
+
+	/* R has been evaluated, L is in BX */
+	if (n->left->op == T_ARGUMENT)
+		v += argbase + frame_len;
+	if (size == 1) {
+		if (!nr && iv)
+			printf("\tmov al,%u[bp]\n", v);
+		printf("\t%s byte %u[bp],%lu\n", op, v, cval & 0xFF);
+		if (!nr && !iv)
+			printf("\tmov al,%u[bp]\n", v);
+	} else if (size == 2) {
+		if (!nr && iv)
+			printf("\tmov ax,%u[bp]\n", v);
+		printf("\t%s word %u[bp],%lu\n", op, v, cval & 0xFFFF);
+		if (!nr && !iv)
+			printf("\tmov ax,%u[bp]\n", v);
+	/* Size 4 never done with iv */
+	} else if (size == 4) {
+		printf("\t%s word %u[bp],%lu\n", op, v, cval & 0xFFFF);
+		printf("\t%s word %u[bp],%lu\n", op2, v + 2, cval >> 16);
+		if (!nr) {
+			printf("\tmov ax,%u[bp]\n", v);
+			printf("\tmov dx,%u[bp]\n", v + 2);
+		}
+	}
+	return 1;
+}
+
+
 /* Stack relative operations (eg ++ on a local) */
 unsigned bp_operation(struct node *n, const char *op, const char *op2,
 	unsigned nr, unsigned iv)
@@ -478,12 +572,13 @@ unsigned bp_operation(struct node *n, const char *op, const char *op2,
 	unsigned size = get_size(n->type);
 	unsigned v = n->value;
 
+	printf(";bp operation %x (%x)\n", n->op, n->right->op);
 	/* R has been evaluated, L is in BX */
 	if (n->left->op == T_ARGUMENT)
 		v += argbase + frame_len;
 	if (size == 1) {
 		if (!nr && iv)
-			printf("\tld ah,%u[bp]\n", v);
+			printf("\tmov ah,%u[bp]\n", v);
 		printf("\t%s %u[bp],al\n", op, v);
 		if (!nr) {
 			if (iv)
@@ -513,7 +608,7 @@ unsigned bp_operation(struct node *n, const char *op, const char *op2,
 	return 1;
 }
 
-unsigned can_load_bx(struct node *n)
+unsigned can_load_reg(struct node *n)
 {
 	switch(n->op) {
 	case T_CONSTANT:
@@ -529,32 +624,32 @@ unsigned can_load_bx(struct node *n)
 	return 0;
 }
 
-void load_bx(struct node *n)
+void load_reg(const char *reg, struct node *n)
 {
 	unsigned v = n->value;
 	switch(n->op) {
 	case T_CONSTANT:
-		printf("\tmov bx,%u\n", v);
+		printf("\tmov %s,%u\n", reg, v);
 		break;
 	case T_NAME:
-		printf("\tmov bx,_%s+%u\n", namestr(n->snum), v);
+		printf("\tmov %s,_%s+%u\n", reg, namestr(n->snum), v);
 		break;
 	case T_LABEL:
-		printf("\tmov bx,T%u+%u\n", n->val2, v);
+		printf("\tmov %s,T%u+%u\n", reg, n->val2, v);
 		break;
 	case T_ARGUMENT:
 		v += argbase + frame_len;
 	case T_LOCAL:
-		printf("\tlea bx,%u[bp]\n", v);
+		printf("\tlea %s,%u[bp]\n", reg, v);
 		break;
 	case T_LREF:
-		printf("\tmov bx,%u[bp]\n", v);
+		printf("\tmov %s,%u[bp]\n", reg, v);
 		break;
 	case T_LBREF:
-		printf("\tmov bx,[T%u+%u]\n", n->val2, v);
+		printf("\tmov %s,[T%u+%u]\n", reg, n->val2, v);
 		break;
 	case T_NREF:
-		printf("\tmov bx,[_%s+%u]\n", namestr(n->snum), v);
+		printf("\tmov %s,[_%s+%u]\n", reg, namestr(n->snum), v);
 		break;
 	}
 }
@@ -587,6 +682,50 @@ unsigned cond_direct(struct node *n, const char *opu, const char *op)
 	printf("\tcall __cc%s\n", op);
 	n->flags |= ISBOOL;
 	return 1;
+}
+
+static unsigned shift_const(const char *op, struct node *n)
+{
+	unsigned size = get_size(n->type);
+	struct node *r = n->right;
+	unsigned v;
+	const char *reg = "ax";
+	if (size == 1)
+		reg = "al";
+
+	/*  8086 has no shift multiple */
+	if (size > 2)
+		return 0;
+	if (r->op == T_CONSTANT) {
+		/* TODO add short form helper rules somewhere
+		   eg mov ah,al, xor al,al etc */
+		v = r->value & 0x0F;
+		if (v == 0)
+			return 1;
+		if (cpu >= 186) {
+			printf("\t%s %s,%u\n",  op, reg, v);
+			return 1;
+		}
+		if (v <= 4) {
+			while(v--)
+				printf("\t%s %s\n", op, reg);
+			return 1;
+		}
+	}
+	if (can_load_reg(r)) {
+		load_reg("cl", r);
+		if (cpu < 186) {
+			unsigned l = get_label();
+			printf("\tX%u:\n", l);
+			printf("\t%s %s\n", op, reg);
+			printf("\tloopne X%u\n", l);
+			return 1;
+		} else {
+			printf("\t%s %s,cl\n", op, reg);
+			return 1;
+		}
+	}
+	return 0;
 }
 
 /*
@@ -632,6 +771,20 @@ unsigned gen_direct(struct node *n)
 		return cond_direct(n, "b", "lt");
 	case T_GT:
 		return cond_direct(n, "a", "gt");
+	case T_LTLT:
+		/* DX:AX << n */
+		if (shift_const("shl", n))
+			return 1;
+		break;
+	case T_GTGT:
+		if (n->type & UNSIGNED) {
+			if (shift_const("shr", n))
+				return 1;
+		} else {
+			if (shift_const("sar", n))
+				return 1;
+		}
+		break;
 	}
 	return 0;
 }
@@ -679,6 +832,7 @@ unsigned bx_shortcut(struct node *n, const char *op, const char *op2,
 {
 	unsigned size = get_size(n->type);
 	struct node *l = n->left;
+	struct node *r = n->right;
 
 	/* Can't do floats this way and for now don't deal with
 	   PLUSPLUS/MINUSMINUS of dword */
@@ -687,17 +841,19 @@ unsigned bx_shortcut(struct node *n, const char *op, const char *op2,
 	if (size == 4 && !nr && iv)
 		return 0;
 
-	/* TODO: optimize constant right forms of these by doing the
-	   op between bx and a constant when possible */
 	if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
+		if (r->op == T_CONSTANT)
+			return bp_const_op(n, op, op2, nr, iv);
 		codegen_lr(n->right);
 		return bp_operation(n, op, op2, nr, iv);
 	}
-	if (can_load_bx(n->left)) {
+	/* TODO right const forms without loading into ax */
+	if (can_load_reg(n->left)) {
+		/* TODO: const ops as we have with locals */
 		/* Get the value into DX:AX */
 		codegen_lr(n->right);
 		/* Will not damage DX:AX */
-		load_bx(n->left);
+		load_reg("bx", n->left);
 		/* We are now doing ops on [bx] */
 		return bx_operation(size, op, op2, nr, iv);
 	}
@@ -730,11 +886,11 @@ unsigned gen_shortcut(struct node *n)
 		return 1;
 	case T_EQ:
 		/* Need to look at (complex) = simple form later TODO */
-		if (!can_load_bx(n->left))
+		if (!can_load_reg(n->left))
 			return 0;
 		/* Optimised path for the usual simple = expression case */
 		codegen_lr(n->right);
-		load_bx(n->left);
+		load_reg("bx", n->left);
 		switch(size) {
 		case 1:
 			printf("\tmov [bx],al\n");
