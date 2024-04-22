@@ -2418,6 +2418,9 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 	case T_PLUSEQ:
 		opd_on_ptr(n, "add", "adc", off);
 		break;
+	case T_MINUSEQ:
+		opd_on_ptr(n, "sub", "sbc", off);
+		break;
 	case T_STAREQ:
 		/* If we have D we have mul */
 		if (get_size(n->type) == 1 && cpu_has_d) {
@@ -2428,7 +2431,6 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 		}
 		/* Fall through */
 	/* TODO:
-	   MINUSEQ
 	   PLUSPLUS
 	   MINUSMINUS
 	   shift prob not */
