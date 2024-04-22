@@ -2433,14 +2433,20 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 	   MINUSMINUS
 	   shift prob not */
 	default:
-		/* This ends up ugly with an offset but no worse than
-		   if we punted the offsetting upwards really */
+		/* For the cases we can't inline we may have to adjust X because
+		   we can't propogate the offset nicely into the helper. On 6809 this
+		   is easy, on 6800 it's ugly and we should have a version of the helper
+		   that adds a const then falls into the main implementation */
 		if (off) {
-			/* Cannot occur on 6809 */
-			/* FIXME: merge this into _off versions of
-			   helpers that do the jsr as more compact */
-			printf("\tjsr __addxconst\n");
-			printf("\t.word %u\n", off);
+			if (cpu_is_09) {
+				printf("\tleax %u,x\n", off);
+			} else {
+				/* FIXME: merge this into _off versions of
+				   helpers that do the jsr as more compact */
+				printf("\tjsr __addxconst\n");
+				printf("\t.word %u\n", off);
+			}
+			invalidate_x();
 		}
 		helper_s(n, op);
 		return 1;
