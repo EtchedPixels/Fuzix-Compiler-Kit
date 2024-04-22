@@ -63,6 +63,7 @@ static unsigned cpu_has_xgdx;	/* XGDX is present */
 static unsigned cpu_has_abx;	/* ABX is present */
 static unsigned cpu_has_pshx;	/* Has PSHX PULX */
 static unsigned cpu_has_y;	/* Has Y register */
+static unsigned cpu_has_lea;	/* Has LEA. For now 6809 but if we get to HC12... */
 static unsigned cpu_is_09;	/* Bulding for 6x09 so a bit different */
 
 /*
@@ -495,7 +496,7 @@ void adjust_s(int n, unsigned save_d)
 	unsigned cost;
 
 	/* 6809 is nice and simple */
-	if (cpu_is_09) {
+	if (cpu_has_lea) {
 		if (n)
 			printf("\tleas %d,s\n", n);
 		return;
@@ -789,7 +790,7 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 	/* Although we can access arguments via S we sometimes still need
 	   this path to make pointers to locals. We do need to go through
 	   the cases we can just use ,s to make sure we avoid two steps */
-	if (cpu_is_09) {
+	if (cpu_has_lea) {
 		printf("\tleax %u,s\n", off + sp);
 		return 0;
 	}
@@ -1885,6 +1886,7 @@ void gen_start(void)
 		cpu_has_y = 1;
 		cpu_has_abx = 1;
 		cpu_has_xgdx = 1;
+		cpu_has_lea = 1;
 		break;
 	case 6811:
 		cpu_has_y = 1;
@@ -1924,7 +1926,7 @@ unsigned gen_push(struct node *n)
 		/* 6809 has differing ops */
 		switch(size) {
 		case 1:
-			printf("\tstb ,-s\n");
+			printf("\tpshs b\n");
 			return 1;
 		case 2:
 			printf("\tpshs d\n");
@@ -2147,7 +2149,7 @@ unsigned gen_direct(struct node *n)
 					printf("\tadcb #%u\n", (unsigned)((r->value >> 16) & 0xFF));
 					printf("\tadca #%u\n", (unsigned)((r->value >> 24) & 0xFF));
 					swap_d_y();
-				} else if (cpu_is_09)
+				} else if (cpu_has_lea)
 					printf("\tleay %u,y\n", (unsigned)(r->value >> 16));
 				else {
 					swap_d_y();
@@ -2436,7 +2438,7 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 		   is easy, on 6800 it's ugly and we should have a version of the helper
 		   that adds a const then falls into the main implementation */
 		if (off) {
-			if (cpu_is_09) {
+			if (cpu_has_lea) {
 				printf("\tleax %u,x\n", off);
 			} else  if (cpu_has_xgdx) {
 				printf("\txgdx\n");
