@@ -1411,7 +1411,6 @@ unsigned load_x_with(struct node *r, unsigned off)
 		if (cpu_is_09 && can_load_x_simple(r->left, off) &&
 			r->right->op == T_CONSTANT) {
 			load_x_with(r->left, off);
-//			printf("\tleax %u,x\n", (unsigned)r->right->value);
 			return r->right->value;
 		}
 		break;
@@ -1419,7 +1418,6 @@ unsigned load_x_with(struct node *r, unsigned off)
 		if (cpu_is_09 && can_load_x_simple(r->left, off) &&
 			r->right->op == T_CONSTANT) {
 			load_x_with(r->right, off);
-//			printf("leax -%u,x\n", (unsigned)r->right->value);
 			return -r->right->value;
 		}
 		break;
@@ -2440,6 +2438,10 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 		if (off) {
 			if (cpu_is_09) {
 				printf("\tleax %u,x\n", off);
+			} else  if (cpu_has_xgdx) {
+				printf("\txgdx\n");
+				printf("\taddd #%u\n", off);
+				printf("\txgdx\n");
 			} else {
 				/* FIXME: merge this into _off versions of
 				   helpers that do the jsr as more compact */
