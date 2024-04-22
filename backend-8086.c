@@ -461,9 +461,9 @@ unsigned op_direct(struct node *r, unsigned size, const char *op, const char *op
 			printf("\t%s dx,[T%u+%u]\n", op2, r->val2, v + 2);
 		return 1;
 	case T_LREF:
-		printf("\t%s %s,%u[bp]\n", op, lr, v);
+		printf("\t%s %s,[bp + %u]\n", op, lr, v);
 		if (size == 4)
-			printf("\t%s dx,%u[bp]\n", op2, v + 2);
+			printf("\t%s dx,[bp + %u]\n", op2, v + 2);
 		return 1;
 	case T_NAME:
 		name = namestr(r->snum);
@@ -542,23 +542,23 @@ unsigned bp_const_op(struct node *n, const char *op, const char *op2,
 		v += argbase + frame_len;
 	if (size == 1) {
 		if (!nr && iv)
-			printf("\tmov al,%u[bp]\n", v);
-		printf("\t%s byte %u[bp],%lu\n", op, v, cval & 0xFF);
+			printf("\tmov al,[bp + %u]\n", v);
+		printf("\t%s byte [bp + %u],%lu\n", op, v, cval & 0xFF);
 		if (!nr && !iv)
-			printf("\tmov al,%u[bp]\n", v);
+			printf("\tmov al,[bp + %u]\n", v);
 	} else if (size == 2) {
 		if (!nr && iv)
-			printf("\tmov ax,%u[bp]\n", v);
-		printf("\t%s word %u[bp],%lu\n", op, v, cval & 0xFFFF);
+			printf("\tmov ax,[bp + %u]\n", v);
+		printf("\t%s word [bp + %u],%lu\n", op, v, cval & 0xFFFF);
 		if (!nr && !iv)
-			printf("\tmov ax,%u[bp]\n", v);
+			printf("\tmov ax,[bp + %u]\n", v);
 	/* Size 4 never done with iv */
 	} else if (size == 4) {
-		printf("\t%s word %u[bp],%lu\n", op, v, cval & 0xFFFF);
-		printf("\t%s word %u[bp],%lu\n", op2, v + 2, cval >> 16);
+		printf("\t%s word [bp + %u],%lu\n", op, v, cval & 0xFFFF);
+		printf("\t%s word [bp + %u],%lu\n", op2, v + 2, cval >> 16);
 		if (!nr) {
-			printf("\tmov ax,%u[bp]\n", v);
-			printf("\tmov dx,%u[bp]\n", v + 2);
+			printf("\tmov ax,[bp + %u]\n", v);
+			printf("\tmov dx,[bp + %u]\n", v + 2);
 		}
 	}
 	return 1;
@@ -578,31 +578,31 @@ unsigned bp_operation(struct node *n, const char *op, const char *op2,
 		v += argbase + frame_len;
 	if (size == 1) {
 		if (!nr && iv)
-			printf("\tmov ah,%u[bp]\n", v);
-		printf("\t%s %u[bp],al\n", op, v);
+			printf("\tmov ah,[bp + %u]\n", v);
+		printf("\t%s [bp + %u],al\n", op, v);
 		if (!nr) {
 			if (iv)
 				printf("\tmov al,ah\n");
 			else
-				printf("\tmov al,%u[bp]\n", v);
+				printf("\tmov al,[bp + %u]\n", v);
 		}
 	} else if (size == 2) {
 		if (!nr && iv)
-			printf("\tmov dx,%u[bp]\n", v);
-		printf("\t%s %u[bp],ax\n", op, v);
+			printf("\tmov dx,[bp + %u]\n", v);
+		printf("\t%s [bp + %u],ax\n", op, v);
 		if (!nr) {
 			if (iv)
 				printf("\tmov ax,dx\n");
 			else
-				printf("\tmov ax,%u[bp]\n", v);
+				printf("\tmov ax,[bp + %u]\n", v);
 		}
 	/* Size 4 never done with iv */
 	} else if (size == 4) {
-		printf("\t%s %u[bp],ax\n", op, v);
-		printf("\t%s %u[bp],dx\n", op2, v + 2);
+		printf("\t%s [bp + %u],ax\n", op, v);
+		printf("\t%s [bp + %u],dx\n", op2, v + 2);
 		if (!nr) {
-			printf("\tmov ax,%u[bp]\n", v);
-			printf("\tmov dx,%u[bp]\n", v + 2);
+			printf("\tmov ax,[bp + %u]\n", v);
+			printf("\tmov dx,[bp + %u]\n", v + 2);
 		}
 	}
 	return 1;
@@ -640,10 +640,10 @@ void load_reg(const char *reg, struct node *n)
 	case T_ARGUMENT:
 		v += argbase + frame_len;
 	case T_LOCAL:
-		printf("\tlea %s,%u[bp]\n", reg, v);
+		printf("\tlea %s,[bp + %u]\n", reg, v);
 		break;
 	case T_LREF:
-		printf("\tmov %s,%u[bp]\n", reg, v);
+		printf("\tmov %s,[bp + %u]\n", reg, v);
 		break;
 	case T_LBREF:
 		printf("\tmov %s,[T%u+%u]\n", reg, n->val2, v);
@@ -808,14 +808,14 @@ unsigned gen_uni_direct(struct node *n)
 			rv = r->value;
 			switch(size) {
 			case 1:
-				printf("\tmov %u[bp],%u\n", v, rv & 0xFF);
+				printf("\tmov [bp + %u],%u\n", v, rv & 0xFF);
 				return 1;
 			case 2:
-				printf("\tmov %u[bp],%u\n", v, rv & 0xFFFF);
+				printf("\tmov [bp + %u],%u\n", v, rv & 0xFFFF);
 				return 1;
 			case 4:
-				printf("\tmov %u[bp],%u\n", v, rv & 0xFFFF);
-				printf("\tmov %u[bp],%u\n", v + 2,
+				printf("\tmov [bp + %u],%u\n", v, rv & 0xFFFF);
+				printf("\tmov [bp + %u],%u\n", v + 2,
 					((unsigned)(r->value >> 16) & 0xFFFF));
 				return 1;
 			}
@@ -999,7 +999,7 @@ unsigned gen_node(struct node *n)
 	case T_LOCAL:
 		if (nr)
 			return 1;
-		printf("\tlea ax,%u[bp]\n", v);
+		printf("\tlea ax,[bp + %u]\n", v);
 		return 1;
 	case T_LABEL:
 		if (nr)
@@ -1047,14 +1047,14 @@ unsigned gen_node(struct node *n)
 			return 1;
 		switch(size) {
 		case 1:
-			printf("\tmov al,%u[bp]\n", v);
+			printf("\tmov al,[bp + %u]\n", v);
 			return 1;
 		case 2:
-			printf("\tmov ax,%u[bp]\n", v);
+			printf("\tmov ax,[bp + %u]\n", v);
 			return 1;
 		case 4:
-			printf("\tmov ax,%u[bp]\n", v);
-			printf("\tmov dx,%u[bp]\n", v + 2);
+			printf("\tmov ax,[bp + %u]\n", v);
+			printf("\tmov dx,[bp + %u]\n", v + 2);
 			return 1;
 		}
 		break;
@@ -1092,14 +1092,14 @@ unsigned gen_node(struct node *n)
 	case T_LSTORE:
 		switch(size) {
 		case 1:
-			printf("\tmov %u[bp],al\n", v);
+			printf("\tmov [bp + %u],al\n", v);
 			return 1;
 		case 2:
-			printf("\tmov %u[bp],ax\n", v);
+			printf("\tmov [bp + %u],ax\n", v);
 			return 1;
 		case 4:
-			printf("\tmov %u[bp],ax\n", v);
-			printf("\tmov %u[bp],dx\n", v + 2);
+			printf("\tmov [bp + %u],ax\n", v);
+			printf("\tmov [bp + %u],dx\n", v + 2);
 			return 1;
 		}
 		break;
