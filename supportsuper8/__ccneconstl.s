@@ -7,12 +7,11 @@
 	.code
 
 __ccneconst0l:
-	or	r12,r13
-	or	r12,r14
-	or	r12,r15
+	or	r3,r0
+	or	r3,r1
+	or	r3,r2
 	jr	nz, true
-	clr	r2
-	clr	r3
+	; r2/r3 are 0, Z is set
 	ret
 __ccneconstbl:
 	clr	r12

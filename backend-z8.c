@@ -1512,17 +1512,19 @@ static void squash_right(struct node *n, unsigned op)
 }
 
 /*
- *	There isn't a lot we can do the easy way except constants, so stick
- *	constants on the right when we can.
+ *	Try to stick the best thing on the right when we can
  */
 static unsigned is_simple(struct node *n)
 {
 	unsigned op = n->op;
 
-	/* TODO: we can direct load more on Super8: FIXME */
-	/* We can load these directly */
-	/* TODO: we can also direct load label and name */
-	if (op == T_CONSTANT)
+	if (op == T_CONSTANT || op == T_NAME || op == T_LABEL)
+		return 10;
+	if (op == T_NREF || op == T_LBREF)
+		return 5;
+	if (op == T_LREF)
+		return 2;
+	if (op == T_RREF)
 		return 1;
 	return 0;
 }
@@ -2340,9 +2342,10 @@ unsigned gen_direct(struct node *n)
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			if (v == 0)
 				helper(n, "cceqconst0");
-			else if (v < 256)
+			else if (v < 256) {
+				load_r_constb(R_WORK + size - 1, v);
 				helper(n, "cceqconstb");
-			else {
+			} else {
 				load_r_const(R_WORK, v , size);
 				helper(n, "cceqconst");
 			}
@@ -2369,9 +2372,10 @@ unsigned gen_direct(struct node *n)
 			}
 			if (v == 0)
 				helper_s(n, "cclteqconst0");
-			else if (v < 256)
-				helper_s(n, "cclteqconst0");
-			else {
+			else if (v < 256) { 
+				load_r_constb(R_WORK + size - 1, v);
+				helper_s(n, "cclteqconstb");
+			} else {
 				load_r_const(R_WORK, v , size);
 				helper_s(n, "cclteqconst");
 			}
@@ -2389,9 +2393,10 @@ unsigned gen_direct(struct node *n)
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			if (v == 0)
 				helper_s(n, "ccltconst0");
-			else if (v < 256)
+			else if (v < 256) {
+				load_r_constb(R_WORK + size - 1, v);
 				helper_s(n, "ccltconstb");
-			else {
+			} else {
 				load_r_const(R_WORK, v , size);
 				helper_s(n, "ccltconst");
 			}
@@ -2409,9 +2414,10 @@ unsigned gen_direct(struct node *n)
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			if (v == 0)
 				helper_s(n, "ccgteqconst0");
-			else if (v < 256)
+			else if (v < 256) { 
+				load_r_constb(R_WORK + size - 1, v);
 				helper_s(n, "ccgteqconstb");
-			else {
+			} else {
 				load_r_const(R_WORK, v , size);
 				helper_s(n, "ccgteqconst");
 			}
@@ -2439,9 +2445,10 @@ unsigned gen_direct(struct node *n)
 			}
 			if (v == 0)
 				helper_s(n, "ccgtconst0");
-			else if (v < 256)
+			else if (v < 256) {
+				load_r_constb(R_WORK + size - 1, v);
 				helper_s(n, "ccgtconstb");
-			else {
+			} else {
 				load_r_const(R_WORK, v , size);
 				helper_s(n, "ccgtconst");
 			}
@@ -2457,13 +2464,15 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	case T_BANGEQ:
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
-			load_r_const(R_WORK, v , size);
 			if (v == 0)
 				helper(n, "ccneconst0");
-			else if (v < 256)
+			else if (v < 256) {
+				load_r_constb(R_WORK + size - 1, v);
 				helper(n, "ccneconstb");
-			else
+			} else {
+				load_r_const(R_WORK, v , size);
 				helper(n, "ccneconst");
+			}
 			n->flags |= ISBOOL;
 			return 1;
 		}

@@ -7,12 +7,13 @@
 	.code
 
 __cceqconst0l:
-	or	r12,r13
-	or	r12,r14
-	or	r12,r15
+	or	r3,r0
+	or	r3,r1
+	or	r3,r2
 	jr	nz,false
 	clr	r2
-	ld	r3,#1
+	; r3 is Z
+	inc	r3	; force to NZ
 	ret
 __cceqconstbl:
 	clr	r12
