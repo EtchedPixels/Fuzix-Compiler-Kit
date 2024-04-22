@@ -43,7 +43,7 @@
  *	Split I/D
  */
 
-#undef DEBUG
+#define DEBUG
 
 #include <stdio.h>
 #include <stdint.h>
@@ -202,6 +202,7 @@ unsigned has_relocs;		/* Do we have relocations ? */
 
 const char *crtname = "crt0.o";
 
+int print_passes=0;
 int keep_temp;
 int last_phase = 4;
 int only_one_input;
@@ -447,7 +448,7 @@ static void run_command(void)
 	}
 	if (pid == 0) {
 #ifdef DEBUG
-		{
+		if (print_passes) {
 			const char **p = arglist;
 			printf("[");
 			while(*p)
@@ -498,7 +499,8 @@ static void redirect_in(const char *p)
 		fatal();
 	}
 #ifdef DEBUG
-	printf("<%s\n", p);
+	if (print_passes)
+		printf("<%s\n", p);
 #endif
 }
 
@@ -510,7 +512,8 @@ static void redirect_out(const char *p)
 		fatal();
 	}
 #ifdef DEBUG
-	printf(">%s\n", p);
+	if (print_passes)
+		printf(">%s\n", p);
 #endif
 }
 
@@ -954,6 +957,9 @@ int main(int argc, char *argv[]) {
 		case 's':	/* FIXME: for now - switch to getopt */
 			standalone = 1;
 			break;
+		case 'V':
+			print_passes = 1;
+			break;
 		case 'X':
 			uniopt(*p);
 			keep_temp = 1;
@@ -1009,6 +1015,7 @@ int main(int argc, char *argv[]) {
 	snprintf(symtab + 7, 6, "%x", getpid());
 	processing_loop();
 	unused_files();
-	unlink(symtab);
+	if (keep_temp==0)
+	  unlink(symtab);
 	return 0;
 }
