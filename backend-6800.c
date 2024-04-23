@@ -1949,11 +1949,15 @@ unsigned gen_push(struct node *n)
 		return 1;
 	case 4:
 		printf("\tpshb\n\tpsha\n");
-		printf("\tlda @hireg+1\n");
-		printf("\tpsha\n");
-		printf("\tlda @hireg\n");
-		printf("\tpsha\n");
-		invalidate_work();
+		if (cpu_has_y)
+			printf("\tpshy\n");
+		else {
+			printf("\tlda @hireg+1\n");
+			printf("\tpsha\n");
+			printf("\tlda @hireg\n");
+			printf("\tpsha\n");
+			invalidate_work();
+		}
 		return 1;
 	}
 	return 0;
