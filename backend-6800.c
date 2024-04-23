@@ -515,7 +515,7 @@ void adjust_s(int n, unsigned save_d)
 		if (n > 14 || n < -14) {
 			printf("\ttsx\n\txgdx\n\taddd #%u\n\txgdx\n\ttxs\n", WORD(n));
 			x_fprel = 1;
-			x_fpoff = 0;			
+			x_fpoff = 0;
 			return;
 		}
 		invalidate_x();
@@ -572,7 +572,7 @@ void adjust_s(int n, unsigned save_d)
 		x_fprel = 1;
 		x_fpoff = 0;
 		return;
-			
+
 	}
 	/* Forms where ins/des are always best */
 	if (n >=0 && n <= 4) {
@@ -1949,9 +1949,9 @@ unsigned gen_push(struct node *n)
 		return 1;
 	case 4:
 		printf("\tpshb\n\tpsha\n");
-		printf("\tlda @tmp+1\n");
+		printf("\tlda @hireg+1\n");
 		printf("\tpsha\n");
-		printf("\tlda @tmp\n");
+		printf("\tlda @hireg\n");
 		printf("\tpsha\n");
 		invalidate_work();
 		return 1;
@@ -2392,7 +2392,7 @@ void op_on_ptr(struct node *n, const char *op, unsigned off)
 	else
 		op32_on_ptr(op,op, off);
 }
-		
+
 void opd_on_ptr(struct node *n, const char *op, const char *op2, unsigned off)
 {
 	unsigned s = get_size(n->type);
@@ -2406,6 +2406,7 @@ void opd_on_ptr(struct node *n, const char *op, const char *op2, unsigned off)
 
 unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 {
+	unsigned size;
 	switch(n->op) {
 	case T_ANDEQ:
 		op_on_ptr(n, "and", off);
@@ -2419,9 +2420,30 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 	case T_PLUSEQ:
 		opd_on_ptr(n, "add", "adc", off);
 		break;
+	case T_MINUSEQ:
+		/* We want to subtract D *from* .X. Negate D and add
+		   as this seems the cheapest approach */
+		size = get_size(n->type);
+		if (size == 1) {
+			printf("\tnegb\n");
+			opd_on_ptr(n, "add", "adc", off);
+			break;
+		}
+		if (size == 2) {
+			printf("\tcoma\n\tcomb\n");
+			modify_a(~a_val);
+			modify_b(~b_val);
+			add_d_const(1);
+			opd_on_ptr(n, "add", "adc", off);
+			break;
+		}
+		helper(n, "negate");
+		opd_on_ptr(n, "add", "adc", off);
+		break;
 	case T_STAREQ:
 		/* If we have D we have mul */
-		if (get_size(n->type) == 1 && cpu_has_d) {
+		size = get_size(n->type);
+		if (size == 1 && cpu_has_d) {
 			printf("\tlda %u,x\n", off);
 			printf("\tmul\n");
 			printf("\tstb %u,x\n", off);
@@ -2461,11 +2483,94 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 	return 1;
 }
 
+static unsigned deref_op(unsigned op)
+{
+	switch(op) {
+	case T_NAME:
+		return T_NREF;
+	case T_LOCAL:
+		return T_LREF;
+	case T_LABEL:
+		return T_LBREF;
+	}
+	return 0;
+}
+
+unsigned write_xsimple(struct node *n, unsigned via_ptr)
+{
+	const char *op, *op2;
+	unsigned off = 0;
+	unsigned op16 = 0;
+	struct node *l = n->left;
+	struct node *r = n->right;
+	unsigned top = n->op;
+
+	switch(n->op) {
+	case T_ANDEQ:
+		op = op2 = "and";
+		break;
+	case T_OREQ:
+		op = op2 = remap_op("or");
+		break;
+	case T_HATEQ:
+		op = op2 = "eor";
+		break;
+	case T_PLUSEQ:
+		op = "add";
+		op2 = "adc";
+		op16 = 1;
+		break;
+	case T_MINUSEQ:
+		op = "sub";
+		op2 = "sbc";
+		op16 = 1;
+		break;
+	default:
+		return 0;
+	}
+	top = deref_op(l->op);
+	if (via_ptr || top == 0) {
+		off = load_x_with(l, 0);
+		opd_on_ptr(n, "ld", "ld", off);
+		via_ptr = 1;
+	} else {
+		/* Not sure we should encourage this kind of behaviour ;) */
+		/* TODO: turn this simple/simple stuff into a tree rewrite */
+		l->op = top;
+		l->type = r->type;
+		write_opd(l, "ld", "ld", off);
+	}
+	if (op16)
+		write_opd(r, op, op2, off);
+	else
+		write_op(r, op, op2, off);
+
+	if (via_ptr)
+		opd_on_ptr(n, "st", "st", off);
+	else
+		write_opd(l, "st", "st", off);
+	set_d_node(l);
+	return 1;
+}
+
 /* TODO: 6809 could index locals via S so if n->left is LOCAL or
    ARGUMENT we can special case it */
 unsigned do_xeqop(struct node *n, const char *op)
 {
 	unsigned off;
+	struct node *l = n->left;
+	struct node *r = n->right;
+	/* Handle simpler cases of -= the other way around */
+	if (is_simple(r) && get_size(n->type) <= 2) {
+		if (is_simple(l)) {
+			if (write_xsimple(n, 0))
+				return 1;
+		}
+		else if (can_load_x_with(l, 0)) {
+			if (write_xsimple(n, 1))
+				return 1;
+		}
+	}
 	if (!can_load_x_with(n->left, 0)) {
 		printf(";can't load x %u\n", n->left->op);
 		/* Compute the left side and stack it */
@@ -2663,7 +2768,7 @@ unsigned gen_shortcut(struct node *n)
 	unsigned s = get_size(n->type);
 	unsigned nr = n->flags & NORETURN;
 	unsigned v;
-	
+
 	/* Don't generate unreachable code */
 	if (unreachable)
 		return 1;
@@ -2767,7 +2872,7 @@ unsigned gen_shortcut(struct node *n)
 					printf("\tsty %u,x\n", v);
 					printf("\tstd %u,x\n", v + 2);
 					return 1;
-				}					
+				}
 				if (cpu_has_d)
 					printf("\tstd %u,x\n", v + 2);
 				else {
