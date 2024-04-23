@@ -673,10 +673,11 @@ void op16d_on_spi(const char *op)
 	printf("\t%sd ,s++\n", op);
 }
 
-void op16_on_spi(const char *op)
+/* Do the low byte first in case it's add adc etc */
+void op16_on_spi(const char *op, const char *op2)
 {
 	printf("\t%sa ,s+\n", op);
-	printf("\t%sb ,s+\n", op);
+	printf("\t%sb ,s+\n", op2);
 }
 
 void op16d_on_s(const char *op, const char *op2, unsigned off)
@@ -1148,7 +1149,7 @@ void op16_on_tos(const char *op, const char *op2)
 	unsigned off;
 	invalidate_work();
 	if (cpu_is_09)
-		op16_on_spi(op);
+		op16_on_spi(op, op2);
 	else {
 		off = make_tos_ptr();
 		printf("\t%sb %u,x\n", remap_op(op), off + 1);
