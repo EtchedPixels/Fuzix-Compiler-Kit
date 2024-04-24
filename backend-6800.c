@@ -915,8 +915,8 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 		}
 		break;
 	case T_CONSTANT:
-		printf("\t%sa #>%u\n", op, v + off);
-		printf("\t%sb #<%u\n", op, v + off);
+		printf("\t%sa #>%u\n", op, (v + off) & 0xFFFF);
+		printf("\t%sb #<%u\n", op, (v + off) & 0xFFFF);
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
@@ -2545,9 +2545,9 @@ unsigned write_xsimple(struct node *n, unsigned via_ptr)
 		write_opd(l, "ld", "ld", off);
 	}
 	if (op16)
-		write_opd(r, op, op2, off);
+		write_opd(r, op, op2, 0);
 	else
-		write_op(r, op, op2, off);
+		write_op(r, op, op2, 0);
 
 	if (via_ptr)
 		opd_on_ptr(n, "st", "st", off);
