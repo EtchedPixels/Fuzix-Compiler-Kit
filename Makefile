@@ -232,6 +232,7 @@ bootinst:
 	cp cc2.6800 $(CCROOT)/lib
 	cp copt $(CCROOT)/lib
 	cp rules.6800 $(CCROOT)/lib
+	cp rules.6809 $(CCROOT)/lib
 	# 8070 (WIP)
 	mkdir -p $(CCROOT)/lib/8070
 	mkdir -p $(CCROOT)/lib/8070/include
