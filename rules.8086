@@ -1,0 +1,33 @@
+# Branches
+	jmp %1
+%1:
+=
+%1:
+
+	jmp %2
+%1:
+%2:
+=
+%1:
+%2:
+
+	jmp L%1
+	jmp L%2
+=
+	jmp L%1
+
+# Unwind *x++ / *x--
+	mov ax,dx
+	mov bx,ax
+	mov a%1,[bx]
+=
+	mov bx,dx
+	mov a%1,[bx]
+
+	mov ax,dx
+	mov bx,ax
+	mov a%1,%2[bx]
+=
+	mov bx,dx
+	mov a%1,%2[bx]
+
