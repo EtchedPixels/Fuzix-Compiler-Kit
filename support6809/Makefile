@@ -13,7 +13,7 @@ OBJ =  dp.o makebool.o divide.o __div.o __divu.o __xdiveq.o __mul.o \
       __shll.o __shrl.o __shrul.o \
       __xshleql.o __xshreql.o __xshrequl.o \
       __minusl.o __mull.o divide32x32.o __divul.o __remul.o __divl.o __reml.o \
-      __xdivequl.o __xremequl.o __xdiveql.o __xremeql.o \
+      __xdivequl.o __xremequl.o __xdiveql.o __xremeql.o __xdiveqc.o __xdivequc.o \
       __cast2f.o __castf.o __cceqf.o __ccgteqf.o __ccgtf.o __cclteqf.o \
       __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o
     
