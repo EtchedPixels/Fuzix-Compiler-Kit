@@ -311,6 +311,17 @@ struct node *gen_rewrite(struct node *n)
 	return n;
 }
 
+/* Can we stuff this type into a pointer for deref and assignment */
+
+static int type_compatible(struct node *n, unsigned t)
+{
+	unsigned sz = get_size(t);
+	if (sz == 1)
+		return 1;
+	if (n->value == 1)		/* BC char only */
+		return 0;
+	return 1;			/* IX and IY can do all sizes */
+}
 /*
  *	Our chance to do tree rewriting. We don't do much for the Z80
  *	at this point, but we do rewrite name references and function calls
@@ -363,7 +374,7 @@ struct node *gen_rewrite_node(struct node *n)
 	if (op == T_DEREF) {
 		if (r->op == T_PLUS) {
 			c = r->right;
-			if (r->left->op == T_RREF && c->op == T_CONSTANT) {
+			if (r->left->op == T_RREF && c->op == T_CONSTANT && type_compatible(r->left, nt)) {
 				val = c->value;
 				/* For now - depends on size */
 				/* IX and IY only ranged, BC char * direct */
@@ -376,7 +387,7 @@ struct node *gen_rewrite_node(struct node *n)
 					return n;
 				}
 			}
-		} else if (r->op == T_RREF) {
+		} else if (r->op == T_RREF && type_compatible(r, nt)) {
 			/* Check - are we ok with BC always ? */
 			n->op = T_RDEREF;
 			n->val2 = 0;
