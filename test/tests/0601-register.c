@@ -30,6 +30,14 @@ static unsigned int ptrop(void)
     return n;
 }
 
+int test_cast(void)
+{	
+    static int buf;
+    register char *p = (char *)&buf;
+    *(int *)p = 0x1234;
+    return buf;
+}
+
 int main(int argc, char *argv[])
 {
     register int x = 0;
@@ -44,5 +52,7 @@ int main(int argc, char *argv[])
         return 4;
     if (ptrop() != 8)
         return 5;
+    if (test_cast() != 0x1234)
+        return 6;
     return 0;
 }
