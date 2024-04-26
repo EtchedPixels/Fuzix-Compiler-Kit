@@ -307,9 +307,10 @@ libinst:
 	cp support6809/crt0.o $(CCROOT)/lib/6809/
 	cp support6809/lib6809.a $(CCROOT)/lib/6809/lib6809.a
 	ar cq $(CCROOT)/lib/6809/libc.a
-	cp support8085/crt0.o $(CCROOT)/lib/8080/
+	cp support8080/crt0.o $(CCROOT)/lib/8080/
+	cp support8085/crt0.o $(CCROOT)/lib/8085/
 	cp support8080/lib8080.a $(CCROOT)/lib/8080/lib8080.a
-	cp support8085/lib8085.a $(CCROOT)/lib/8080/lib8085.a
+	cp support8085/lib8085.a $(CCROOT)/lib/8085/lib8085.a
 	ar cq $(CCROOT)/lib/8080/libc.a
 	cp supportz8/crt0.o $(CCROOT)/lib/z8/
 	cp supportz8/libz8.a $(CCROOT)/lib/z8/libz8.a
