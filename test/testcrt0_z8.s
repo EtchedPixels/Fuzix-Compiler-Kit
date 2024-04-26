@@ -8,6 +8,7 @@ start:
 	; P01M Stack external, high address bits enable
 	ld 0xF8,#0x92
 	srp #0x10
+	call __reginit
 	call _main
 	; Write result to FFFF external data
 	ld r14,#0xFF
