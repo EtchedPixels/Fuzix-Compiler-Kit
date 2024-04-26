@@ -43,6 +43,34 @@ __shrul:
 		pop	h
 		ani	31
 		jz	done
+		cpi	24
+		jc	lo24
+		mov	e,h		; shift by 24
+		mvi	d,0
+		mov	l,d
+		mov	h,d
+		sbi	24
+		jnz	shrest
+		jmp	done
+lo24:
+		cpi	16
+		jc	lo16
+		xchg
+		mvi	h,0
+		mov	l,h
+		sbi	16
+		jnz	shrest
+		jmp 	done
+lo16:
+		cpi	8
+		jc	shrest
+		mov	e,d
+		mov	d,l
+		mov	l,h
+		mvi	h,0
+		sbi	8
+		jz	done
+shrest:
 		push	b
 		mov	b,a
 
@@ -56,4 +84,4 @@ __shrul:
 		mov	a,l
 		rar
 		mov	l,a
-		jmp	shrdl
+		jmp	shrde
