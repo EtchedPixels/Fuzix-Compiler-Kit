@@ -85,6 +85,7 @@ testcrt0_z8.o: testcrt0_z8.s
 clean:
 	rm -f *.o tests/*.o *~ tests/*~ emu85 tests/*.map *.log emuz80
 	rm -f emu6502 byte1802 emu65c816 emuz8 emu6809
+	rm -f wtests/*.o
 	(cd libz80; make clean)
 	(cd lib65c816; make clean)
 

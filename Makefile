@@ -1,4 +1,4 @@
-all: fcc cc0 \
+all: fcc cc0 fcc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.1802 cc1.6800 \
      cc1.8070 cc1.8086 \
@@ -195,6 +195,7 @@ clean:
 	(cd supportz80; make clean)
 	(cd supportz8; make clean)
 	(cd supportsuper8; make clean)
+	(cd test; make clean)
 
 # New install version. This is used by both the install rules, as we need
 # to bootstrap build a toolchain with no support library to build the toolchain
@@ -228,6 +229,8 @@ bootinst:
 	mkdir -p $(CCROOT)/lib/6800/include
 	mkdir -p $(CCROOT)/lib/6803
 	mkdir -p $(CCROOT)/lib/6803/include
+	mkdir -p $(CCROOT)/lib/6809
+	mkdir -p $(CCROOT)/lib/6809/include
 	cp cc1.6800 $(CCROOT)/lib
 	cp cc2.6800 $(CCROOT)/lib
 	cp copt $(CCROOT)/lib
