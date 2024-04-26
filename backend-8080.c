@@ -227,8 +227,9 @@ struct node *gen_rewrite_node(struct node *n)
 		- rewrite some reg ops
 	*/
 
-	/* *regptr */
-	if (op == T_DEREF && r->op == T_RREF) {
+	/* *regptr. Only works for bytes, so if the size is wrong (e.g. the pointer
+	   was cast) then force it into HL and the usual path */
+	if (op == T_DEREF && r->op == T_RREF && (nt == CCHAR || nt == UCHAR)) {
 		n->op = T_RDEREF;
 		n->right = NULL;
 		n->val2 = 0;
@@ -237,7 +238,7 @@ struct node *gen_rewrite_node(struct node *n)
 		return n;
 	}
 	/* *regptr = */
-	if (op == T_EQ && l->op == T_RREF) {
+	if (op == T_EQ && l->op == T_RREF && (nt == CCHAR || nt == UCHAR)) {
 		n->op = T_REQ;
 		n->val2 = 0;
 		n->value = l->value;
