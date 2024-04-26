@@ -29,26 +29,14 @@ The other processor trees are very much a work in progress.
 
 ## Installation
 
-As a cross compiler the front end expects it all to live in `/opt/fcc/`. The
+As a cross compiler the front end expects it all to live in /opt/fcc/. The
 tool chain provides the compiler front end and phases. For cpp for now it
 uses the gcc preprocessor on Linux and DECUS cpp on Fuzix.
 
-Start by making the `/opt` directory owned by your user; alternatively, make the `/opt/fcc`
-directory and make it owned by your user.
-
-The assembler and loader tools required live in the
-[Fuzix-Bintools repository](https://github.com/EtchedPixels/Fuzix-Bintools).
-To build it all first clone the Fuzix-Bintools respository and `make install`.
-Then make sure `/opt/fcc` is on your path.
-
-Now clone this repository. In the Fuzix-Compiler-Kit directory do:
-
-```
-make bootstuff
-make install
-```
-
-This will build a bootstrap then build the full tools and install them.
+The tools required live in the Fuziz-Bintools repository. To build it all
+first pull Fuzix-Bintools and make install. Then make sure /opt/fcc is on
+your path and in the Fuzix-Compiler-Kit directory do "make install" and it
+will build a bootstrap then build the full tools and install them.
 
 ## Intended C Subset
 

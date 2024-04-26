@@ -69,6 +69,3 @@ lib8080.a: makeldst $(OBJ)
 clean:
 	rm -f *.o *.a *~
 	rm -f ldword/* stword/*
-	rm -f ldbyte/* makeldst stbyte/*
-
-
