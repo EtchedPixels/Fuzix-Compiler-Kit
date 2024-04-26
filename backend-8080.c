@@ -1349,26 +1349,6 @@ unsigned gen_direct(struct node *n)
 			}
 			return 1;
 		}
-		if (s == 4 && r->op == T_CONSTANT) {
-			if (r->value == 24) {
-				opcode(OP_MOV, R_E, R_H, "mov h,e");
-				opcode(OP_MVI, 0, R_E, "mvi e, 0");
-				opcode(OP_MOV, R_E, R_D, "mov d,e");
-				opcode(OP_MOV, R_E, R_L, "mov l,e");
-				return 1;
-			} else if (r->value == 16) {
-				opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
-				opcode(OP_MVI, 0, R_D, "mvi e,0");
-				opcode(OP_MOV, R_D, R_E, "mov d,e");
-				return 1;
-			} else if (r->value == 8) {
-				opcode(OP_MOV, R_L, R_H, "mov h,l");
-				opcode(OP_MOV, R_D, R_L, "mov l,d");
-				opcode(OP_MOV, R_E, R_D, "mov d,e");
-				opcode(OP_MVI, 0, R_E, "mvi e,0");
-				return 1;
-			}
-		}
 		return gen_deop("shlde", n, r, 0);
 	case T_GTGT:
 		/* >> by 8 unsigned */
@@ -1376,26 +1356,6 @@ unsigned gen_direct(struct node *n)
 			opcode(OP_MOV, R_H, R_L, "mov l,h");
 			opcode(OP_MVI, 0, R_H, "mvi h,0");
 			return 1;
-		}
-		if (s == 4 && r->op == T_CONSTANT & (n->type && UNSIGNED)) {
-			if (r->value == 24) {
-				opcode(OP_MOV, R_H, R_E, "mov e,h");
-				opcode(OP_MVI, 0, R_D, "mvi d, 0");
-				opcode(OP_MOV, R_D,R_L, "mov l,d");
-				opcode(OP_MOV, R_D,R_H, "mov h,d");
-				return 1;
-			} else if (r->value == 16) {
-				opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
-				opcode(OP_MVI, 0, R_L, "mvi l,0");
-				opcode(OP_MOV, R_L, R_H, "mov h,l");
-				return 1;
-			} else if (r->value == 8) {
-				opcode(OP_MOV, R_D, R_E, "mov e,d");
-				opcode(OP_MOV, R_L, R_D, "mov d,l");
-				opcode(OP_MOV, R_H, R_L, "mov l,h");
-				opcode(OP_MVI, 0, R_H, "mvi h,0");
-				return 1;
-			}
 		}
 		/* 8085 has a signed right shift 16bit */
 		if (cpu == 8085 && (!(n->type & UNSIGNED))) {
