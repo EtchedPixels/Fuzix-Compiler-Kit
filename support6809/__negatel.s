@@ -1,5 +1,7 @@
 	.export __negatel
 	.code
+
+	; The compiler has internal knowledge that this does not affect X
 __negatel:
 	exg d,y
 	coma
