@@ -7,7 +7,7 @@ all: fcc cc0 \
      cc2.8070 cc2.8086 \
      copt support6502 support65c816 support6800 support6803 \
      support6809 support8080 support8085 supportz80 \
-     supportz8 supportsuper8 test
+     supportz8
 
 bootstuff: cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
@@ -175,6 +175,7 @@ test:
 
 clean:
 	rm -f cc cc0 copt
+	rm -f cc1.1802 cc1.6800 cc2 cc2.1802 cc2.6800 fcc0
 	rm -f cc6502 cc65c816
 	rm -f cc1.8080 cc1.z80 cc1.thread
 	rm -f cc1.6502 cc1.65c816 cc1.byte
@@ -195,6 +196,7 @@ clean:
 	(cd supportz80; make clean)
 	(cd supportz8; make clean)
 	(cd supportsuper8; make clean)
+	(cd test; make clean)
 
 # New install version. This is used by both the install rules, as we need
 # to bootstrap build a toolchain with no support library to build the toolchain
@@ -228,23 +230,26 @@ bootinst:
 	mkdir -p $(CCROOT)/lib/6800/include
 	mkdir -p $(CCROOT)/lib/6803
 	mkdir -p $(CCROOT)/lib/6803/include
+	mkdir -p $(CCROOT)/lib/6809
+	mkdir -p $(CCROOT)/lib/6809/include
 	cp cc1.6800 $(CCROOT)/lib
 	cp cc2.6800 $(CCROOT)/lib
 	cp copt $(CCROOT)/lib
 	cp rules.6800 $(CCROOT)/lib
 	cp rules.6809 $(CCROOT)/lib
+	cp lorder6809 $(CCROOT)/bin/lorder6809
 	# 8070 (WIP)
 	mkdir -p $(CCROOT)/lib/8070
 	mkdir -p $(CCROOT)/lib/8070/include
 	cp cc1.8070 $(CCROOT)/lib
 	cp cc2.8070 $(CCROOT)/lib
-	cp rules.8070 $(CCROOT)/lib
+	# cp rules.8070 $(CCROOT)/lib
 	# 8086 (WIP)
 	mkdir -p $(CCROOT)/lib/8086
 	mkdir -p $(CCROOT)/lib/8086/include
 	cp cc1.8086 $(CCROOT)/lib
 	cp cc2.8086 $(CCROOT)/lib
-	cp rules.8086 $(CCROOT)/lib
+	# cp rules.8086 $(CCROOT)/lib
 	# 8080/8085
 	mkdir -p $(CCROOT)/lib/8080
 	mkdir -p $(CCROOT)/lib/8080/include
@@ -315,8 +320,8 @@ libinst:
 	cp supportz8/crt0.o $(CCROOT)/lib/z8/
 	cp supportz8/libz8.a $(CCROOT)/lib/z8/libz8.a
 	ar cq $(CCROOT)/lib/z8/libc.a
-	cp supportsuper8/crt0.o $(CCROOT)/lib/super8/
-	cp supportsuper8/libsuper8.a $(CCROOT)/lib/super8/libsuper8.a
+	# cp supportsuper8/crt0.o $(CCROOT)/lib/super8/
+	# cp supportsuper8/libsuper8.a $(CCROOT)/lib/super8/libsuper8.a
 	ar cq $(CCROOT)/lib/super8/libc.a
 	cp supportz80/crt0.o $(CCROOT)/lib/z80/
 	cp supportz80/libz80.a $(CCROOT)/lib/z80/libz80.a
