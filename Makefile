@@ -251,7 +251,9 @@ bootinst:
 	cp rules.8086 $(CCROOT)/lib
 	# 8080/8085
 	mkdir -p $(CCROOT)/lib/8080
+	mkdir -p $(CCROOT)/lib/8085
 	mkdir -p $(CCROOT)/lib/8080/include
+	mkdir -p $(CCROOT)/lib/8085/include
 	cp lorder8080 $(CCROOT)/bin/lorder8080
 	cp cc1.8080 $(CCROOT)/lib
 	cp cc2.8080 $(CCROOT)/lib
