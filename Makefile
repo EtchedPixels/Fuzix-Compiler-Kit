@@ -7,7 +7,7 @@ all: fcc cc0 fcc0 \
      cc2.8070 cc2.8086 \
      copt support6502 support65c816 support6800 support6803 \
      support6809 support8080 support8085 supportz80 \
-     supportz8 supportsuper8 test
+     supportz8 test
 
 bootstuff: cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
@@ -175,6 +175,7 @@ test:
 
 clean:
 	rm -f cc cc0 copt
+	rm -f cc1.1802 cc1.6800 cc2 cc2.1802 cc2.6800 fcc0
 	rm -f cc6502 cc65c816
 	rm -f cc1.8080 cc1.z80 cc1.thread
 	rm -f cc1.6502 cc1.65c816 cc1.byte
@@ -252,6 +253,8 @@ bootinst:
 	# 8080/8085
 	mkdir -p $(CCROOT)/lib/8080
 	mkdir -p $(CCROOT)/lib/8080/include
+	mkdir -p $(CCROOT)/lib/8085
+	mkdir -p $(CCROOT)/lib/8085/include
 	cp lorder8080 $(CCROOT)/bin/lorder8080
 	cp cc1.8080 $(CCROOT)/lib
 	cp cc2.8080 $(CCROOT)/lib
@@ -319,8 +322,8 @@ libinst:
 	cp supportz8/crt0.o $(CCROOT)/lib/z8/
 	cp supportz8/libz8.a $(CCROOT)/lib/z8/libz8.a
 	ar cq $(CCROOT)/lib/z8/libc.a
-	cp supportsuper8/crt0.o $(CCROOT)/lib/super8/
-	cp supportsuper8/libsuper8.a $(CCROOT)/lib/super8/libsuper8.a
+	#cp supportsuper8/crt0.o $(CCROOT)/lib/super8/
+	#cp supportsuper8/libsuper8.a $(CCROOT)/lib/super8/libsuper8.a
 	ar cq $(CCROOT)/lib/super8/libc.a
 	cp supportz80/crt0.o $(CCROOT)/lib/z80/
 	cp supportz80/libz80.a $(CCROOT)/lib/z80/libz80.a

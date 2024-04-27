@@ -1,4 +1,4 @@
-all: emu6502 emu65c816 emu6800 emu85 emuz8 emuz80 byte1802 emu6809 \
+all: emu6502 emu65c816 emu85 emuz8 emuz80 byte1802 emu6809 \
      testcrt0.o testcrtz80.o testcrt0_6502.o testcrt0_65c816.o \
      testcrt0_6803.o testcrt0_6809.o testcrt0_z8.o testcrt0_byte1802.o
 
