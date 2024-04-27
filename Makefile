@@ -1,4 +1,4 @@
-all: fcc cc0 fcc0 \
+all: cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.1802 cc1.6800 \
      cc1.8070 cc1.8086 \
@@ -61,8 +61,8 @@ $(OBJS3): $(INC1) $(INC2)
 
 backend-super8.o: backend-super8.c backend-z8.c
 
-fcc:	cc.o
-	gcc -g3 cc.c -o fcc0
+cc:	cc.o
+	gcc -g3 cc.c -o cc
 
 cc0:	$(OBJS0)
 	gcc -g3 $(OBJS0) -o cc0
@@ -176,6 +176,8 @@ test:
 clean:
 	rm -f cc cc0 copt
 	rm -f cc6502 cc65c816
+	rm -f cc1.1802 cc2.1802
+	rm -f cc1.6800 cc2.6800
 	rm -f cc1.8080 cc1.z80 cc1.thread
 	rm -f cc1.6502 cc1.65c816 cc1.byte
 	rm -f cc1.8070
