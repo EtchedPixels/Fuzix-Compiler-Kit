@@ -14,6 +14,7 @@ unsigned deffunctype;		/* The type of an undeclared function */
 unsigned funcbody;		/* Parser global for function body */
 unsigned voltrack;		/* Track possible volatiles */
 unsigned in_sizeof;		/* Set if we are in sizeof() */
+unsigned cputype;		/* So the target specific code can make decisions */
 /*
  *	A C program consists of a series of declarations that by default
  *	are external definitions.
@@ -38,6 +39,11 @@ static unsigned functype[2] = {
 
 int main(int argc, char *argv[])
 {
+	if (argc != 2) {
+		error("cc1 cpuname");
+		exit(1);
+	}
+	cputype = atoi(argv[1]);
 	next_token();
 	init_nodes();
 	/* A function with no type info returning INT */

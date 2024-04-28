@@ -553,6 +553,7 @@ void convert_c_to_s(char *path)
 	run_command();
 
 	build_arglist(make_lib_name("cc1", cpudot));
+	add_argument(cpucode);
 	redirect_in(tmp);
 	tmp = pathmod(path, ".@", ".#", 0);
 	redirect_out(tmp);
