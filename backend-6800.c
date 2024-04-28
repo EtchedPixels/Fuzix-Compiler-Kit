@@ -50,6 +50,12 @@
 #define T_LBDEREF	(T_USER+12)	/* *(name + offset) */
 #define T_NEQ		(T_USER+13)	/* *(name + offset) = n */
 #define T_LBEQ		(T_USER+14)	/* *(label + offset) = n */
+#define T_RREF		(T_USER+15)
+#define T_RSTORE	(T_USER+16)
+#define T_RDEREF	(T_USER+17)		/* *regptr */
+#define T_REQ		(T_USER+18)		/* *regptr = */
+#define T_RDEREFPLUS	(T_USER+19)		/* *regptr++ */
+#define T_REQPLUS	(T_USER+20)		/* *regptr++ =  */
 
 /*
  *	State for the current function
@@ -191,6 +197,9 @@ void set_d_node(struct node *n)
 		break;
 	case T_NSTORE:
 		d_node.op = T_NREF;
+		break;
+	case T_RSTORE:
+		d_node.op = T_RREF;
 		break;
 	case T_NREF:
 	case T_LBREF:
@@ -1336,6 +1345,8 @@ unsigned can_load_x_simple(struct node *r, unsigned off)
 	case T_NREF:
 	case T_NAME:
 	case T_LABEL:
+	case T_RREF:
+	case T_RDEREF:
 		return 1;
 	}
 	return 0;
@@ -1354,6 +1365,8 @@ unsigned can_load_x_with(struct node *r, unsigned off)
 	case T_NREF:
 	case T_NAME:
 	case T_LABEL:
+	case T_RREF:
+	case T_RDEREF:
 		return 1;
 	case T_PLUS:
 	case T_MINUS:
@@ -1408,6 +1421,14 @@ unsigned load_x_with(struct node *r, unsigned off)
 		printf("\tldx #_%s+%u\n", namestr(r->snum), v + off);
 		invalidate_x();
 		break;
+	case T_RREF:
+		printf("\ttfr u,x\n");
+		invalidate_x();
+		break;
+	case T_RDEREF:
+		printf("\tldx %u,u\n", r->val2);
+		invalidate_x();
+		break;
 	case T_PLUS:
 		/* Special case array/struct */
 		if (cpu_is_09 && can_load_x_simple(r->left, off) &&
@@ -1428,6 +1449,44 @@ unsigned load_x_with(struct node *r, unsigned off)
 		break; */
 	default:
 		error("lxw");
+	}
+	return 0;
+}
+
+/* 6809 specific register loading */
+unsigned load_u_with(struct node *r, unsigned off)
+{
+	unsigned v = r->value;
+	switch(r->op) {
+	case T_ARGUMENT:
+		v += argbase + frame_len;
+	case T_LOCAL:
+		printf("leau %u,s\n", v + off);
+		return 1;
+	case T_LREF:
+		printf("\tldu %u,s\n", v + sp);
+		return 1;
+	case T_CONSTANT:
+		printf("\tldu #%u\n", v + off);
+		return 1;
+	case T_LBREF:
+		printf("\tldu T%u+%u\n", r->val2, v + off);
+		return 1;
+	case T_LABEL:
+		printf("\tldu #T%u+%u\n", r->val2, v + off);
+		return 1;
+	case T_NREF:
+		printf("\tldu _%s+%u\n", namestr(r->snum), v + off);
+		return 1;
+	case T_NAME:
+		printf("\tldu #_%s+%u\n", namestr(r->snum), v + off);
+		return 1;
+	case T_RREF:
+		/* Only one reg so .. */
+		return 1;
+	case T_RDEREF:
+		printf("\tldu %u,u\n", r->val2);
+		return 1;
 	}
 	return 0;
 }
@@ -1563,6 +1622,70 @@ struct node *gen_rewrite_node(struct node *n)
 			}
 		}
 	}
+	/* regptr++  The size will always be the true size for ++ and const */
+	if (op == T_DEREF && r->op == T_PLUSPLUS && r->left->op == T_REG)
+	{
+		n->op = T_RDEREFPLUS;
+		n->value = r->left->value;
+		free_node(r->left);
+		free_node(r->right);
+		free_node(r);
+		n->right = NULL;
+		return n;
+	}
+	/* *regptr++ =  again the size will be const and right */
+	if (op == T_EQ && l->op == T_PLUSPLUS && l->left->op == T_REG)
+	{
+		n->op = T_REQPLUS;
+		n->value = l->left->value;
+		free_node(l->left);
+		free_node(l->right);
+		free_node(l);
+		n->left = NULL;
+		return n;
+	}
+	/* *(reg + offset). Optimize this specially as it occurs a lot */
+	if (op == T_DEREF && r->op == T_PLUS && r->left->op == T_RREF &&
+		r->right->op == T_CONSTANT) {
+		n->op = T_RDEREF;
+		n->right = NULL;
+		n->val2 = r->right->value;	/* Offset to add */
+		n->value = r->left->value;	/* Register number */
+		free_node(r->right);		/* Discard constant */
+		free_node(r->left);		/* Discard T_REG */
+		free_node(r);			/* Discsrd plus */
+		return n;
+	}
+	/* *regptr */
+	if (op == T_DEREF && r->op == T_RREF) {
+		n->op = T_RDEREF;
+		n->right = NULL;
+		n->val2 = 0;
+		n->value = r->value;
+		free_node(r);
+		return n;
+	}
+	/* *(reg + offset) =  Optimize this specially as it occurs a lot */
+	if (op == T_EQ && l->op == T_PLUS && l->left->op == T_RREF &&
+		l->right->op == T_CONSTANT) {
+		n->op = T_REQ;
+		n->val2 = l->right->value;	/* Offset to add */
+		n->value = l->left->value;	/* Register number */
+		free_node(l->right);		/* Discard constant */
+		free_node(l->left);		/* Discard T_REG */
+		free_node(l);			/* Discsrd plus */
+		n->left = NULL;
+		return n;
+	}
+	/* *regptr = */
+	if (op == T_EQ && l->op == T_RREF) {
+		n->op = T_REQ;
+		n->val2 = 0;
+		n->value = l->value;
+		n->left = NULL;
+		free_node(l);
+		return n;
+	}
 	if ((op == T_DEREF || op == T_DEREFPLUS) && r->op == T_LREF) {
 		/* At this point r->value is the offset for the local */
 		/* n->value is the offset for the ptr load */
@@ -1611,12 +1734,21 @@ struct node *gen_rewrite_node(struct node *n)
 				squash_right(n, T_LREF);
 				return n;
 			}
+			if (r->op == T_REG) {
+				squash_right(n, T_RREF);
+				return n;
+			}
 			if (r->op == T_NAME) {
 				squash_right(n, T_NREF);
 				return n;
 			}
 			if (r->op == T_LABEL) {
 				squash_right(n, T_LBREF);
+				return n;
+			}
+			if (r->op == T_RREF) {
+				squash_right(n, T_RDEREF);
+				n->val2 = 0;
 				return n;
 			}
 		}
@@ -1633,6 +1765,10 @@ struct node *gen_rewrite_node(struct node *n)
 				if (l->op == T_ARGUMENT)
 					l->value += argbase + frame_len;
 				squash_left(n, T_LSTORE);
+				return n;
+			}
+			if (l->op == T_REG) {
+				squash_left(n, T_RSTORE);
 				return n;
 			}
 		}
@@ -2776,6 +2912,82 @@ unsigned gen_shortcut(struct node *n)
 	/* Don't generate unreachable code */
 	if (unreachable)
 		return 1;
+	/* Handle operations that are of the form (OP (REG) (thing)) as we can't really
+	   talk about 'address' of a register variable for 6809 */
+	if (l && l->op == T_REG && cpu_is_09) {
+		v = r->value;
+		switch(n->op) {
+		case T_PLUSPLUS:
+			if (!nr)
+				printf("\ttfr u,d\n");
+			printf("\tleau %u,u\n", v);
+			return 1;
+		case T_PLUSEQ:
+			if (r->op == T_CONSTANT)
+				printf("\tleau %u,u\n", v);
+			else {
+				codegen_lr(r);
+				printf("\tleau d,u\n");
+			}
+			if (!nr)
+				printf("\ttfr u,d\n");
+			return 1;
+		case T_MINUSMINUS:
+			if (!nr)
+				printf("\ttfr u,d\n");
+			printf("\tleau -%u,u\n", v);
+			return 1;
+		case T_MINUSEQ:
+			if (r->op == T_CONSTANT)
+				printf("\tleau -%u,u\n", v);
+			else {
+				codegen_lr(r);
+				printf("\tleau d,u\n");
+			}
+			if (!nr)
+				printf("\ttfr u,d\n");
+			return 1;
+		case T_STAREQ:
+			/* TODO: fast mul forms */
+			codegen_lr(r);
+			helper(n, "regmul");
+			return 1;
+		case T_SLASHEQ:
+			/* TODO: short forms */
+			codegen_lr(r);
+			helper_s(n, "regdiv");
+			return 1;
+		case T_PERCENTEQ:
+			codegen_lr(r);
+			helper_s(n, "regmod");
+			return 1;
+		case T_SHLEQ:
+			codegen_lr(r);
+			helper(n, "reglsl");
+			return 1;
+		case T_SHREQ:
+			codegen_lr(r);
+			helper(n, "regshr");
+			return 1;
+		/* These don't trash other regs about */
+		case T_ANDEQ:
+			codegen_lr(r);
+			printf("\tjsr __regand");
+			invalidate_d();
+			return 1;
+		case T_OREQ:
+			codegen_lr(r);
+			printf("\tjsr __regor");
+			invalidate_d();
+			return 1;
+		case T_HATEQ:
+			codegen_lr(r);
+			printf("\tjsr __regxor");
+			invalidate_d();
+			return 1;
+		}
+	}
+
 	switch(n->op) {
 	case T_COMMA:
 		/* The comma operator discards the result of the left side,
@@ -2969,6 +3181,40 @@ unsigned gen_shortcut(struct node *n)
 		sp -= get_stack_size(r->type);
 		return 1;
 #endif
+	case T_RSTORE:
+		if (load_u_with(r, 0))
+			return 1;
+		codegen_lr(r);
+		printf("\ttfr d,u\n");
+		return 1;
+	case T_REQ:
+		codegen_lr(r);
+		switch(s) {
+		case 4:
+			printf("\tsty %u,u\n", n->val2);
+			printf("\tstd %u,u\n", n->val2 + 2);
+			return 1;
+		case 2:
+			printf("\tstd %u,u\n", n->val2);
+			return 1;
+		case 1:
+			printf("\tstb %u,u\n", n->val2);
+			return 1;
+		}
+		break;
+	case T_REQPLUS:
+		codegen_lr(r);
+		switch(s) {
+		case 4:
+			printf("\tsty ,u++\n");
+			/* Fall through */
+		case 2:
+			printf("\tstd ,u++\n");
+			return 1;
+		case 1:
+			printf("\tstb ,u+\n");
+		}
+		break;
 	}
 	return 0;
 }
@@ -3173,6 +3419,16 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		break;
+	case T_RREF:
+		if (d_holds_node(n))
+			return 1;
+		printf("\ttfr u,d\n");
+		set_d_node(n);
+		return 1;
+	case T_RSTORE:
+		printf("\ttfr d,u\n");
+		set_d_node(n);
+		return 1;
 	case T_ARGUMENT:
 		if (d_holds_node(n))
 			return 1;
@@ -3232,6 +3488,26 @@ unsigned gen_node(struct node *n)
 			printf("\tldb [T%u + %u]\n", n->val2, v);
 		else
 			printf("\tldd [T%u + %u]\n", n->val2, v);
+		invalidate_work();
+		return 1;
+	case T_RDEREF:
+		if (s == 4) {
+			printf("\tldy %u,u\n", n->val2);
+			printf("\tldd %u,u\n", n->val2 + 2);
+		} else if (s == 2)
+			printf("\tldd %u,u\n", n->val2);
+		else
+			printf("\tldb %u,u\n", n->val2);
+		invalidate_work();
+		return 1;
+	case T_RDEREFPLUS:
+		if (s == 4) {
+			printf("\tldy ,u++\n");
+			printf("\tldd ,u++\n");
+		} else if (s == 2)
+			printf("\tldd ,u++\n");
+		else
+			printf("\tldb ,u+\n");
 		invalidate_work();
 		return 1;
 	case T_LEQ:

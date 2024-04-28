@@ -4,6 +4,7 @@
 
 #include "compiler.h"
 
+static unsigned u_free;
 
 unsigned target_alignof(unsigned t, unsigned storage)
 {
@@ -66,11 +67,31 @@ unsigned target_type_remap(unsigned type)
 	return type;
 }
 
+/* For the 6809 we can use U as a register variable. For the other processors
+   we have the option of using elements of direct page. This is marginally faster
+   than ,X and avoids some TSX reloads. That needs looking at later to see if it is
+   worthwhile */
+
+static unsigned ralloc(unsigned storage, unsigned n)
+{
+	/* Tell the backend what is allocated */
+	if (storage == S_AUTO)
+		func_flags |= F_REG(n);
+	else
+		arg_flags |= F_REG(n);
+	return n;
+}
+
 unsigned target_register(unsigned type, unsigned storage)
 {
+	if (target_sizeof(type) == 2 && cputype == 6809 && u_free == 1) {
+		u_free = 0;
+		return ralloc(storage, 1);
+	}
 	return 0;
 }
 
 void target_reginit(void)
 {
+	u_free = 1;
 }
