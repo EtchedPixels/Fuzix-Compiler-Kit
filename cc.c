@@ -141,8 +141,8 @@ const char *def8085[] = { "__8085__", NULL };
 const char *defz80[] = { "__z80__", NULL };
 const char *z80feat[] = {
 	"banked",
-	"no-ix",
-	"no-iy",
+	"noix",
+	"noiy",
 	NULL
 };
 
@@ -205,6 +205,7 @@ const char *cpulib;		/* Dir for this compiler */
 const char **cpudef;		/* List of defines */
 const char **ldopts;		/* Linker opts for default link */
 unsigned has_relocs;		/* Do we have relocations ? */
+const char **feats;		/* CPU features */
 unsigned long features;		/* Bit mask of feature info for pass 2 */
 
 /* We will need to do more with ldopts for different OS and machine targets
@@ -335,6 +336,7 @@ static void set_for_processor(struct cpu_table *r)
 	ldopts = r->ldopts;
 	cpucode = r->cpucode;
 	has_relocs = r->has_reloc;
+	feats = r->cpufeat;
 }
 
 static void find_processor(const char *cpu)
@@ -888,10 +890,28 @@ void extended_opt(const char *p)
 	}
 	usage();
 }
+
+void find_opt(const char *p)
+{
+	const char **op = feats;
+	unsigned n = 1;
+	if (op) {
+		while(*op) {
+			if (strcmp(p, *op) == 0) {
+				features |= n;
+				return;
+			}
+			op++;
+			n *= 2;
+		}
+	}
+	usage();
+}
 		
 int main(int argc, char *argv[]) {
 	char **p = argv;
 	unsigned c;
+	char *o;
 
 	signal(SIGCHLD, SIG_DFL);
 
@@ -1013,7 +1033,18 @@ int main(int argc, char *argv[]) {
 			usage();
 		}
 	}
+
+	o = strchr(cpu, '-');
+	if (o)
+		*o++ = 0;
 	find_processor(cpu);
+	if (o) {
+		o = strtok(o, "-");
+		while(o) {
+			find_opt(o);
+			o = strtok(NULL, "-");
+		}
+	}
 
 	while(*cpudef)
 		append_obj(&deflist, (char *)*cpudef++, 0);
