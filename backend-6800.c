@@ -71,6 +71,10 @@ static unsigned cpu_has_pshx;	/* Has PSHX PULX */
 static unsigned cpu_has_y;	/* Has Y register */
 static unsigned cpu_has_lea;	/* Has LEA. For now 6809 but if we get to HC12... */
 static unsigned cpu_is_09;	/* Bulding for 6x09 so a bit different */
+static const char *jmp_op = "jmp";
+static const char *or_op = "ora";
+static const char *ld8_op = "lda";
+static const char *st8_op = "sta";
 
 /*
  *	Helpers for code generation and tracking
@@ -301,7 +305,7 @@ void load_d_const(uint16_t n)
 					printf("\ttfr b,a\n");
 				else
 					printf("\ttba\n");
-				printf("\t%sa #%d\n", remap_op("ld"), hi);
+				printf("\t%sa #%d\n", ld8_op, hi);
 			}
 		}
 		if (b_valid == 0 || lo != b_val) {
@@ -315,7 +319,7 @@ void load_d_const(uint16_t n)
 			}
 			return;
 		} else
-			printf("\t%sb #%d\n", remap_op("ld"), lo);
+			printf("\t%sb #%d\n", ld8_op, lo);
 	}
 	a_valid = 1;	/* We know the byte values */
 	b_valid = 1;
@@ -337,7 +341,7 @@ void load_a_const(uint8_t n)
 		else
 			printf("\ttba\n");
 	} else
-		printf("\t%sa #%u\n", remap_op("ld"), n & 0xFF);
+		printf("\t%sa #%u\n", ld8_op, n & 0xFF);
 	a_valid = 1;
 	a_val = n;
 	d_valid = 0;
@@ -355,7 +359,7 @@ void load_b_const(uint8_t n)
 		else
 			printf("\ttab\n");
 	} else
-		printf("\t%sb #%u\n", remap_op("ld"), n & 0xFF);
+		printf("\t%sb #%u\n", ld8_op, n & 0xFF);
 	b_valid = 1;
 	b_val = n;
 	d_valid = 0;
@@ -2024,6 +2028,10 @@ void gen_start(void)
 		cpu_has_abx = 1;
 		cpu_has_xgdx = 1;
 		cpu_has_lea = 1;
+		jmp_op = "bra";	/* Maybe a choice will be needed for jmp v bra/lbra ? */
+		or_op = "or";
+		ld8_op = "ld";
+		st8_op = "st";
 		break;
 	case 6811:
 		cpu_has_y = 1;
@@ -2351,22 +2359,22 @@ unsigned gen_direct(struct node *n)
 		if (r->op == T_CONSTANT) {
 			v = r->value & 0xFFFF;
 			if (v & 0xFF) {
-				printf("\t%sb #%u\n", remap_op("or"), v & 0xFF);
+				printf("\t%sb #%u\n", or_op, v & 0xFF);
 				modify_b(b_val | v);
 			}
 			if (s >= 2) {
 				v >>= 8;
 				if (v)
-					printf("\t%sa #%u\n", remap_op("or"), v);
+					printf("\t%sa #%u\n", or_op, v);
 				modify_a(a_val | v);
 			}
 			if (s == 4 && cpu_has_y) {
 				v = r->value >> 16;
 				swap_d_y();
 				if (v & 0xFF)
-					printf("\t%sb #%u\n", remap_op("or"), v & 0xFF);
+					printf("\t%sb #%u\n", or_op, v & 0xFF);
 				if (v & 0xFF)
-					printf("\t%sa #%u\n", remap_op("or"), v & 0xFF);
+					printf("\t%sa #%u\n", or_op, v & 0xFF);
 				swap_d_y();
 			}
 			return 1;
@@ -2552,7 +2560,7 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 		op_on_ptr(n, "and", off);
 		break;
 	case T_OREQ:
-		op_on_ptr(n, remap_op("or"), off);
+		op_on_ptr(n, or_op, off);
 		break;
 	case T_HATEQ:
 		op_on_ptr(n, "eor", off);
@@ -2650,7 +2658,7 @@ unsigned write_xsimple(struct node *n, unsigned via_ptr)
 		op = op2 = "and";
 		break;
 	case T_OREQ:
-		op = op2 = remap_op("or");
+		op = op2 = or_op;
 		break;
 	case T_HATEQ:
 		op = op2 = "eor";
@@ -3014,7 +3022,7 @@ unsigned gen_shortcut(struct node *n)
 			invalidate_work();
 			switch(s) {
 			case 1:
-				printf("\t%sb %u,x\n", remap_op("ld"), v);
+				printf("\t%sb %u,x\n", ld8_op, v);
 				return 1;
 			case 2:
 				if (cpu_has_d)
@@ -3073,7 +3081,7 @@ unsigned gen_shortcut(struct node *n)
 			invalidate_mem();
 			switch(s) {
 			case 1:
-				printf("\t%sb %u,x\n", remap_op("st"), v);
+				printf("\t%sb %u,x\n", st8_op, v);
 				return 1;
 			case 2:
 				if (cpu_has_d)
