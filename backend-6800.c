@@ -72,6 +72,7 @@ static unsigned cpu_has_y;	/* Has Y register */
 static unsigned cpu_has_lea;	/* Has LEA. For now 6809 but if we get to HC12... */
 static unsigned cpu_is_09;	/* Bulding for 6x09 so a bit different */
 static const char *jmp_op = "jmp";
+static const char *jsr_op = "jsr";
 static const char *or_op = "ora";
 static const char *ld8_op = "lda";
 static const char *st8_op = "sta";
@@ -1841,11 +1842,11 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	if (argsize == 0 || cpu_has_d || (func_flags & F_VARARG))
 		printf("\trts\n");
 	else if (argsize <= 8)
-		printf("\tjmp __cleanup%u\n", argsize);
+		printf("\t%s __cleanup%u\n", jmp_op, argsize);
 	else {
 		/* Icky - can we do better remembering AB is live for
 		   non void funcs */
-		printf("\tjmp __cleanup\n");
+		printf("\t%s __cleanup\n", jmp_op);
 		printf("\t.word %u\n", argsize);
 	}
 	unreachable = 1;
@@ -1860,15 +1861,14 @@ void gen_label(const char *tail, unsigned n)
 
 unsigned gen_exit(const char *tail, unsigned n)
 {
-	printf("\tjmp L%d%s\n", n, tail);
+	printf("\t%s L%d%s\n", jmp_op, n, tail);
 	unreachable = 1;
 	return 0;
 }
 
 void gen_jump(const char *tail, unsigned n)
 {
-	/* 6809 - option for lbra ? */
-	printf("\tjmp L%d%s\n", n, tail);
+	printf("\t%s L%d%s\n", jmp_op, n, tail);
 	unreachable = 1;
 }
 
@@ -1891,7 +1891,7 @@ void gen_jtrue(const char *tail, unsigned n)
 void gen_switch(unsigned n, unsigned type)
 {
 	printf("\tldx #Sw%u\n", n);
-	printf("\tjmp __switch");
+	printf("\t%s __switch", jmp_op);
 	helper_type(type, 0);
 	printf("\n");
 }
@@ -1939,7 +1939,7 @@ void gen_helpcall(struct node *n)
 	if (c_style(n))
 		gen_push(n->right);
 	invalidate_all();
-	printf("\tjsr __");
+	printf("\t%s __", jsr_op);
 }
 
 void gen_helpclean(struct node *n)
@@ -2029,6 +2029,7 @@ void gen_start(void)
 		cpu_has_xgdx = 1;
 		cpu_has_lea = 1;
 		jmp_op = "bra";	/* Maybe a choice will be needed for jmp v bra/lbra ? */
+		jsr_op = "lbsr";
 		or_op = "or";
 		ld8_op = "ld";
 		st8_op = "st";
@@ -2118,14 +2119,14 @@ unsigned cmp_direct(struct node *n, const char *uop, const char *op)
 		op = uop;
 	if (s == 1) {
 		printf("\tcmpb #%u\n", v);
-		printf("\tjsr %s\n", op);
+		printf("\t%s %s\n", jsr_op, op);
 		n->flags |= ISBOOL;
 		invalidate_b();
 		return 1;
 	}
 	if (s == 2 && cpu_has_d) {
 		printf("\tsubd #%u\n", v);
-		printf("\tjsr %s\n", op);
+		printf("\t%s %s\n", jsr_op, op);
 		n->flags |= ISBOOL;
 		invalidate_work();
 		return 1;
@@ -2980,17 +2981,17 @@ unsigned gen_shortcut(struct node *n)
 		/* These don't trash other regs about */
 		case T_ANDEQ:
 			codegen_lr(r);
-			printf("\tjsr __regand");
+			printf("\t%s __regand", jsr_op);
 			invalidate_d();
 			return 1;
 		case T_OREQ:
 			codegen_lr(r);
-			printf("\tjsr __regor");
+			printf("\t%s __regor", jsr_op);
 			invalidate_d();
 			return 1;
 		case T_HATEQ:
 			codegen_lr(r);
-			printf("\tjsr __regxor");
+			printf("\t%s __regxor", jsr_op);
 			invalidate_d();
 			return 1;
 		}
@@ -3287,14 +3288,14 @@ unsigned cmp_op(struct node *n, const char *uop, const char *op)
 			op8_on_spi("cmp");
 		else if (s == 2)
 			op16d_on_spi("sub");
-		printf("\tjsr %s\n", op);
+		printf("\t%s %s\n", jsr_op, op);
 		n->flags |= ISBOOL;
 		invalidate_work();
 		return 1;
 	}
 	if (s == 1) {
 		op8_on_ptr("cmp", 0);
-		printf("\tjsr %s\n", op);
+		printf("\t%s %s\n", jsr_op, op);
 		n->flags |= ISBOOL;
 		invalidate_work();
 		return 1;
@@ -3303,7 +3304,7 @@ unsigned cmp_op(struct node *n, const char *uop, const char *op)
 		op16d_on_ptr("sub", "sbc", 0);
 		printf("\tins\n");
 		printf("\tins\n");
-		printf("\tjsr %s\n", op);
+		printf("\t%s %s\n", jsr_op, op);
 		n->flags |= ISBOOL;
 		invalidate_work();
 		return 1;
@@ -3326,7 +3327,7 @@ unsigned gen_node(struct node *n)
 	switch (n->op) {
 	case T_CALLNAME:
 		invalidate_all();
-		printf("\tjsr _%s+%u\n", namestr(n->snum), v);
+		printf("\t%s _%s+%u\n", jsr_op, namestr(n->snum), v);
 		return 1;
 	case T_DEREF:
 	case T_DEREFPLUS:
