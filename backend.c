@@ -22,6 +22,7 @@ int sym_fd = -1;
 unsigned cpu;
 unsigned opt;
 unsigned optsize;
+unsigned long cpufeat;
 const char *codeseg = "code";
 
 static unsigned process_one_block(uint8_t * h);
@@ -1052,7 +1053,7 @@ int main(int argc, char *argv[])
 	argv0 = argv[0];
 
 	/* We can make this better later */
-	if (argc != 4 && argc != 5)
+	if (argc != 5 && argc != 6)
 		error("arguments");
 	cpu = atoi(argv[2]);
 	opt = *argv[3];
@@ -1063,8 +1064,9 @@ int main(int argc, char *argv[])
 		optsize = 1;
 	} else
 		error("invalid optimizer level");
-	if (argv[4])
-		codeseg = argv[4];
+	cpufeat = atol(argv[4]);
+	if (argv[5])
+		codeseg = argv[5];
 	init_name_cache();
 	load_symbols(argv[1]);
 	init_nodes();

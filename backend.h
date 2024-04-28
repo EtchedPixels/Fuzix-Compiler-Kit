@@ -3,6 +3,7 @@ extern unsigned cpu;
 extern unsigned opt;
 extern unsigned optsize;
 extern const char *codeseg;
+extern unsigned long cpufeat;
 
 extern void error(const char *p);
 

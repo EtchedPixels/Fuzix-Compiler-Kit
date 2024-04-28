@@ -15,6 +15,8 @@ unsigned funcbody;		/* Parser global for function body */
 unsigned voltrack;		/* Track possible volatiles */
 unsigned in_sizeof;		/* Set if we are in sizeof() */
 unsigned cputype;		/* So the target specific code can make decisions */
+unsigned long cpufeat;		/* CPU feature flags from user for target specific code */
+
 /*
  *	A C program consists of a series of declarations that by default
  *	are external definitions.
@@ -39,11 +41,12 @@ static unsigned functype[2] = {
 
 int main(int argc, char *argv[])
 {
-	if (argc != 2) {
-		error("cc1 cpuname");
+	if (argc != 3) {
+		error("cc1 cpuname features");
 		exit(1);
 	}
 	cputype = atoi(argv[1]);
+	cpufeat = atol(argv[2]);
 	next_token();
 	init_nodes();
 	/* A function with no type info returning INT */

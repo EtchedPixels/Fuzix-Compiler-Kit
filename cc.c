@@ -125,6 +125,7 @@ struct cpu_table {
 	const char **ldopts;	/* LD link rules */
 	const char *cpucode;	/* CPU code value for backend */
 	unsigned has_reloc;	/* Has relocatable binary support */
+	const char **cpufeat;	/* Feature option names in bit flag order */
 };
 
 const char *def6502[] = { "__6502__", NULL };
@@ -138,6 +139,13 @@ const char *def6809[] = { "__6809__", NULL };
 const char *def8080[] = { "__8080__", NULL };
 const char *def8085[] = { "__8085__", NULL };
 const char *defz80[] = { "__z80__", NULL };
+const char *z80feat[] = {
+	"banked",
+	"no-ix",
+	"no-iy",
+	NULL
+};
+
 const char *defz180[] = { "__z80__", "__z180__", NULL };
 const char *defbyte[] = { "__byte__", NULL };
 const char *defthread[] = { "__thread__", NULL };
@@ -160,31 +168,31 @@ const char *ldthread[] = { NULL };
 const char *cpucode;
 
 struct cpu_table cpu_rules[] = {
-	{ "6502", "6502", ".6502", "lib6502.a", "6502", def6502, ld6502, "0", 0 },
-	{ "65c02", "6502", ".6502", "lib65c02.a", "65c02", def65c02, ld6502, "1" , 0},
-	{ "65c816", "6502", ".65c816", "lib65c816.a", "65c816", def65c816, ld6502, "0" , 0},
-	{ "6303", "6800", ".6800", "lib6303.a", "6303", def6303, ld6800, "6303" , 1},
-	{ "6800", "6800", ".6800", "lib6800.a", "6800", def6800, ld6800, "6800" , 1},
-	{ "6803", "6800", ".6800", "lib6803.a", "6803", def6803, ld6800, "6803" , 1},
+	{ "6502", "6502", ".6502", "lib6502.a", "6502", def6502, ld6502, "0", 0, NULL },
+	{ "65c02", "6502", ".6502", "lib65c02.a", "65c02", def65c02, ld6502, "1" , 0, NULL},
+	{ "65c816", "6502", ".65c816", "lib65c816.a", "65c816", def65c816, ld6502, "0" , 0, NULL},
+	{ "6303", "6800", ".6800", "lib6303.a", "6303", def6303, ld6800, "6303" , 1, NULL},
+	{ "6800", "6800", ".6800", "lib6800.a", "6800", def6800, ld6800, "6800" , 1, NULL},
+	{ "6803", "6800", ".6800", "lib6803.a", "6803", def6803, ld6800, "6803" , 1, NULL},
 	/* Until we do 6309 specifics */
-	{ "6309", "6809", ".6800", "lib6809.a", "6809", def6809, ld6809, "6809" , 1},
-	{ "6809", "6809", ".6800", "lib6809.a", "6809", def6809, ld6809, "6809" , 1},
-	{ "68hc11", "6800", ".6800", "lib68hc11.a", "68hc11", def68hc11, ld6800, "6811" , 1},
-	{ "8080", "8080", ".8080", "lib8080.a", "8080", def8080, ld8080, "8080" , 0},
-	{ "8085", "8080", ".8080", "lib8085.a", "8085", def8085, ld8080, "8085" , 0},
-	{ "z80", "z80", ".z80", "libz80.a", "z80", defz80, ld8080, "80" , 1},
-	{ "z180", "z80", ".z80", "libz180.a", "z80", defz180, ld8080, "180" , 1},
+	{ "6309", "6809", ".6800", "lib6809.a", "6809", def6809, ld6809, "6809" , 1, NULL},
+	{ "6809", "6809", ".6800", "lib6809.a", "6809", def6809, ld6809, "6809" , 1, NULL},
+	{ "68hc11", "6800", ".6800", "lib68hc11.a", "68hc11", def68hc11, ld6800, "6811" , 1, NULL},
+	{ "8080", "8080", ".8080", "lib8080.a", "8080", def8080, ld8080, "8080" , 0, NULL},
+	{ "8085", "8080", ".8080", "lib8085.a", "8085", def8085, ld8080, "8085" , 0, NULL},
+	{ "z80", "z80", ".z80", "libz80.a", "z80", defz80, ld8080, "80" , 1, z80feat},
+	{ "z180", "z80", ".z80", "libz180.a", "z80", defz180, ld8080, "180" , 1, z80feat},
 	/* Other Z80 variants TODO */
 	/* Similar issues. We may end up making this a bunch of CPU specifics
 	   anyway because of endianness, alignment etc */
-	{ "thread", "thread", ".thread", "libthread.a", "thread", defthread, ldbyte, "0" },
-	{ "z8", "z8", ".z8", "libz8.a", "z8", defz8, ld8080, "8" , 0},
-	{ "super8", "super8", ".super8", "libsuper8.a", "super8", defsuper8, ld8080, "8" , 0},
-	{ "1802", "1802", ".1802", "lib1802.a", "1802", def1802, ld8080, "2" , 0},
-	{ "1805", "1802", ".1802", "lib1805.a", "1802", def1805, ld8080, "5" , 0},
-	{ "8070", "8070", ".8070", "lib8070.a", "8070", def8070, ld8070, "8070" , 0},
-	{ "8086", "8086", ".8086", "lib8086.a", "8086", def8086, ld8086, "86" , 0},
-	{ "80186", "8086", ".8086", "lib80186.a", "80186", def80186, ld8086, "186" , 0},
+	{ "thread", "thread", ".thread", "libthread.a", "thread", defthread, ldbyte, "0", 0, NULL },
+	{ "z8", "z8", ".z8", "libz8.a", "z8", defz8, ld8080, "8" , 0, NULL},
+	{ "super8", "super8", ".super8", "libsuper8.a", "super8", defsuper8, ld8080, "8" , 0, NULL},
+	{ "1802", "1802", ".1802", "lib1802.a", "1802", def1802, ld8080, "2" , 0, NULL},
+	{ "1805", "1802", ".1802", "lib1805.a", "1802", def1805, ld8080, "5" , 0, NULL},
+	{ "8070", "8070", ".8070", "lib8070.a", "8070", def8070, ld8070, "8070" , 0, NULL},
+	{ "8086", "8086", ".8086", "lib8086.a", "8086", def8086, ld8086, "86" , 0, NULL},
+	{ "80186", "8086", ".8086", "lib80186.a", "80186", def80186, ld8086, "186" , 0, NULL},
 	{ NULL }
 };
 
@@ -197,6 +205,8 @@ const char *cpulib;		/* Dir for this compiler */
 const char **cpudef;		/* List of defines */
 const char **ldopts;		/* Linker opts for default link */
 unsigned has_relocs;		/* Do we have relocations ? */
+unsigned long features;		/* Bit mask of feature info for pass 2 */
+
 /* We will need to do more with ldopts for different OS and machine targets
    eventually */
 
@@ -538,7 +548,9 @@ void convert_c_to_s(char *path)
 {
 	char *tmp, *t, *p;
 	char optstr[2];
+	char featstr[16];
 
+	snprintf(featstr, 16, "%lu", features);
 
 	build_arglist(make_lib_name("cc0", ""));
 	add_argument(symtab);
@@ -554,6 +566,7 @@ void convert_c_to_s(char *path)
 
 	build_arglist(make_lib_name("cc1", cpudot));
 	add_argument(cpucode);
+	add_argument(featstr);
 	redirect_in(tmp);
 	tmp = pathmod(path, ".@", ".#", 0);
 	redirect_out(tmp);
@@ -567,6 +580,7 @@ void convert_c_to_s(char *path)
 	optstr[0] = optimize;
 	optstr[1] = '\0';
 	add_argument(optstr);
+	add_argument(featstr);
 	if (codeseg)
 		add_argument(codeseg);
 	redirect_in(tmp);

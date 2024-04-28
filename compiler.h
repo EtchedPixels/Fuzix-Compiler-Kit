@@ -48,3 +48,5 @@
 extern FILE *debug;
 
 extern unsigned in_sizeof;
+extern unsigned cputype;
+extern unsigned long cpufeat;
