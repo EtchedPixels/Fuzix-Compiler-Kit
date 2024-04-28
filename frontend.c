@@ -20,9 +20,9 @@
 
 static char *symtab;
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(APPLE)
 /* _itoa */
-static char buf[7];
+static char buf[11];	/* Int could be 32bit */
 
 char *_uitoa(unsigned int i)
 {
