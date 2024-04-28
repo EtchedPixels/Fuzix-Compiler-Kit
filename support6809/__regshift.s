@@ -1,5 +1,5 @@
-	.export __reglsr
-	.export __regashr
+	.export __reglsl
+	.export __regshr
 	.export __regshru
 
 	.code

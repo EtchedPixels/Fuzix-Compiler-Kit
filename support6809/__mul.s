@@ -2,7 +2,7 @@
 ;	D = top of stack * D
 ;
 	.export __mul
-	.export __reg_mul
+	.export __regmul
 
 	.code
 
