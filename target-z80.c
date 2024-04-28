@@ -111,6 +111,8 @@ unsigned target_register(unsigned type, unsigned storage)
 void target_reginit(void)
 {
 	bc_free = 1;
-	ix_free = 1;
-	iy_free = 1;
+	if (!(cpufeat & 2))	/* --no-ix */
+		ix_free = 1;
+	if (!(cpufeat & 4))	/* --no-iy */
+		iy_free = 1;
 }

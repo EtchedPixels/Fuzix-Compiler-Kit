@@ -561,6 +561,11 @@ void gen_frame(unsigned size,  unsigned aframe)
 		func_cleanup = 0;
 
 	argbase = ARGBASE;
+
+	/* In banked mode the arguments are two bytes further out */
+	if (cpufeat & 1)
+		argbase += 2;
+
 	if (func_flags & F_REG(1)) {
 		printf("\tpush bc\n");
 		argbase += 2;
@@ -2678,7 +2683,11 @@ unsigned gen_node(struct node *n)
 		return 1;
 		/* Call a function by name */
 	case T_CALLNAME:
+		if (cpufeat & 1)
+			printf("\tpush af\n");
 		printf("\tcall _%s+%u\n", namestr(n->snum), v);
+		if (cpufeat & 1)
+			printf("\tpop af\n");
 		return 1;
 	case T_EQ:
 		if (size == 2) {
@@ -2745,7 +2754,15 @@ unsigned gen_node(struct node *n)
 		}
 		break;
 	case T_FUNCCALL:
+		/* Banking has no other effect as indirectly referenced calls go via the stub
+		   table so the function has a valid 16bit "address" */
+		if (cpufeat & 1)
+			printf("\tpush af\n");
 		printf("\tcall __callhl\n");
+		if (cpufeat & 1)
+			printf("\tpop af\n");
+		/* The bank linker will rewrite this for banked functions and use the extra
+		   stack slot to effectively stack the bank switch info */
 		return 1;
 	case T_LABEL:
 		/* Used for const strings and local static */
