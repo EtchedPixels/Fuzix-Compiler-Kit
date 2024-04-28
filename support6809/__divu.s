@@ -6,6 +6,9 @@
 	.export __remu
 	.export __xdivequ
 	.export __xremequ
+	.export __regdivu
+	.export __regmodu
+
 	.code
 
 __divu:
@@ -37,4 +40,16 @@ __xremequ:
 	ldx ,x			; Value
 	jsr div16x16
 	std [,s++]		; Get pointer back and save
+	rts
+
+__regdivu:
+	pshs u
+	jsr __divu
+	tfr d,u
+	rts
+
+__regmodu:
+	pshs u
+	jsr __remu
+	tfr d,u
 	rts

@@ -9,6 +9,8 @@
 ;
 	.export __div
 	.export __rem
+	.export __regdiv
+	.export __regmod
 
 ;
 ;	The sign of the remainder of a division is not defined until C99.
@@ -63,4 +65,20 @@ negd:
 	coma
 	comb
 ispos:
+	rts
+
+;
+;	Register versions
+;
+
+__regdiv:
+	pshs u
+	jsr __div
+	tfr d,u
+	rts
+
+__regmod:
+	pshs u
+	jsr __rem
+	tfr d,u
 	rts

@@ -2,6 +2,7 @@
 ;	D = top of stack * D
 ;
 	.export __mul
+	.export __reg_mul
 
 	.code
 
@@ -26,4 +27,10 @@ __mul:
 	leas	8,s		; fix the stack
 	jmp	,x
 
-	
+__regmul:			; U * D
+	pshs	u
+	jsr	__mul
+	; Called func popped u
+	tfr	d,u
+	rts
+
