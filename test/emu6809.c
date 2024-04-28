@@ -17,13 +17,13 @@ int log_6809 = 0;
 
 unsigned char e6809_read8(unsigned addr)
 {
-	return ram[addr];
+	return ram[addr & 0xFFFF];
 }
 
 unsigned char e6809_read8_debug(unsigned addr)
 {
 	if (addr < 0xFE00 || addr >= 0xFF00)
-		return ram[addr];
+		return ram[addr & 0xFFFF];
 	else
 		return 0xFF;
 }
@@ -58,7 +58,7 @@ void e6809_write8(unsigned addr, unsigned char val)
 		fefcval= val;	/* Save high byte for now */
 		break;
 	    default:
-		ram[addr] = val;
+		ram[addr & 0xFFFF] = val;
 	}
 }
 
@@ -86,8 +86,8 @@ void e6809_instruction(unsigned pc)
 	char buf[80];
 	struct reg6809 *r = e6809_get_regs();
 	if (log_6809) {
-		d6809_disassemble(buf, pc);
-		fprintf(stderr, "%04X: %-16.16s | ", pc, buf);
+		d6809_disassemble(buf, pc & 0xFFFF);
+		fprintf(stderr, "%04X: %-16.16s | ", pc & 0xFFFF, buf);
 		fprintf(stderr, "%s %02X:%02X %04X %04X %04X %04X\n", make_flags(r->cc), r->a, r->b, r->x, r->y, r->u, r->s);
 	}
 }
