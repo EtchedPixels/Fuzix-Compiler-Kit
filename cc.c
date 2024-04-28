@@ -1000,10 +1000,6 @@ int main(int argc, char *argv[]) {
 			keep_temp = 1;
 			break;
 		case 'm':
-			/* TODO: allow cpu-prop-prop... eg
-				8080-banked-amdfp and generate both the
-				full cpu path name and options for the stages
-				from this + pass to stages needing it */
 			cpu = *p + 2;
 			break;	
 		case 'M':
