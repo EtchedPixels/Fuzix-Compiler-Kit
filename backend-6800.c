@@ -3219,11 +3219,12 @@ unsigned gen_shortcut(struct node *n)
 			/* Fall through */
 		case 2:
 			printf("\tstd ,u++\n");
-			return 1;
+			break;
 		case 1:
 			printf("\tstb ,u+\n");
+			break;
 		}
-		break;
+		return 1;
 	}
 	return 0;
 }
