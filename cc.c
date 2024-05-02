@@ -654,6 +654,11 @@ void link_phase(void)
 	char *p, *l, *c;
 	/* TODO: ld should be general if we get it right, but might not be able to */
 	p = xstrdup(make_bin_name("ld", cpuset), 0);
+
+	/* Set the target as a.out if there is no target */
+	if (target==NULL)
+		target= "a.out";
+
 	build_arglist(p);
 	switch (targetos) {
 		case OS_FUZIX:
@@ -1060,8 +1065,6 @@ int main(int argc, char *argv[]) {
 	if (!standalone)
 		add_system_include();
 
-	if (target == NULL)
-		target = "a.out";
 	if (only_one_input && c_files > 1)
 		one_input();
 
