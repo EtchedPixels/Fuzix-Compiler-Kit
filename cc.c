@@ -983,7 +983,7 @@ int main(int argc, char *argv[]) {
 				else if (o == 's')
 					optimize = 's';
 				else {
-					fprintf(stderr, "cc: unknown optimixation level.\n");
+					fprintf(stderr, "cc: unknown optimisation level.\n");
 					fatal();
 				}
 			} else
