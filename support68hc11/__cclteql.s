@@ -12,6 +12,7 @@ __ccltequl:
 	bhi	true
 	bra	cclow
 __cclteql:
+	tsx
 	cpy	2,x
 	blt	false
 	bgt	true

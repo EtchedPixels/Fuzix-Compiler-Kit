@@ -22,7 +22,6 @@ shlf:
 done:
 	puly
 	pulx
-	pulx
 	jmp ,y
 nofast:
 	xgdx

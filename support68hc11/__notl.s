@@ -3,13 +3,11 @@
 __notl:
 	cpy	#0
 	bne	true
-	cmpa	#0
-	bne	true
-	cmpb	#0
-	bne	true
+	subd	#0
+	beq	true
 	clra
 	clrb
 	rts
-true:
-	ldd	@one
+true:	; D was 0 so make it 1 and set the flags
+	incb
 	rts

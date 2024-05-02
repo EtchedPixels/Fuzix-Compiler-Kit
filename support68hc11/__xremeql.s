@@ -24,8 +24,6 @@ __xremeql:
 	tsx			; frame pointer
 	;	Y:D		is the divisor
 	jsr	__reml
-	pulx
-	pulx			; throw frame
 	pulx			; destination
 	sty	0,x
 	std	2,x

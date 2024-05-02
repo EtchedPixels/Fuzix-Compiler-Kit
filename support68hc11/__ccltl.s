@@ -12,6 +12,7 @@ __ccltul:
 	beq	cclow
 	bra	false
 __ccltl:
+	tsx
 	cpy	2,x
 	bgt	true
 	bne	false

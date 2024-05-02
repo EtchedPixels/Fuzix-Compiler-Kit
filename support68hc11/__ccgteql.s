@@ -12,6 +12,7 @@ __ccgtequl:
 	blo	true
 	bra	cclow
 __ccgteql:
+	tsx
 	cpy	2,x
 	bgt	false
 cclow:

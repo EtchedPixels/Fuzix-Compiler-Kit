@@ -7,17 +7,10 @@
 
 __xmminus:
 __xmminusu:
-	xgdy
+	std @tmp
 	ldd ,x
-	pshb
-	psha
-	xgdy
-	tsy
-	subd ,y
+	subd @tmp
 	std ,x
-	ins
-	ins
-	pula
-	pulb
+	addd @tmp
 	rts
 

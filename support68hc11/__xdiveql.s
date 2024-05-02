@@ -23,8 +23,7 @@ __xdiveql:
 	puly
 	;	Y:D		is the divisor
 	jsr	__divl
-	pulx
-	pulx			; throw frame
+	;	Called function threw frame
 	pulx			; destination back
 	sty	0,x
 	std	2,x

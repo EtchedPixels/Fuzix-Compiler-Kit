@@ -12,6 +12,7 @@ __xmminusul:
 	pshb		; save
 	psha
 	subd @tmp	; result
+	std 2,x
 	xgdy
 	std @tmp
 	ldd ,x
