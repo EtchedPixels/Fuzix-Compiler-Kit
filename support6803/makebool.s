@@ -5,7 +5,6 @@
 ;
 
 	.code
-	.setcpu 6803
 
 	.export booleq
 	.export boolne
@@ -23,6 +22,7 @@
 	.export __not
 	.export __notc
 
+	.setcpu 6803
 ;
 ;	Turn  val op test into 1 for true 0 for false. Ensure the Z flag
 ;	is appropriately set
