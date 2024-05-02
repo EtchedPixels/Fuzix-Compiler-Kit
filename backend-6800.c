@@ -2047,7 +2047,7 @@ void gen_start(void)
 		break;
 	}
 	/* For the moment. Needs adding to assembler for 6809 v 6309 */
-	if (cpu != 6809)
+	if (cpu != 6809 && cpu != 6811)
 		printf("\t.setcpu %u\n", cpu);
 	printf("\t.code\n");
 }
