@@ -373,9 +373,20 @@ static void append_obj(struct objhead *h, char *p, uint8_t type)
 	h->tail = o;
 }
 
-static char *pathmod(char *p, char *f, char *t, int rmif)
+// Modify the filename p in-place, losing the f suffix
+// and applying the t suffix. Return a copy of the p pointer.
+// Add the filename to the list of files to remove if rmif
+// is earlier than the last phase.
+//
+// However, if this_phase matches last_phase,
+// simply return the target filename if it exists.
+static char *pathmod(char *p, char *f, char *t, int rmif, int this_phase)
 {
-	char *x = strrchr(p, '.');
+	char *x;
+
+	if ((this_phase == last_phase) && (target!=NULL))
+		return(target);
+	x = strrchr(p, '.');
 	if (x == NULL) {
 		fprintf(stderr, "cc: no extension on '%s'.\n", p);
 		fatal();
@@ -542,8 +553,9 @@ void convert_s_to_o(char *path)
 {
 	build_arglist(make_bin_name("as", cpuset));
 	add_argument(path);
+	add_argument("-o");
+	add_argument(pathmod(path, ".s", ".o", 5, 3));
 	run_command();
-	pathmod(path, ".s", ".o", 5);
 }
 
 void convert_c_to_s(char *path)
@@ -557,10 +569,10 @@ void convert_c_to_s(char *path)
 	build_arglist(make_lib_name("cc0", ""));
 	add_argument(symtab);
 	t = xstrdup(path, 0);
-	tmp = pathmod(t, ".c", ".%", 0);
+	tmp = pathmod(t, ".c", ".%", 0, 255);
 	redirect_in(tmp);
 	t = xstrdup(path, 0);
-	tmp = pathmod(t, ".%", ".@", 0);
+	tmp = pathmod(t, ".%", ".@", 0, 255);
 	if (tmp == NULL)
 		memory();
 	redirect_out(tmp);
@@ -570,7 +582,7 @@ void convert_c_to_s(char *path)
 	add_argument(cpucode);
 	add_argument(featstr);
 	redirect_in(tmp);
-	tmp = pathmod(path, ".@", ".#", 0);
+	tmp = pathmod(path, ".@", ".#", 0, 255);
 	redirect_out(tmp);
 	run_command();
 
@@ -587,12 +599,12 @@ void convert_c_to_s(char *path)
 		add_argument(codeseg);
 	redirect_in(tmp);
 	if (optimize == '0') {
-		redirect_out(pathmod(path, ".#", ".s", 2));
+		redirect_out(pathmod(path, ".#", ".s", 2, 2));
 		run_command();
 		free(t);
 		return;
 	}
-	tmp = pathmod(path, ".#", ".^", 0);
+	tmp = pathmod(path, ".#", ".^", 0, 255);
 	redirect_out(tmp);
 	run_command();
 
@@ -601,7 +613,7 @@ void convert_c_to_s(char *path)
 	build_arglist(p);
 	add_argument(make_lib_name("rules.", cpuset));
 	redirect_in(tmp);
-	redirect_out(pathmod(path, ".#", ".s", 2));
+	redirect_out(pathmod(path, ".#", ".s", 2, 2));
 	run_command();
 	free(t);
 	free(p);
@@ -614,9 +626,9 @@ void convert_S_to_s(char *path)
 	add_argument("-E");
 	add_argument(path);
 	tmp = xstrdup(path, 0);
-	redirect_out(pathmod(tmp, ".S", ".s", 1));
+	redirect_out(pathmod(tmp, ".S", ".s", 1, 2));
 	run_command();
-	pathmod(path, ".S", ".s", 5);
+	pathmod(path, ".S", ".s", 5, 2);
 }
 
 void preprocess_c(char *path)
@@ -632,7 +644,7 @@ void preprocess_c(char *path)
 	/* Weird one .. -E goes to stdout */
 	tmp = xstrdup(path, 0);
 	if (last_phase != 1)
-		redirect_out(pathmod(tmp, ".c", ".%", 0));
+		redirect_out(pathmod(tmp, ".c", ".%", 0, 1));
 	run_command();
 }
 
