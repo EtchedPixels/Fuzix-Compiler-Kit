@@ -2097,9 +2097,9 @@ unsigned gen_push(struct node *n)
 		if (cpu_has_y)
 			printf("\tpshy\n");
 		else {
-			printf("\tlda @hireg+1\n");
+			printf("\tldaa @hireg+1\n");
 			printf("\tpsha\n");
-			printf("\tlda @hireg\n");
+			printf("\tldaa @hireg\n");
 			printf("\tpsha\n");
 			invalidate_work();
 		}
