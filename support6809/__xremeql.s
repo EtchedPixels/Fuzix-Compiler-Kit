@@ -11,9 +11,9 @@ __xremeql:
 	leas	-4,s		; make a frame
 	pshs	d
 	ldd	,x		; copy argument into frame
-	std	4,s
-	ldd	2,x
 	std	2,s
+	ldd	2,x
+	std	4,s
 	puls	d
 	;	Y:D		is the divisor
 	jsr	__reml
