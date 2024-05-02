@@ -1,0 +1,36 @@
+# Branches
+	jmp %1
+%1:
+=
+%1:
+
+	jmp %2
+%1:
+%2:
+=
+%1:
+%2:
+
+	jmp L%1
+	jmp L%2
+=
+	jmp L%1
+
+# Branches
+	bra %1
+%1:
+=
+%1:
+
+	bra %2
+%1:
+%2:
+=
+%1:
+%2:
+
+	bra L%1
+	bra L%2
+=
+	bra L%1
+
