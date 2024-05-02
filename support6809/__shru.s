@@ -24,7 +24,7 @@ done:
 	jmp ,x
 nofast:
 	tfr d,x
-	ldd 2,x
+	ldd 2,s
 shrs:	lsra
 	rorb
 	leax -1,x
