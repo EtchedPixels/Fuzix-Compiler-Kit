@@ -238,6 +238,7 @@ bootinst:
 	cp copt $(CCROOT)/lib
 	cp rules.6800 $(CCROOT)/lib
 	cp rules.6809 $(CCROOT)/lib
+	cp rules.hc11 $(CCROOT)/lib
 	cp lorder6809 $(CCROOT)/bin/lorder6809
 	# 8070 (WIP)
 	mkdir -p $(CCROOT)/lib/8070
