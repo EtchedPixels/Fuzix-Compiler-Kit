@@ -3,25 +3,34 @@
 __switchl:
 	; X holds the switch table, Y:D the value
 	; Juggle as we are short of regs here - TODO find a nicer approach
-	leas -4,s
-	sty ,s			; Save a reg for scratch
-	ldy ,x++		; Get count
-	sty 2,s			; Save count
-	ldy ,s++		; Recover saved pointer
-	inc 1,s
-	bra moveon
+	pshy
+	ldy ,x
+	sty @tmp
+	puly
+	inc @tmp
+	bra incmv
 next:
-	cmpy ,x++
-	bne bump
-	cmpd ,x++
+	cpy ,x
+	inx
+	inx
+	bne nomat
+	cmpa ,x
+	bne nomat
+	cmpb 1,x
 	beq gotit
-	leax 2,x
+nomat:
+	inx
+	inx
+incmv:
+	inx
+	inx
 moveon:
-	dec 1,s			; We know < 256 entries per switch
+	dec @tmp		; We know < 256 entries per switch
 	bne next
+	bra def
 gotit:
+	inx
+	inx
+def:
 	ldx ,x
-	leas 2,s
 	jmp ,x
-bump:	leax 4,x
-	bra moveon

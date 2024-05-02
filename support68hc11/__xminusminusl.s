@@ -7,17 +7,20 @@
 	.code
 __xmminusl:
 __xmminusul:
-	pshs y,d	; Value into memory
-	ldy ,x		; Get old value into YD
-	ldd 2,x
-	pshs y,d	; Save old value
-	subd 4,s	; Do the lower subtract
-	std 2,x
-	exg d,y
-	sbcb 6,s	; and upper subtract
-	sbca 7,s
-	std ,x		; save it
-	puls y,d	; recover the original value
-	leas 4,s	; throw away the temporaries
+	std @tmp
+	ldd 2,x		; low half
+	pshb		; save
+	psha
+	subd @tmp	; result
+	xgdy
+	std @tmp
+	ldd ,x
+	pshb
+	psha		; stack the upper half
+	sbcb @tmp+1
+	sbca @tmp
+	std ,x
+	puly
+	pula
+	pulb
 	rts
-
