@@ -1,5 +1,5 @@
 ;
-;	,X - Y:D, return old ,X
+;	,X - Y:D, return new ,X
 ;
 	.export __xminuseql
 	.export __xminusequl

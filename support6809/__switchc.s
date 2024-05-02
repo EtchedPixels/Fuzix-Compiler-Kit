@@ -1,7 +1,7 @@
 	.export __switchc
 
 __switchc:
-	; X holds the switch table, D the value
+	; X holds the switch table, B the value
 	; We can afford to trash Y
 	ldy ,x++		; Table size
 	beq gotit

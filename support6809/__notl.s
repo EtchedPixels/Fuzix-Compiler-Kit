@@ -2,12 +2,14 @@
 	.code
 __notl:
 	cmpy	#0
-	bne	true
+	bne	false
 	cmpd	#0
-	bne	true
+	beq	true
+false:
 	clra
 	clrb
 	rts
 true:
-	ldd	@one
+	; D is zero
+	incb
 	rts
