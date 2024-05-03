@@ -22,6 +22,7 @@ __cclteql:
 	blt	false
 	bgt	true
 cclow:
+	ldd	@tmp
 	subd	4,x
 	blo	false
 true:

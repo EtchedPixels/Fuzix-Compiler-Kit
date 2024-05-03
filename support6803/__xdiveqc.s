@@ -20,7 +20,7 @@ __xremeqc:
 	bsr sex
 	bsr absd
 	std @tmp
-	ldd ,x
+	ldab ,x
 	bsr sex
 	bita #0x80
 	bne negmod
@@ -55,7 +55,7 @@ __xdiveqc:
 	bsr absd
 	std @tmp
 
-	ldd ,x			; Data value
+	ldab ,x			; Data value
 	bsr sex
 	bsr absd
 	std @tmp1

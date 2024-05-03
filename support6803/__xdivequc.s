@@ -16,7 +16,7 @@ __xremequc:
 	pshx			; save pointer
 	clra
 	std @tmp
-	ldd ,x
+	ldab ,x
 	clra
 	std @tmp2
 	ldd @tmp
@@ -31,7 +31,7 @@ __xdivequc:
 	pshx
 	clra
 	std @tmp
-	ldd ,x			; Data value
+	ldab ,x			; Data value
 	clra
 	std @tmp2
 	ldd @tmp
