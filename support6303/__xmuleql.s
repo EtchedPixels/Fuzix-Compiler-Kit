@@ -21,6 +21,7 @@ __xmulequl:
 
 	jsr __mull
 
+	pulx
 	; Result is in hireg:D, argument was cleared by called fn
 	std 2,x
 	ldd @hireg

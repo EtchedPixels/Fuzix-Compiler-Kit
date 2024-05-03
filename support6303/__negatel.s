@@ -15,6 +15,8 @@ __negatel:
 	comb
 	addd @one
 	bcc nocarry
+	inc @hireg+1
+	bne nocarry	; inc does not affect C
 	inc @hireg
 nocarry:
 	rts
