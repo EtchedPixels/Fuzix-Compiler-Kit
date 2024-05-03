@@ -1827,16 +1827,9 @@ void gen_prologue(const char *name)
 /* Generate the stack frame */
 void gen_frame(unsigned size, unsigned aframe)
 {
-	argbase = ARGBASE;
-	/* Only occurs on 6809 */
-	if (func_flags & F_REG(1)) {
-		printf("\tpshs u\n");
-		argbase += 2;
-	}
-	/* TODO: there is an optimization trick here for 09 where you
-	   can use a pshs combining the pshs u to make some size of frame */
 	frame_len = size;
 	adjust_s(-size, 0);
+	argbase = ARGBASE;
 }
 
 void gen_epilogue(unsigned size, unsigned argsize)
@@ -1844,12 +1837,9 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	if (sp)
 		error("sp");
 	adjust_s(size, (func_flags & F_VOIDRET) ? 0 : 1);
-	if (func_flags & F_REG(1))
-		/* 6809 only */
-		printf("\tpuls u,pc\n");
 	/* TODO: we are asssuming functions clean up their args if not
 	   vararg so this will have to change */
-	else if (argsize == 0 || cpu_has_d || (func_flags & F_VARARG))
+	if (argsize == 0 || cpu_has_d || (func_flags & F_VARARG))
 		printf("\trts\n");
 	else if (argsize <= 8)
 		printf("\t%s __cleanup%u\n", jmp_op, argsize);
