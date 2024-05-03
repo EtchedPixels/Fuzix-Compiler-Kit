@@ -639,7 +639,7 @@ void adjust_s(int n, unsigned save_d)
 
 void op8_on_ptr(const char *op, unsigned off)
 {
-	printf("\t%sb %u,x\n", op, off);
+	printf("\t%sb %u,x\n", remap_op(op), off);
 }
 
 /* Do the low byte first in case it's add adc etc */
