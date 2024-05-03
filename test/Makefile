@@ -39,7 +39,7 @@ emu65c816.o: emu65c816.c
 	$(CC) $(CFLAGS) -c -Ilib65c816 emu65c816.c
 
 6800.o: 6800.c 6800.h
-	$(CC) $(CFLAGS) -c 6800.c
+	$(CC) $(CFLAGS) -DWITH_HC11 -c 6800.c
 
 emu6800: 6800.o emu6800.o
 	$(CC) $(CFLAGS) -o emu6800 emu6800.o 6800.o

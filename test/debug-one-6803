@@ -3,4 +3,4 @@ b=$(basename $1 .c)
 echo  $b":"
 fcc -m6803 -O -X -c tests/$b.c
 ld6800 -b -C256 testcrt0_6803.o tests/$b.o -o tests/$b /opt/fcc/lib/6803/lib6803.a
-./emu6800 -d tests/$b tests/$b.map 2> $b.log
+./emu6800 -d 6803 tests/$b tests/$b.map 2> $b.log

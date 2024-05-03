@@ -45,6 +45,20 @@ void m6800_outport(uint8_t addr, uint8_t val)
 	}
 }
 
+void m68hc11_spi_begin(struct m6800 *cpu, uint8_t val)
+{
+}
+
+uint8_t m68hc11_spi_done(struct m6800 *cpu)
+{
+	return 0xFF;
+}
+
+void m68hc11_port_direction(struct m6800 *cpu, int port)
+{
+}
+
+
 uint8_t m6800_read_op(struct m6800 *cpu, uint16_t addr, int debug)
 {
 	if (addr >> 8 == 0xFE)
@@ -77,24 +91,24 @@ int main(int argc, char *argv[])
 	int fd;
 	unsigned debug = 0;
 
-	if (argc == 4 && strcmp(argv[1], "-d") == 0) {
+	if (argc == 5 && strcmp(argv[1], "-d") == 0) {
 		debug = 1;
 		argv++;
 		argc--;
 	}
-	if (argc != 3) {
-		fprintf(stderr, "emu6800: test map.\n");
+	if (argc != 4) {
+		fprintf(stderr, "emu6800: cpu test map.\n");
 		exit(1);
 	}
-	fd = open(argv[1], O_RDONLY);
+	fd = open(argv[2], O_RDONLY);
 	if (fd == -1) {
-		perror(argv[1]);
+		perror(argv[2]);
 		exit(1);
 	}
 	/* 0100-0xFDFF */
 	if (read(fd, ram, 0xFD00) < 4) {
 		fprintf(stderr, "emu6502: bad test.\n");
-		perror(argv[1]);
+		perror(argv[2]);
 		exit(1);
 	}
 	close(fd);
@@ -102,11 +116,32 @@ int main(int argc, char *argv[])
 	/* Run from 0x100 */
 	ram[0xFFFE] = 0x01;
 	ram[0xFFFF] = 0x00;
-	m6800_reset(&cpu, CPU_6803, INTIO_6803, 3);
+	switch(atoi(argv[1])) {
+	case 6303:
+		m6800_reset(&cpu, CPU_6303, INTIO_6803, 3);
+		break;
+	case 6800:
+		m6800_reset(&cpu, CPU_6800, INTIO_NONE, 3);
+		break;
+	case 6803:
+		m6800_reset(&cpu, CPU_6803, INTIO_6803, 3);
+		break;
+	case 6811:
+		/* Run from 32K for 68HC11 */
+		ram[0xFFFE] = 0x80;
+		m68hc11a_reset(&cpu, 0, 0, NULL, NULL);
+		if (debug)
+			cpu.debug = 1;
+		while(1)
+			m68hc11_execute(&cpu);
+		break;
+	default:
+		fprintf(stderr, "Unknown cpu type '%s'\n", argv[1]);
+		exit(1);
+	}
 	if (debug)
 		cpu.debug = 1;
 
 	while (1)
 		m6800_execute(&cpu);
 }
-
