@@ -6,6 +6,7 @@
 	.export __remu
 	.export __xdivequ
 	.export __xremequ
+	.export __pop2
 
 	.code
 
@@ -17,7 +18,7 @@ __divu:
 	jsr div16x16		; D is now quotient
 	stx @tmp
 	ldd @tmp		;result into D
-pop2:
+__pop2:
 	pulx
 	ins
 	ins
@@ -27,7 +28,7 @@ __remu:
 	tsx
 	ldx 2,x			; get top of stack
 	jsr div16x16		; D is now quotient
-	bra pop2
+	jmp __pop2
 
 __xdivequ:
 	; ,X / D

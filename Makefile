@@ -5,8 +5,9 @@ all: cc cc0 \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 \
      cc2.8070 cc2.8086 \
-     copt support6502 support65c816 support6800 support6803 \
-     support6809 support8080 support8085 supportz80 \
+     copt \
+     support6303 support6502 support65c816 support6800 support6803 \
+     support6809 support68hc11 support8080 support8085 supportz80 \
      supportz8 supportsuper8 test
 
 bootstuff: cc cc0 \
@@ -18,8 +19,10 @@ bootstuff: cc cc0 \
      cc2.8086 \
      copt
 
-.PHONY: support6502 support65c816 support6800 support6803 support6809 \
-	support8080 support8085 supportsuper8 supportz8 supportz80 test
+.PHONY: support6303 support6502 support65c816 support6800 support6803 \
+	support6809 support68hc11 support8080 support8085 supportsuper8 \
+	supportz8 supportz80 \
+	test
 
 CCROOT ?=/opt/fcc/
 
@@ -140,6 +143,9 @@ cc2.8070:	$(OBJS8)
 	gcc -g3 $(OBJS8) -o cc2.8070
 
 
+support6303:
+	(cd support6303; make)
+
 support6502:
 	(cd support6502; make)
 
@@ -154,6 +160,9 @@ support6803:
 
 support6809:
 	(cd support6809; make)
+
+support68hc11:
+	(cd support68hc11; make)
 
 support8080:
 	(cd support8080; make)
@@ -187,11 +196,13 @@ clean:
 	rm -f cc1.z8 cc2.z8
 	rm -f cc1.8086 cc2.8086
 	rm -f *~ *.o
+	(cd support6303; make clean)
 	(cd support6502; make clean)
 	(cd support65c816; make clean)
 	(cd support6800; make clean)
 	(cd support6803; make clean)
 	(cd support6809; make clean)
+	(cd support68hc11; make clean)
 	(cd support8080; make clean)
 	(cd support8085; make clean)
 	(cd supportz80; make clean)
@@ -227,12 +238,16 @@ bootinst:
 	cp copt $(CCROOT)/lib
 	cp rules.65c816 $(CCROOT)/lib
 	# 6800
+	mkdir -p $(CCROOT)/lib/6303
+	mkdir -p $(CCROOT)/lib/6303/include
 	mkdir -p $(CCROOT)/lib/6800
 	mkdir -p $(CCROOT)/lib/6800/include
 	mkdir -p $(CCROOT)/lib/6803
 	mkdir -p $(CCROOT)/lib/6803/include
 	mkdir -p $(CCROOT)/lib/6809
 	mkdir -p $(CCROOT)/lib/6809/include
+	mkdir -p $(CCROOT)/lib/hc11
+	mkdir -p $(CCROOT)/lib/hc11/include
 	cp cc1.6800 $(CCROOT)/lib
 	cp cc2.6800 $(CCROOT)/lib
 	cp copt $(CCROOT)/lib
@@ -307,8 +322,11 @@ libinst:
 	cp support65c816/crt0.o $(CCROOT)/lib/65c816/
 	cp support65c816/lib65c816.a $(CCROOT)/lib/65c816/lib65c816.a
 	ar cq $(CCROOT)/lib/65c816/libc.a
-#	cp support6800/crt0.o $(CCROOT)/lib/6800/
-#	cp support6800/lib6800.a $(CCROOT)/lib/6800/lib6800.a
+	cp support6800/crt0.o $(CCROOT)/lib/6303/
+	cp support6800/lib6800.a $(CCROOT)/lib/6303/lib6303.a
+	ar cq $(CCROOT)/lib/6800/libc.a
+	cp support6800/crt0.o $(CCROOT)/lib/6800/
+	cp support6800/lib6800.a $(CCROOT)/lib/6800/lib6800.a
 	ar cq $(CCROOT)/lib/6800/libc.a
 	cp support6803/crt0.o $(CCROOT)/lib/6803/
 	cp support6803/lib6803.a $(CCROOT)/lib/6803/lib6803.a
@@ -316,6 +334,9 @@ libinst:
 	cp support6809/crt0.o $(CCROOT)/lib/6809/
 	cp support6809/lib6809.a $(CCROOT)/lib/6809/lib6809.a
 	ar cq $(CCROOT)/lib/6809/libc.a
+	cp support68hc11/crt0.o $(CCROOT)/lib/hc11/
+	cp support68hc11/lib68hc11.a $(CCROOT)/lib/hc11/libhc11.a
+	ar cq $(CCROOT)/lib/hc11/libc.a
 	cp support8080/crt0.o $(CCROOT)/lib/8080/
 	cp support8085/crt0.o $(CCROOT)/lib/8085/
 	cp support8080/lib8080.a $(CCROOT)/lib/8080/lib8080.a

@@ -25,6 +25,7 @@ uint32_t _mulf(uint32_t a2, uint32_t a1)
 	int exp;
 	uint32_t sign;
 
+	/* TODO: check for 0x80000000 version */
 	if (!a1 || !a2)
 		return (0);
 

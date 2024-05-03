@@ -28,7 +28,7 @@ __rem:
 	pulb
 	jsr div16x16		; do the unsigned divide
 				; X = quotient, D = remainder
-	jmp pop2
+	jmp __pop2
 negmod:
 	bsr negd
 	std 2,x
@@ -37,7 +37,7 @@ negmod:
 	ldx 2,x
 	jsr div16x16
 	bsr negd
-	jmp pop2
+	jmp __pop2
 	
 
 ;
@@ -66,10 +66,10 @@ __div:
 	bcc divdone		; low bit set -> negate
 	ldd @tmp
 	bsr negd
-	jmp pop2
+	jmp __pop2
 divdone:
 	ldd @tmp
-	jmp pop2
+	jmp __pop2
 
 absd:
 	bita #$80
