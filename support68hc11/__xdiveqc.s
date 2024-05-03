@@ -21,6 +21,7 @@ __xremeqc:
 	bsr absd
 	ldx ,x
 	xgdx
+	tab
 	bsr sex
 	bita #0x80
 	bne negmod
@@ -51,6 +52,7 @@ __xdiveqc:
 	bsr sex
 	bsr absd
 	xgdx
+	tab
 	bsr sex
 	bsr absd
 	xgdx
