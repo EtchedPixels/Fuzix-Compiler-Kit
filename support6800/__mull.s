@@ -4,107 +4,66 @@
 ;
 ;	Stack on entry
 ;
-;	2-6,x	Argument
+;	2-5,x	Argument
 ;
 ;
 	.export __mull
 	.export __mulul
 
-	.setcpu 6803
-
 	.code
 __mull:
 __mulul:
-	pshx		; working space ,x->3,x
-	pshx		; moves argument to 6-9,x
-	tsx
-	std @tmp
-;
-;	Do 32bit x low 8bits
-;	This gives us a 32bit result plus 8bits discarded
-;
-	ldaa 9,x
-	ldab @tmp+1
-	mul		; calculate low 8 and overflow
-	std 2,x		; fill in low 16bits
-	ldaa 8,x
-	ldab @tmp+1
-	mul
-	addb 2,x	; next 16 bits plus carry
-	adca #0
-	std 1,x		; and save
-	ldaa 7,x
-	ldab @tmp+1
-	mul
-	addb 1,x	; next 16bits plus carry
-	adca #0
-	std ,x		; and save
-	ldaa 6,x
-	ldab @tmp+1
-	mul		; top 8bits (and overflow is lost)
-	addb ,x
-	stab ,x
-;
-;	Now repeat this with the next 8bits but we only need to do 24bits
-;	as the top 8 will overflow
-;
-	ldaa 9,x
-	ldab @tmp
-	mul
-	addb 2,x	; add in the existing
-	adca 1,x
-	std 1,x
-	bcc norip16
-	inc ,x		; carry into the top byte
-norip16:
-	ldaa 8,x
-	ldab @tmp	; again
-	mul
-	addb 1,x
-	adca ,x
-	std ,x
-	ldaa 7,x
-	ldab @tmp
-	mul
-	addb ,x
-	stab ,x	; rest overflows, all of top byte overflows
-;
-;	Now repeat for the next 8bits but we only need to do 16bit as the
-;	top 16 will overflow. Spot a 16bit zero and short cut as this
-;	is common (eg for uint * ulong cases)
-;
-	ldd @hireg	; again (b = hireg + 1)
-	beq is_done
-	ldaa 9,x
-	mul
-	addb 1,x
-	adca ,x
-	std ,x
-	ldaa 8,x
-	ldab @hireg+1
-	mul
-	addb ,x
-	stab ,x		; rest overflows, all of top byte overflows
-;
-;	And finally the top 8bits so almost everything overflows
-;
-	ldaa 9,x
-	ldab @hireg
-	beq is_done
-	mul
-	addb ,x
-	stab ,x		; rest overflows, all of top byte overflows
-;
-;	Into our working register
-;
-is_done:
-	pulx
-	stx @hireg
+	staa @tmp	; D into tmp to free registers sreg:tmp is now the value
+	stab @tmp+1
+	clra
+	psha		; Work space to zero
+	psha		; We will iteratively add to this for each 1 bit
+	psha
+	psha		; workspace is ,x argument is now 6,x
+	;
+	;	Now work bitwise through it
+	;
+	ldaa @tmp+1
+	beq zero1	; Speed up zero bytes (it's common for a 32 x 32 to have several 0 bytes)
+	bsr bits8
+zero1:
+	ldaa @tmp
+	beq zero2
+	bsr bits8
+zero2:
+	ldaa @hireg+1
+	beq zero3
+	bsr bits8
+zero3:
+	ldaa @hireg
+	beq zero4
+	bsr bits8
+	;
+	;	Now copy out the data
+zero4:
+	pula
+	staa @hireg
+	pula
+	staa @hireg+1
 	pula
 	pulb
-	pulx
-	inx
-	inx
-	inx
-	inx
-	rts
+	jmp __pop4
+
+;
+;	Process an 8x32 slice of the multiply. We could optimize this if we un-inlined it as we can do 32bit, 24bit, 16bit, 8bit
+;	because we know there are zeros at the end.
+;
+bits8:		ldaa #8
+		staa @tmp2
+next8:
+		rola
+		bcc noadd
+		; 32bit add
+noadd:
+		lsl 9,x		; left shift each time we move up a bit
+		rol 8,x		; through the number
+		rol 7,x
+		rol 6,x
+		dec @tmp2
+		bne next8
+		rts

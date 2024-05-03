@@ -21,13 +21,13 @@
 ;
 ;
 	.export div16x16
-	.setcpu 6803
 
 	.code
 
 div16x16:
 	; TODO - should be we spot div by 0 and trap out ?
-	std @tmp1		; divisor
+	staa @tmp1		; divisor
+	stab @tmp1+1
 	ldaa #16		; bit count
 	staa @tmp		; counter
 	clra
@@ -40,9 +40,11 @@ loop:
 	rola
 	ldx @tmp2
 	inx
-	subd @tmp1		; divisor
+	subb @tmp1+1		; divisor
+	sbca @tmp1
 	bcc skip
-	addd @tmp1
+	addb @tmp1+1
+	adca @tmp1
 	dex
 skip:
 	stx @tmp2

@@ -3,19 +3,30 @@
 ;	messing up D	
 ;
 	.export __addxconst
-	.setcpu 6803
 	.code
 
 __addxconst:
-	std @tmp2	; Save D
+	staa @tmp2	; Save D
+	stab @tmp2+1
 	stx @tmp	; X where we can manipulate it
-	pulx		; Return address
-	ldd ,x		; value to add
+	tsx
+	ldx ,x		; Return address
+	ins
+	ins
+	ldaa ,x		; value to add
+	ldab 1,x
 	inx		; Move to word after
 	inx
-	pshx		; Restack return address
-	addd @tmp	; D now holds the right value
-	std @tmp	; D into X
+	stx @tmp1	; save the return address
+	addb @tmp	; D now holds the right value
+	adca @tmp+1
+	staa @tmp	; D into X
+	stab @tmp+1
 	ldx @tmp
-	ldd @tmp2	; Restore old D
+	ldaa @tmp1	; Recover return address
+	ldab @tmp1+1
+	pshb
+	psha
+	ldaa @tmp2	; Restore old D
+	ldab @tmp2+1
 	rts

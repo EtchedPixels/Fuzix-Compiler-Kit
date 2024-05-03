@@ -10,7 +10,6 @@
 	.export __xdiveqc
 	.export __xremeqc
 
-	.setcpu 6803
 ;
 ;	The sign of the remainder of a division is not defined until C99.
 ;	C99 says it's the sign of the dividend.
@@ -58,7 +57,8 @@ __xdiveqc:
 	clr @tmp2		; Count number of sign changes
 	bsr sex
 	bsr absd
-	std @tmp
+	staa @tmp
+	stab @tmp+1
 
 	ldab ,x			; Data value
 	bsr sex

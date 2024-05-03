@@ -4,37 +4,44 @@
 	.export __xremequl
 	.code
 
-	.setcpu 6803
 __xremequl:
-	std	@tmp
-	ldd	2,x
+	staa	@tmp
+	stab	@tmp+1
+	ldaa	2,x
+	ldab	3,x
 	pshb
 	psha
-	ldd	,x
+	ldaa	0,x
+	ldab	1,x
 	pshb
 	psha
-	pshx	; dummy
-	ldd	@tmp
+	des
+	des	; dummy
+	ldaa	@tmp
+	ldab	@tmp+1
 	pshb	; Save D at 2,S in frame
 	psha
-	ldd	@hireg
+	ldaa	@hireg
+	ldab	@hireg+1
 	pshb
 	psha	; save hireg at 0,S in the frame
-	pshx
+	stx	@tmp1
 	tsx
 	inx
 	inx	; X points at the frame
 	jsr	div32x32
-	ldd	@tmp2
-	std	@hireg
-	pulx
-	ldd	@tmp2
-	std	,x
-	ldd	@tmp3
-	std	2,x
-	pulx
-	pulx
-	pulx
-	pulx
-	pulx	; clean up and done
-	rts
+	ldaa	@tmp2
+	ldab	@tmp2+1
+	staa	@hireg
+	stab	@hireg+1
+	ldx	@tmp1
+	ldaa	@tmp2
+	ldab	@tmp2+1
+	staa	,x
+	stab	1,x
+	ldaa	@tmp3
+	ldab	@tmp3+1
+	staa	2,x
+	stab	3,x
+	jmp	__popret10
+

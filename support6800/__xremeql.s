@@ -4,25 +4,31 @@
 	.export __xremeql
 	.code
 
-	.setcpu 6803
 __xremeql:
 ;
 ;	No nice way to do this
 ;
-	pshx			; save pointer
-	std	@tmp
-	ldd	2,x
+	stx	@tmp1		; save pointer
+	staa	@tmp
+	stab	@tmp+1
+	ldaa	2,x
+	ldab	3,x
 	pshb
 	psha
-	ldd	,x
+	ldaa	,x
+	ldab	1,x
 	pshb
 	psha
-	ldd	@tmp
+	ldaa	@tmp
+	ldab	@tmp+1
 	;	hireg:D		is the divisor
 	jsr	__reml
-	pulx			; destination
-	std	2,x
-	ldd	@hireg
-	std	0,x
-	ldd	2,x
+	ldx	@tmp1		; destination
+	staa	2,x
+	stab	3,x
+	ldaa	@hireg
+	staa	0,x
+	ldaa	@hireg+1
+	staa	1,x
+	ldaa	2,x
 	rts

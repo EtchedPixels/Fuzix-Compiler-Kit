@@ -4,42 +4,48 @@
 	.export __xdivequl
 	.code
 
-	.setcpu 6803
-
 __xdivequl:
-	std	@tmp
-	ldd	2,x
+	staa	@tmp
+	stab	@tmp+1
+	ldaa	2,x
+	ldab	3,x
 	pshb
 	psha
-	ldd	,x
+	ldaa	,x
+	ldab	1,x
 	pshb
 	psha
-	pshx	; dummy
-	ldd	@tmp
+	des
+	des	; dummy
+	ldaa	@tmp
+	ldab 	@tmp+1
 	pshb	; save old D at 2,s
 	psha
-	ldd	@hireg
+	ldaa	@hireg
+	ldab	@hireg+1
 	pshb	; save hireg at 0,s
 	psha
-	pshx
+	stx	@tmp1
 	tsx
 	inx
 	inx	; point to the constructed frame
 	jsr	div32x32
 	; Divison done now unpack the result
-	ldd	6,x
-	std	@hireg
-	ldd	8,x
-	std	@tmp
-	pulx
-	ldd	@hireg
-	std	,x
-	ldd	@tmp
-	std	2,x
-	; Now clean up the mess
-	pulx
-	pulx
-	pulx
-	pulx
-	pulx
-	rts
+	ldaa	6,x
+	ldab	7,x
+	staa	@hireg
+	stab	@hireg+1
+	ldaa	8,x
+	ldab	9,x
+	staa	@tmp
+	stab	@tmp+1
+	ldx	@tmp1
+	ldaa	@hireg
+	ldab	@hireg+1
+	staa	,x
+	stab	1,x
+	ldaa	@tmp
+	ldab	@tmp+1
+	staa	2,x
+	stab	3,x
+	jmp	__popret10

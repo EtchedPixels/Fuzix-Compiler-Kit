@@ -21,7 +21,6 @@
 ;	TODO: convert to be re-entrant by putting tmp2/tmp3 on stack
 ;
 
-		.setcpu 6803
 
 DIVIS		.equ	0
 ;		4/5,x are a return address and it's easier to just leave
@@ -38,8 +37,10 @@ div32x32:
 		clrb
 		; Clear the working register (tmp2/tmp3)
 		; R = 0;
-		std @tmp2
-		std @tmp3
+		clr @tmp2
+		clr @tmp2+1
+		clr @tmp3
+		clr @tmp3+1
 loop:		; Shift the dividend left and set bit 0 assuming that
 		; R >= D
 		sec
@@ -59,18 +60,25 @@ loop:		; Shift the dividend left and set bit 0 assuming that
 		;
 		; R - D
 		;
-		ldd @tmp3
-		subd DIVIS+2,x
-		std @tmp3
-		ldd @tmp2
+		ldaa @tmp3
+		ldab @tmp3+1
+		subb DIVIS+3,x
+		sbca DIVIS+2,x
+		staa @tmp3
+		staa @tmp3+1
+		ldaa @tmp2
+		ldab @tmp2+1
 		sbcb DIVIS+1,x
 		sbca DIVIS,x
 		; Want to subtract (R - D >= 0)
 		bcc skip
 		; No subtract, so put back the low 16bits we mushed
-		ldd @tmp3
-		addd DIVIS+2,x
-		std @tmp3
+		ldaa @tmp3
+		ldab @tmp3+1
+		addb DIVIS+3,x
+		adca DIVIS+2,x
+		staa @tmp3
+		stab @tmp3+1
 		; We guessed the wrong way for Q(i). Clear Q(i) which is
 		; in the lowest bit and we know is set so using dec is safe
 		dec DIVID+3,x
@@ -81,7 +89,8 @@ done:
 		; We do want to subtract - write back the other bits
 skip:
 		; R -= D
-		std @tmp2
+		staa @tmp2
+		stab @tmp2+1
 		dec @tmp
 		bne loop
 		rts
