@@ -373,33 +373,29 @@ static void append_obj(struct objhead *h, char *p, uint8_t type)
 	h->tail = o;
 }
 
-/*
- * Modify the filename p in-place, losing the f suffix
- * and applying the t suffix. Return a copy of the p pointer.
- * Add the filename to the list of files to remove if rmif
- * is earlier than the last phase.
- *
- * However, if this_phase matches last_phase,
- * simply return the target filename if it exists.
- */
+// Modify the filename p in-place, losing the f suffix
+// and applying the t suffix. Return a copy of the p pointer.
+// Add the filename to the list of files to remove if rmif
+// is earlier than the last phase.
+//
+// However, if this_phase matches last_phase,
+// simply return the target filename if it exists.
 static char *pathmod(char *p, char *f, char *t, int rmif, int this_phase)
 {
 	char *x;
 
-	if (this_phase == last_phase && target != NULL)
-		return target;
+	if ((this_phase == last_phase) && (target!=NULL))
+		return(target);
 	x = strrchr(p, '.');
 	if (x == NULL) {
 		fprintf(stderr, "cc: no extension on '%s'.\n", p);
-		fatal();		
-	}
-#if 0
-	if (strcmp(x, f)) {
-		fprintf(stderr, "cc: internal got '%s' expected '%s'.\n",
-			p, t);
 		fatal();
 	}
-#endif	
+//	if (strcmp(x, f)) {
+//		fprintf(stderr, "cc: internal got '%s' expected '%s'.\n",
+//			p, t);
+//		fatal();
+//	}
 	strcpy(x, t);
 	if (last_phase > rmif) {
 		*rmptr++ = xstrdup(p, 0);
@@ -660,8 +656,8 @@ void link_phase(void)
 	p = xstrdup(make_bin_name("ld", cpuset), 0);
 
 	/* Set the target as a.out if there is no target */
-	if (target == NULL)
-		target = "a.out";
+	if (target==NULL)
+		target= "a.out";
 
 	build_arglist(p);
 	switch (targetos) {
