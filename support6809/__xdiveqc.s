@@ -19,7 +19,7 @@ __xremeqc:
 	ldy #0
 	sex
 	bsr absd
-	ldx ,x
+	ldx -1,x		; so the byte we want ends up low
 	exg d,x
 	sex
 	bita #0x80
@@ -47,7 +47,7 @@ negmod:
 __xdiveqc:
 	stx, --s
 	ldy #0			; Count number of sign changes
-	ldx ,x			; Data value
+	ldx -1,x		; Data value
 	sex
 	bsr absd
 	exg d,x
