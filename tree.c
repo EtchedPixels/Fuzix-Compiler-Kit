@@ -623,7 +623,7 @@ struct node *constify(struct node *n)
 		unsigned long value = l->value;
 
 		/* Lval names are constant but a maths operation on two name lval is not */
-		if (is_name(l->op) || is_name(r->op)) {
+		if (r->op == T_CONSTANT && (is_name(l->op) || is_name(r->op))) {
 			if (op != T_PLUS && op != T_MINUS)
 				return NULL;
 			/* Special case for name + const */
@@ -660,89 +660,90 @@ struct node *constify(struct node *n)
 			return NULL;
 		if (l->flags & LVAL)
 			return NULL;
-
-		switch(op) {
-		case T_PLUS:
-			value += r->value;
-			break;
-		case T_MINUS:
-			value -= r->value;
-			break;
-		case T_STAR:
-			value *= r->value;
-			break;
-		case T_SLASH:
-			/* Zero may cause an exception which may be what
-			   the programmer wanted so don't optimize it out */
-			if (r->value == 0) {
-				divzero();
+		if (r->op == T_CONSTANT) {
+			switch(op) {
+			case T_PLUS:
+				value += r->value;
+				break;
+			case T_MINUS:
+				value -= r->value;
+				break;
+			case T_STAR:
+				value *= r->value;
+				break;
+			case T_SLASH:
+				/* Zero may cause an exception which may be what
+				   the programmer wanted so don't optimize it out */
+				if (r->value == 0) {
+					divzero();
+					return NULL;
+				} else if (l->type & UNSIGNED)
+					value /= r->value;
+				else
+					value = (signed long)value / r->value;
+				break;
+			case T_PERCENT:
+				if (r->value == 0) {
+					divzero();
+					return NULL;
+				} else if (l->type & UNSIGNED)
+					value %= r->value;
+				else
+					value = (signed long)value % r->value;
+				break;
+			case T_ANDAND:
+				value = value && r->value;
+				break;
+			case T_OROR:
+				value = value || r->value;
+				break;
+			case T_AND:
+				value &= r->value;
+				break;
+			case T_OR:
+				value |= r->value;
+				break;
+			case T_HAT:
+				value ^= r->value;
+				break;
+			case T_LTLT:
+				value <<= r->value;
+				break;
+			case T_GTGT:
+				if (l->type & UNSIGNED)
+					value >>= r->value;
+				else
+					value = ((signed long)value) >> r->value;
+				break;
+			case T_LT:
+				if (l->type & UNSIGNED)
+					value = value < r->value;
+				else
+					value = (signed long)value < (signed long )r->value;
+				break;
+			case T_LTEQ:
+				if (l->type & UNSIGNED)
+					value = value <= r->value;
+				else
+					value = (signed long)value <= (signed long )r->value;
+				break;
+			case T_GT:
+				if (l->type & UNSIGNED)
+					value = value > r->value;
+				else
+					value = (signed long)value > (signed long )r->value;
+				break;
+			case T_GTEQ:
+				if (l->type & UNSIGNED)
+					value = value >= r->value;
+				else
+					value = (signed long)value >= (signed long )r->value;
+				break;
+			default:
 				return NULL;
-			} else if (l->type & UNSIGNED)
-				value /= r->value;
-			else
-				value = (signed long)value / r->value;
-			break;
-		case T_PERCENT:
-			if (r->value == 0) {
-				divzero();
-				return NULL;
-			} else if (l->type & UNSIGNED)
-				value %= r->value;
-			else
-				value = (signed long)value % r->value;
-			break;
-		case T_ANDAND:
-			value = value && r->value;
-			break;
-		case T_OROR:
-			value = value || r->value;
-			break;
-		case T_AND:
-			value &= r->value;
-			break;
-		case T_OR:
-			value |= r->value;
-			break;
-		case T_HAT:
-			value ^= r->value;
-			break;
-		case T_LTLT:
-			value <<= r->value;
-			break;
-		case T_GTGT:
-			if (l->type & UNSIGNED)
-				value >>= r->value;
-			else
-				value = ((signed long)value) >> r->value;
-			break;
-		case T_LT:
-			if (l->type & UNSIGNED)
-				value = value < r->value;
-			else
-				value = (signed long)value < (signed long )r->value;
-			break;
-		case T_LTEQ:
-			if (l->type & UNSIGNED)
-				value = value <= r->value;
-			else
-				value = (signed long)value <= (signed long )r->value;
-			break;
-		case T_GT:
-			if (l->type & UNSIGNED)
-				value = value > r->value;
-			else
-				value = (signed long)value > (signed long )r->value;
-			break;
-		case T_GTEQ:
-			if (l->type & UNSIGNED)
-				value = value >= r->value;
-			else
-				value = (signed long)value >= (signed long )r->value;
-			break;
-		default:
-			return NULL;
+			}
+			return replace_constant(n, lt, value);
 		}
-		return replace_constant(n, lt, value);
 	}
 	if (r) {
 		/* Uni-ops */
