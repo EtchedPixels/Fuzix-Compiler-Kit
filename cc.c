@@ -57,7 +57,7 @@
 #include <sys/wait.h>
 
 /*
- *	For all non native compilers the directories moved and the rules 
+ *	For all non native compilers the directories moved and the rules
  *	are
  *
  *	BINPATH
@@ -377,25 +377,27 @@ static void append_obj(struct objhead *h, char *p, uint8_t type)
    and applying the t suffix. Return a copy of the p pointer.
    Add the filename to the list of files to remove if rmif
    is earlier than the last phase.
-  
+
    However, if this_phase matches last_phase,
    simply return the target filename if it exists. */
 static char *pathmod(char *p, char *f, char *t, int rmif, int this_phase)
 {
 	char *x;
 
-	if ((this_phase == last_phase) && (target!=NULL))
+	if (this_phase == last_phase && target != NULL)
 		return(target);
 	x = strrchr(p, '.');
 	if (x == NULL) {
 		fprintf(stderr, "cc: no extension on '%s'.\n", p);
 		fatal();
 	}
-//	if (strcmp(x, f)) {
-//		fprintf(stderr, "cc: internal got '%s' expected '%s'.\n",
-//			p, t);
-//		fatal();
-//	}
+#if 0
+	if (strcmp(x, f)) {
+		fprintf(stderr, "cc: internal got '%s' expected '%s'.\n",
+			p, t);
+		fatal();
+	}
+#endif
 	strcpy(x, t);
 	if (last_phase > rmif) {
 		*rmptr++ = xstrdup(p, 0);
