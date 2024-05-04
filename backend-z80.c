@@ -1439,12 +1439,12 @@ static unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 
 	if (u) {
 		while(n > 1) {
-			printf("\tsrl h\trr l\n");
+			printf("\tsrl h\n\trr l\n");
 			n >>= 1;
 		}
 	} else {
 		while(n > 1) {
-			printf("\tsra h\trr l\n");
+			printf("\tsra h\n\trr l\n");
 			n >>= 1;
 		}
 	}
