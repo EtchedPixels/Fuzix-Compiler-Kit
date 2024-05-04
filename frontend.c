@@ -20,7 +20,7 @@
 
 static char *symtab;
 
-#if defined(__linux__) || defined(APPLE)
+#if defined(__linux__) || defined(__APPLE__)
 /* _itoa */
 static char buf[11];	/* Int could be 32bit */
 
