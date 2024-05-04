@@ -4,7 +4,7 @@ __remul:
 	std	,--s
 	sty	,--s
 	tfr	s,x
-	jsr	div32x32
+	lbsr	div32x32
 	; Result is in tmp2/tmp3
 	ldy	@tmp2
 	ldd	@tmp3

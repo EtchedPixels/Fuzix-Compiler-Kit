@@ -7,7 +7,7 @@ __divl:
 	bita	#0x80
 	beq	nosignfix
 	exg	d,y
-	jsr	__negatel
+	lbsr	__negatel
 	inc	@tmp4
 	exg	d,y
 nosignfix:
@@ -32,13 +32,13 @@ nosignfix:
 	com	9,s
 nosignfix2:
 	tfr	s,x
-	jsr	div32x32
+	lbsr	div32x32
 	ldb	@tmp4
 	rorb
 	bcc	nosignfix3
 	ldy	6,s
 	ldd	8,s
-	jsr	__negatel
+	lbsr	__negatel
 out:
 	ldx	4,s
 	leas	10,s

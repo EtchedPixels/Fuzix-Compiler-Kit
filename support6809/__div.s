@@ -22,7 +22,7 @@ __rem:
 	ldd 2,s
 	bmi negmod
 	exg d,x
-	jsr div16x16		; do the unsigned divide
+	lbsr div16x16		; do the unsigned divide
 pop2:				; X = quotient, D = remainder
 	ldx ,s
 	leas 4,s
@@ -30,7 +30,7 @@ pop2:				; X = quotient, D = remainder
 negmod:
 	bsr negd
 	exg d,x
-	jsr div16x16
+	lbsr div16x16
 	bsr negd
 	bra pop2
 	
@@ -48,7 +48,7 @@ __div:
 	ldd 2,s			; Get the argument
 	bsr absd
 	exg d,x
-	jsr div16x16		; do the maths
+	lbsr div16x16		; do the maths
 				; X = quotient, D = remainder
 	tfr x,d
 	cmpy #1			; if we inverted one invert the result
@@ -73,12 +73,12 @@ ispos:
 
 __regdiv:
 	pshs u
-	jsr __div
+	lbsr __div
 	tfr d,u
 	rts
 
 __regmod:
 	pshs u
-	jsr __rem
+	lbsr __rem
 	tfr d,u
 	rts

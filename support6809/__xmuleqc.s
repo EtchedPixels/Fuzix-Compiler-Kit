@@ -11,7 +11,7 @@ __xmulequc:
 	lda ,x		; Get the ,X value
 	pshs a,cc	; Stack it and a spare random byte
 	pshs x		; onto the stack
-	jsr __mul	; Do the multiply, D gets result
+	lbsr __mul	; Do the multiply, D gets result
 	puls x		; Remove arg from stack
 	puls x		; Get the address
 	stb ,x		; Save result

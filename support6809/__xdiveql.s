@@ -16,7 +16,7 @@ __xdiveql:
 	std	4,s
 	puls	d
 	;	Y:D		is the divisor
-	jsr	__divl
+	lbsr	__divl
 ;	leas	4,s		; throw frame (called code did this)
 	puls	x
 	sty	0,x

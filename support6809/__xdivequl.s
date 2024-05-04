@@ -13,7 +13,7 @@ __xdivequl:
 	std	8,s
 	stx	,--s
 	leax	2,s
-	jsr	div32x32
+	lbsr	div32x32
 	ldy	6,x
 	ldd	8,x
 	ldx	,s++

@@ -1,11 +1,11 @@
 
 		.code
 start:
-		ldd	#0
+		clra
+		clrb
 		std	@zero
-		ldd	#1
+		incb
 		std	@one
-		jsr	_main
-		ldx	#0
-		stx	,--s
-		jsr	_exit
+		lbsr	_main
+		pshs	d
+		lbsr	_exit

@@ -29,7 +29,7 @@ __mul:
 
 __regmul:			; U * D
 	pshs	u
-	jsr	__mul
+	lbsr	__mul
 	; Called func popped u
 	tfr	d,u
 	rts

@@ -23,7 +23,7 @@ __xremeq:
 	bita #0x80
 	bne negmod
 	exg d,x
-	jsr div16x16		; do the unsigned divide
+	lbsr div16x16		; do the unsigned divide
 store:
 	ldx ,s++
 	std ,x
@@ -31,7 +31,7 @@ store:
 negmod:
 	bsr negd
 	exg d,x
-	jsr div16x16
+	lbsr div16x16
 	bsr negd
 	bra store
 	
@@ -50,7 +50,7 @@ __xdiveq:
 	exg d,x
 	bsr absd
 	exg d,x
-	jsr div16x16		; do the maths
+	lbsr div16x16		; do the maths
 				; X = quotient, D = remainder
 	tfr x,d
 	cmpy #1

@@ -13,7 +13,7 @@ __xmulequl:
 
 	; Now we can use the standardc _mull helper
 
-	jsr __mull
+	lbsr __mull
 
 	; Result is in Y:D, argument was cleared by called fn
 	puls x

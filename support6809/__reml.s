@@ -6,7 +6,7 @@ __reml:
 	bita	#0x80
 	beq	nosignfix
 	exg	d,y
-	jsr	__negatel
+	lbsr	__negatel
 	exg	d,y
 nosignfix:
 	sty	,--s
@@ -30,7 +30,7 @@ nosignfix:
 	com	9,s
 nosignfix2:
 	tfr	s,x
-	jsr	div32x32
+	lbsr	div32x32
 	;
 	;	Get the result
 	;
@@ -38,7 +38,7 @@ nosignfix2:
 	lda	@tmp4
 	bpl	done
 	ldd	@tmp3
-	jsr	__negatel
+	lbsr	__negatel
 pop4:
 	ldx	4,s
 	leas	10,s

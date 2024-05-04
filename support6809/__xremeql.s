@@ -16,7 +16,7 @@ __xremeql:
 	std	4,s
 	puls	d
 	;	Y:D		is the divisor
-	jsr	__reml
+	lbsr	__reml
 ;	leas	4,s		; throw frame (called code did this)
 	puls	x
 	sty	0,x

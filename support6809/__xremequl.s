@@ -13,7 +13,7 @@ __xremequl:
 	std	8,s
 	stx	,--s
 	leax	2,s
-	jsr	div32x32
+	lbsr	div32x32
 	ldy	@tmp2
 	ldd	@tmp3
 	ldx	,s++
