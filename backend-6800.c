@@ -71,11 +71,13 @@ static unsigned cpu_has_pshx;	/* Has PSHX PULX */
 static unsigned cpu_has_y;	/* Has Y register */
 static unsigned cpu_has_lea;	/* Has LEA. For now 6809 but if we get to HC12... */
 static unsigned cpu_is_09;	/* Bulding for 6x09 so a bit different */
+static unsigned cpu_pic;	/* Position independent output (6809 only) */
 static const char *jmp_op = "jmp";
 static const char *jsr_op = "jsr";
 static const char *or_op = "ora";
 static const char *ld8_op = "lda";
 static const char *st8_op = "sta";
+static const char *pic_op = "";
 
 /*
  *	Helpers for code generation and tracking
@@ -887,16 +889,18 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
-		printf("\t%sb T%u+%u\n", op, r->val2, v + off);
+		printf("\t%sb T%u+%u%s\n", op, r->val2, v + off, pic_op);
 		break;
 	case T_LABEL:
+		/* TODO: pic */
 		printf("\t%sb #<T%u+%u\n", op, r->val2, v + off);
 		break;
 	case T_NSTORE:
 	case T_NREF:
-		printf("\t%sb _%s+%u\n", op, namestr(r->snum), v + off);
+		printf("\t%sb _%s+%u%s\n", op, namestr(r->snum), v + off, pic_op);
 		break;
 	case T_NAME:
+		/* TODO: pic */
 		printf("\t%sb #<_%s+%u\n", op, namestr(r->snum), v + off);
 		break;
 	/* case T_RREF:
@@ -934,20 +938,22 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
-		printf("\t%sb T%u+%u\n", op, r->val2, v + off + 1);
-		printf("\t%sa T%u+%u\n", op2, r->val2, v + off);
+		printf("\t%sb T%u+%u%s\n", op, r->val2, v + off + 1, pic_op);
+		printf("\t%sa T%u+%u%s\n", op2, r->val2, v + off, pic_op);
 		break;
 	case T_LABEL:
+		/* TODO: pic */
 		printf("\t%sb #<T%u+%u\n", op, r->val2, v + off);
 		printf("\t%sa #>T%u+%u\n", op2, r->val2, v + off);
 		set_d_node(r);
 		break;
 	case T_NSTORE:
 	case T_NREF:
-		printf("\t%sb _%s+%u\n", op, namestr(r->snum), v + off + 1);
-		printf("\t%sa _%s+%u\n", op2, namestr(r->snum), v + off);
+		printf("\t%sb _%s+%u%s\n", op, namestr(r->snum), v + off + 1, pic_op);
+		printf("\t%sa _%s+%u%s\n", op2, namestr(r->snum), v + off, pic_op);
 		break;
 	case T_NAME:
+		/* TODO: pic */
 		printf("\t%sb #<_%s+%u\n", op, namestr(r->snum), v + off);
 		printf("\t%sa #>_%s+%u\n", op2, namestr(r->snum), v + off);
 		break;
@@ -980,7 +986,7 @@ unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
-		printf("\t%sd T%u+%u\n", op, r->val2, v + off);
+		printf("\t%sd T%u+%u%s\n", op, r->val2, v + off, pic_op);
 		break;
 	case T_LABEL:
 		printf("\t%sd #T%u+%u\n", op, r->val2, v + off);
@@ -988,7 +994,7 @@ unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned
 		break;
 	case T_NSTORE:
 	case T_NREF:
-		printf("\t%sd _%s+%u\n", op, namestr(r->snum), v + off);
+		printf("\t%sd _%s+%u%s\n", op, namestr(r->snum), v + off, pic_op);
 		break;
 	case T_NAME:
 		printf("\t%sd #_%s+%u\n", op, namestr(r->snum), v + off);
@@ -1020,7 +1026,7 @@ unsigned op16y_on_node(struct node *r, const char *op, unsigned off)
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
-		printf("\t%sy T%u+%u\n", op, r->val2, v + off);
+		printf("\t%sy T%u+%u%s\n", op, r->val2, v + off, pic_op);
 		break;
 	case T_LABEL:
 		printf("\t%sy #T%u+%u\n", op, r->val2, v + off);
@@ -1028,7 +1034,7 @@ unsigned op16y_on_node(struct node *r, const char *op, unsigned off)
 		break;
 	case T_NSTORE:
 	case T_NREF:
-		printf("\t%sy _%s+%u\n", op, namestr(r->snum), v + off);
+		printf("\t%sy _%s+%u%s\n", op, namestr(r->snum), v + off, pic_op);
 		break;
 	case T_NAME:
 		printf("\t%sy #_%s+%u\n", op, namestr(r->snum), v + off);
@@ -1087,11 +1093,11 @@ unsigned uniop8_on_node(struct node *r, const char *op, unsigned off)
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
-		printf("\t%s T%u+%u\n", op, r->val2, v + off);
+		printf("\t%s T%u+%u%s\n", op, r->val2, v + off, pic_op);
 		break;
 	case T_NSTORE:
 	case T_NREF:
-		printf("\t%s _%s+%u\n", op, namestr(r->snum), v + off);
+		printf("\t%s _%s+%u%s\n", op, namestr(r->snum), v + off, pic_op);
 		break;
 	/* case T_RREF:
 		printf("\t%sb @__reg%u\n", v);
@@ -1119,13 +1125,13 @@ unsigned uniop16_on_node(struct node *r, const char *op, unsigned off)
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
-		printf("\t%s T%u+%u\n", op, r->val2, v + off + 1);
-		printf("\t%s T%u+%u\n", op, r->val2, v + off);
+		printf("\t%s T%u+%u%s\n", op, r->val2, v + off + 1, pic_op);
+		printf("\t%s T%u+%u%s\n", op, r->val2, v + off, pic_op);
 		break;
 	case T_NSTORE:
 	case T_NREF:
-		printf("\t%s _%s+%u\n", op, namestr(r->snum), v + off + 1);
-		printf("\t%s _%s+%u\n", op, namestr(r->snum), v + off);
+		printf("\t%s _%s+%u%s\n", op, namestr(r->snum), v + off + 1, pic_op);
+		printf("\t%s _%s+%u%s\n", op, namestr(r->snum), v + off, pic_op);
 		break;
 	/* case T_RREF:
 		printf("\t%sb @__reg%u\n", v);
@@ -1411,19 +1417,25 @@ unsigned load_x_with(struct node *r, unsigned off)
 		invalidate_x();
 		break;
 	case T_LBREF:
-		printf("\tldx T%u+%u\n", r->val2, v + off);
+		printf("\tldx T%u+%u%s\n", r->val2, v + off, pic_op);
 		invalidate_x();
 		break;
 	case T_LABEL:
-		printf("\tldx #T%u+%u\n", r->val2, v + off);
+		if (cpu_pic)
+			printf("\tleax T%u+%u,pcr\n", r->val2, v + off);
+		else
+			printf("\tldx #T%u+%u\n", r->val2, v + off);
 		invalidate_x();
 		break;
 	case T_NREF:
-		printf("\tldx _%s+%u\n", namestr(r->snum), v + off);
+		printf("\tldx _%s+%u%s\n", namestr(r->snum), v + off, pic_op);
 		invalidate_x();
 		break;
 	case T_NAME:
-		printf("\tldx #_%s+%u\n", namestr(r->snum), v + off);
+		if (cpu_pic)
+			printf("\tleax _%s+%u,pcr\n", namestr(r->snum), v + off);
+		else
+			printf("\tldx #_%s+%u\n", namestr(r->snum), v + off);
 		invalidate_x();
 		break;
 	case T_RREF:
@@ -1475,16 +1487,22 @@ unsigned load_u_with(struct node *r, unsigned off)
 		printf("\tldu #%u\n", v + off);
 		return 1;
 	case T_LBREF:
-		printf("\tldu T%u+%u\n", r->val2, v + off);
+		printf("\tldu T%u+%u%s\n", r->val2, v + off, pic_op);
 		return 1;
 	case T_LABEL:
-		printf("\tldu #T%u+%u\n", r->val2, v + off);
+		if (cpu_pic)
+			printf("\tleau T%u+%u,pcr\n", r->val2, v + off);
+		else
+			printf("\tldu #T%u+%u\n", r->val2, v + off);
 		return 1;
 	case T_NREF:
-		printf("\tldu _%s+%u\n", namestr(r->snum), v + off);
+		printf("\tldu _%s+%u%s\n", namestr(r->snum), v + off, pic_op);
 		return 1;
 	case T_NAME:
-		printf("\tldu #_%s+%u\n", namestr(r->snum), v + off);
+		if (cpu_pic)
+			printf("\tleau _%s+%u,pcr\n", namestr(r->snum), v + off);
+		else
+			printf("\tldu #_%s+%u\n", namestr(r->snum), v + off);
 		return 1;
 	case T_RREF:
 		/* Only one reg so .. */
@@ -2031,6 +2049,7 @@ void gen_start(void)
 	switch(cpu) {
 	case 6309:
 	case 6809:
+		cpu_pic = 1;
 		cpu_is_09 = 1;
 		cpu_has_d = 1;
 		cpu_has_pshx = 1;
@@ -2043,6 +2062,7 @@ void gen_start(void)
 		or_op = "or";
 		ld8_op = "ld";
 		st8_op = "st";
+		pic_op = ",pcr";
 		break;
 	case 6811:
 		cpu_has_y = 1;
