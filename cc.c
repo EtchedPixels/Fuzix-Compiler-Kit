@@ -373,9 +373,20 @@ static void append_obj(struct objhead *h, char *p, uint8_t type)
 	h->tail = o;
 }
 
-static char *pathmod(char *p, char *f, char *t, int rmif)
+/* Modify the filename p in-place, losing the f suffix
+   and applying the t suffix. Return a copy of the p pointer.
+   Add the filename to the list of files to remove if rmif
+   is earlier than the last phase.
+  
+   However, if this_phase matches last_phase,
+   simply return the target filename if it exists. */
+static char *pathmod(char *p, char *f, char *t, int rmif, int this_phase)
 {
-	char *x = strrchr(p, '.');
+	char *x;
+
+	if ((this_phase == last_phase) && (target!=NULL))
+		return(target);
+	x = strrchr(p, '.');
 	if (x == NULL) {
 		fprintf(stderr, "cc: no extension on '%s'.\n", p);
 		fatal();
@@ -540,10 +551,13 @@ static void build_arglist(char *p)
 
 void convert_s_to_o(char *path)
 {
+	char *origpath= strdup(path);
 	build_arglist(make_bin_name("as", cpuset));
-	add_argument(path);
+	add_argument("-o");
+	add_argument(pathmod(path, ".s", ".o", 5, 3));
+	add_argument(origpath);
 	run_command();
-	pathmod(path, ".s", ".o", 5);
+	free(origpath);
 }
 
 void convert_c_to_s(char *path)
@@ -557,10 +571,10 @@ void convert_c_to_s(char *path)
 	build_arglist(make_lib_name("cc0", ""));
 	add_argument(symtab);
 	t = xstrdup(path, 0);
-	tmp = pathmod(t, ".c", ".%", 0);
+	tmp = pathmod(t, ".c", ".%", 0, 255);
 	redirect_in(tmp);
 	t = xstrdup(path, 0);
-	tmp = pathmod(t, ".%", ".@", 0);
+	tmp = pathmod(t, ".%", ".@", 0, 255);
 	if (tmp == NULL)
 		memory();
 	redirect_out(tmp);
@@ -570,7 +584,7 @@ void convert_c_to_s(char *path)
 	add_argument(cpucode);
 	add_argument(featstr);
 	redirect_in(tmp);
-	tmp = pathmod(path, ".@", ".#", 0);
+	tmp = pathmod(path, ".@", ".#", 0, 255);
 	redirect_out(tmp);
 	run_command();
 
@@ -587,12 +601,12 @@ void convert_c_to_s(char *path)
 		add_argument(codeseg);
 	redirect_in(tmp);
 	if (optimize == '0') {
-		redirect_out(pathmod(path, ".#", ".s", 2));
+		redirect_out(pathmod(path, ".#", ".s", 2, 2));
 		run_command();
 		free(t);
 		return;
 	}
-	tmp = pathmod(path, ".#", ".^", 0);
+	tmp = pathmod(path, ".#", ".^", 0, 255);
 	redirect_out(tmp);
 	run_command();
 
@@ -601,7 +615,7 @@ void convert_c_to_s(char *path)
 	build_arglist(p);
 	add_argument(make_lib_name("rules.", cpuset));
 	redirect_in(tmp);
-	redirect_out(pathmod(path, ".#", ".s", 2));
+	redirect_out(pathmod(path, ".#", ".s", 2, 2));
 	run_command();
 	free(t);
 	free(p);
@@ -614,9 +628,9 @@ void convert_S_to_s(char *path)
 	add_argument("-E");
 	add_argument(path);
 	tmp = xstrdup(path, 0);
-	redirect_out(pathmod(tmp, ".S", ".s", 1));
+	redirect_out(pathmod(tmp, ".S", ".s", 1, 2));
 	run_command();
-	pathmod(path, ".S", ".s", 5);
+	pathmod(path, ".S", ".s", 5, 2);
 }
 
 void preprocess_c(char *path)
@@ -632,7 +646,7 @@ void preprocess_c(char *path)
 	/* Weird one .. -E goes to stdout */
 	tmp = xstrdup(path, 0);
 	if (last_phase != 1)
-		redirect_out(pathmod(tmp, ".c", ".%", 0));
+		redirect_out(pathmod(tmp, ".c", ".%", 0, 1));
 	run_command();
 }
 
@@ -642,6 +656,11 @@ void link_phase(void)
 	char *p, *l, *c;
 	/* TODO: ld should be general if we get it right, but might not be able to */
 	p = xstrdup(make_bin_name("ld", cpuset), 0);
+
+	/* Set the target as a.out if there is no target */
+	if (target==NULL)
+		target= "a.out";
+
 	build_arglist(p);
 	switch (targetos) {
 		case OS_FUZIX:
@@ -726,8 +745,8 @@ void link_phase(void)
 
 void sequence(struct obj *i)
 {
-//	printf("Last Phase %d\n", last_phase);
-//	printf("1:Processing %s %d\n", i->name, i->type);
+/*	printf("Last Phase %d\n", last_phase); */
+/*	printf("1:Processing %s %d\n", i->name, i->type); */
 	if (i->type == TYPE_S) {
 		convert_S_to_s(i->name);
 		i->type = TYPE_s;
@@ -740,7 +759,7 @@ void sequence(struct obj *i)
 	}
 	if (last_phase == 1)
 		return;
-//	printf("2:Processing %s %d\n", i->name, i->type);
+/*	printf("2:Processing %s %d\n", i->name, i->type); */
 	if (i->type == TYPE_C_pp || i->type == TYPE_C) {
 		convert_c_to_s(i->name);
 		i->type = TYPE_s;
@@ -748,7 +767,7 @@ void sequence(struct obj *i)
 	}
 	if (last_phase == 2)
 		return;
-//	printf("3:Processing %s %d\n", i->name, i->type);
+/*	printf("3:Processing %s %d\n", i->name, i->type); */
 	if (i->type == TYPE_s) {
 		convert_s_to_o(i->name);
 		i->type = TYPE_O;
@@ -1048,8 +1067,6 @@ int main(int argc, char *argv[]) {
 	if (!standalone)
 		add_system_include();
 
-	if (target == NULL)
-		target = "a.out";
 	if (only_one_input && c_files > 1)
 		one_input();
 
