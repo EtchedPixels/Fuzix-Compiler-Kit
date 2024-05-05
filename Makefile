@@ -2,9 +2,11 @@ all: cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.1802 cc1.6800 \
      cc1.8070 cc1.8086 \
+     cc1.ee200 \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 \
      cc2.8070 cc2.8086 \
+     cc2.ee200 \
      copt \
      support6303 support6502 support65c816 support6800 support6803 \
      support6809 support68hc11 support8080 support8085 supportz80 \
@@ -13,10 +15,10 @@ all: cc cc0 \
 bootstuff: cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.super8 cc1.1802 cc1.6800 cc1.8070 \
-     cc1.8086 \
+     cc1.8086 cc1.ee200 \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.8070 \
-     cc2.8086 \
+     cc2.8086 cc2.ee200 \
      copt
 
 .PHONY: support6303 support6502 support65c816 support6800 support6803 \
@@ -37,6 +39,7 @@ OBJS3 = backend.o backend-8080.o
 OBJS4 = backend.o backend-8086.o
 OBJS5 = backend.o backend-z80.o
 OBJS6 = backend.o backend-65c816.o
+OBJS7 = backend.o backend-ee200.o
 OBJS8 = backend.o backend-8070.o
 OBJS9 = backend.o backend-threadcode.o
 OBJS11 = backend.o backend-6502.o
@@ -106,6 +109,9 @@ cc1.6800:$(OBJS1) target-6800.o
 cc1.8070:$(OBJS1) target-8070.o
 	gcc -g3 $(OBJS1) target-8070.o -o cc1.8070
 
+cc1.ee200:$(OBJS1) target-ee200.o
+	gcc -g3 $(OBJS1) target-ee200.o -o cc1.ee200
+
 cc2:	$(OBJS2)
 	gcc -g3 $(OBJS2) -o cc2
 
@@ -142,6 +148,8 @@ cc2.6800:	$(OBJS16)
 cc2.8070:	$(OBJS8)
 	gcc -g3 $(OBJS8) -o cc2.8070
 
+cc2.ee200:	$(OBJS7)
+	gcc -g3 $(OBJS7) -o cc2.ee200
 
 support6303:
 	(cd support6303; make)
@@ -195,6 +203,7 @@ clean:
 	rm -f cc1.super8 cc2.super8
 	rm -f cc1.z8 cc2.z8
 	rm -f cc1.8086 cc2.8086
+	rm -f cc1.ee200 cc2.ee200
 	rm -f *~ *.o
 	(cd support6303; make clean)
 	(cd support6502; make clean)
@@ -310,6 +319,12 @@ bootinst:
 	cp cc1.1802 $(CCROOT)/lib
 	cp cc2.1802 $(CCROOT)/lib
 	cp rules.1802 $(CCROOT)/lib
+	# ee200
+	mkdir -p $(CCROOT)/lib/ee200
+	mkdir -p $(CCROOT)/lib/ee200/include/
+	cp cc1.ee200 $(CCROOT)/lib
+	cp cc2.ee200 $(CCROOT)/lib
+	cp rules.ee200 $(CCROOT)/lib
 
 #
 #	Install the support libraries
