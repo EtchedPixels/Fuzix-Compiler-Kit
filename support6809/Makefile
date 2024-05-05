@@ -6,10 +6,11 @@ OBJ =  dp.o makebool.o divide.o __div.o __divu.o __xdiveq.o __mul.o \
        __cceql.o __ccnel.o __ccgtl.o __ccgteql.o __ccltl.o __cclteql.o \
        __switch.o __switchc.o __switchl.o \
        __cpll.o __castl.o __negatel.o __booll.o __notl.o \
-       __xplusplusuc.o __xshleq.o __xshreq.o __xshrequ.o \
+       __xshleq.o __xshreq.o __xshrequ.o \
        __xshleqc.o __xshreqc.o __xshrequc.o \
       __xminusminusl.o __xminuseql.o __xplusplusl.o __xpluseql.o \
       __xminusminus.o __xminusminusc.o __xmuleq.o __xmuleql.o \
+      __xplusplusu.o __xplusplusuc.o \
       __shll.o __shrl.o __shrul.o \
       __xshleql.o __xshreql.o __xshrequl.o \
       __minusl.o __mull.o divide32x32.o __divul.o __remul.o __divl.o __reml.o \

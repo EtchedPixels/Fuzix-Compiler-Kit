@@ -1,12 +1,13 @@
 	.export __xplusplusuc
 	.export __xplusplusc
+
 	.code
 
 __xplusplusc:
 __xplusplusuc:
-	pshb
-	addb	,x
-	stab	,x
+	ldaa	,x
+	psha
+	aba
+	staa	,x
 	pulb
 	rts
-	

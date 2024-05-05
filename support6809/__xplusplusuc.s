@@ -4,8 +4,10 @@
 
 __xplusplusc:
 __xplusplusuc:
-	stb	,-s
-	addb	,x
-	stb	,x
-	puls	b,pc
-	
+	pshs	b
+	lda	,x
+	tfr	a,b
+	adda	,s+
+	sta	,x
+	rts
+
