@@ -2148,14 +2148,14 @@ unsigned cmp_direct(struct node *n, const char *uop, const char *op)
 	if (n->right->type & UNSIGNED)
 		op = uop;
 	if (s == 1) {
-		printf("\tcmpb #%u\n", v);
+		printf("\tcmpb #%u\n", v & 0xFF);
 		printf("\t%s %s\n", jsr_op, op);
 		n->flags |= ISBOOL;
 		invalidate_b();
 		return 1;
 	}
 	if (s == 2 && cpu_has_d) {
-		printf("\tsubd #%u\n", v);
+		printf("\tsubd #%u\n", v & 0xFFFF);
 		printf("\t%s %s\n", jsr_op, op);
 		n->flags |= ISBOOL;
 		invalidate_work();
@@ -2289,7 +2289,7 @@ unsigned gen_direct(struct node *n)
 		/* So we can track this common case later */
 		/* TODO: if the low word is zero or low 24 bits are 0 we can generate stuff like
 			leay %d,y */
-		if (r->op == T_CONSTANT) {
+		if (r->op == T_CONSTANT && r->type != FLOAT) {
 			if (s == 4 && cpu_has_y) {
 				/* Handle the zero case specially as we can optimzie it, and also
 				   because add_d_const will not leave carry right if it optimizes
@@ -2320,7 +2320,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return write_opd(r, "add", "adc", 0);
 	case T_MINUS:
-		if (r->op == T_CONSTANT) {
+		if (r->op == T_CONSTANT && r->type != FLOAT) {
 			if (s == 4 && cpu_has_y) {
 				r->value = -r->value;
 				if (r->value & 0xFFFF) {
@@ -3412,7 +3412,7 @@ unsigned gen_node(struct node *n)
 		if (cpu_has_y) {
 			load_d_const(v);
 			/* TODO: tracking on Y ? */
-			printf("\tldy #%u\n", (unsigned)(n->value >> 16));
+			printf("\tldy #%u\n", (unsigned)((n->value >> 16) & 0xFFFF));
 			return 1;
 		}
 		if (cpu_has_d) {
@@ -3625,6 +3625,8 @@ unsigned gen_node(struct node *n)
 	case T_PLUS:
 		if (s < 4 && cpu_has_d)
 			return write_tos_op(n, "add", "adc");
+		if (n->type == FLOAT)
+			return 0;
 		if (cpu_is_09) {
 			printf("\taddd 2,s\n");
 			printf("\tadcb 1,s\n");
