@@ -27,9 +27,7 @@
  *	- some single word ops can also operate on memory
  *
  *	Things to do are numerous
- *	- Casting
- *	- optimized shift cases for 8 bit etc
- *	- Optimised -= --
+ *	- Float
  *	- Multiply and divide optimised forms via shifting
  *	- Rewrite some ops to use indirection like 6809 has
  *	- Tracking B and what A and X point to
@@ -94,8 +92,8 @@ void gen_prologue(const char *name)
 void gen_frame(unsigned size, unsigned aframe)
 {
 	frame_len = size;
-	argbase = ARGBASE + 2;
-	printf("\tstx (-s)\n");	/* Stack X */
+	argbase = ARGBASE;
+	printf("\tstx (-s)\n");	/* Stack X (our return addr) */
 	if (func_flags & F_REG(1)) {
 		printf("\txfr y,x\n");
 		printf("\tstx (-s)\n");
@@ -127,9 +125,9 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	if (unreachable == 1)
 		return;
 	if (size == 1)
-		printf("\tins s\n");
+		printf("\tinr s\n");
 	else if (size == 2)
-		printf("\tins s\n\tins s\n");
+		printf("\tinr s\n\tinr s\n");
 	else if (size) {
 		printf("\tldb %u\n", size);
 		printf("\tadd b,s\n");
@@ -168,12 +166,12 @@ void gen_jump(const char *tail, unsigned n)
 
 void gen_jfalse(const char *tail, unsigned n)
 {
-	printf("\tjeq L%d%s\n", n, tail);
+	printf("\tjz L%d%s\n", n, tail);
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
-	printf("\tjne L%d%s\n", n, tail);
+	printf("\tjnz L%d%s\n", n, tail);
 }
 
 void gen_switch(unsigned n, unsigned type)
@@ -181,6 +179,7 @@ void gen_switch(unsigned n, unsigned type)
 	printf("\tldx Sw%u\n", n);
 	printf("\tjmp __switch");
 	helper_type(type, 0);
+	printf("\n");
 	unreachable = 1;
 }
 
@@ -466,9 +465,7 @@ unsigned gen_push(struct node *n)
 	return 1;
 }
 
-/* Anything goes providing  B survives so we should look at folding more
-   complex expressions when possible */
-unsigned op_into_a(struct node *n, unsigned s, const char *b, const char *w)
+unsigned op_into_r(char r, struct node *n, unsigned s, const char *b, const char *w)
 {
 	unsigned v = n->value;
 
@@ -478,56 +475,66 @@ unsigned op_into_a(struct node *n, unsigned s, const char *b, const char *w)
 
 	switch(n->op) {
 	case T_NAME:
-		printf("\tlda _%s+%u\n", namestr(n->snum), v);
+		printf("\tld%c _%s+%u\n", r, namestr(n->snum), v);
 		break;
 	case T_LABEL:
-		printf("\tlda T%u+%u\n", n->val2, v);
+		printf("\tld%c T%u+%u\n", r, n->val2, v);
 		break;
 	case T_ARGUMENT:
 		v += argbase + frame_len;
 		/* Fall through */
 	case T_LOCAL:
 		v += sp;
-		printf("\tlda %u\n", v);
-		printf("\tadd s,a\n");
+		printf("\tld%c %u\n", r, v);
+		printf("\tadd s,%c\n", r);
 		break;
 	case T_CONSTANT:
-		if (s == 1 && (v & 0xFF) == 0)
-			printf("\tclab\n");
-		else if (s == 2 && (v & 0xFFFF) == 0)
-			printf("\tcla\n");
-		else if (s == 1)
-			printf("\tldab %u\n", v & 0xFF);
+		/* Slightly messy as we want to use implicit form
+		   for A as it is smaller */
+		if (r == 'a') {
+			if (s == 1 && (v & 0xFF) == 0) {
+				printf("\tclab\n");
+				break;
+			} else if (s == 2 && (v & 0xFFFF) == 0) {
+				printf("\tcla\n");
+				break;
+			}
+		} else if (s == 2 && (v & 0xFFFF) == 0) {
+			printf("\tclr %c\n", r);
+			break;
+		}
+		if (s == 1)
+			printf("\tld%cb %u\n", r, v & 0xFF);
 		else
-			printf("\tlda %u\n", v & 0xFFFF);
+			printf("\tld%c %u\n", r, v & 0xFFFF);
 		break;
 	case T_LREF:
 		v += sp;
 		if (v < 128) {
 			if (s == 1)
-				printf("\tldab %u,s\n", v);
+				printf("\tld%cb %u(s)\n", r, v);
 			else
-				printf("\tlda %u,s\n", v);
+				printf("\tld%c %u(s)\n", r, v);
 		} else {
-			printf("\tlda %u\n", v);
-			printf("\tadd s,a\n");
+			printf("\tld%c %u\n", r, v);
+			printf("\tadd s,%c\n", r);
 			if (s == 1)
-				printf("\tldab (a)\n");
+				printf("\tld%cb (%c)\n", r, r);
 			else
-				printf("\tlda (a)\n");
+				printf("\tld%c (%c)\n", r, r);
 		}
 		break;	
 	case T_NREF:
 		if (s == 1)
-			printf("\tldab (_%s+%u)\n", namestr(n->snum), v);
+			printf("\tld%cb (_%s+%u)\n", r, namestr(n->snum), v);
 		else
-			printf("\tlda (_%s+%u)\n", namestr(n->snum), v);
+			printf("\tld%c (_%s+%u)\n", r, namestr(n->snum), v);
 		break;
 	case T_LBREF:
 		if (s == 1)
-			printf("\tldab (T%u+%u)\n", n->val2, v);
+			printf("\tld%cb (T%u+%u)\n", r, n->val2, v);
 		else
-			printf("\tlda (T%u+%u)\n", n->val2, v);
+			printf("\tld%c (T%u+%u)\n", r, n->val2, v);
 		break;
 	default:
 		return 0;
@@ -537,6 +544,45 @@ unsigned op_into_a(struct node *n, unsigned s, const char *b, const char *w)
 	return 1;
 }
 
+unsigned can_op_into_r(char r, struct node *n, unsigned s)
+{
+	/* Avoid long stuff for now */
+	if (s > 2)
+		return 0;
+
+	switch(n->op) {
+	case T_NAME:
+	case T_LABEL:
+	case T_ARGUMENT:
+	case T_LOCAL:
+	case T_CONSTANT:
+	case T_LREF:
+	case T_NREF:
+	case T_LBREF:
+		return 1;
+	}
+	return 0;
+}
+
+/* Anything goes providing  B survives so we should look at folding more
+   complex expressions when possible */
+unsigned op_into_a(struct node *n, unsigned s, const char *b, const char *w)
+{
+	return op_into_r('a', n, s, b, w);
+}
+
+unsigned op_into_b(struct node *n, unsigned s, const char *b, const char *w)
+{
+	return op_into_r('b', n, s, b, w);
+}
+
+unsigned op_into_x(struct node *n, unsigned s, const char *b, const char *w)
+{
+	/* X only does word sized */
+	if (s == 1)
+		return 0;
+	return op_into_r('x', n, s, b, w);
+}
 
 /* Load a reference to an object into a register and return the reg,offset
    pair to use */
@@ -550,13 +596,9 @@ int load_register(struct node *n, unsigned s, char *r)
 	if (s != 2)
 		return -1;
 
+	/* Cases we can use off,s directly */
+
 	switch(n->op) {
-	case T_NAME:
-		printf("\tldx _%s+%u\n", namestr(n->snum), v);
-		return 0;
-	case T_LABEL:
-		printf("\tldx T%u+%u\n", n->val2, v);
-		return 0;
 	case T_ARGUMENT:
 		v += argbase + frame_len;
 		/* Fall through */
@@ -566,33 +608,20 @@ int load_register(struct node *n, unsigned s, char *r)
 			*r = 's';
 			return v;
 		}
-		/* Out of direct range - construct a pointer */
-		printf("\tldx %u\n", v);
-		printf("\tadd s,x\n");
-		return 0;
-	case T_CONSTANT:
-		printf("\tldx %u\n", v & 0xFFFF);
-		return 0;
+		break;
 	case T_LREF:
 		v += sp;
 		if (v < 128) {
-			printf("\tldx %u,s\n", v);
-		} else {
-			printf("\tldx %u\n", v);
-			printf("\tadd s,x\n");
-			printf("\tldx (x)\n");
+			printf("\tldx %u(s)\n", v);
+			return 0;
 		}
-		return 0;
-	case T_NREF:
-		printf("\tldx (_%s+%u)\n", namestr(n->snum), v);
-		return 0;
-	case T_LBREF:
-		printf("\tldx (T%u+%u)\n", n->val2, v);
-		return 0;
-	default:
-		return -1;
+		break;
 	}
-	return 1;
+	/* Try and get it into X */
+	if (op_into_x(n, s, 0, 0) == 0)
+		return -1;
+	/* It's in X offset 0 */
+	return 0;
 }
 
 unsigned can_load_reg(struct node *n, unsigned s)
@@ -615,7 +644,6 @@ unsigned can_load_reg(struct node *n, unsigned s)
 	}
 	return 1;
 }
-
 
 unsigned condop(struct node *n, const char * o, const char *ou)
 {
@@ -669,16 +697,44 @@ unsigned gen_direct(struct node *n)
 	case T_PLUS:
 		v = r->value;
 		if (s <= 2 && r->op == T_CONSTANT && v <= 2) {
-			repeated_op(v, s == 1 ? "inrb b" : "inr b");
+			repeated_op(v, s == 1 ? "inrb bl" : "inr b");
 			return 1;
 		}
 		return op_into_a(r, s, "aabb", "aab");
 	case T_AND:
+		/* TODO: long cases */
+		if (r->op == T_CONSTANT && s == 2) {
+			v = r->value;
+			if (v == 0) {
+				printf("\tcla\n");
+				return 1;
+			}
+			if (v == 0xFFFF)
+				return 1;
+		}
 		return op_into_a(r, s, "nabb", "nab");
 	case T_OR:
-		return op_into_a(r, s, "orib a,b", "ori a,b");
+		if (r->op == T_CONSTANT && s == 2) {
+			v = r->value;
+			if (v == 0)
+				return 1;
+			if (v == 0xFFFF) {
+				printf("\tldb 0xFFFF\n");
+				return 1;
+			}
+		}
+		return op_into_a(r, s, "orib al,bl", "ori a,b");
 	case T_HAT:
-		return op_into_a(r, s, "oreb a,b", "ore a,b");
+		if (r->op == T_CONSTANT && s == 2) {
+			v = r->value;
+			if (v == 0)
+				return 1;
+			if (v == 0xFFFF) {
+				printf("\tivr b\n");
+				return 1;
+			}
+		}
+		return op_into_a(r, s, "oreb al,bl", "ore a,b");
 	case T_MINUS:	/* We have a reverse subtract so just do the
 			   simple case */
 		if (r->op == T_CONSTANT) {
@@ -758,6 +814,52 @@ unsigned gen_direct(struct node *n)
 			}
 		}
 		break;
+	case T_MINUSEQ:
+		/* We have a reverse subtract so we need the value in B */
+		if (can_op_into_r('a', r, s)) {
+			printf("\txfr b,x\n");
+			op_into_b(r, s, NULL, NULL);
+			if (s == 1) {
+				printf("\tldab (x)\n");
+				printf("\tsabb\n");
+				printf("\tstbb (x)\n");
+				return 1;
+			}
+			if (s == 2) {
+				printf("\tlda (x)\n");
+				printf("\tsab\n");
+				printf("\tstb (x)\n");
+				return 1;
+			}
+		}
+		break;
+	case T_MINUSMINUS:
+		/* r is always constant but might be float or oversize */
+		if (can_op_into_r('a', r, s)) {
+			printf("\txfr b,x\n");
+			op_into_b(r, s, NULL, NULL);
+			if (s == 1) {
+				printf("\tldab (x)\n");
+				if (!nr)
+					printf("\tsta (-s)\n");
+				printf("\tsabb\n");
+				printf("\tstbb (x)\n");
+				if (!nr)
+					printf("\tldb (s+)\n");
+				return 1;
+			}
+			if (s == 2) {
+				printf("\tlda (x)\n");
+				if (!nr)
+					printf("\tsta (-s)\n");
+				printf("\tsab\n");
+				printf("\tstb (x)\n");
+				if (!nr)
+					printf("\tldb (s+)\n");
+				return 1;
+			}
+		}
+		break;
 	/* TODO  - optimized constant forms
 	case T_ANDEQ:
 	case T_OREQ:
@@ -766,23 +868,71 @@ unsigned gen_direct(struct node *n)
 	case T_LTLT:
 		if (r->op == T_CONSTANT && s <= 2) {
 			v = r->value;
-			if (v <= 4) {
+			if (v >= s * 8) {
+				if (s == 1)
+					printf("\tclrb bl\n");
+				else
+					printf("\tclr b\n");
+				return 1;
+			}
+			if (v >= 8) { 
+				printf("\txfrb bl,bh\n");
+				printf("\tclrb bl\n");
+				v -= 8;
+			}
+			if (v < 3 || opt > 1) {
 				repeated_op(v, s == 1 ? "slrb b" : "slr b");
 				return 1;
 			}
+			printf("\tjsr __shl%u\n", v);
+			return 1;
 		}
 		return 0;
 	case T_GTGT:
 		if (r->op == T_CONSTANT && s <= 2) {
-			v = r->value;
+			v = r->value & 15;
+			if (v == 0)
+				return 1;
 			/* No right shift unsigned */
-			if (n->type & UNSIGNED)
+			if (n->type & UNSIGNED) {
+				if (v >= 8) {
+					printf("\txfrb ah,al\n");
+					printf("\tclrb ah\n");
+					v -= 8;
+					/* High bit is clear so signed is fine */
+					if (v > 2)
+						printf("\tjsr __shr%u\n", v);
+					else
+						repeated_op(v, s == 1 ? "srrb b" : "srr b");
+				} else {
+					/* Do one bit by hand then helper */
+					printf("\trl\n");
+					printf("\trrr b\n");
+					v--;
+					if (v > 2)
+						printf("\tjsr __shr%u\n", v);
+					else
+						repeated_op(v, s == 1 ? "srrb b" : "srr b");
+				}
 				return 0;
-			else {
-				if (v <= 4) {
+			} else {
+				if (v >= s * 8) {
+					if (s == 1)
+						printf("\tclrb bl\n");
+					else
+						printf("\tclr b\n");
+					return 1;
+				}
+				if (v >= 8) {
+					printf("\tjsr __shr8\n");
+					v -= 8;
+				}
+				if (v < 3 || opt > 1) {
 					repeated_op(v, s == 1 ? "srrb b" : "srr b");
 					return 1;
 				}
+				printf("\tjsr __shr%u\n", v);
+				return 1;
 			}
 		}
 		return 0;
@@ -848,39 +998,53 @@ unsigned gen_shortcut(struct node *n)
 {
 	unsigned s = get_size(n->type);
 	unsigned nr = n->flags & NORETURN;
-	char r;
+	struct node *l = n->left;
+	struct node *r = n->right;
+	char reg;
 	int off;
 
 	if (unreachable)
 		return 1;
 
+	/* The comma operator discards the result of the left side, then
+	   evaluates the right. Avoid pushing/popping and generating stuff
+	   that is surplus */
+	if (n->op == T_COMMA) {
+		l->flags |= NORETURN;
+		codegen_lr(l);
+		/* Parent determines child node requirements */
+		r->flags |= nr;
+		codegen_lr(r);
+		return 1;
+	}
+
 	switch(n->op) {
 	case T_EQEQ:
-		if (can_load_reg(n->left, 2)) {
-			codegen_lr(n->right);
-			off = load_register(n->left, 2, &r);
+		if (can_load_reg(l, 2)) {
+			codegen_lr(r);
+			off = load_register(l, 2, &reg);
 			if (s == 1)
-				printf("stbb %u(%c)\n", off , r);
+				printf("stbb %u(%c)\n", off , reg);
 			else
-				printf("stb %u(%c)\n", off, r);
+				printf("stb %u(%c)\n", off, reg);
 			return 1;
 		}
 		break;
 	case T_PLUSPLUS:
-		if (!nr && s <= 2 && can_load_reg(n->left, 2)) {
-			codegen_lr(n->right);
-			off = load_register(n->left, 2, &r);
+		if (!nr && s <= 2 && can_load_reg(l, 2)) {
+			codegen_lr(r);
+			off = load_register(l, 2, &reg);
 			/* TODO: optimize 1 case to use inr */
 			if (s == 1) {
-				printf("\tldab %u(%c)\n", off, r);
+				printf("\tldab %u(%c)\n", off, reg);
 				printf("\taabb\n");
-				printf("\tstbb %u(%c)\n", off, r);
+				printf("\tstbb %u(%c)\n", off, reg);
 				if (!nr)
 					printf("\txabb\n");
 			} else {
-				printf("\tlda %u(%c)\n", off, r);
+				printf("\tlda %u(%c)\n", off, reg);
 				printf("\taab\n");
-				printf("\tstb %u(%c)\n", off, r);
+				printf("\tstb %u(%c)\n", off, reg);
 				if (!nr)
 					printf("\txab\n");
 			}
@@ -888,20 +1052,20 @@ unsigned gen_shortcut(struct node *n)
 		}
 		/* Fall through */
 	case T_PLUSEQ:
-		if (s <= 2 && can_load_reg(n->left, 2)) {
+		if (s <= 2 && can_load_reg(l, 2)) {
 			/* Specific optimization possible for single byte add */
-			if (n->right->op == T_CONSTANT && n->right->value == 1) {
-				off = load_register(n->left, 2, &r);
+			if (r->op == T_CONSTANT && r->value == 1) {
+				off = load_register(l, 2, &reg);
 				if (s == 1) {
-					printf("\tldbb %u(%c)\n", off, r);
-					printf("\tinrb b\n");
-					printf("\tstbb %u(%c)\n", off, r);
+					printf("\tldbb %u(%c)\n", off, reg);
+					printf("\tinrb bl\n");
+					printf("\tstbb %u(%c)\n", off, reg);
 					return 1;
 				}
 				if (s == 2) {
-					printf("\tldb %u(%c)\n", off, r);
+					printf("\tldb %u(%c)\n", off, reg);
 					printf("\tinr b\n");
-					printf("\tstb %u(%c)\n", off, r);
+					printf("\tstb %u(%c)\n", off, reg);
 					return 1;
 				}
 			}
@@ -910,16 +1074,16 @@ unsigned gen_shortcut(struct node *n)
 		break;
 	/* TODO MINUSEQ / MINUSMINUS */
 	case T_ANDEQ:
-		if (s <= 2 && can_load_reg(n->left, 2))
+		if (s <= 2 && can_load_reg(l, 2))
 			return short_op(n, s, "nabb", "nab");
 		break;
 	case T_OREQ:
-		if (s <= 2 && can_load_reg(n->left, 2))
-			return short_op(n, s, "orib a,b", "ori a,b");
+		if (s <= 2 && can_load_reg(l, 2))
+			return short_op(n, s, "orib al,bl", "ori a,b");
 		break;
 	case T_HATEQ:
-		if (s <= 2 && can_load_reg(n->left, 2))
-			return short_op(n, s, "oreb a,b", "ore a,b");
+		if (s <= 2 && can_load_reg(l, 2))
+			return short_op(n, s, "oreb al,bl", "ore a,b");
 		break;
 	}
 	return 0;
@@ -931,7 +1095,37 @@ unsigned popop(struct node *n, const char *op)
 	if (s == 4)
 		return 0;
 	printf("\tlda (s+)\n");
-	printf("\t%s%s\n", op, s == 1 ? "b" : "");
+	if (n->op == T_AND || n->op == T_PLUS || n->op == T_MINUS)	/* Short forms */
+		printf("\t%s%s\n", op, s == 1 ? "b": "");
+	else if (s == 1)
+		printf("\t%sb al,bl\n", op);
+	else
+		printf("\t%s a,b\n", op);
+	return 1;
+}
+
+/* Top of stack is pointer, value in B ops are transitive except minus
+   which works out fine due to the rsub nature */
+unsigned popeq(struct node *n, const char *o)
+{
+	unsigned s = get_size(n->type);
+	const char *ss = "";
+	if (s == 4)
+		return 0;
+	if (s == 1)
+		ss = "b";
+		
+	printf("\tldx (s+)\n");
+	printf("\tlda%s (x)\n", ss);
+	if (n->op == T_ANDEQ || n->op == T_PLUSEQ ||
+		n->op == T_MINUSEQ)	/* Short forms */
+		printf("\t%s%s\n", o, ss);
+	else if (s == 1)
+		printf("\t%sb al,bl\n", o);
+	else
+		printf("\t%s a,b\n", o);
+		
+	printf("\tstb%s (x)\n", ss);
 	return 1;
 }
 
@@ -948,7 +1142,40 @@ unsigned popcond(struct node *n, const char *o, const char *ou)
 	n->flags |= ISBOOL;
 	return 1;
 }
-	
+
+unsigned gen_cast(struct node *n)
+{
+	unsigned lt = n->type;
+	unsigned rt = n->right->type;
+	unsigned ls;
+	unsigned rs;
+
+	if (PTR(rt))
+		rt = USHORT;
+	if (PTR(lt))
+		lt = USHORT;
+
+	/* Floats and stuff handled by helper */
+	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
+		return 0;
+
+	ls = get_size(lt);
+	rs = get_size(rt);
+
+	/* Size shrink is free */
+	if ((lt & ~UNSIGNED) <= (rt & ~UNSIGNED))
+		return 1;
+	/* Signed via helper */
+	if (!(rt & UNSIGNED))
+		return 0;
+	if (rs == 1)
+		printf("\tclrb ah\n");
+	if (ls == 4) {
+		printf("\tcla\n");
+		printf("\tsta (__hireg)\n");
+	}
+	return 1;
+}
 
 unsigned gen_node(struct node *n)
 {
@@ -959,11 +1186,32 @@ unsigned gen_node(struct node *n)
 	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL && n->op != T_CALLNAME)
 		sp -= get_stack_size(n->left->type);
 	switch(n->op) {
+	case T_CAST:
+		return gen_cast(n);
+	case T_EQ:
+		/* Long will end up here for now - but eventually we want long lref etc */
+		if (s == 4) {
+			printf("\tldx (s+)\n");
+			printf("\tlda (__hireg)\n");
+			printf("\tsta (x)\n");
+			printf("\tstb 2(x)\n");
+			return 1;
+		}
+		/* Hard assignments (nothing simple each side) end up here */
+		if (s < 4) {
+			printf("\tlda (s+)\n");
+			if (s == 1)
+				printf("\tstbb (a)\n");
+			else
+				printf("\tstb (a)\n");
+			return 1;
+		}
+		break;
 	case T_CONSTANT:
 		if (s == 1) {
 			v &= 0xFF;
 			if (v == 0)
-				printf("\tclrb b\n");
+				printf("\tclrb bl\n");
 			else
 				printf("\tldbb %u\n", v & 0xFF);
 			return 1;
@@ -973,6 +1221,22 @@ unsigned gen_node(struct node *n)
 				printf("\tclr b\n");
 			else
 				printf("\tldb %u\n", v);
+			return 1;
+		}
+		if (s == 4) {
+			unsigned vh = n->value >> 16;
+			if (vh == 0)
+				printf("\tclr b\n");
+			else {
+				printf("\tldb %u\n", vh);
+				printf("\tstb (__hireg)\n");
+			}
+			if (vh != v) {
+				if (v == 0)
+					printf("\tclr b\n");
+				else
+					printf("\tldb %u\n", v & 0xFFFF);
+			}
 			return 1;
 		}
 		return 0;
@@ -1015,7 +1279,7 @@ unsigned gen_node(struct node *n)
 			printf("\tldb %u\n", v);
 			printf("\tadd s,b\n");
 		} else
-			printf("\ttfr s,b\n");
+			printf("\txfr s,b\n");
 		return 1;
 	case T_LREF:
 		v += sp;
@@ -1067,6 +1331,12 @@ unsigned gen_node(struct node *n)
 			printf("\tldb (b)\n");
 			return 1;
 		}
+		if (s == 4) {
+			printf("\tlda (b)\n");
+			printf("\tsta (__hireg)\n");
+			printf("\tldb 2(b)\n");
+			return 1;
+		}
 		break;
 	case T_CALLNAME:
 		printf("\tjsr _%s+%u\n", namestr(n->snum), v);
@@ -1076,19 +1346,19 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_NEGATE:
 		if (s < 4) {
-			printf("\tiva b\n");
+			printf("\tivr b\n");
 			printf("\tinr b\n");
 			return 1;
 		}
 		break;
 	case T_TILDE:
 		if (s < 4) {
-			printf("\tiva b\n");
+			printf("\tivr b\n");
 			return 1;
 		}
 		break;
 	case T_AND:
-		return popop(n, "and");
+		return popop(n, "nab");
 	case T_OR:
 		return popop(n, "ori");
 	case T_HAT:
@@ -1118,21 +1388,26 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		break;
+	case T_ANDEQ:
+		return popeq(n, "nab");
+	case T_OREQ:
+		return popeq(n, "ori");
+	case T_HATEQ:
+		return popeq(n, "ore");
+	case T_PLUSEQ:
+		return popeq(n, "aab");
+	case T_MINUSEQ:
+		return popeq(n, "sab");
 	case T_PERCENT:
 	case T_SLASH:
 	case T_BANG:
 	case T_BOOL:
 	case T_SHLEQ:
 	case T_SHREQ:
-	case T_PLUSEQ:
-	case T_MINUSEQ:
 	case T_STAREQ:
 	case T_SLASHEQ:
 	case T_PERCENTEQ:
-	case T_ANDEQ:
-	case T_OREQ:
-	case T_HATEQ:
-	case T_CAST:;
+		break;
 	}
 	return 0;
 }
