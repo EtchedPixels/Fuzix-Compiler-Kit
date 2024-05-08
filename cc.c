@@ -463,6 +463,7 @@ static void resolve_libraries(void)
 static void run_command(void)
 {
 	pid_t pid, p;
+	const char **ptr;
 	int status;
 
 	fflush(stdout);
@@ -477,10 +478,10 @@ static void run_command(void)
 	if (pid == 0) {
 #ifdef DEBUG
 		if (print_passes) {
-			const char **p = arglist;
+			ptr = arglist;
 			printf("[");
-			while(*p)
-				printf("%s ", *p++);
+			while(*ptr)
+				printf("%s ", *ptr++);
 			printf("]\n");
 		}
 #endif
@@ -936,6 +937,7 @@ int main(int argc, char *argv[]) {
 	char **p = argv;
 	unsigned c;
 	char *o;
+	char o2;
 
 	signal(SIGCHLD, SIG_DFL);
 
@@ -1001,10 +1003,10 @@ int main(int argc, char *argv[]) {
 			break;
 		case 'O':
 			if ((*p)[2]) {
-				char o = (*p)[2];
-				if (o >= '0' && o <= '3')
-					optimize = o;
-				else if (o == 's')
+				o2 = (*p)[2];
+				if (o2 >= '0' && o2 <= '3')
+					optimize = o2;
+				else if (o2 == 's')
 					optimize = 's';
 				else {
 					fprintf(stderr, "cc: unknown optimisation level.\n");
