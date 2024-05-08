@@ -2497,12 +2497,9 @@ unsigned gen_uni_direct(struct node *n)
 		   *auto = 0, that we can optimize nicely */
 		if (r->op == T_CONSTANT && r->value == 0 && nr) {
 			if (cpu_is_09) {
-				if (s == 1)
-					uniop8_on_s("clr", n->val2 + sp);
-				else if (s == 2)
-					uniop16_on_s("clr", n->val2 + sp);
-				else
-					uniop32_on_s("clr", n->val2 + sp);
+				off = n->value + sp;
+				while(s--)
+					printf("\tclr [%u,s]\n", off++);
 				return 1;
 			}
 			/* Offset of pointer in local */
