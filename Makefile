@@ -48,7 +48,7 @@ OBJS12 = backend.o backend-65c816.o
 OBJS13 = backend.o backend-z8.o
 OBJS14 = backend.o backend-super8.o
 OBJS15 = backend.o backend-1802.o
-OBJS16 = backend.o backend-6800.o
+OBJS16 = backend.o be-codegen-6800.o be-track-6800.o be-code-6800.o
 
 CFLAGS = -Wall -pedantic -g3 -DLIBPATH="\"$(CCROOT)/lib\"" -DBINPATH="\"$(CCROOT)/bin\""
 
