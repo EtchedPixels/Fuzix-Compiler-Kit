@@ -564,6 +564,10 @@ void gen_helpcall(struct node *n)
 	printf("\t%s __", jsr_op);
 }
 
+void gen_helptail(struct node *n)
+{
+}
+
 void gen_helpclean(struct node *n)
 {
 	if (c_style(n)) {

@@ -701,6 +701,7 @@ void do_helper(struct node *n, const char *h, unsigned t, unsigned s)
 		}
 		helper_type(t, s);
 	}
+	gen_helptail(n);
 	putchar('\n');
 	gen_helpclean(n);
 }

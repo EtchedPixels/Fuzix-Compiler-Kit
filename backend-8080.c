@@ -527,6 +527,10 @@ void gen_helpcall(struct node *n)
 	printf("\tcall __");
 }
 
+void gen_helptail(struct node *n)
+{
+}
+
 void gen_helpclean(struct node *n)
 {
 	unsigned s;

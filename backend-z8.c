@@ -2000,6 +2000,10 @@ void gen_helpcall(struct node *n)
 	r_modify(12,4);
 }
 
+void gen_helptail(struct node *n)
+{
+}
+
 /* Generate a helper that keeps r14/r15 */
 void gen_keepcall(struct node *n)
 {

@@ -238,6 +238,10 @@ void gen_helpcall(struct node *n)
 	printf("\t.word __");
 }
 
+void gen_helptail(struct node *n)
+{
+}
+
 void gen_helpclean(struct node *n)
 {
 }

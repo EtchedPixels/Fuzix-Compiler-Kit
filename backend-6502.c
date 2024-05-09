@@ -1071,6 +1071,10 @@ void gen_helpcall(struct node *n)
 	printf("\tjsr __");
 }
 
+void gen_helptail(struct node *n)
+{
+}
+
 void gen_helpclean(struct node *n)
 {
 }
