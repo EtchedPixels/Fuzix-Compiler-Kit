@@ -465,6 +465,16 @@ void swap_d_y(void)
 		printf("\txgdy\n");
 }
 
+void swap_d_x(void)
+{
+	if (cpu_is_09)
+		printf("\texg d,x\n");
+	else
+		printf("\txgdx\n");
+	invalidate_work();
+	invalidate_x();
+}
+
 /* Get D into X (may trash D) */
 void make_x_d(void)
 {
@@ -866,6 +876,7 @@ unsigned make_tos_ptr(void)
 	return 0;
 }
 
+/* These functions must not touch X on the 6809, they can on others */
 unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 {
 	unsigned v = r->value;
@@ -1046,11 +1057,6 @@ unsigned op16y_on_node(struct node *r, const char *op, unsigned off)
 		return 0;
 	}
 	return 1;
-}
-
-void op32_on_node(struct node *n, const char *op, const char *op2, unsigned off)
-{
-	/* TODO */
 }
 
 unsigned write_op(struct node *r, const char *op, const char *op2, unsigned off)
@@ -2274,6 +2280,7 @@ unsigned gen_direct(struct node *n)
 {
 	unsigned s = get_size(n->type);
 	struct node *r = n->right;
+	unsigned off;
 	uint16_t v;
 
 	switch(n->op) {
@@ -2285,6 +2292,34 @@ unsigned gen_direct(struct node *n)
 		if (cpu_has_d || n->val2) /* Varargs */
 			adjust_s(r->value, (func_flags & F_VOIDRET) ? 0 : 1);
 		return 1;
+	case T_EQ:
+	case T_EQPLUS:
+		off = n->value;
+		v = r->value;
+		/* If the left side was not simple then try and shortcut the
+		   right side */
+		if (cpu_has_xgdx && r->op == T_CONSTANT) {
+			swap_d_x();
+			if (s == 1) {
+				load_b_const(v);
+				op8_on_ptr("st", off);
+				return 1;
+			} else if (s == 2) {
+				load_d_const(v);
+				op16d_on_ptr("st", "st", off);
+				return 1;
+			} else if (s == 4 && cpu_has_y) {
+				load_d_const(v);
+				printf("\tldy #%u\n", (unsigned)(r->value >> 16));
+				op32d_on_ptr("st", "st", off);
+				return 1;
+			}
+		}
+		/* TODO: for many CPU variants we need a list of things we
+		 * can short load into D without touching X and to use them
+		 * here
+		 */
+		break;
 	case T_PLUS:
 		/* So we can track this common case later */
 		/* TODO: if the low word is zero or low 24 bits are 0 we can generate stuff like
