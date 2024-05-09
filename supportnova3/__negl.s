@@ -1,7 +1,7 @@
-	.export __negl
+	.export f__negl
 	.code
 
-__negl:
+f__negl:
 	sta	3,__tmp,0
 	lda	0,__hireg,0
 	neg	1,1,snr

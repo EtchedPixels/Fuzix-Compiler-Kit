@@ -1,7 +1,7 @@
-	.export __pluseq
+	.export f__pluseq
 	.code
 
-__pluseq:
+f__pluseq:
 	; TOS is addr, AC1 value
 	sta	3,__tmp,0
 	popa	2

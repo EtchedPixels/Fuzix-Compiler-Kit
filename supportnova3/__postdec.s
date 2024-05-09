@@ -1,7 +1,7 @@
-	.export __postdec
+	.export f__postdec
 	.code
 
-__postdec:
+f__postdec:
 	; TOS is addr, AC1 value ot subtract
 	sta	3,__tmp,0
 	popa	2

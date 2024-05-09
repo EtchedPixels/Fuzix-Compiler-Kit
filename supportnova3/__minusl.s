@@ -1,9 +1,9 @@
 ;
 ;	32bit TOS minus hireg:1
 ;
-	.export __minusl
+	.export f__minusl
 	.code
-__minusl:
+f__minusl:
 	sta	3,__tmp,0
 	popa	3
 	popa	2

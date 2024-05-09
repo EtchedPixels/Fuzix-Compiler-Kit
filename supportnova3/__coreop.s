@@ -16,6 +16,8 @@
 	.export f__iconstl
 	.export f__sconst
 	.export f__sconstl
+	.export f__cpush
+	.export f__cpushl
 
 	.code
 
@@ -92,3 +94,16 @@ f__sconst:
 	lda	2,0,3
 	sta	1,0,2
 	jmp	outi,1
+
+f__cpush:
+	lda	1,0,3
+	psha	1
+	jmp	@outi,1
+
+f__cpushl:
+	lda	0,0,3
+	inc	3,3
+	lda	1,0,3
+	psha	1
+	psha	0
+	jmp	@outi,1

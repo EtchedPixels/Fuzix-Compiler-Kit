@@ -1,7 +1,7 @@
-	.export __postinc
+	.export f__postinc
 	.code
 
-__postinc:
+f__postinc:
 	; TOS is addr, AC1 value
 	sta	3,__tmp,0
 	popa	2

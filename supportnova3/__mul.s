@@ -1,8 +1,8 @@
-	.export __mul
+	.export f__mul
 
 	.code
 
-__mul:
+f__mul:
 	subc	0,0
 	sta	3,__tmp,0
 	lda	3,N16,1
