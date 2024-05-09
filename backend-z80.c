@@ -42,40 +42,25 @@
 #include <string.h>
 #include "compiler.h"
 #include "backend.h"
-
-/* Until we do more testing */
-#define IS_EZ80		0	/* EZ80 has ld de,(hl) and friends but not offset */
-#define IS_RABBIT	0	/* Has ld hl,(rr + n) and vice versa but only 16bit */
-#define HAS_LDHLSP	0	/* Can ld hl,(sp + n) and vice versa */
-#define HAS_LDASP	0	/* Can ld a,(sp + n) and vice versa */
-#define HAS_LDHLHL	0	/* Can ld hl,(hl) or hl,(hl + 0) */
-
-#define BYTE(x)		(((unsigned)(x)) & 0xFF)
-#define WORD(x)		(((unsigned)(x)) & 0xFFFF)
-
-#define ARGBASE	2	/* Bytes between arguments and locals if no reg saves */
+#include "backend-z80.h"
 
 #define LWDIRECT 24	/* Number of __ldword1 __ldword2 etc forms for fastest access */
 
-/*
- *	Upper node flag fields are ours
- */
 
-#define USECC	0x0100
-
-static const char ccnormal[] = "nzz ";
-static const char ccinvert[] = "z nz";
+const char ccnormal[] = "nzz ";
+const char ccinvert[] = "z nz";
 
 /*
  *	State for the current function
  */
-static unsigned frame_len;	/* Number of bytes of stack frame */
-static unsigned sp;		/* Stack pointer offset tracking */
-static unsigned argbase;	/* Argument offset in current function */
-static unsigned unreachable;	/* Code after an unconditional jump */
-static unsigned func_cleanup;	/* Zero if we can just ret out */
-static unsigned use_fp;		/* Using a frame pointer this function */
-static const char *ccflags = ccnormal;/* True, False flags */
+unsigned frame_len;		/* Number of bytes of stack frame */
+unsigned sp;			/* Stack pointer offset tracking */
+unsigned argbase;		/* Argument offset in current function */
+unsigned unreachable;		/* Code after an unconditional jump */
+unsigned func_cleanup;		/* Zero if we can just ret out */
+unsigned use_fp;		/* Using a frame pointer this function */
+
+const char *ccflags = ccnormal;/* True, False flags */
 
 static const char *regnames[] = {	/* Register variable names */
 	NULL,
@@ -83,780 +68,6 @@ static const char *regnames[] = {	/* Register variable names */
 	"ix",
 	"iy"
 };
-
-/* Check if a single bit is set or clear */
-
-static int bitcheckb1(uint8_t n)
-{
-	unsigned m = 1;
-	unsigned i;
-
-	for (i = 0; i < 8; i++) {
-		if (n == m)
-			return i;
-		m <<= 1;
-	}
-	return -1;
-}
-
-static int bitcheck1(unsigned n, unsigned s)
-{
-	unsigned m = 1;
-	unsigned i;
-
-	if (s == 1)
-		return bitcheckb1(n);
-	for (i = 0; i < 16; i++) {
-		if (n == m)
-			return i;
-		m <<= 1;
-	}
-	return -1;
-}
-
-static int bitcheck0(unsigned n, unsigned s)
-{
-	if (s == 1)
-		return bitcheckb1((~n) & 0xFF);
-	return bitcheck1((~n) & 0xFFFF, 2);
-}
-
-static unsigned get_size(unsigned t)
-{
-	if (PTR(t))
-		return 2;
-	if (t == CSHORT || t == USHORT)
-		return 2;
-	if (t == CCHAR || t == UCHAR)
-		return 1;
-	if (t == CLONG || t == ULONG || t == FLOAT)
-		return 4;
-	if (t == CLONGLONG || t == ULONGLONG || t == DOUBLE)
-		return 8;
-	if (t == VOID)
-		return 0;
-	fprintf(stderr, "type %x\n", t);
-	error("gs");
-	return 0;
-}
-
-static unsigned get_stack_size(unsigned t)
-{
-	unsigned n = get_size(t);
-	if (n == 1)
-		return 2;
-	return n;
-}
-
-#define T_NREF		(T_USER)		/* Load of C global/static */
-#define T_CALLNAME	(T_USER+1)		/* Function call by name */
-#define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
-#define T_LREF		(T_USER+3)		/* Ditto for local */
-#define T_LSTORE	(T_USER+4)
-#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
-#define T_LBSTORE	(T_USER+6)
-#define T_RREF		(T_USER+7)
-#define T_RSTORE	(T_USER+8)
-#define T_RDEREF	(T_USER+9)		/* *regptr */
-#define T_REQ		(T_USER+10)		/* *regptr */
-#define T_BTST		(T_USER+11)		/* Use bit n, for and bit conditionals */
-#define T_BYTEEQ	(T_USER+12)		/* Until we handle 8bit better */
-#define T_BYTENE	(T_USER+13)
-
-static void squash_node(struct node *n, struct node *o)
-{
-	n->value = o->value;
-	n->val2 = o->val2;
-	n->snum = o->snum;
-	free_node(o);
-}
-
-static void squash_left(struct node *n, unsigned op)
-{
-	struct node *l = n->left;
-	n->op = op;
-	squash_node(n, l);
-	n->left = NULL;
-}
-
-static void squash_right(struct node *n, unsigned op)
-{
-	struct node *r = n->right;
-	n->op = op;
-	squash_node(n, r);
-	n->right = NULL;
-}
-
-/*
- *	Heuristic for guessing what to put on the right.  This is very
- *	processor dependent.  For Z80 we can fetch most global or static
- *	objects but locals are problematic
- */
-
-static unsigned is_simple(struct node *n)
-{
-	unsigned op = n->op;
-
-	/* Multi-word objects are never simple */
-	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
-		return 0;
-	/* We can load these directly into a register */
-	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME || op == T_REG)
-		return 10;
-	/* We can load this directly into a register but it may be a byte longer */
-	if (op == T_NREF || op == T_LBREF)
-		return 9;
-	if (op == T_RREF || op == T_RDEREF)
-		return 5;
-	return 0;
-}
-
-/* Operators where we can push CCONLY downwards */
-static unsigned is_ccdown(struct node *n)
-{
-	register unsigned op = n->op;
-	if (op == T_ANDAND || op == T_OROR)
-		return 1;
-	if (op == T_BOOL)
-		return 1;
-	if (op == T_BANG && !(n->flags & CCFIXED))
-		return 1;
-	return 0;
-}
-
-/* Operators that we known to handle as CCONLY if possible
-   TODO: add logic ops as we can BIT many of them */
-static unsigned is_cconly(struct node *n)
-{
-	register unsigned op = n->op;
-	if (op == T_EQEQ || op == T_BANGEQ || op == T_BYTEEQ ||
-		op == T_BYTENE || op == T_ANDAND || op == T_OROR ||
-		op == T_BOOL || op == T_BTST)
-		return 1;
-	if (op == T_BANG && !(n->flags & CCFIXED))
-		return 1;
-	return 0;
-}
-
-/*
- *	Try and push CCONLY down through the tree
- */
-static void propogate_cconly(struct node *n)
-{
-	register struct node *l, *r;
-	unsigned sz = get_size(n->type);
-	unsigned val;
-
-	l = n->left;
-	r = n->right;
-
-
-/*	printf("; considering %x %x\n", n->op, n->flags); */
-	/* Only do this for nodes that are CCONLY. For example if we hit
-	   an EQ (assign) then whilst the result of the assign may be
-	   CC only, the subtree of the assignment is most definitely not */
-	if (n->op != T_AND && !is_cconly(n) && !(n->flags & CCONLY))
-		return;
-
-	/* We have to special case BIT unfortunately, and this is ugly */
-
-	/* A common C idiom is if (a & bit) which we can rewrite into
-	   bit n,h or bit n,l */
-
-	if (n->op == T_AND) {
-/*		printf(";AND %x %x %x\n", n->op, r->op, n->flags); */
-		if (r->op == T_CONSTANT && sz <= 2) {
-			val = bitcheck1(r->value, sz);
-			if (val != -1) {
-				n->op = T_BTST;
-				n->value = val;
-				free_node(r);
-				n->right = l;
-				n->left = NULL;
-				r = l;
-				l = NULL;
-			}
-		} else
-			return;
-	}
-
-	n->flags |= CCONLY;
-	/* Deal with the CCFIXED limitations for now */
-	if (n->flags & CCFIXED) {
-		if (l)
-			l->flags |= CCFIXED;
-		if (r)
-			r->flags |= CCFIXED;
-	}
-/*	printf(";made cconly %x\n", n->op); */
-	/* Are we a node that can CCONLY downwards */
-	if (is_ccdown(n)) {
-/*		printf(";ccdown of %x L\n", n->op); */
-		if (l)
-			propogate_cconly(l);
-/*		printf(";ccdown cont %x R\n", n->op); */
-		if (r)
-			propogate_cconly(r);
-/*		printf(";ccdown done %x\n", n->op); */
-	}
-}
-
-/*
- *	Allow aribtrary rewriting before the rewrite_node process is called
- *	bottom up. Lets us do things like working out which tree sections
- *	could be 8bit, or downward propagation of properties
- */
-struct node *gen_rewrite(struct node *n)
-{
-	return n;
-}
-
-/* Can we stuff this type into a pointer for deref and assignment */
-
-static int type_compatible(struct node *n, unsigned t)
-{
-	unsigned sz = get_size(t);
-	if (sz == 1)
-		return 1;
-	if (n->value == 1)		/* BC char only */
-		return 0;
-	return 1;			/* IX and IY can do all sizes */
-}
-/*
- *	Our chance to do tree rewriting. We don't do much for the Z80
- *	at this point, but we do rewrite name references and function calls
- *	to make them easier to process. We also rewrite dereferences with
- *	offsets so we can use ix and iy nicely.
- */
-struct node *gen_rewrite_node(struct node *n)
-{
-	struct node *l = n->left;
-	struct node *r = n->right;
-	struct node *c;
-	unsigned op = n->op;
-	unsigned nt = n->type;
-	int val;
-
-	/* Squash some byte comparisons down into byte ops */
-/*	if (n->op == T_EQEQ && l->op == T_CAST) {
-		printf(";EQEQ %x L %x T %x R %x V %lx\n",
-			n->flags,
-			l->op, l->right->type,
-			r->op, r->value);
-	} */
-	if (n->op == T_EQEQ && l->op == T_CAST && l->right->type == UCHAR &&
-		r->op == T_CONSTANT && r->value <= 0xFF) {
-		n->op = T_BYTEEQ;
-		n->value = r->value;
-		n->right = l->right;
-		n->left = NULL;
-		free_node(l);	/* Dump the cast */
-		free_node(r);
-		return n;
-	}
-	/* Squash some byte comparisons down into byte ops */
-	if (n->op == T_BANGEQ && l->op == T_CAST && l->right->type == UCHAR &&
-		r->op == T_CONSTANT && r->value <= 0xFF) {
-		n->op = T_BYTENE;
-		n->value = r->value;
-		n->right = l->right;
-		n->left = NULL;
-		free_node(l);	/* Dump the cast */
-		free_node(r);
-		return n;
-	}
-
-	/* spot the following tree
-			T_DEREF
-			    T_PLUS
-		       T_RREF    T_CONSTANT -128-127-size
-	  so we can rewrite EQ/RDEREF off base + offset from pointer within range using ix offset */
-	if (op == T_DEREF) {
-		if (r->op == T_PLUS) {
-			c = r->right;
-			if (r->left->op == T_RREF && c->op == T_CONSTANT && type_compatible(r->left, nt)) {
-				val = c->value;
-				/* For now - depends on size */
-				/* IX and IY only ranged, BC char * direct */
-				if (val == 0 || (val >= -128 && val < 125 && r->left->value != 1)) {
-					n->op = T_RDEREF;
-					n->val2 = val;
-					n->value = r->left->value;
-					n->right = NULL;
-					free_tree(r);
-					return n;
-				}
-			}
-		} else if (r->op == T_RREF && type_compatible(r, nt)) {
-			/* Check - are we ok with BC always ? */
-			n->op = T_RDEREF;
-			n->val2 = 0;
-			n->value = r->value;
-			n->right = NULL;
-			free_node(r);
-			return n;
-		}
-	}
-	if (op == T_EQ) {
-		if (l->op == T_PLUS) {
-			c = l->right;
-			if (l->left->op == T_RREF && c->op == T_CONSTANT) {
-				val = c->value;
-				/* For now - depends on size */
-				/* IX and IY only -  BC char * direct only */
-				if (val == 0 || (val >= -128 && val < 125 && l->left->value != 1)) {
-					n->op = T_REQ;
-					n->val2 = val;
-					n->value = l->left->value;
-					n->left = NULL;
-					free_tree(l);
-					return n;
-				}
-			}
-		} else if (l->op == T_RREF) {
-			val = l->value;
-			/* For now - depends on size */
-			/* IX and IY only -  BC char * direct only */
-			if (val == 0 || (val >= -128 && val < 125 && l->value != 1)) {
-				n->op = T_REQ;
-				n->val2 = 0;
-				n->value = val;
-				n->left = NULL;
-				free_node(l);
-				return n;
-			}
-		}
-	}
-	/* Merge offset to object into a  single direct reference */
-	if (op == T_PLUS && r->op == T_CONSTANT &&
-		(l->op == T_LOCAL || l->op == T_NAME || l->op == T_LABEL || l->op == T_ARGUMENT)) {
-		/* We don't care if the right offset is 16bit or 32 as we've
-		   got 16bit pointers */
-		l->value += r->value;
-		free_node(r);
-		free_node(n);
-		return l;
-	}
-	/* Rewrite references into a load operation */
-	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt)) {
-		if (op == T_DEREF) {
-			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
-				if (r->op == T_ARGUMENT)
-					r->value += argbase + frame_len;
-				squash_right(n, T_LREF);
-				return n;
-			}
-			if (r->op == T_REG) {
-				squash_right(n, T_RREF);
-				return n;
-			}
-			if (r->op == T_NAME) {
-				squash_right(n, T_NREF);
-				return n;
-			}
-			if (r->op == T_LABEL) {
-				squash_right(n, T_LBREF);
-				return n;
-			}
-			if (r->op == T_RREF) {
-				squash_right(n, T_RDEREF);
-				n->val2 = 0;
-				return n;
-			}
-		}
-		if (op == T_EQ) {
-			if (l->op == T_NAME) {
-				squash_left(n, T_NSTORE);
-				return n;
-			}
-			if (l->op == T_LABEL) {
-				squash_left(n, T_LBSTORE);
-				return n;
-			}
-			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
-				if (l->op == T_ARGUMENT)
-					l->value += argbase + frame_len;
-				squash_left(n, T_LSTORE);
-				return n;
-			}
-			if (l->op == T_REG) {
-				squash_left(n, T_RSTORE);
-				return n;
-			}
-		}
-	}
-	/* Eliminate casts for sign, pointer conversion or same */
-	if (op == T_CAST) {
-		if (nt == r->type || (nt ^ r->type) == UNSIGNED ||
-		 (PTR(nt) && PTR(r->type))) {
-			free_node(n);
-			return r;
-		}
-	}
-	/* Rewrite function call of a name into a new node so we can
-	   turn it easily into call xyz */
-	if (op == T_FUNCCALL && r->op == T_NAME && PTR(r->type) == 1) {
-		n->op = T_CALLNAME;
-		n->snum = r->snum;
-		n->value = r->value;
-		free_node(r);
-		n->right = NULL;
-	}
-	/* Commutive operations. We can swap the sides over on these */
-	if (op == T_AND || op == T_OR || op == T_HAT || op == T_STAR || op == T_PLUS) {
-/*		printf(";left %d right %d\n", is_simple(n->left), is_simple(n->right)); */
-		if (is_simple(n->left) > is_simple(n->right)) {
-			n->right = l;
-			n->left = r;
-		}
-	}
-	return n;
-}
-
-/* Export the C symbol */
-void gen_export(const char *name)
-{
-	printf("	.export _%s\n", name);
-}
-
-void gen_segment(unsigned segment)
-{
-	switch(segment) {
-	case A_CODE:
-		printf("\t.%s\n", codeseg);
-		break;
-	case A_DATA:
-		printf("\t.data\n");
-		break;
-	case A_BSS:
-		printf("\t.bss\n");
-		break;
-	case A_LITERAL:
-		printf("\t.literal\n");
-		break;
-	default:
-		error("gseg");
-	}
-}
-
-/* Generate the function prologue - may want to defer this until
-   gen_frame for the most part */
-void gen_prologue(const char *name)
-{
-	printf("_%s:\n", name);
-	unreachable = 0;
-}
-
-/* Generate the stack frame */
-/* TODO: defer this to statements so we can ld/push initializers */
-void gen_frame(unsigned size,  unsigned aframe)
-{
-	frame_len = size;
-	sp = 0;
-	use_fp = 0;
-
-	if (size || (func_flags & (F_REG(1)|F_REG(2)|F_REG(3))))
-		func_cleanup = 1;
-	else
-		func_cleanup = 0;
-
-	argbase = ARGBASE;
-
-	/* In banked mode the arguments are two bytes further out */
-	if (cpufeat & 1)
-		argbase += 2;
-
-	if (func_flags & F_REG(1)) {
-		printf("\tpush bc\n");
-		argbase += 2;
-	}
-	if (func_flags & F_REG(2)) {
-		printf("\tpush ix\n");
-		argbase += 2;
-	}
-	if (func_flags & F_REG(3)) {
-		printf("\tpush iy\n");
-		argbase += 2;
-	} else {
-		/* IY is free use it as a frame pointer ? */
-		if (!optsize && size > 4) {
-			argbase += 2;
-			printf("\tpush iy\n");
-			/* Remember we need to restore IY */
-			func_flags |= F_REG(3);
-			use_fp = 1;
-		}
-	}
-	/* If we are building a frame pointer we need to do this work anyway */
-	if (use_fp) {
-		printf("\tld iy,0x%x\n", (uint16_t) - size);
-		printf("\tadd iy,sp\n");
-		printf("\tld sp,iy\n");
-		return;
-	}
-	if (size > 10) {
-		printf("\tld hl,0x%x\n", (uint16_t) -size);
-		printf("\tadd hl,sp\n");
-		printf("\tld sp,hl\n");
-		return;
-	}
-	if (size & 1) {
-		printf("\tdec sp\n");
-		size--;
-	}
-	while(size) {
-		printf("\tpush hl\n");
-		size -= 2;
-	}
-}
-
-void gen_epilogue(unsigned size, unsigned argsize)
-{
-	if (sp != 0)
-		error("sp");
-
-	/* Return in HL, does need care on stack. TOOD: flag void functions
-	   where we can burn the return */
-	sp -= size;
-
-	/* This can happen if the function never returns or the only return
-	   is a by a ret directly (ie from a function without locals) */
-	if (unreachable)
-		return;
-
-	if (size > 10) {
-		unsigned x = func_flags & F_VOIDRET;
-		if (!x)
-			printf("\tex de,hl\n");
-		printf("\tld hl,0x%x\n", (uint16_t)size);
-		printf("\tadd hl,sp\n");
-		printf("\tld sp,hl\n");
-		if (!x)
-			printf("\tex de,hl\n");
-	} else {
-		if (size & 1) {
-			printf("\tinc sp\n");
-			size--;
-		}
-		while (size) {
-			printf("\tpop de\n");
-			size -= 2;
-		}
-	}
-	if (func_flags & F_REG(3))
-		printf("\tpop iy\n");
-	if (func_flags & F_REG(2))
-		printf("\tpop ix\n");
-	if (func_flags & F_REG(1))
-		printf("\tpop bc\n");
-	printf("\tret\n");
-	unreachable = 1;
-}
-
-void gen_label(const char *tail, unsigned n)
-{
-	unreachable = 0;
-	printf("L%u%s:\n", n, tail);
-}
-
-/* A return statement. We can sometimes shortcut this if we have
-   no cleanup to do */
-unsigned gen_exit(const char *tail, unsigned n)
-{
-	if (func_cleanup) {
-		gen_jump(tail, n);
-		return 0;
-	}
-	else {
-		printf("\tret\n");
-		unreachable = 1;
-		return 1;
-	}
-}
-
-void gen_jump(const char *tail, unsigned n)
-{
-	printf("\tjr L%u%s\n", n, tail);
-	unreachable = 1;
-}
-
-void gen_jfalse(const char *tail, unsigned n)
-{
-	printf("\tjr %s,L%u%s\n", ccflags + 2, n, tail);
-	ccflags = ccnormal;
-}
-
-void gen_jtrue(const char *tail, unsigned n)
-{
-	printf("\tjr %c%c,L%u%s\n", ccflags[0], ccflags[1], n, tail);
-	ccflags = ccnormal;
-}
-
-static void gen_cleanup(unsigned v)
-{
-	/* CLEANUP is special and needs to be handled directly */
-	sp -= v;
-	if (v > 10) {
-		/* This is more expensive, but we don't often pass that many
-		   arguments so it seems a win to stay in HL */
-		/* TODO: spot void function and skip ex de,hl */
-		printf("\tex de,hl\n");
-		printf("\tld hl,0x%x\n", v);
-		printf("\tadd hl,sp\n");
-		printf("\tld sp,hl\n");
-		printf("\tex de,hl\n");
-	} else {
-		while(v >= 2) {
-			printf("\tpop de\n");
-			v -= 2;
-		}
-		if (v)
-			printf("\tinc sp\n");
-	}
-}
-
-/*
- *	Helper handlers. We use a tight format for integers but C
- *	style for float as we'll have C coded float support if any
- */
-
-/* True if the helper is to be called C style */
-static unsigned c_style(struct node *np)
-{
-	register struct node *n = np;
-	/* Assignment is done asm style */
-	if (n->op == T_EQ)
-		return 0;
-	/* Float ops otherwise are C style */
-	if (n->type == FLOAT)
-		return 1;
-	n = n->right;
-	if (n && n->type == FLOAT)
-		return 1;
-	return 0;
-}
-
-void gen_helpcall(struct node *n)
-{
-	/* Check both N and right because we handle casts to/from float in
-	   C call format */
-	if (c_style(n))
-		gen_push(n->right);
-	printf("\tcall __");
-}
-
-void gen_helpclean(struct node *n)
-{
-	unsigned s;
-
-	if (c_style(n)) {
-		s = 0;
-		if (n->left) {
-			s += get_size(n->left->type);
-			/* gen_node already accounted for removing this thinking
-			   the helper did the work, adjust it back as we didn't */
-			sp += s;
-			}
-		s += get_size(n->right->type);
-		gen_cleanup(s);
-		/* C style ops that are ISBOOL didn't set the bool flags */
-		if (n->flags & ISBOOL)
-			printf("\txor a\n\tcp l\n");
-	}
-}
-
-void gen_switch(unsigned n, unsigned type)
-{
-	printf("\tld de,Sw%u\n", n);
-	printf("\tjp __switch");
-	helper_type(type, 0);
-	printf("\n");
-	unreachable = 1;
-}
-
-void gen_switchdata(unsigned n, unsigned size)
-{
-	printf("Sw%u:\n", n);
-	printf("\t.word %u\n", size);
-}
-
-void gen_case_label(unsigned tag, unsigned entry)
-{
-	unreachable = 0;
-	printf("Sw%u_%u:\n", tag, entry);
-}
-
-void gen_case_data(unsigned tag, unsigned entry)
-{
-	printf("\t.word Sw%u_%u\n", tag, entry);
-}
-
-void gen_data_label(const char *name, unsigned align)
-{
-	printf("_%s:\n", name);
-}
-
-void gen_space(unsigned value)
-{
-	printf("\t.ds %u\n", value);
-}
-
-void gen_text_data(unsigned n)
-{
-	printf("\t.word T%u\n", n);
-}
-
-/* The label for a literal (currently only strings)
-   TODO: if we add other literals we may need alignment here */
-
-void gen_literal(unsigned n)
-{
-	if (n)
-		printf("T%u:\n", n);
-}
-
-void gen_name(struct node *n)
-{
-	printf("\t.word _%s+%u\n", namestr(n->snum), WORD(n->value));
-}
-
-void gen_value(unsigned type, unsigned long value)
-{
-	unsigned w = WORD(value);
-	if (PTR(type)) {
-		printf("\t.word %u\n", w);
-		return;
-	}
-	switch (type) {
-	case CCHAR:
-	case UCHAR:
-		printf("\t.byte %u\n", BYTE(w));
-		break;
-	case CSHORT:
-	case USHORT:
-		printf("\t.word %u\n", w);
-		break;
-	case CLONG:
-	case ULONG:
-	case FLOAT:
-		/* We are little endian */
-		printf("\t.word %u\n", w);
-		printf("\t.word %u\n", (unsigned) ((value >> 16) & 0xFFFF));
-		break;
-	default:
-		error("unsuported type");
-	}
-}
-
-void gen_start(void)
-{
-	/* For now.. */
-	printf("\t.z80\n");
-}
-
-void gen_end(void)
-{
-}
 
 void gen_tree(struct node *n)
 {
@@ -2047,6 +1258,96 @@ static void reg_logic(struct node *n, unsigned s, unsigned op, const char *i)
 	} else {
 		reghelper(n, i);
 		get_regvar(n->left->value, NULL, s);
+	}
+}
+
+/* Operators where we can push CCONLY downwards */
+static unsigned is_ccdown(struct node *n)
+{
+	register unsigned op = n->op;
+	if (op == T_ANDAND || op == T_OROR)
+		return 1;
+	if (op == T_BOOL)
+		return 1;
+	if (op == T_BANG && !(n->flags & CCFIXED))
+		return 1;
+	return 0;
+}
+
+/* Operators that we known to handle as CCONLY if possible
+   TODO: add logic ops as we can BIT many of them */
+static unsigned is_cconly(struct node *n)
+{
+	register unsigned op = n->op;
+	if (op == T_EQEQ || op == T_BANGEQ || op == T_BYTEEQ ||
+		op == T_BYTENE || op == T_ANDAND || op == T_OROR ||
+		op == T_BOOL || op == T_BTST)
+		return 1;
+	if (op == T_BANG && !(n->flags & CCFIXED))
+		return 1;
+	return 0;
+}
+
+/*
+ *	Try and push CCONLY down through the tree
+ */
+static void propogate_cconly(struct node *n)
+{
+	register struct node *l, *r;
+	unsigned sz = get_size(n->type);
+	unsigned val;
+
+	l = n->left;
+	r = n->right;
+
+
+/*	printf("; considering %x %x\n", n->op, n->flags); */
+	/* Only do this for nodes that are CCONLY. For example if we hit
+	   an EQ (assign) then whilst the result of the assign may be
+	   CC only, the subtree of the assignment is most definitely not */
+	if (n->op != T_AND && !is_cconly(n) && !(n->flags & CCONLY))
+		return;
+
+	/* We have to special case BIT unfortunately, and this is ugly */
+
+	/* A common C idiom is if (a & bit) which we can rewrite into
+	   bit n,h or bit n,l */
+
+	if (n->op == T_AND) {
+/*		printf(";AND %x %x %x\n", n->op, r->op, n->flags); */
+		if (r->op == T_CONSTANT && sz <= 2) {
+			val = bitcheck1(r->value, sz);
+			if (val != -1) {
+				n->op = T_BTST;
+				n->value = val;
+				free_node(r);
+				n->right = l;
+				n->left = NULL;
+				r = l;
+				l = NULL;
+			}
+		} else
+			return;
+	}
+
+	n->flags |= CCONLY;
+	/* Deal with the CCFIXED limitations for now */
+	if (n->flags & CCFIXED) {
+		if (l)
+			l->flags |= CCFIXED;
+		if (r)
+			r->flags |= CCFIXED;
+	}
+/*	printf(";made cconly %x\n", n->op); */
+	/* Are we a node that can CCONLY downwards */
+	if (is_ccdown(n)) {
+/*		printf(";ccdown of %x L\n", n->op); */
+		if (l)
+			propogate_cconly(l);
+/*		printf(";ccdown cont %x R\n", n->op); */
+		if (r)
+			propogate_cconly(r);
+/*		printf(";ccdown done %x\n", n->op); */
 	}
 }
 
