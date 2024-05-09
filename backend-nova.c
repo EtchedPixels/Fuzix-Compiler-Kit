@@ -226,7 +226,7 @@ void gen_frame(unsigned size, unsigned aframe)
 		printf("\t.word %u\n", size / 2);
 		printf("\tmtsp 1\n");
 	} else
-		repeated_op(size / 2, "push 0");
+		repeated_op(size / 2, "psha 0");
 	printf(";\n");
 }
 
@@ -244,9 +244,9 @@ void gen_epilogue(unsigned size, unsigned argsize)
 		printf("\t.word %u\n", ((-size / 2) & 0xFFFF));
 		printf("\tmtsp 1\n");
 	} else
-		repeated_op(size / 2, "pull 0");
+		repeated_op(size / 2, "popa 0");
 	if (!(func_flags & F_VOIDRET))
-		printf("\tsta 1,0,3\n");
+		printf("\tsta -1,0,3\n");
 	printf("\tret\n");
 	unreachable = 1;
 }
@@ -269,19 +269,20 @@ unsigned gen_exit(const char *tail, unsigned n)
 
 void gen_jump(const char *tail, unsigned n)
 {
-	printf("\tjmp L%d%s\n", n, tail);
+	printf("\tjmp 1,1\n");
+	printf("\t.word L%d%s\n", n, tail);
 }
 
 void gen_jfalse(const char *tail, unsigned n)
 {
 	/* TODO we need a self expanding jump with value hiding */
-	printf("\tjsr @__jf\n");
+	printf("\tjsr @__jf,0\n");
 	printf("\t.word L%d%s\n", n, tail);
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
-	printf("\tjsr @__jt\n");
+	printf("\tjsr @__jt,0\n");
 	printf("\t.word L%d%s\n", n, tail);
 }
 
@@ -315,6 +316,11 @@ void gen_helpcall(struct node *n)
 	/* TODO need to figure out what is indirected this way and what
 	   is done jsr 1,1 style */
 	printf("\tjsr @__");
+}
+
+void gen_helptail(struct node *n)
+{
+	printf(",0");
 }
 
 void gen_helpclean(struct node *n)
@@ -363,9 +369,9 @@ void gen_value(unsigned type, unsigned long value)
 	case CLONG:
 	case ULONG:
 	case FLOAT:
-		/* We are little endian - software choice */
-		printf("\t.word %d\n", (unsigned) (value & 0xFFFF));
+		/* We are big endian - software choice */
 		printf("\t.word %d\n", (unsigned) ((value >> 16) & 0xFFFF));
+		printf("\t.word %d\n", (unsigned) (value & 0xFFFF));
 		break;
 	default:
 		error("unsuported type");
@@ -394,9 +400,9 @@ unsigned gen_push(struct node *n)
 	sp += s / 2;
 	if (s == 4) {
 		printf("\tlda 0,__hireg, 0\n");
-		printf("\tpush 0\n");
+		printf("\tpsha 0\n");
 	} else
-		printf("\tpush 1\n");
+		printf("\tpsha 1\n");
 	printf(";\n");
 	return 1;
 }
@@ -778,11 +784,12 @@ unsigned gen_shortcut(struct node *n)
 			if (r->value > 0) {
 				printf("\tisz %d,3\n", d);
 				/* This might skip */
-				printf("\tnop\n");
+				/* mffp 3 seems the fastest meh op */
+				printf("\tmffp 3\n");
 			}
 			if (r->value == 2) {
 				printf("\tisz %d,3\n", d);
-				printf("\tnop\n");
+				printf("\tmffp 3\n");
 			}
 			if (!nr)
 				printf("\tlda 1,%d,3\n", d);
@@ -846,9 +853,13 @@ unsigned gen_node(struct node *n)
 	
 	/* Function call arguments are special - they are removed by the
 	   act of call/return and reported via T_CLEANUP */
-	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL)
+	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL && n->op != T_CALLNAME)
 		sp -= get_stack_size(n->left->type) / 2;
 	switch(n->op) {
+	case T_CALLNAME:
+		printf("\tjsr 1,1\n");
+		printf("\t.word _%s+%u\n", namestr(n->snum), v);
+		return 1;
 	case T_CONSTANT:
 		/* We should do longs using make constant twice */
 		if (s < 4 && gen_constant(1, v))
@@ -950,7 +961,7 @@ unsigned gen_node(struct node *n)
 	case T_EQ:
 		if (s == 1)	/* Byteops are hard */
 			return 0;
-		printf("\tpop 2\n");
+		printf("\tpopa 2\n");
 		printf("\tsta 1,0,2\n");
 		if (s == 4) {
 			printf("\tlda 0,__hireg,0\n");
@@ -988,20 +999,20 @@ unsigned gen_node(struct node *n)
 		printf("\tsub 1,1\n");
 		return 1;
 	case T_PLUS:
-		printf("\tpop 0\n");
+		printf("\tpopa 0\n");
 		printf("\tadd 0,1\n");
 		if (s == 4) {
-			printf("\tpop 2\n");
+			printf("\tpopa 2\n");
 			printf("\tlda 0,__hireg,0\n");
 			printf("\tadc 2,0\n");
 			printf("\tsta 0,__hireg,0\n");
 		}
 		return 1;
 	case T_MINUS:
-		printf("\tpop 0\n");
+		printf("\tpopa 0\n");
 		printf("\tsub 1,0\n");
 		if (s == 4) {
-			printf("\tpop 2\n");
+			printf("\tpopa 2\n");
 			printf("\tlda 1,__hireg,0\n");
 			printf("\tsub 1,2\n");
 			printf("\tsta 2,__hireg,0\n");
@@ -1009,10 +1020,10 @@ unsigned gen_node(struct node *n)
 		printf("\tmov 0,1\n");
 		return 1;
 	case T_AND:
-		printf("\tpop 0\n");
+		printf("\tpopa 0\n");
 		printf("\tand 0,1\n");
 		if (s == 4) {
-			printf("\tpop 0\n");
+			printf("\tpopa 0\n");
 			printf("\tlda 2,__hireg,0\n");
 			printf("\tand 2,0\n");
 			printf("\tsta 0,__hireg,0\n");
@@ -1021,13 +1032,13 @@ unsigned gen_node(struct node *n)
 	case T_OR:
 		if (s == 4)
 			return 0;
-		printf("\tpop 0\n");
+		printf("\tpopa 0\n");
 		printf("\tcom 0,0\n");
 		printf("\tand 0,1\n");
 		printf("\tadc 0,1\n");
 		return 1;
 	case T_HAT:
-		printf("\tpop 0\n");
+		printf("\tpopa 0\n");
 		printf("\tmov 1,2\n");
 		printf("\tandzl 0,2\n");
 		printf("\tadd 0,1\n");
@@ -1036,7 +1047,7 @@ unsigned gen_node(struct node *n)
 	case T_EQEQ:
 		if (s == 4)
 			return 0;
-		printf("\tpop 0\n");
+		printf("\tpopa 0\n");
 		printf("\tsub 0,1,snr\n");
 		printf("\tsubzl 1,1,skp\n");
 		printf("\tsub 1,1\n");
@@ -1045,7 +1056,7 @@ unsigned gen_node(struct node *n)
 	case T_BANGEQ:
 		if (s == 4)
 			return 0;
-		printf("\tpop 0\n");
+		printf("\tpopa 0\n");
 		printf("\tsub 0,1,szr\n");
 		printf("\tsubzl 1,1\n");
 		/* if we skipped then AC1 is already zero */
@@ -1054,14 +1065,14 @@ unsigned gen_node(struct node *n)
 	case T_CAST:
 		return gen_cast(n);
 	/* These ops we can do at the least for some forms */
-	/* Apart from the pop keep them the same as the direct ones
+	/* Apart from the popa keep them the same as the direct ones
 	   as we will need to use peephole rules to fuse them with conditional
 	   jumps, and also need CCONLY support in some cases to rewrite them
 	   nicely */
 	case T_LTEQ:
 		s = get_size(r->type);
 		if (s != 4 && (n->type & UNSIGNED)) {
-			printf("\tpop 0\n");
+			printf("\tpopa 0\n");
 			printf("\tsubz# 0,1,snc\n");
 			printf("\tsubzl 1,1,skp\n");
 			printf("\tsub 1,1\n");
@@ -1072,7 +1083,7 @@ unsigned gen_node(struct node *n)
 	case T_GT:
 		s = get_size(r->type);
 		if (s != 4 && (n->type & UNSIGNED)) {
-			printf("\tpop 0\n");
+			printf("\tpopa 0\n");
 			printf("\tsubz# 1,0,snc\n");
 			printf("\tsubzl 1,1,skp\n");
 			printf("\tsub 1,1\n");
@@ -1083,7 +1094,7 @@ unsigned gen_node(struct node *n)
 	case T_GTEQ:
 		s = get_size(r->type);
 		if (s != 4 && (n->type & UNSIGNED)) {
-			printf("\tpop 0\n");
+			printf("\tpopa 0\n");
 			printf("\tadcz# 0,1,snc\n");
 			printf("\tsubzl 1,1,skp\n");
 			printf("\tsub 1,1\n");
@@ -1094,7 +1105,7 @@ unsigned gen_node(struct node *n)
 	case T_LT:
 		s = get_size(r->type);
 		if (s != 4 && (n->type & UNSIGNED)) {
-			printf("\tpop 0\n");
+			printf("\tpopa 0\n");
 			printf("\tadcz# 1,0,snc\n");
 			printf("\tsubzl 1,1,skp\n");
 			printf("\tsub 1,1\n");

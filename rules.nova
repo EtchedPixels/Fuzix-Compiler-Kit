@@ -1,0 +1,59 @@
+	jmp 1,1
+	.word %1
+%1:
+=
+%1:
+
+	mov 3,1
+	psha 1
+;
+=
+	psha 3
+;
+
+#	Bool/jtrue or bool/jfalse and not
+	mov 1,1,szr
+	subzl 1,1
+;
+	jsr @__jt,0
+=
+	jsr @__booljt
+
+	mov 1,1,szr
+	subzl 1,1
+;
+	jsr @__jf,0
+=
+	jsr @__booljf
+
+	mov 1,1,snr
+	subzl 1,1,skp
+	sub 1,1
+;
+	jsr @__jt,0
+=
+	jsr @__notjt
+
+	mov 1,1,snr
+	subzl 1,1,skp
+	sub 1,1
+;
+	jsr @__jf,0
+=
+	jsr @__notjf
+
+#	Our byte read currently masks so for uchar we can remove the cast
+#	that normally follows
+	jsr @__derefc,0
+	lda 0,__N255,0
+	and 0,1
+=
+	jsr @__derefc,0
+
+# Optimize pushes
+	jsr @__const,0
+	.word %1
+	psha 1
+=
+	jsr @__cpush,0
+	.word %1
