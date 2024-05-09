@@ -2,11 +2,11 @@ all: cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.1802 cc1.6800 \
      cc1.8070 cc1.8086 \
-     cc1.ee200 \
+     cc1.ee200 cc1.nova \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 \
      cc2.8070 cc2.8086 \
-     cc2.ee200 \
+     cc2.ee200 cc2.nova \
      copt \
      support6303 support6502 support65c816 support6800 support6803 \
      support6809 support68hc11 support8080 support8085 supportz80 \
@@ -15,10 +15,10 @@ all: cc cc0 \
 bootstuff: cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.super8 cc1.1802 cc1.6800 cc1.8070 \
-     cc1.8086 cc1.ee200 \
+     cc1.8086 cc1.ee200 cc1.nova \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.8070 \
-     cc2.8086 cc2.ee200 \
+     cc2.8086 cc2.ee200 cc2.nova \
      copt
 
 .PHONY: support6303 support6502 support65c816 support6800 support6803 \
@@ -37,11 +37,12 @@ OBJS1 = body.o declaration.o enum.o error.o expression.o header.o idxdata.o \
 OBJS2 = backend.o backend-default.o
 OBJS3 = backend.o backend-8080.o
 OBJS4 = backend.o backend-8086.o
-OBJS5 = backend.o backend-z80.o
+OBJS5 = backend.o be-codegen-z80.o be-rewrite-z80.o be-func-z80.o
 OBJS6 = backend.o backend-65c816.o
 OBJS7 = backend.o backend-ee200.o
 OBJS8 = backend.o backend-8070.o
 OBJS9 = backend.o backend-threadcode.o
+OBJS10 = backend.o backend-nova.o
 OBJS11 = backend.o backend-6502.o
 OBJS12 = backend.o backend-65c816.o
 OBJS13 = backend.o backend-z8.o
@@ -112,6 +113,9 @@ cc1.8070:$(OBJS1) target-8070.o
 cc1.ee200:$(OBJS1) target-ee200.o
 	gcc -g3 $(OBJS1) target-ee200.o -o cc1.ee200
 
+cc1.nova:$(OBJS1) target-nova.o
+	gcc -g3 $(OBJS1) target-nova.o -o cc1.nova
+
 cc2:	$(OBJS2)
 	gcc -g3 $(OBJS2) -o cc2
 
@@ -150,6 +154,9 @@ cc2.8070:	$(OBJS8)
 
 cc2.ee200:	$(OBJS7)
 	gcc -g3 $(OBJS7) -o cc2.ee200
+
+cc2.nova:	$(OBJS10)
+	gcc -g3 $(OBJS10) -o cc2.nova
 
 support6303:
 	(cd support6303; make)
@@ -330,6 +337,13 @@ bootinst:
 	cp cc1.ee200 $(CCROOT)/lib
 	cp cc2.ee200 $(CCROOT)/lib
 	cp rules.ee200 $(CCROOT)/lib
+	# Nova
+	mkdir -p $(CCROOT)/lib/nova
+	mkdir -p $(CCROOT)/lib/nova/include/
+	cp lordernova $(CCROOT)/bin/lordernova
+	cp cc1.nova $(CCROOT)/lib
+	cp cc2.nova $(CCROOT)/lib
+	cp rules.nova $(CCROOT)/lib
 
 #
 #	Install the support libraries
