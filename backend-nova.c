@@ -496,16 +496,16 @@ static unsigned load_ac0(struct node *n)
 		return 1;
 	case T_CONSTANT:
 		if (gen_constant(0, v) == 0) {
-			printf("\tjsr @__const0\n");
+			printf("\tjsr @__const0,0\n");
 			printf("\t.word %u\n", v);
 		}
 		return 1;
 	case T_NAME:
-		printf("\tjsr @__const0\n");
+		printf("\tjsr @__const0,0\n");
 		printf("\t.word _%s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_LABEL:
-		printf("\tjsr @__const0\n");
+		printf("\tjsr @__const0,0\n");
 		printf("\t.word T%u+%u\n", n->val2, v);
 		return 1;
 	case T_NREF:
@@ -868,9 +868,9 @@ unsigned gen_node(struct node *n)
 	case T_LABEL:
 		v = n->value;
 		if (s == 2)
-			printf("\tjsr @__const\n");
+			printf("\tjsr @__const,0\n");
 		else
-			printf("\tjsr @__constl\n");
+			printf("\tjsr @__constl,0\n");
 		if (n->op == T_CONSTANT)
 			gen_value(n->type, n->value);
 		else if (n->op == T_NAME)
@@ -883,9 +883,9 @@ unsigned gen_node(struct node *n)
 		/* Same logic but actual value */
 		v = n->value;
 		if (s == 2)
-			printf("\tjsr @__iconst\n");
+			printf("\tjsr @__iconst,0\n");
 		else
-			printf("\tjsr @__iconstl\n");
+			printf("\tjsr @__iconstl,0\n");
 		if (n->op == T_NREF)
 			printf("\t.word _%s_%u\n", namestr(n->snum), v);
 		else
@@ -896,9 +896,9 @@ unsigned gen_node(struct node *n)
 		/* Same logic but store  */
 		v = n->value;
 		if (s == 1 || s == 2)
-			printf("\tjsr @__sconst\n");
+			printf("\tjsr @__sconst,0\n");
 		else
-			printf("\tjsr @__sconstl\n");
+			printf("\tjsr @__sconstl,0\n");
 		if (n->op == T_NREF)
 			printf("\t.word _%s_%u\n", namestr(n->snum), v);
 		else
