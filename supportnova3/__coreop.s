@@ -18,6 +18,8 @@
 	.export f__sconstl
 	.export f__cpush
 	.export f__cpushl
+	.export f__cipush
+	.export f__cipushl
 
 	.code
 
@@ -104,6 +106,20 @@ f__cpushl:
 	lda	0,0,3
 	inc	3,3
 	lda	1,0,3
+	psha	1
+	psha	0
+	jmp	@outi,1
+
+f__cipush:
+	lda	2,0,3
+	lda	1,0,2
+	psha	1
+	jmp	@outi,1
+
+f__cipushl:
+	lda	2,0,3
+	lda	0,0,2
+	lda	1,1,2
 	psha	1
 	psha	0
 	jmp	@outi,1

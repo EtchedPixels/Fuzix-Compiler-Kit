@@ -57,3 +57,26 @@
 =
 	jsr @__cpush,0
 	.word %1
+
+	jsr @__iconst,0
+	.word %1
+	psha 1
+=
+	jsr @__cipush,0
+	.word %1
+
+	jsr @__constl,0
+	.word %1
+	.word $%2
+	psha 1
+=
+	jsr @__cpushl,0
+	.word %1
+	.word %2
+
+	jsr @__iconstl,0
+	.word %1
+	psha 1
+=
+	jsr @__cipushl,0
+	.word %1

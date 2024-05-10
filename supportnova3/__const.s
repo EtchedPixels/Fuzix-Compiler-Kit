@@ -32,6 +32,8 @@ __hireg:.word	0
 	.export __sconstl
 	.export __cpush
 	.export __cpushl
+	.export __cipush
+	.export __cipushl
 
 	.export __derefc
 	.export __derefuc
@@ -78,6 +80,8 @@ __sconst:	.word f__sconst
 __sconstl:	.word f__sconstl
 __cpush:	.word f__cpush
 __cpushl:	.word f__cpushl
+__cipush:	.word f__cipush
+__cipushl:	.word f__cipushl
 
 __derefc:
 __derefuc:	.word f__derefc
