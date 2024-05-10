@@ -222,7 +222,7 @@ void gen_frame(unsigned size, unsigned aframe)
 	if (size >= 5) {
 		printf("\tmfsp 1\n");
 		printf("\tlda 0,2,1\n");
-		printf("\tadd 0,1,skip\n");
+		printf("\tadd 0,1,skp\n");
 		printf("\t.word %u\n", size / 2);
 		printf("\tmtsp 1\n");
 	} else
@@ -240,13 +240,13 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	if (size >= 5) {
 		printf("\tmfsp 1\n");
 		printf("\tlda 0,2,1\n");
-		printf("\tadd 0,1,skip\n");
+		printf("\tadd 0,1,skp\n");
 		printf("\t.word %u\n", ((-size / 2) & 0xFFFF));
 		printf("\tmtsp 1\n");
 	} else
 		repeated_op(size / 2, "popa 0");
 	if (!(func_flags & F_VOIDRET))
-		printf("\tsta -1,0,3\n");
+		printf("\tsta 0,0,3\n");
 	printf("\tret\n");
 	unreachable = 1;
 }
@@ -261,7 +261,7 @@ unsigned gen_exit(const char *tail, unsigned n)
 {
 	/* TODO: we need an ejmp that works out if it's in range as it often
 	   will be doable relative */
-	printf("\tjmp 1,1\n");
+	printf("\tjmp @1,1\n");
 	printf("\t.word L%d%s\n", n, tail);
 	unreachable = 1;
 	return 0;
@@ -269,7 +269,7 @@ unsigned gen_exit(const char *tail, unsigned n)
 
 void gen_jump(const char *tail, unsigned n)
 {
-	printf("\tjmp 1,1\n");
+	printf("\tjmp @1,1\n");
 	printf("\t.word L%d%s\n", n, tail);
 }
 
@@ -543,8 +543,8 @@ static unsigned const_condop(struct node *n, char *o, char *uo)
 	if (get_size(n->type) == 4)
 		return 0;
 	
-	if (n->op == T_CONSTANT && gen_constant(0, n->value))
-		return 1;
+	if (n->op != T_CONSTANT)
+		return 0;
 	if (n->type & UNSIGNED)
 		o = uo;
 #if 0
@@ -578,11 +578,11 @@ unsigned gen_direct(struct node *n)
 		if (v >= 5) {
 			printf("\tmfsp 1\n");
 			printf("\tlda 0,2,1\n");
-			printf("\tadd 0,1,skip\n");
+			printf("\tadd 0,1,skp\n");
 			printf("\t.word %u\n", (-v) & 0xFFFF);
 			printf("\tmtsp 1\n");
 		} else
-			repeated_op(v, "pull 0");
+			repeated_op(v, "popa 0");
 		sp -= v;
 		return 1;
 	case T_PLUS:
@@ -912,7 +912,7 @@ unsigned gen_node(struct node *n)
 		printf("\tmov 3,1\n");
 		if (d) {
 			printf("\tlda 0,2,1\n");
-			printf("\tadd 1,0,skip\n");
+			printf("\tadd 1,0,skp\n");
 			printf("\t.word %d\n", (int)d);
 		}
 		/* TODO maybe optimize generally "add const to ac" for
@@ -929,7 +929,7 @@ unsigned gen_node(struct node *n)
 		printf("\tmov 3,2\n");
 		if (d) {
 			printf("\tlda 0,2,1\n");
-			printf("\tadd 0,2,skip\n");
+			printf("\tadd 0,2,skp\n");
 			printf("\t.word %d\n", (int) d);
 		}
 		printf("\tlda 1,0,2\n");
@@ -943,7 +943,7 @@ unsigned gen_node(struct node *n)
 		printf("\tmov 3,2\n");
 		if (d) {
 			printf("\tlda 0,2,1\n");
-			printf("\tadd 0,2,skip\n");
+			printf("\tadd 0,2,skp\n");
 			printf("\t.word %d\n", (int)d);
 		}
 		printf("\tsta 1,0,2\n");
