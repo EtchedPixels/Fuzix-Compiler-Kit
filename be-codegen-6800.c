@@ -1124,7 +1124,7 @@ unsigned gen_uni_direct(struct node *n)
 		   *auto = 0, that we can optimize nicely */
 		if (r->op == T_CONSTANT && r->value == 0 && nr) {
 			if (cpu_is_09) {
-				off = n->value + sp;
+				off = n->val2 + sp;
 				while(s--)
 					printf("\tclr [%u,s]\n", off++);
 				return 1;
