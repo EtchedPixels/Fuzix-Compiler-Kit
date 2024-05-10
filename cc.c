@@ -203,7 +203,6 @@ struct cpu_table cpu_rules[] = {
 };
 
 /* Need to set these via the cpu type lookup etc */
-int native;
 const char *cpuset;		/* Which binary compiler tool names */
 const char *cpudot;		/* Which internal tool names */
 const char *cpudir;		/* CPU specific directory */
@@ -290,10 +289,11 @@ static char pathbuf[CPATHSIZE];
 static char *make_bin_name(const char *app, const char *t)
 {
 	/* TODO use strlcpy/cat */
-	if (native)
-		snprintf(pathbuf, CPATHSIZE, "/bin/%s", app);
-	else
-		snprintf(pathbuf, CPATHSIZE, "%s/%s%s", BINPATH, app, t);
+#ifdef NATIVE_CPU
+	snprintf(pathbuf, CPATHSIZE, "/bin/%s", app);
+#else
+	snprintf(pathbuf, CPATHSIZE, "%s/%s%s", BINPATH, app, t);
+#endif
 	return pathbuf;
 }
 
@@ -301,10 +301,11 @@ static char *make_bin_name(const char *app, const char *t)
    <libdir>/app{.cpu} */
 static char *make_lib_name(const char *app, const char *tail)
 {
-	if (native)
-		snprintf(pathbuf, CPATHSIZE, "/lib/%s", app);
-	else
-		snprintf(pathbuf, CPATHSIZE, "%s/%s%s", LIBPATH, app, tail);
+#ifdef NATIVE_CPU
+	snprintf(pathbuf, CPATHSIZE, "/lib/%s", app);
+#else
+	snprintf(pathbuf, CPATHSIZE, "%s/%s%s", LIBPATH, app, tail);
+#endif
 	return pathbuf;
 }
 
@@ -312,19 +313,21 @@ static char *make_lib_name(const char *app, const char *tail)
    for non-native we use <libdir>/<cpu>/{include, lib, ..} */
 static char *make_lib_dir(const char *base, const char *tail)
 {
-	if (native)
-		snprintf(pathbuf, CPATHSIZE, "%s/%s", base, tail);
-	else
-		snprintf(pathbuf, CPATHSIZE, "%s/%s/%s", LIBPATH, cpudir, tail);
+#ifdef NATIVE_CPU
+	snprintf(pathbuf, CPATHSIZE, "%s/%s", base, tail);
+#else
+	snprintf(pathbuf, CPATHSIZE, "%s/%s/%s", LIBPATH, cpudir, tail);
+#endif
 	return pathbuf;
 }
 
 static char *make_lib_file(const char *base, const char *dir, const char *tail)
 {
-	if (native)
-		snprintf(pathbuf, CPATHSIZE, "%s/%s/%s", base, dir, tail);
-	else
-		snprintf(pathbuf, CPATHSIZE, "%s/%s/%s", LIBPATH, cpudir, tail);
+#ifdef NATIVE
+	snprintf(pathbuf, CPATHSIZE, "%s/%s/%s", base, dir, tail);
+#else
+	snprintf(pathbuf, CPATHSIZE, "%s/%s/%s", LIBPATH, cpudir, tail);
+#endif
 	return pathbuf;
 }
 
@@ -348,10 +351,6 @@ static void set_for_processor(struct cpu_table *r)
 static void find_processor(const char *cpu)
 {
 	struct cpu_table *t = cpu_rules;
-#ifdef NATIVE_CPU
-	if (strcmp(cpu, NATIVE_CPU) == 0)
-		native = 1;
-#endif
 	while(t->name) {
 		if (strcmp(t->name, cpu) == 0) {
 			set_for_processor(t);
