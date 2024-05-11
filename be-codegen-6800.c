@@ -1239,8 +1239,10 @@ unsigned gen_shortcut(struct node *n)
 		return 1;
 #endif
 	case T_RSTORE:
-		if (load_u_with(r, 0))
+		if (can_load_r_with(r, 0)) {
+			load_u_with(r, 0);
 			return 1;
+		}
 		codegen_lr(r);
 		printf("\ttfr d,u\n");
 		return 1;
