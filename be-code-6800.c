@@ -592,16 +592,20 @@ static char *addr_form(register struct node *r, unsigned off, unsigned s)
 		return addr;
 	case T_NSTORE:
 	case T_NREF:
-		sprintf(addr, "%s_%s+%u%s", mod, namestr(r->snum), v + off, pic_op);
+		sprintf(addr, "_%s+%u%s", namestr(r->snum), v + off, pic_op);
 		return addr;
 	case T_LABEL:
 		sprintf(addr, "#%sT%u+%u", mod, r->val2, v + off);
 		return addr;
 	case T_LBSTORE:
-		sprintf(addr, "%sT%u+%u%s", mod, r->val2, v + off, pic_op);
+		sprintf(addr, "T%u+%u%s", r->val2, v + off, pic_op);
 		return addr;
 	case T_LBREF:
-		sprintf(addr, "%sT%u+%u%s", mod, r->val2, v + off, pic_op);
+		sprintf(addr, "T%u+%u%s", r->val2, v + off, pic_op);
+		return addr;
+	/* Only occurs on 6809 */
+	case T_RDEREF:
+		sprintf(addr, "%u,u", r->val2 + off);
 		return addr;
 	default:
 		error("aform");
@@ -1057,37 +1061,16 @@ unsigned load_x_with(struct node *r, unsigned off)
 		invalidate_x();
 		break;
 	case T_CONSTANT:
-		printf("\tldx #%u\n", v + off);
-		invalidate_x();
-		break;
 	case T_LBREF:
-		printf("\tldx T%u+%u%s\n", r->val2, v + off, pic_op);
-		invalidate_x();
-		break;
 	case T_LABEL:
-		if (cpu_pic)
-			printf("\tleax T%u+%u,pcr\n", r->val2, v + off);
-		else
-			printf("\tldx #T%u+%u\n", r->val2, v + off);
-		invalidate_x();
-		break;
 	case T_NREF:
-		printf("\tldx _%s+%u%s\n", namestr(r->snum), v + off, pic_op);
-		invalidate_x();
-		break;
 	case T_NAME:
-		if (cpu_pic)
-			printf("\tleax _%s+%u,pcr\n", namestr(r->snum), v + off);
-		else
-			printf("\tldx #_%s+%u\n", namestr(r->snum), v + off);
+	case T_RDEREF:
+		printf("\tldx %s\n", addr_form(r, off, 2));
 		invalidate_x();
 		break;
 	case T_RREF:
 		printf("\ttfr u,x\n");
-		invalidate_x();
-		break;
-	case T_RDEREF:
-		printf("\tldx %u,u\n", r->val2);
 		invalidate_x();
 		break;
 	case T_PLUS:
@@ -1105,9 +1088,6 @@ unsigned load_x_with(struct node *r, unsigned off)
 			return -r->right->value;
 		}
 		break;
-	/* case T_RREF:
-		printf("\tldx @__reg%u\n", v);
-		break; */
 	default:
 		error("lxw");
 	}
@@ -1128,31 +1108,15 @@ unsigned load_u_with(struct node *r, unsigned off)
 		printf("\tldu %u,s\n", v + sp);
 		return 1;
 	case T_CONSTANT:
-		printf("\tldu #%u\n", v + off);
-		return 1;
 	case T_LBREF:
-		printf("\tldu T%u+%u%s\n", r->val2, v + off, pic_op);
-		return 1;
 	case T_LABEL:
-		if (cpu_pic)
-			printf("\tleau T%u+%u,pcr\n", r->val2, v + off);
-		else
-			printf("\tldu #T%u+%u\n", r->val2, v + off);
-		return 1;
 	case T_NREF:
-		printf("\tldu _%s+%u%s\n", namestr(r->snum), v + off, pic_op);
-		return 1;
 	case T_NAME:
-		if (cpu_pic)
-			printf("\tleau _%s+%u,pcr\n", namestr(r->snum), v + off);
-		else
-			printf("\tldu #_%s+%u\n", namestr(r->snum), v + off);
+	case T_RDEREF:
+		printf("\tldu %s\n", addr_form(r, off, 2));
 		return 1;
 	case T_RREF:
 		/* Only one reg so .. */
-		return 1;
-	case T_RDEREF:
-		printf("\tldu %u,u\n", r->val2);
 		return 1;
 	}
 	return 0;
