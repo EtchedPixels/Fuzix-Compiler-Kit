@@ -412,7 +412,6 @@ void op32d_on_ptr(const char *op, const char *op2, unsigned off)
 		op32_on_ptr(op, op2, off);
 		return;
 	}
-	op = remap_op(op);
 	printf("\t%sd %u,x\n", op, off + 2);
 	if (cpu_has_y) {
 		swap_d_y();
