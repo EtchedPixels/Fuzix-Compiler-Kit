@@ -1205,47 +1205,8 @@ unsigned gen_shortcut(struct node *n)
 			codegen_lr(r);
 			load_x_with(l, 0);
 			invalidate_mem();
-			switch(s) {
-			case 1:
-				printf("\t%sb %u,x\n", st8_op, v);
-				return 1;
-			case 2:
-				if (cpu_has_d)
-					printf("\tstd %u,x\n", v);
-				else {
-					printf("\tstaa %u,x\n", v);
-					printf("\tstab %u,x\n", v + 1);
-				}
-				return 1;
-			case 4:
-				if (cpu_has_y) {
-					printf("\tsty %u,x\n", v);
-					printf("\tstd %u,x\n", v + 2);
-					return 1;
-				}
-				if (cpu_has_d)
-					printf("\tstd %u,x\n", v + 2);
-				else {
-					printf("\tstaa %u,x\n", v + 2);
-					printf("\tstab %u,x\n", v + 3);
-				}
-				if (!nr)
-					printf("\tpshb\n\tpsha\n");
-				if (cpu_has_d) {
-					printf("\tldd @hireg\n");
-					printf("\tstd %u,x\n", v);
-				} else {
-					printf("\tldaa @hireg\n");
-					printf("\tldab @hireg+1\n");
-					printf("\tstaa %u,x\n", v);
-					printf("\tstab %u,x\n", v + 1);
-				}
-				if (!nr)
-					printf("\tpula\n\tpulb\n");
-				return 1;
-			default:
-				error("seqf");
-			}
+			opd_on_ptr(n, "st", "st", v);
+			return 1;
 		}
 		return 0;
 	case T_PLUSEQ:
