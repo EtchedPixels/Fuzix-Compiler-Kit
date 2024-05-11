@@ -23,8 +23,8 @@ int bitcheckb1(uint8_t n)
 
 int bitcheck1(unsigned n, unsigned s)
 {
+	register unsigned i;
 	unsigned m = 1;
-	unsigned i;
 
 	if (s == 1)
 		return bitcheckb1(n);
@@ -43,7 +43,7 @@ int bitcheck0(unsigned n, unsigned s)
 	return bitcheck1((~n) & 0xFFFF, 2);
 }
 
-unsigned get_size(unsigned t)
+unsigned get_size(register unsigned t)
 {
 	if (PTR(t))
 		return 2;
@@ -70,7 +70,7 @@ unsigned get_stack_size(unsigned t)
 	return n;
 }
 
-static void squash_node(struct node *n, struct node *o)
+static void squash_node(register struct node *n, struct node *o)
 {
 	n->value = o->value;
 	n->val2 = o->val2;
@@ -78,7 +78,7 @@ static void squash_node(struct node *n, struct node *o)
 	free_node(o);
 }
 
-static void squash_left(struct node *n, unsigned op)
+static void squash_left(register struct node *n, unsigned op)
 {
 	struct node *l = n->left;
 	n->op = op;
@@ -86,7 +86,7 @@ static void squash_left(struct node *n, unsigned op)
 	n->left = NULL;
 }
 
-static void squash_right(struct node *n, unsigned op)
+static void squash_right(register struct node *n, unsigned op)
 {
 	struct node *r = n->right;
 	n->op = op;
@@ -102,7 +102,7 @@ static void squash_right(struct node *n, unsigned op)
 
 static unsigned is_simple(struct node *n)
 {
-	unsigned op = n->op;
+	register unsigned op = n->op;
 
 	/* Multi-word objects are never simple */
 	if (!PTR(n->type) && (n->type & ~UNSIGNED) > CSHORT)
@@ -145,12 +145,12 @@ static int type_compatible(struct node *n, unsigned t)
  *	to make them easier to process. We also rewrite dereferences with
  *	offsets so we can use ix and iy nicely.
  */
-struct node *gen_rewrite_node(struct node *n)
+struct node *gen_rewrite_node(register struct node *n)
 {
-	struct node *l = n->left;
-	struct node *r = n->right;
+	register struct node *r = n->right;
+	register struct node *l = n->left;
 	struct node *c;
-	unsigned op = n->op;
+	register unsigned op = n->op;
 	unsigned nt = n->type;
 	int val;
 
