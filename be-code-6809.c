@@ -889,3 +889,23 @@ unsigned cmp_op(struct node *n, const char *uop, const char *op)
 	return 1;
 }
 
+unsigned gen_push(struct node *n)
+{
+	unsigned size = get_size(n->type);
+	/* Our push will put the object on the stack, so account for it */
+	sp += get_stack_size(n->type);
+	switch(size) {
+	case 1:
+		printf("\tpshs b\n");
+		return 1;
+	case 2:
+		printf("\tpshs d\n");
+		return 1;
+	case 4:	/* Have to split them to get the order right */
+		/* Or we could go PDP11 style mixed endian long ? */
+		printf("\tpshs d\n");
+		printf("\tpshs y\n");
+		return 1;
+	}
+	return 0;
+}

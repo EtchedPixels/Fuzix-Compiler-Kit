@@ -1070,3 +1070,31 @@ unsigned cmp_op(struct node *n, const char *uop, const char *op)
 	return 0;
 }
 
+unsigned gen_push(struct node *n)
+{
+	unsigned size = get_size(n->type);
+	/* Our push will put the object on the stack, so account for it */
+	sp += get_stack_size(n->type);
+	switch(size) {
+	case 1:
+		printf("\tpshb\n");
+		return 1;
+	case 2:
+		printf("\tpshb\n\tpsha\n");
+		return 1;
+	case 4:
+		printf("\tpshb\n\tpsha\n");
+		if (cpu_has_y)
+			printf("\tpshy\n");
+		else {
+			printf("\tldaa @hireg+1\n");
+			printf("\tpsha\n");
+			printf("\tldaa @hireg\n");
+			printf("\tpsha\n");
+			invalidate_work();
+		}
+		return 1;
+	}
+	return 0;
+}
+

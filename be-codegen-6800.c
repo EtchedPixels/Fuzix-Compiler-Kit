@@ -364,51 +364,6 @@ struct node *gen_rewrite_node(struct node *n)
 }
 
 
-unsigned gen_push(struct node *n)
-{
-	unsigned size = get_size(n->type);
-	/* Our push will put the object on the stack, so account for it */
-	sp += get_stack_size(n->type);
-	if (cpu_is_09) {
-		/* 6809 has differing ops */
-		switch(size) {
-		case 1:
-			printf("\tpshs b\n");
-			return 1;
-		case 2:
-			printf("\tpshs d\n");
-			return 1;
-		case 4:	/* Have to split them to get the order right */
-			/* Or we could go PDP11 style mixed endian long ? */
-			printf("\tpshs d\n");
-			printf("\tpshs y\n");
-			return 1;
-		}
-		return 0;
-	}
-	switch(size) {
-	case 1:
-		printf("\tpshb\n");
-		return 1;
-	case 2:
-		printf("\tpshb\n\tpsha\n");
-		return 1;
-	case 4:
-		printf("\tpshb\n\tpsha\n");
-		if (cpu_has_y)
-			printf("\tpshy\n");
-		else {
-			printf("\tldaa @hireg+1\n");
-			printf("\tpsha\n");
-			printf("\tldaa @hireg\n");
-			printf("\tpsha\n");
-			invalidate_work();
-		}
-		return 1;
-	}
-	return 0;
-}
-
 /*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
