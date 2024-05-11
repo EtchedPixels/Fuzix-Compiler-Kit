@@ -1235,3 +1235,25 @@ unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 	invalidate_work();
 	return 1;
 }
+
+void op_on_ptr(struct node *n, const char *op, unsigned off)
+{
+	unsigned s = get_size(n->type);
+	if (s == 1)
+		op8_on_ptr(op, off);
+	else if (s == 2)
+		op16_on_ptr(op, op, off);
+	else
+		op32_on_ptr(op,op, off);
+}
+
+void opd_on_ptr(struct node *n, const char *op, const char *op2, unsigned off)
+{
+	unsigned s = get_size(n->type);
+	if (s == 1)
+		op8_on_ptr(op, off);
+	else if (s == 2)
+		op16d_on_ptr(op, op2, off);
+	else
+		op32_on_ptr(op, op2, off);
+}

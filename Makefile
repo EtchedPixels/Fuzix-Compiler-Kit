@@ -1,10 +1,10 @@
 all: cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
-     cc1.65c816 cc1.z8 cc1.1802 cc1.6800 \
+     cc1.65c816 cc1.z8 cc1.1802 cc1.6800 cc1.6809 \
      cc1.8070 cc1.8086 \
      cc1.ee200 cc1.nova \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
-     cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 \
+     cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.6809 \
      cc2.8070 cc2.8086 \
      cc2.ee200 cc2.nova \
      copt \
@@ -14,11 +14,11 @@ all: cc cc0 \
 
 bootstuff: cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
-     cc1.65c816 cc1.z8 cc1.super8 cc1.1802 cc1.6800 cc1.8070 \
-     cc1.8086 cc1.ee200 cc1.nova \
+     cc1.65c816 cc1.z8 cc1.super8 cc1.1802 cc1.6800 cc1.6809 \
+     cc1.8070 cc1.8086 cc1.ee200 cc1.nova \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
-     cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.8070 \
-     cc2.8086 cc2.ee200 cc2.nova \
+     cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.6809 \
+     cc2.8070 cc2.8086 cc2.ee200 cc2.nova \
      copt
 
 .PHONY: support6303 support6502 support65c816 support6800 support6803 \
@@ -48,7 +48,8 @@ OBJS12 = backend.o backend-65c816.o
 OBJS13 = backend.o backend-z8.o
 OBJS14 = backend.o backend-super8.o
 OBJS15 = backend.o backend-1802.o
-OBJS16 = backend.o be-codegen-6800.o be-track-6800.o be-code-6800.o
+OBJS16 = backend.o be-codegen-6800.o be-track-6800.o be-code-6800.o be-func-6800.o
+OBJS17 = backend.o be-codegen-6800.o be-track-6800.o be-code-6809.o be-func-6800.o
 
 CFLAGS = -Wall -pedantic -g3 -DLIBPATH="\"$(CCROOT)/lib\"" -DBINPATH="\"$(CCROOT)/bin\""
 
@@ -107,6 +108,9 @@ cc1.1802:$(OBJS1) target-1802.o
 cc1.6800:$(OBJS1) target-6800.o
 	gcc -g3 $(OBJS1) target-6800.o -o cc1.6800
 
+cc1.6809:$(OBJS1) target-6800.o
+	gcc -g3 $(OBJS1) target-6800.o -o cc1.6809
+
 cc1.8070:$(OBJS1) target-8070.o
 	gcc -g3 $(OBJS1) target-8070.o -o cc1.8070
 
@@ -148,6 +152,9 @@ cc2.1802:	$(OBJS15)
 
 cc2.6800:	$(OBJS16)
 	gcc -g3 $(OBJS16) -o cc2.6800
+
+cc2.6809:	$(OBJS17)
+	gcc -g3 $(OBJS17) -o cc2.6809
 
 cc2.8070:	$(OBJS8)
 	gcc -g3 $(OBJS8) -o cc2.8070
@@ -205,6 +212,7 @@ clean:
 	rm -f cc6502 cc65c816
 	rm -f cc1.1802 cc2.1802
 	rm -f cc1.6800 cc2.6800
+	rm -f cc1.6809 cc2.6809
 	rm -f cc1.8080 cc1.z80 cc1.thread
 	rm -f cc1.6502 cc1.65c816 cc1.byte
 	rm -f cc1.8070
@@ -270,6 +278,8 @@ bootinst:
 	mkdir -p $(CCROOT)/lib/hc11/include
 	cp cc1.6800 $(CCROOT)/lib
 	cp cc2.6800 $(CCROOT)/lib
+	cp cc1.6809 $(CCROOT)/lib
+	cp cc2.6809 $(CCROOT)/lib
 	cp copt $(CCROOT)/lib
 	cp rules.6800 $(CCROOT)/lib
 	cp rules.6809 $(CCROOT)/lib

@@ -28,6 +28,8 @@
 extern unsigned frame_len;	/* Number of bytes of stack frame */
 extern unsigned sp;		/* Stack pointer offset tracking */
 extern unsigned argbase;	/* Argument offset in current function */
+extern unsigned unreachable;	/* Code following an unconditional jump */
+
 
 extern unsigned get_size(unsigned t);
 extern unsigned get_stack_size(unsigned t);
@@ -43,10 +45,13 @@ extern unsigned cpu_has_y;	/* Has Y register */
 extern unsigned cpu_has_lea;	/* Has LEA. For now 6809 but if we get to HC12... */
 extern unsigned cpu_is_09;	/* Bulding for 6x09 so a bit different */
 extern unsigned cpu_pic;	/* Position independent output (6809 only) */
+
+extern const char *jmp_op;
+extern const char *jsr_op;
+extern const char *or_op;
 extern const char *ld8_op;
 extern const char *st8_op;
 extern const char *pic_op;
-extern const char *jsr_op;
 
 /* Tracking */
 extern uint8_t a_val;
@@ -125,7 +130,5 @@ extern void write_mul(unsigned n);
 extern unsigned can_fast_mul(unsigned s, unsigned n);
 extern void gen_fast_mul(unsigned s, unsigned n);
 extern unsigned gen_fast_div(unsigned n, unsigned s, unsigned u);
-
-
-
-
+extern void op_on_ptr(struct node *n, const char *op, unsigned off);
+extern void opd_on_ptr(struct node *n, const char *op, const char *op2, unsigned off);
