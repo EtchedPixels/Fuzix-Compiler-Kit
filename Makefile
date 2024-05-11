@@ -10,7 +10,7 @@ all: cc cc0 \
      copt \
      support6303 support6502 support65c816 support6800 support6803 \
      support6809 support68hc11 support8080 support8085 supportz80 \
-     supportz8 supportsuper8 supportee200 test
+     supportz8 supportsuper8 supportee200 supportnova3 test
 
 bootstuff: cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
@@ -23,7 +23,7 @@ bootstuff: cc cc0 \
 
 .PHONY: support6303 support6502 support65c816 support6800 support6803 \
 	support6809 support68hc11 support8080 support8085 supportsuper8 \
-	supportz8 supportz80 supportee200 \
+	supportz8 supportz80 supportee200 supportnova3 \
 	test
 
 CCROOT ?=/opt/fcc/
@@ -195,6 +195,9 @@ support8085:
 supportee200:
 	(cd supportee200; make)
 
+supportnova3:
+	(cd supportnova3; make)
+
 supportsuper8:
 	(cd supportsuper8; make)
 
@@ -232,6 +235,7 @@ clean:
 	(cd support68hc11; make clean)
 	(cd support8080; make clean)
 	(cd supportee200; make clean)
+	(cd supportnova3; make clean)
 	(cd supportsuper8; make clean)
 	(cd support8085; make clean)
 	(cd supportz80; make clean)
@@ -392,6 +396,9 @@ libinst:
 	cp supportee200/crt0.o $(CCROOT)/lib/ee200/
 	cp supportee200/libee200.a $(CCROOT)/lib/ee200/libee200.a
 	ar cq $(CCROOT)/lib/ee200/libc.a
+	cp supportnova3/crt0.o $(CCROOT)/lib/nova/
+	cp supportnova3/libnova.a $(CCROOT)/lib/nova/libnova.a
+	ar cq $(CCROOT)/lib/nova/libc.a
 	cp supportsuper8/crt0.o $(CCROOT)/lib/super8/
 	cp supportsuper8/libsuper8.a $(CCROOT)/lib/super8/libsuper8.a
 	ar cq $(CCROOT)/lib/super8/libc.a
