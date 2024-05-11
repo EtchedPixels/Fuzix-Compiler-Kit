@@ -722,7 +722,6 @@ void link_phase(void)
 	}
 	/* <root>/8080/lib/ */
 	l = xstrdup(make_lib_dir("", ""), 0);
-	printf("libpath '%s'\n", l);
 	c = NULL;
 	if (!standalone) {
 		/* Start with crt0.o, end with libc.a and support libraries */
