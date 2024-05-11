@@ -485,6 +485,7 @@ void op32d_on_ptr(const char *op, const char *op2, unsigned off)
 		printf("\t%sa %u,x\n", op2, off);
 		swap_d_y();
 	} else {
+		/* FIXME: use D */
 		printf("\tpshb\n\tpsha");
 		printf("\tldd @hireg\n");
 		printf("\t%sb %u,x\n", op2, off + 1);
@@ -494,48 +495,13 @@ void op32d_on_ptr(const char *op, const char *op2, unsigned off)
 	}
 }
 
-void uniop8_on_ptr(const char *op, unsigned off)
+void uniop_on_ptr(register const char *op, register unsigned off,
+						register unsigned size)
 {
 	op = remap_op(op);
-	printf("\t%s %u,x\n", op, off);
-}
-
-void uniop16_on_ptr(const char *op, unsigned off)
-{
-	op = remap_op(op);
-	printf("\t%s %u,x\n", op, off + 1);
-	printf("\t%s %u,x\n", op, off);
-}
-
-void uniop32_on_ptr(const char *op, unsigned off)
-{
-	op = remap_op(op);
-	printf("\t%s %u,x\n", op, off + 3);
-	printf("\t%s %u,x\n", op, off + 2);
-	printf("\t%s %u,x\n", op, off + 1);
-	printf("\t%s %u,x\n", op, off);
-}
-
-void uniop8_on_s(const char *op, unsigned off)
-{
-	op = remap_op(op);
-	printf("\t%s %u,s\n", op, off);
-}
-
-void uniop16_on_s(const char *op, unsigned off)
-{
-	op = remap_op(op);
-	printf("\t%s %u,s\n", op, off + 1);
-	printf("\t%s %u,s\n", op, off);
-}
-
-void uniop32_on_s(const char *op, unsigned off)
-{
-	op = remap_op(op);
-	printf("\t%s %u,s\n", op, off + 3);
-	printf("\t%s %u,s\n", op, off + 2);
-	printf("\t%s %u,s\n", op, off + 1);
-	printf("\t%s %u,s\n", op, off);
+	off += size;
+	while(size--)
+		printf("\t%s %u,x\n", op, --off);
 }
 
 /* TODO: propogate down if we need to save B */
@@ -606,6 +572,43 @@ unsigned make_tos_ptr(void)
 	return 0;
 }
 
+static char *addr_form(register struct node *r, unsigned off, unsigned s)
+{
+	static char addr[32];
+	const char *mod = "";
+	unsigned v = r->value;
+
+	if (s == 1)
+		mod = "<";
+
+	switch(r->op) {
+	case T_CONSTANT:
+		if (s == 1)
+			v &= 0xFF;
+		sprintf(addr, "#%s%u", mod, v + off);
+		return addr;
+	case T_NAME:
+		sprintf(addr, "#%s_%s+%u", mod, namestr(r->snum), v + off);
+		return addr;
+	case T_NSTORE:
+	case T_NREF:
+		sprintf(addr, "%s_%s+%u%s", mod, namestr(r->snum), v + off, pic_op);
+		return addr;
+	case T_LABEL:
+		sprintf(addr, "#%sT%u+%u", mod, r->val2, v + off);
+		return addr;
+	case T_LBSTORE:
+		sprintf(addr, "%sT%u+%u%s", mod, r->val2, v + off, pic_op);
+		return addr;
+	case T_LBREF:
+		sprintf(addr, "%sT%u+%u%s", mod, r->val2, v + off, pic_op);
+		return addr;
+	default:
+		error("aform");
+	}
+	return NULL;
+}
+
 /* These functions must not touch X on the 6809, they can on others */
 unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 {
@@ -626,27 +629,14 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 		}
 		break;
 	case T_CONSTANT:
-		printf("\t%sb #%u\n", op, v + off);
-		break;
 	case T_LBSTORE:
 	case T_LBREF:
-		printf("\t%sb T%u+%u%s\n", op, r->val2, v + off, pic_op);
-		break;
 	case T_LABEL:
-		/* TODO: pic */
-		printf("\t%sb #<T%u+%u\n", op, r->val2, v + off);
-		break;
 	case T_NSTORE:
 	case T_NREF:
-		printf("\t%sb _%s+%u%s\n", op, namestr(r->snum), v + off, pic_op);
-		break;
 	case T_NAME:
-		/* TODO: pic */
-		printf("\t%sb #<_%s+%u\n", op, namestr(r->snum), v + off);
+		printf("\t%sb %s\n", op, addr_form(r, off, 1));
 		break;
-	/* case T_RREF:
-		printf("\t%sb @__reg%u\n", v);
-		break; */
 	default:
 		return 0;
 	}
@@ -675,32 +665,17 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 		break;
 	case T_CONSTANT:
 		printf("\t%sa #>%u\n", op, (v + off) & 0xFFFF);
-		printf("\t%sb #<%u\n", op, (v + off) & 0xFFFF);
+		printf("\t%sb #<%u\n", op2, (v + off) & 0xFFFF);
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
-		printf("\t%sb T%u+%u%s\n", op, r->val2, v + off + 1, pic_op);
-		printf("\t%sa T%u+%u%s\n", op2, r->val2, v + off, pic_op);
-		break;
 	case T_LABEL:
-		/* TODO: pic */
-		printf("\t%sb #<T%u+%u\n", op, r->val2, v + off);
-		printf("\t%sa #>T%u+%u\n", op2, r->val2, v + off);
-		set_d_node(r);
-		break;
 	case T_NSTORE:
 	case T_NREF:
-		printf("\t%sb _%s+%u%s\n", op, namestr(r->snum), v + off + 1, pic_op);
-		printf("\t%sa _%s+%u%s\n", op2, namestr(r->snum), v + off, pic_op);
-		break;
 	case T_NAME:
-		/* TODO: pic */
-		printf("\t%sb #<_%s+%u\n", op, namestr(r->snum), v + off);
-		printf("\t%sa #>_%s+%u\n", op2, namestr(r->snum), v + off);
+		printf("\t%sa %s\n", op, addr_form(r, off, 1));
+		printf("\t%sb %s\n", op2, addr_form(r, off + 1, 1));
 		break;
-	/* case T_RREF:
-		printf("\t%sb @__reg%u\n", v);
-		break; */
 	default:
 		return 0;
 	}
@@ -723,26 +698,14 @@ unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned
 		}
 		break;
 	case T_CONSTANT:
-		printf("\t%sd #%u\n", op, v + off);
-		break;
 	case T_LBSTORE:
 	case T_LBREF:
-		printf("\t%sd T%u+%u%s\n", op, r->val2, v + off, pic_op);
-		break;
 	case T_LABEL:
-		printf("\t%sd #T%u+%u\n", op, r->val2, v + off);
-		set_d_node(r);
-		break;
 	case T_NSTORE:
 	case T_NREF:
-		printf("\t%sd _%s+%u%s\n", op, namestr(r->snum), v + off, pic_op);
-		break;
 	case T_NAME:
-		printf("\t%sd #_%s+%u\n", op, namestr(r->snum), v + off);
+		printf("\t%sd %s\n", op, addr_form(r, off, 2));
 		break;
-	/* case T_RREF:
-		printf("\t%sd @__reg%u\n", v);
-		break; */
 	default:
 		return 0;
 	}
@@ -763,26 +726,13 @@ unsigned op16y_on_node(struct node *r, const char *op, unsigned off)
 		}
 		break;
 	case T_CONSTANT:
-		printf("\t%sy #%u\n", op, v + off);
-		break;
 	case T_LBSTORE:
 	case T_LBREF:
-		printf("\t%sy T%u+%u%s\n", op, r->val2, v + off, pic_op);
-		break;
 	case T_LABEL:
-		printf("\t%sy #T%u+%u\n", op, r->val2, v + off);
-		set_d_node(r);
-		break;
 	case T_NSTORE:
 	case T_NREF:
-		printf("\t%sy _%s+%u%s\n", op, namestr(r->snum), v + off, pic_op);
-		break;
 	case T_NAME:
-		printf("\t%sy #_%s+%u\n", op, namestr(r->snum), v + off);
-		break;
-	/* case T_RREF:
-		printf("\t%sy @__reg%u\n", v);
-		break; */
+		printf("\t%sy %s\n", op, addr_form(r, off, 2));
 	default:
 		return 0;
 	}
@@ -812,80 +762,39 @@ unsigned write_opd(struct node *r, const char *op, const char *op2, unsigned off
 	return 0;
 }
 
-unsigned uniop8_on_node(struct node *r, const char *op, unsigned off)
+unsigned write_uni_op(register struct node *r, const char *op, unsigned off)
 {
 	unsigned v = r->value;
-	invalidate_work();
-	op = remap_op(op);
-	switch(r->op) {
-	case T_LSTORE:
-	case T_LREF:
-		if (cpu_is_09)
-			uniop8_on_s(op, v + off + sp);
-		else {
-			off = make_local_ptr(v + off, 255);
-			uniop8_on_ptr(op, off);
-		}
-		break;
-	case T_LBSTORE:
-	case T_LBREF:
-		printf("\t%s T%u+%u%s\n", op, r->val2, v + off, pic_op);
-		break;
-	case T_NSTORE:
-	case T_NREF:
-		printf("\t%s _%s+%u%s\n", op, namestr(r->snum), v + off, pic_op);
-		break;
-	/* case T_RREF:
-		printf("\t%sb @__reg%u\n", v);
-		break; */
-	default:
-		return 0;
-	}
-	return 1;
-}
+	unsigned s = get_size(r->type);
 
-/* Do the low byte first in case it's add adc etc */
-unsigned uniop16_on_node(struct node *r, const char *op, unsigned off)
-{
-	unsigned v = r->value;
+	if (s == 4)
+		return 0;
+
 	op = remap_op(op);
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:
-		if (cpu_is_09)
-			uniop16_on_s(op, v + off + sp);
-		else {
+		if (cpu_is_09) {
+			if (s == 2)
+				printf("\t%s %u,s\n", op, v + off + 1);
+			printf("\t%s %u,s\n", op, v + off);
+		} else {
 			off = make_local_ptr(v + off, 254);
-			uniop16_on_ptr(op, off);
+			uniop_on_ptr(op, off, 2);
 		}
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
-		printf("\t%s T%u+%u%s\n", op, r->val2, v + off + 1, pic_op);
-		printf("\t%s T%u+%u%s\n", op, r->val2, v + off, pic_op);
-		break;
 	case T_NSTORE:
 	case T_NREF:
-		printf("\t%s _%s+%u%s\n", op, namestr(r->snum), v + off + 1, pic_op);
-		printf("\t%s _%s+%u%s\n", op, namestr(r->snum), v + off, pic_op);
+		printf("\t%s %s\n", op, addr_form(r, off, 1));
+		if (s == 2)
+			printf("\t%s %s\n", op, addr_form(r, off + 1, 1));
 		break;
-	/* case T_RREF:
-		printf("\t%sb @__reg%u\n", v);
-		break; */
 	default:
 		return 0;
 	}
 	return 1;
-}
-
-unsigned write_uni_op(struct node *n, const char *op, unsigned off)
-{
-	unsigned s = get_size(n->type);
-	if (s == 2)
-		return uniop16_on_node(n, op, off);
-	if (s == 1)
-		return uniop8_on_node(n, op, off);
-	return 0;
 }
 
 void op8_on_tos(const char *op)

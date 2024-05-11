@@ -1135,12 +1135,7 @@ unsigned gen_uni_direct(struct node *n)
 			/* off,X is now the pointer */
 			printf("\tldx %u,x\n", off);
 			invalidate_x();
-			if (s == 1)
-				uniop8_on_ptr("clr", n->val2);
-			else if (s == 2)
-				uniop16_on_ptr("clr", n->val2);
-			else
-				uniop32_on_ptr("clr", n->val2);
+			uniop_on_ptr("clr", n->val2, s);
 			return 1;
 		}
 		return 0;
@@ -1725,10 +1720,7 @@ unsigned gen_shortcut(struct node *n)
 				/* We can optimize thing = 0 for the case
 				   we don't also need the value */
 				load_x_with(l, 0);
-				if (s == 1)
-					uniop8_on_ptr("clr", v);
-				else
-					uniop16_on_ptr("clr", v);
+				uniop_on_ptr("clr", v, s);
 				return 1;
 			}
 			codegen_lr(r);
