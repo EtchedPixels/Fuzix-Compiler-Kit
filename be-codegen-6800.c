@@ -68,25 +68,6 @@ void repeated_op(unsigned n, const char *op)
 		printf("\t%s\n", op);
 }
 
-/*
- *	Fix up weirdness in the asm formats.
- */
-const char *remap_op(const char *op)
-{
-	if (cpu_is_09)
-		return op;
-	/* Some 68xx ops are a bit irregular
-	   - ldd v ldab etc */
-	if (strcmp(op, "ld") == 0)
-		return "lda";
-	if (strcmp(op, "or") == 0)
-		return "ora";
-	if (strcmp(op, "st") == 0)
-		return "sta";
-	return op;
-}
-
-
 /* Chance to rewrite the tree from the top rather than none by node
    upwards. We will use this for 8bit ops at some point and for cconly
    propagation */

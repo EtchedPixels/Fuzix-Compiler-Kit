@@ -163,15 +163,15 @@ void adjust_s(int n, unsigned save_d)
 
 void op8_on_ptr(const char *op, unsigned off)
 {
-	printf("\t%sb %u,x\n", remap_op(op), off);
+	printf("\t%sb %u,x\n", op, off);
 }
 
 /* Do the low byte first in case it's add adc etc */
 void op16_on_ptr(const char *op, const char *op2, unsigned off)
 {
 	/* Big endian */
-	printf("\t%sb %u,x\n", remap_op(op), off + 1);
-	printf("\t%sa %u,x\n", remap_op(op2), off);
+	printf("\t%sb %u,x\n", op, off + 1);
+	printf("\t%sa %u,x\n", op2, off);
 }
 
 /* Operations where D can be used on later processors */
@@ -183,7 +183,7 @@ void op16d_on_ptr(const char *op, const char *op2, unsigned off)
 
 static void op8_on_s(const char *op, unsigned off)
 {
-	printf("\t%sb %u,s\n", remap_op(op), off);
+	printf("\t%sb %u,s\n", op, off);
 }
 
 static void op8_on_spi(const char *op)
@@ -195,8 +195,8 @@ static void op8_on_spi(const char *op)
 static void op16_on_s(const char *op, const char *op2, unsigned off)
 {
 	/* Big endian */
-	printf("\t%sb %u,s\n", remap_op(op), off + 1);
-	printf("\t%sa %u,s\n", remap_op(op2), off);
+	printf("\t%sb %u,s\n", op, off + 1);
+	printf("\t%sa %u,s\n", op2, off);
 }
 
 /* Always with D on a 6809 only op */
@@ -220,8 +220,6 @@ static void op16d_on_s(const char *op, const char *op2, unsigned off)
 
 void op32_on_ptr(const char *op, const char *op2, unsigned off)
 {
-	op = remap_op(op);
-	op2 = remap_op(op2);
 	printf("\t%sb %u,x\n", op, off + 3);
 	printf("\t%sa %u,x\n", op2, off + 2);
 	swap_d_y();
@@ -232,8 +230,6 @@ void op32_on_ptr(const char *op, const char *op2, unsigned off)
 
 void op32d_on_ptr(const char *op, const char *op2, unsigned off)
 {
-	op = remap_op(op);
-	op2 = remap_op(op2);
 	printf("\t%sd %u,x\n", op, off + 2);
 	swap_d_y();
 	printf("\t%sb %u,x\n", op2, off + 1);
@@ -244,7 +240,6 @@ void op32d_on_ptr(const char *op, const char *op2, unsigned off)
 void uniop_on_ptr(register const char *op, register unsigned off,
 						register unsigned size)
 {
-	op = remap_op(op);
 	off += size;
 	while(size--)
 		printf("\t%s %u,x\n", op, --off);
@@ -315,8 +310,6 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 
 	invalidate_work();
 
-	op = remap_op(op);
-
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:
@@ -343,9 +336,6 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 	unsigned v = r->value;
 
 	invalidate_work();
-
-	op = remap_op(op);
-	op2 = remap_op(op);
 
 	switch(r->op) {
 	case T_LSTORE:
@@ -446,7 +436,6 @@ unsigned write_uni_op(register struct node *r, const char *op, unsigned off)
 	if (s == 4)
 		return 0;
 
-	op = remap_op(op);
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:

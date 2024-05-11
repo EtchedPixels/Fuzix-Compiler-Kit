@@ -6,6 +6,23 @@
 #include "backend.h"
 #include "backend-6800.h"
 
+/*
+ *	Fix up weirdness in the asm formats.
+ */
+
+static const char *remap_op(const char *op)
+{
+	/* Some 68xx ops are a bit irregular
+	   - ldd v ldab etc */
+	if (strcmp(op, "ld") == 0)
+		return "lda";
+	if (strcmp(op, "or") == 0)
+		return "ora";
+	if (strcmp(op, "st") == 0)
+		return "sta";
+	return op;
+}
+
 /* 16bit constant load */
 void load_d_const(uint16_t n)
 {
