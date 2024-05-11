@@ -129,9 +129,9 @@ static unsigned is_simple(struct node *n)
  */
 struct node *gen_rewrite_node(struct node *n)
 {
-	struct node *l = n->left;
-	struct node *r = n->right;
-	unsigned op = n->op;
+	register struct node *r = n->right;
+	register struct node *l = n->left;
+	register unsigned op = n->op;
 	unsigned nt = n->type;
 	unsigned off;
 
