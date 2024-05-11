@@ -1,13 +1,13 @@
-		.export __bcana
-		.export __bcanac
+		.export __bcand
+		.export __bcandc
 		.code
 
-__bcana:
+__bcand:
 		; BC &= HL
 		ld a,h
 		and b
 		ld b,a
-__bcanac:
+__bcandc:
 		ld a,l
 		and c
 		ld c,a

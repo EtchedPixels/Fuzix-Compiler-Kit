@@ -1,13 +1,13 @@
-		.export __bcora
-		.export __bcorac
+		.export __bcor
+		.export __bcorc
 		.code
 
-__bcora:
+__bcor:
 		; BC &= HL
 		ld a,h
 		or b
 		ld b,a
-__bcorac:
+__bcorc:
 		ld a,l
 		or c
 		ld c,a

@@ -1256,8 +1256,8 @@ static void reg_logic(register struct node *n, unsigned s, unsigned op, const ch
 		/* TODO - can avoid the reload into HL if NORETURN */
 		/* TODO: check we never end up with IX or IY here */
 		if (s == 2)
-			printf("\tld a,b\n\t%s h\n\tld b,a\nld h,a\n", i + 2);
-		printf("\tld a,c\n\t%s c\n\tld c,a\nld l,a\n", i + 2);
+			printf("\tld a,b\n\t%s h\n\tld b,a\n\tld h,a\n", i + 2);
+		printf("\tld a,c\n\t%s c\n\tld c,a\n\tld l,a\n", i + 2);
 	} else {
 		reghelper(n, i);
 		get_regvar(n->left->value, NULL, s);
@@ -1756,13 +1756,13 @@ unsigned gen_shortcut(register struct node *n)
 			reghelper_s(n, "bcshr");
 			return 1;
 		case T_ANDEQ:
-			reg_logic(n, s, 0, "bcana");
+			reg_logic(n, s, 0, "bcand");
 			return 1;
 		case T_OREQ:
-			reg_logic(n, s, 1, "bcora");
+			reg_logic(n, s, 1, "bcor");
 			return 1;
 		case T_HATEQ:
-			reg_logic(n, s, 2, "bcxra");
+			reg_logic(n, s, 2, "bcxor");
 			return 1;
 		}
 		fprintf(stderr, "unfixed regleft on %04X\n", n->op);
