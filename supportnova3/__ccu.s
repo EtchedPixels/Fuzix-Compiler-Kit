@@ -16,7 +16,7 @@ f__condeq:
 	subzl	1,1,skp		; set one and skip
 	sub	1,1		; set 0 otherwise
 condout:
-	inc	3
+	inc	3,3
 	sta	3,__tmp,0
 	mffp	3
 	jmp	@__tmp,0
@@ -48,7 +48,7 @@ f__condgtequ:
 	sub	1,1
 	jmp	condout,1
 
-f__condlt:
+f__condltu:
 	lda	0,0,3
 	adcz#	1,0,snc
 	subz	1,1,skp

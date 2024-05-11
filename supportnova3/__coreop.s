@@ -8,14 +8,14 @@
 	.export f__booljt
 	.export f__notjf
 	.export f__notjt
-	.export f__const
-	.export f__constl
+	.export f__const1
+	.export f__const1l
 	.export f__const0
 	.export f__const0l
-	.export f__iconst
-	.export f__iconstl
-	.export f__sconst
-	.export f__sconstl
+	.export f__iconst1
+	.export f__iconst1l
+	.export f__sconst1
+	.export f__sconst1l
 	.export f__cpush
 	.export f__cpushl
 	.export f__cipush
@@ -52,11 +52,11 @@ f__jf:
 	jmp	out,1
 
 
-f__constl:
+f__const1l:
 	lda	1,0,3
 	sta	1,__hireg,0
 	inc	3,3
-f__const:
+f__const1:
 	lda	1,0,3
 outi:
 	inc 3,3
@@ -73,26 +73,38 @@ f__const0:
 	lda	0,0,3
 	jmp	outi,1
 
-f__iconst0l:
+f__iconst1l:
 	lda	2,0,3
+	lda	1,0,2
+	sta	1,__hireg,0
 	lda	1,1,2
-	lda	0,0,2
-	sta	0,__hireg,0
 	jmp	outi,1
 
-f__iconst:
+f__iconst1:
 	lda	2,0,3
 	lda	1,0,2
 	jmp	outi,1
 
-f__sconstl:
+f__iconst0l:
+	lda	2,0,3
+	lda	0,0,2
+	sta	0,__hireg,0
+	lda	0,1,2
+	jmp	outi,1
+
+f__iconst0:
+	lda	2,0,3
+	lda	1,0,2
+	jmp	outi,1
+
+f__sconst1l:
 	lda	2,0,3
 	lda	0,__hireg,0
 	sta	0,0,2
 	sta	1,1,2
 	jmp	outi,1
 
-f__sconst:
+f__sconst1:
 	lda	2,0,3
 	sta	1,0,2
 	jmp	outi,1

@@ -14,6 +14,8 @@
 	.export f__derefuc
 	.export f__assignc
 
+	.export f__pluseqc
+
 	.code
 
 ;
@@ -46,5 +48,31 @@ f__assignc:
 	and	3,0		; mask off
 	add	0,1		; add to new byte
 	sta	1,0,2		; put back
+	mffp	3
+	jmp	@__tmp,0
+
+; byte at AC2 += AC1
+f__pluseqc:
+	popa	2		; byte pointer
+	sta	3,__tmp,0
+	movr	2,2,szc		; get actual word, decide side
+	jmp	loplus,1	; carry zero high byte
+	movs	1,1
+	lda	0,0,2
+	add	0,1
+	sta	1,0,2		; write the value back
+	movs	1,1		; put result into low byte
+	mffp	3
+	jmp	@__tmp,0
+loplus:
+	lda	0,0,2
+	add	0,1		; 1 is now value we need to merge
+	lda	0,N255,0
+	and	0,1		; mask to low byte to clear overflows
+	movs	0,0		; flip mask other way (FF00)
+	lda	3,0,2		; get original
+	and	0,3		; mask it
+	add	0,1		; merge
+	sta	1,0,2
 	mffp	3
 	jmp	@__tmp,0
