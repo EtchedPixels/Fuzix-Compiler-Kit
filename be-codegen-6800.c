@@ -1149,46 +1149,8 @@ unsigned gen_shortcut(struct node *n)
 			load_x_with(r, 0);
 
 			invalidate_work();
-			switch(s) {
-			case 1:
-				printf("\t%sb %u,x\n", ld8_op, v);
-				return 1;
-			case 2:
-				if (cpu_has_d)
-					printf("\tldd %u,x\n", v);
-				else {
-					printf("\tldaa %u,x\n", v);
-					printf("\tldab %u,x\n", v + 1);
-				}
-				return 1;
-			case 4:
-				if (cpu_has_y) {
-					printf("\tldd %u,x\n", v + 2);
-					printf("\tldy %u,x\n", v);
-					return 1;
-				}
-				if (cpu_has_d)
-					printf("\tldd %u,x\n", v);
-				else {
-					printf("\tldaa %u,x\n", v);
-					printf("\tldab %u,x\n", v + 1);
-				}
-				if (cpu_has_d)
-					printf("\tldd @hireg\n");
-				else {
-					printf("\tstaa @hireg\n");
-					printf("\tstab @hireg+1\n");
-				}
-				if (cpu_has_d)
-					printf("\tldd %u,x\n", v + 2);
-				else {
-					printf("\tldaa %u,x\n", v + 2);
-					printf("\tldab %u,x\n", v + 3);
-				}
-				return 1;
-			default:
-				error("sdf");
-			}
+			opd_on_ptr(n, "ld", "ld", v);
+			return 1;
 		}
 		return 0;
 	case T_EQ:	/* Our left is the address */
@@ -1427,8 +1389,11 @@ unsigned gen_node(struct node *n)
 		/* size 4 varies */
 		if (cpu_has_y) {
 			load_d_const(v);
-			/* TODO: tracking on Y ? */
-			printf("\tldy #%u\n", (unsigned)((n->value >> 16) & 0xFFFF));
+			if (cpu_is_09 && (n->value >> 16) == (v & 0xFFFF))
+				printf("\ttfr d,y\n");
+			else
+				/* TODO: tracking on Y ? */
+				printf("\tldy #%u\n", (unsigned)((n->value >> 16) & 0xFFFF));
 			return 1;
 		}
 		if (cpu_has_d) {
