@@ -35,7 +35,6 @@ extern unsigned get_size(unsigned t);
 extern unsigned get_stack_size(unsigned t);
 
 extern void repeated_op(unsigned n, const char *op);
-extern const char *remap_op(const char *op);
 
 extern unsigned cpu_has_d;	/* 16bit ops and 'D' are present */
 extern unsigned cpu_has_xgdx;	/* XGDX is present */
