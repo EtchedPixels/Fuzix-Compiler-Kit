@@ -1462,46 +1462,6 @@ static unsigned gen_cast(struct node *n)
 	return 1;
 }
 
-/* TODO; compare and flip the boolify test rather than go via stack
-   when we can */
-unsigned cmp_op(struct node *n, const char *uop, const char *op)
-{
-	unsigned s = get_size(n->right->type);
-	if (n->right->type & UNSIGNED)
-		op = uop;
-	if (cpu_is_09) {
-		if (s > 2)	/* For now anyway */
-			return 0;
-		/* We can do this versus s+ or s++ */
-		/* FIXME: 6809 has cmpd unlike 6803 */
-		if (s == 1)
-			op8_on_spi("cmp");
-		else if (s == 2)
-			op16d_on_spi("sub");
-		printf("\t%s %s\n", jsr_op, op);
-		n->flags |= ISBOOL;
-		invalidate_work();
-		return 1;
-	}
-	if (s == 1) {
-		op8_on_ptr("cmp", 0);
-		printf("\t%s %s\n", jsr_op, op);
-		n->flags |= ISBOOL;
-		invalidate_work();
-		return 1;
-	}
-	if (s == 2 && cpu_has_d) {
-		op16d_on_ptr("sub", "sbc", 0);
-		printf("\tins\n");
-		printf("\tins\n");
-		printf("\t%s %s\n", jsr_op, op);
-		n->flags |= ISBOOL;
-		invalidate_work();
-		return 1;
-	}
-	return 0;
-}
-
 unsigned gen_node(struct node *n)
 {
 	unsigned s = get_size(n->type);
