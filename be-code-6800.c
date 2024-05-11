@@ -989,11 +989,11 @@ unsigned right_shift(struct node *n)
 	return 0;
 }
 
-/* See if we can easily get the value we want into X rather than D. Must
+/* See if we can easily get the value we want into X/Y/U rather than D. Must
    not harm D in the process. We can make this smarter over time if needed.
    Might be worth passing if we can trash D as it will help make_local_ptr
    later, and will be true for some load cases */
-unsigned can_load_x_simple(struct node *r, unsigned off)
+unsigned can_load_r_simple(struct node *r, unsigned off)
 {
 	switch(r->op) {
 	case T_ARGUMENT:
@@ -1013,7 +1013,7 @@ unsigned can_load_x_simple(struct node *r, unsigned off)
 
 /* Also allow offset in the result and some level of complexity via
    lea for offsets on things like struct */
-unsigned can_load_x_with(struct node *r, unsigned off)
+unsigned can_load_r_with(struct node *r, unsigned off)
 {
 	switch(r->op) {
 	case T_ARGUMENT:
@@ -1031,7 +1031,7 @@ unsigned can_load_x_with(struct node *r, unsigned off)
 	case T_MINUS:
 		if (!cpu_is_09)
 			return 0;
-		if (!can_load_x_with(r->left, off))
+		if (!can_load_r_with(r->left, off))
 			return 0;
 		if (r->right->op != T_CONSTANT)
 			return 0;
@@ -1042,21 +1042,26 @@ unsigned can_load_x_with(struct node *r, unsigned off)
 
 /* For 6800 at least it is usually cheaper to reload even if the value
    we want is in D */
-unsigned load_x_with(struct node *r, unsigned off)
+static unsigned load_r_with(char reg, struct node *r, unsigned off)
 {
 	unsigned v = r->value;
 	switch(r->op) {
 	case T_ARGUMENT:
 		v += argbase + frame_len;
 	case T_LOCAL:
+		/* TODO: will need a Y specific rule for HC11 */
+		if (cpu_is_09) {
+			printf("\tlea%c %u,s\n", reg, v + sp);
+			break;
+		}
 		/* Worst case for size is 252 */
 		return make_local_ptr(v + off, 252);
 	case T_LREF:
 		if (cpu_is_09)
-			printf("\tldx %u,s\n", v + sp);
+			printf("\tld%c %u,s\n", reg, v + sp);
 		else {
 			off = make_local_ptr(v + off, 252);
-			printf("\tldx %u,x\n", off);
+			printf("\tld%c %u,x\n", reg, off);
 		}
 		invalidate_x();
 		break;
@@ -1066,25 +1071,24 @@ unsigned load_x_with(struct node *r, unsigned off)
 	case T_NREF:
 	case T_NAME:
 	case T_RDEREF:
-		printf("\tldx %s\n", addr_form(r, off, 2));
-		invalidate_x();
+		printf("\tld%c %s\n", reg, addr_form(r, off, 2));
 		break;
 	case T_RREF:
-		printf("\ttfr u,x\n");
-		invalidate_x();
+		if (reg != 'u')
+			printf("\ttfr u,%c\n", reg);
 		break;
 	case T_PLUS:
 		/* Special case array/struct */
-		if (cpu_is_09 && can_load_x_simple(r->left, off) &&
+		if (cpu_is_09 && can_load_r_simple(r->left, off) &&
 			r->right->op == T_CONSTANT) {
-			load_x_with(r->left, off);
+			load_r_with(reg, r->left, off);
 			return r->right->value;
 		}
 		break;
 	case T_MINUS:
-		if (cpu_is_09 && can_load_x_simple(r->left, off) &&
+		if (cpu_is_09 && can_load_r_simple(r->left, off) &&
 			r->right->op == T_CONSTANT) {
-			load_x_with(r->right, off);
+			load_r_with(reg, r->right, off);
 			return -r->right->value;
 		}
 		break;
@@ -1094,30 +1098,15 @@ unsigned load_x_with(struct node *r, unsigned off)
 	return 0;
 }
 
+unsigned load_x_with(struct node *r, unsigned off)
+{
+	unsigned rv = load_r_with('x', r, off);
+	invalidate_x();
+	return rv;
+}
+
 /* 6809 specific register loading */
 unsigned load_u_with(struct node *r, unsigned off)
 {
-	unsigned v = r->value;
-	switch(r->op) {
-	case T_ARGUMENT:
-		v += argbase + frame_len;
-	case T_LOCAL:
-		printf("leau %u,s\n", v + off);
-		return 1;
-	case T_LREF:
-		printf("\tldu %u,s\n", v + sp);
-		return 1;
-	case T_CONSTANT:
-	case T_LBREF:
-	case T_LABEL:
-	case T_NREF:
-	case T_NAME:
-	case T_RDEREF:
-		printf("\tldu %s\n", addr_form(r, off, 2));
-		return 1;
-	case T_RREF:
-		/* Only one reg so .. */
-		return 1;
-	}
-	return 0;
+	return load_r_with('u', r, off);
 }

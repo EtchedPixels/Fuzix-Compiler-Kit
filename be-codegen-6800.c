@@ -1364,12 +1364,12 @@ unsigned do_xeqop(struct node *n, const char *op)
 			if (write_xsimple(n, 0))
 				return 1;
 		}
-		else if (can_load_x_with(l, 0)) {
+		else if (can_load_r_with(l, 0)) {
 			if (write_xsimple(n, 1))
 				return 1;
 		}
 	}
-	if (!can_load_x_with(n->left, 0)) {
+	if (!can_load_r_with(n->left, 0)) {
 		printf(";can't load x %u\n", n->left->op);
 		/* Compute the left side and stack it */
 		codegen_lr(n->left);
@@ -1511,7 +1511,7 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 		}
 	}
 	/* It's marginal whether we should go via X or not */
-	if (!can_load_x_with(l, 0))
+	if (!can_load_r_with(l, 0))
 		return 0;
 	off = load_x_with(l, 0);
 	if (s == 1) {
@@ -1666,7 +1666,7 @@ unsigned gen_shortcut(struct node *n)
 		/* Need to look at off handling
 		   TODO: think v + off is all that is needed but for non
 		   6809 that means range checking complications */
-		if (can_load_x_simple(r, 0)) {
+		if (can_load_r_simple(r, 0)) {
 			load_x_with(r, 0);
 
 			invalidate_work();
@@ -1715,7 +1715,7 @@ unsigned gen_shortcut(struct node *n)
 	case T_EQ:	/* Our left is the address */
 	case T_EQPLUS:
 		v = n->value;
-		if (can_load_x_simple(l, 0)) {
+		if (can_load_r_simple(l, 0)) {
 			if (r->op == T_CONSTANT && nr && r->value == 0 && s <= 2) {
 				/* We can optimize thing = 0 for the case
 				   we don't also need the value */
