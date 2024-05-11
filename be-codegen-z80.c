@@ -196,7 +196,7 @@ unsigned generate_lref_a(register unsigned v)
 		printf("\tld a,(iy + %d)\n", v - sp);
 		return 1;
 	}
-	/* Byte load and inlien are about the same size so inline for
+	/* Byte load and inline are about the same size so inline for
 	   speed */
 	printf("\tex de,hl\n");
 	printf("\tld hl,0x%x\n\tadd hl,sp\n\tld a,(hl)\n", v);
@@ -1847,40 +1847,33 @@ unsigned gen_node(register struct node *n)
 	switch (n->op) {
 		/* Load from a name */
 	case T_NREF:
-		if (size == 1) {
-			printf("\tld a,(_%s+%u)\n", namestr(n->snum), v);
-			printf("\tld l,a\n");
-			return 1;
-		} else if (size == 2) {
-			printf("\tld hl,(_%s+%u)\n", namestr(n->snum), v);
-			return 1;
-		} else if (size == 4) {
-			printf("\tld hl,(_%s+%u)\n", namestr(n->snum), v + 2);
-			printf("\tld (__hireg),hl\n");
-			printf("\tld hl,(_%s+%u)\n", namestr(n->snum), v);
-			return 1;
+		name = namestr(n->snum);
+		if (size == 1)
+			printf("\tld a,(_%s+%u)\n\tld l,a\n", name, v);
+		else {
+			if (size == 4) {
+				printf("\tld hl,(_%s+%u)\n"
+				       "\tld (__hireg),hl\n", name, v + 2);
+			}
+			printf("\tld hl,(_%s+%u)\n", name, v);
 		}
-		break;
+		return 1;
 	case T_LBREF:
-		if (size == 1) {
-			printf("\tld a,(T%u+%u)\n", n->val2, v);
-			printf("\tld l,a\n");
-		} else if (size == 2) {
+		if (size == 1)
+			printf("\tld a,(T%u+%u)\n\tld l,a\n", n->val2, v);
+		else {
+			if (size == 4) {
+				printf("\tld hl, (T%u+%u)\n"
+				       "\tld (__hireg),hl\n", n->val2, v + 2);
+			}
 			printf("\tld hl,(T%u+%u)\n", n->val2, v);
-			return 1;
-		} else if (size == 4) {
-			printf("\tld hl, (T%u+%u)\n", n->val2, v + 2);
-			printf("\tld (__hireg),hl\n");
-			printf("\tld hl,(T%u+%u)\n", n->val2, v);
-		} else
-			error("lbrb");
+		}
 		return 1;
 	case T_LREF:
 		/* We are loading something then not using it, and it's local
 		   so can go away */
 		if (nr)
 			return 1;
-/*		printf(";L sp %u spval %u %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
 		if (generate_lref(v, size, 0))
 			return 1;
 		error("lrb");
@@ -1897,35 +1890,26 @@ unsigned gen_node(register struct node *n)
 		}
  		return 1;
 	case T_NSTORE:
-		if (size == 4) {
-			printf("\tld (%s+%u), hl\n", namestr(n->snum), v);
-			printf("\tld de,(__hireg)\nld (%s+%u),de\n",
-				namestr(n->snum), v + 2);
+		name = namestr(n->snum);
+		if (size == 1) {
+			printf("\tld a,l\n"
+			       "\tld (_%s+%u),", name, v);
 			return 1;
 		}
-		if (size > 2)
-			return 0;
-		if (size == 1)
-			printf("\tld a,l\n");
-		printf("\tld (_%s+%u),", namestr(n->snum), v);
-		if (size == 1)
-			printf("a\n");
-		else
-			printf("hl\n");
+		printf("\tld (%s+%u), hl\n", name, v);
+		if (size == 4)
+			printf("\tld de,(__hireg)\nld (%s+%u),de\n",
+				name, v + 2);
 		return 1;
 	case T_LBSTORE:
-		if (size == 4) {
-			printf("\tld (T%u+%u),hl\n", n->val2, v);
-			printf("\tld de,(__hireg)\n\tld (T%u+%u),de\n",
-				n->val2, v + 2);
+		if (size == 1) {
+			printf("\tld a,l\n\tld (T%u+%u),a\n", n->val2, v);
 			return 1;
 		}
-		if (size > 2)
-			return 0;
-		if (size == 1)
-			printf("\tld a,l\n\tld (T%u+%u),a\n", n->val2, v);
-		else
-			printf("\tld (T%u+%u),hl\n", n->val2, v);
+		printf("\tld (T%u+%u),hl\n", n->val2, v);
+		if (size == 4)
+			printf("\tld de,(__hireg)\n\tld (T%u+%u),de\n",
+				n->val2, v + 2);
 		return 1;
 	case T_LSTORE:
 /*		printf(";L sp %u spval %u %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
@@ -1940,8 +1924,8 @@ unsigned gen_node(register struct node *n)
 				return 1;
 			}
 		}
-		if (v == 0 && size == 2 ) {
-			if (n->flags & NORETURN)
+		if (v == 0 && size == 2) {
+			if (nr)
 				printf("\tex (sp).hl\n");
 			else
 				printf("\tpop af\n\tpush hl\n");
@@ -1961,9 +1945,10 @@ unsigned gen_node(register struct node *n)
 		/* For -O3 they asked for it so inline the lot */
 		/* We dealt with size one above */
 		if (opt > 2 && size == 2) {
-			printf("\tex de,hl\n\tld hl,0x%x\n\tadd hl,sp\n\tld (hl),e\n\tinc hl\n", WORD(v));
-			printf("\tld (hl),d\n");
-			if (!(n->flags & NORETURN))
+			printf("\tex de,hl\n\tld hl,0x%x\n\tadd hl,sp\n"
+			        "\tld (hl),e\n\tinc hl\n\tld (hl),d\n"
+					, WORD(v));
+			if (!nr)
 				printf("\tex de,hl\n");
 			return 1;
 		}
@@ -2059,14 +2044,8 @@ unsigned gen_node(register struct node *n)
 		break;
 	case T_FUNCCALL:
 		/* Banking has no other effect as indirectly referenced calls go via the stub
-		   table so the function has a valid 16bit "address" */
-		if (cpufeat & 1)
-			printf("\tpush af\n");
+		   table so the function has a valid 16bit "address". callhl must live in common */
 		printf("\tcall __callhl\n");
-		if (cpufeat & 1)
-			printf("\tpop af\n");
-		/* The bank linker will rewrite this for banked functions and use the extra
-		   stack slot to effectively stack the bank switch info */
 		return 1;
 	case T_LABEL:
 		/* Used for const strings and local static */
@@ -2089,15 +2068,11 @@ unsigned gen_node(register struct node *n)
 		printf("\tld hl,");
 		printf("_%s+%u\n", namestr(n->snum), v);
 		return 1;
+	case T_ARGUMENT:
+		v += frame_len + argbase;
+		/* Fall through */
 	case T_LOCAL:
 		v += sp;
-/*		printf(";LO sp %u spval %u %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
-		printf("\tld hl,0x%x\n", v);
-		printf("\tadd hl,sp\n");
-		return 1;
-	case T_ARGUMENT:
-		v += frame_len + argbase + sp;
-/*		printf(";AR sp %u spval %u %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
 		printf("\tld hl,0x%x\n", v);
 		printf("\tadd hl,sp\n");
 		return 1;
