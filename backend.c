@@ -54,10 +54,10 @@ static struct name names[NCACHE_SIZE];
 static struct name *nhead;
 static unsigned max_name;
 
-char *namestr(unsigned n)
+char *namestr(register unsigned n)
 {
-	struct name *np = nhead;
-	struct name *prev = NULL;
+	register struct name *np = nhead;
+	register struct name *prev = NULL;
 	while (np) {
 		if (np->id == n) {
 			if (prev) {
@@ -80,8 +80,8 @@ char *namestr(unsigned n)
 
 static void init_name_cache(void)
 {
-	unsigned i;
-	struct name *np = names;
+	register unsigned i;
+	register struct name *np = names;
 	for (i = 0; i < NCACHE_SIZE - 1; i++) {
 		np->next = np + 1;
 		np++;
@@ -100,7 +100,7 @@ static struct node *nodes;
 
 struct node *new_node(void)
 {
-	struct node *n;
+	register struct node *n;
 	if (nodes == NULL)
 		error("Too many nodes");
 	n = nodes;
@@ -111,7 +111,7 @@ struct node *new_node(void)
 	return n;
 }
 
-void free_node(struct node *n)
+void free_node(register struct node *n)
 {
 	n->right = nodes;
 	nodes = n;
@@ -119,13 +119,13 @@ void free_node(struct node *n)
 
 void init_nodes(void)
 {
-	int i;
-	struct node *n = node_table;
+	register int i;
+	register struct node *n = node_table;
 	for (i = 0; i < NUM_NODES; i++)
 		free_node(n++);
 }
 
-void free_tree(struct node *n)
+void free_tree(register struct node *n)
 {
 	if (n->left)
 		free_tree(n->left);
@@ -166,7 +166,7 @@ static void pop_area(void)
 /* I/O buffering stuff can wait - as can switching to a block write method */
 static struct node *load_tree(void)
 {
-	struct node *n = new_node();
+	register struct node *n = new_node();
 	xread(0, n, sizeof(struct node));
 
 	/* The values off disk are old pointers or NULL, that's good enough
@@ -180,9 +180,9 @@ static struct node *load_tree(void)
 
 static unsigned depth = 0;
 
-static struct node *rewrite_tree(struct node *n)
+static struct node *rewrite_tree(register struct node *n)
 {
-	unsigned f = 0;
+	register unsigned f = 0;
 	depth++;
 /*	printf("; %-*s %04x (%ld)\n", depth, "", n->op, n->value); */
 	if (n->left) {
@@ -325,9 +325,9 @@ static char *getopname(int op) {
 	}
 }
 
-static void dump_tree(struct node *n, unsigned depth)
+static void dump_tree(register struct node *n, unsigned depth)
 {
-	unsigned i;
+	register unsigned i;
 	char *name;
 	if (n == NULL)
 		return;
@@ -350,7 +350,7 @@ static void dump_tree(struct node *n, unsigned depth)
 
 static unsigned process_expression(void)
 {
-	struct node *n = load_tree();
+	register struct node *n = load_tree();
 	unsigned t;
 #ifdef DEBUG
 	fprintf(stderr, ":load:\n");
@@ -396,7 +396,7 @@ unsigned func_flags;
 static void process_literal(unsigned id)
 {
 	unsigned char c;
-	unsigned char shifted = 0;
+	register unsigned char shifted = 0;
 
 	gen_literal(id);
 
@@ -615,7 +615,7 @@ static void process_header(void)
 
 void process_data(void)
 {
-	struct node *n = load_tree();
+	register struct node *n = load_tree();
 	switch (n->op) {
 	case T_PAD:
 		gen_space(n->value);
@@ -641,7 +641,7 @@ void process_data(void)
  *	direct method
  */
 
-void helper_type(unsigned t, unsigned s)
+void helper_type(register unsigned t, unsigned s)
 {
 	if (PTR(t))
 		t = USHORT;
@@ -681,7 +681,7 @@ void helper_type(unsigned t, unsigned s)
  *
  *	Would be nice to have an option to build C like helper calls
  */
-void do_helper(struct node *n, const char *h, unsigned t, unsigned s)
+void do_helper(register struct node *n, const char *h, unsigned t, unsigned s)
 {
 	/* A function call has a type that depends upon the call, but the
 	   type we want is a pointer */
@@ -717,7 +717,7 @@ void helper_s(struct node *n, const char *h)
 	do_helper(n, h, n->type, 1);
 }
 
-void make_node(struct node *n)
+void make_node(register struct node *n)
 {
 	/* Try the target code generator first, if not use helpers */
 	if (gen_node(n))
@@ -922,7 +922,7 @@ static void load_symbols(const char *path)
 	max_name = n[0] | (n[1] << 8);
 }
 
-static unsigned process_one_block(uint8_t *h)
+static unsigned process_one_block(register uint8_t *h)
 {
 	if (h[0] != '%')
 		error("sync");
@@ -952,13 +952,14 @@ static unsigned codegen_label;
  */
 static unsigned branching_operator(struct node *n)
 {
-	if (n->op == T_OROR)
+	register unsigned op = n->op;
+	if (op == T_OROR)
 		return 1;
-	if (n->op == T_ANDAND)
+	if (op == T_ANDAND)
 		return 2;
-	if (n->op == T_COLON)
+	if (op == T_COLON)
 		return 3;
-	if (n->op == T_QUESTION)
+	if (op == T_QUESTION)
 		return 4;
 	return 0;
 }
@@ -967,9 +968,9 @@ static unsigned branching_operator(struct node *n)
  *	Perform a simple left right walk of the tree and feed the code
  *	to the node generator.
  */
-void codegen_lr(struct node *n)
+void codegen_lr(register struct node *n)
 {
-	unsigned o = branching_operator(n);
+	register unsigned o = branching_operator(n);
 
 	/* Don't generate any tree that has no side effects and no return */
 	if ((n->flags & (SIDEEFFECT | IMPURE | NORETURN)) == NORETURN)
