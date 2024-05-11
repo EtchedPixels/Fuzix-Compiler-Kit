@@ -46,6 +46,7 @@ extern unsigned cpu_pic;	/* Position independent output (6809 only) */
 extern const char *ld8_op;
 extern const char *st8_op;
 extern const char *pic_op;
+extern const char *jsr_op;
 
 /* Tracking */
 extern uint8_t a_val;
@@ -118,3 +119,13 @@ extern unsigned can_load_r_simple(struct node *r, unsigned off);
 extern unsigned can_load_r_with(struct node *r, unsigned off);
 extern unsigned load_x_with(struct node *r, unsigned off);
 extern unsigned load_u_with(struct node *r, unsigned off);
+extern unsigned cmp_direct(struct node *n, const char *uop, const char *op);
+extern int count_mul_cost(unsigned n);
+extern void write_mul(unsigned n);
+extern unsigned can_fast_mul(unsigned s, unsigned n);
+extern void gen_fast_mul(unsigned s, unsigned n);
+extern unsigned gen_fast_div(unsigned n, unsigned s, unsigned u);
+
+
+
+

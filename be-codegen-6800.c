@@ -47,7 +47,7 @@ unsigned cpu_has_lea;		/* Has LEA. For now 6809 but if we get to HC12... */
 unsigned cpu_is_09;		/* Bulding for 6x09 so a bit different */
 unsigned cpu_pic;		/* Position independent output (6809 only) */
 static const char *jmp_op = "jmp";
-static const char *jsr_op = "jsr";
+const char *jsr_op = "jsr";
 static const char *or_op = "ora";
 const char *ld8_op = "lda";
 const char *st8_op = "sta";
@@ -734,133 +734,6 @@ unsigned gen_push(struct node *n)
 		return 1;
 	}
 	return 0;
-}
-
-unsigned cmp_direct(struct node *n, const char *uop, const char *op)
-{
-	unsigned s = get_size(n->right->type);
-	unsigned v = n->right->value;
-
-	if (n->right->op != T_CONSTANT)
-		return 0;
-	if (n->right->type & UNSIGNED)
-		op = uop;
-	if (s == 1) {
-		printf("\tcmpb #%u\n", v & 0xFF);
-		printf("\t%s %s\n", jsr_op, op);
-		n->flags |= ISBOOL;
-		invalidate_b();
-		return 1;
-	}
-	if (s == 2 && cpu_has_d) {
-		printf("\tsubd #%u\n", v & 0xFFFF);
-		printf("\t%s %s\n", jsr_op, op);
-		n->flags |= ISBOOL;
-		invalidate_work();
-		return 1;
-	}
-	return 0;
-}
-
-/*
- *	Do fast multiplies were we can
- */
-static int count_mul_cost(unsigned n)
-{
-	int cost = 0;
-	if ((n & 0xFF) == 0) {
-		n >>= 8;
-		cost += 3;		/* tfr a,b clrb */
-	}
-	while(n > 1) {
-		if (n & 1)
-			cost += 4;	/* std s++, addd ,--s */
-		n >>= 1;
-		cost += 2;		/* lslb rola */
-	}
-	return cost;
-}
-
-/* Write the multiply for any value > 0 */
-static void write_mul(unsigned n)
-{
-	unsigned pops = 0;
-	if ((n & 0xFF) == 0) {
-		load_a_b();
-		load_b_const(0);
-		n >>= 8;
-	}
-	while(n > 1) {
-		if (n & 1) {
-			pops++;
-			printf("\tpshs d\n");
-		}
-		printf("\tlslb\n\trola\n");
-		n >>= 1;
-	}
-	while(pops--) {
-		printf("\taddd ,s++\n");
-	}
-}
-
-static unsigned can_fast_mul(unsigned s, unsigned n)
-{
-	/* Pulled out of my hat 8) */
-	unsigned cost = 15 + 3 * opt;
-	if (s > 2)
-		return 0;
-
-	/* For the moment */
-	if (!cpu_is_09)
-		return 0;
-
-	/* The base cost of a helper is 8 */
-	if (optsize)
-		cost = 8;
-	if (n == 0 || count_mul_cost(n) <= cost)
-		return 1;
-	return 0;
-}
-
-static void gen_fast_mul(unsigned s, unsigned n)
-{
-
-	if (n == 0)
-		load_d_const(0);
-	else {
-		write_mul(n);
-		invalidate_work();
-	}
-}
-
-
-static unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
-{
-	u &= UNSIGNED;
-	if (s != 2)
-		return 0;
-	if (n == 1)
-		return 1;
-	if (n == 256 && u) {
-		load_b_a();
-		load_a_const(0);
-		return 1;
-	}
-	if (n & (n - 1))
-		return 0;
-	if (u) {
-		while(n > 1) {
-			printf("\tlsra\n\trorb\n");
-			n >>= 1;
-		}
-	} else {
-		while(n > 1) {
-			printf("\tasra\n\trorb\n");
-			n >>= 1;
-		}
-	}
-	invalidate_work();
-	return 1;
 }
 
 /*
