@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include "compiler.h"
 #include "backend.h"
 
@@ -155,6 +156,7 @@ struct node *gen_rewrite_node(struct node *n)
 		if (nt == r->type || (nt ^ r->type) == UNSIGNED ||
 		 (PTR(nt) && PTR(r->type))) {
 			free_node(n);
+			r->type = nt;
 			return r;
 		}
 	}
@@ -314,7 +316,7 @@ void gen_case_data(unsigned tag, unsigned entry)
 void gen_helpcall(struct node *n)
 {
 	/* TODO need to figure out what is indirected this way and what
-	   is done jsr 1,1 style */
+	   is done jsr @1,1 style */
 	printf("\tjsr @__");
 }
 
@@ -334,7 +336,8 @@ void gen_data_label(const char *name, unsigned align)
 
 void gen_space(unsigned value)
 {
-	printf("\t.ds %d\n", value);
+	/* Word based */
+	printf("\t.ds %d\n", (value + 1) / 2);
 }
 
 void gen_text_data(unsigned n)
@@ -429,7 +432,7 @@ static unsigned gen_constant(unsigned r, int16_t v)
 		printf("\tadc %u,%u\n", r, r);
 		return 1;
 	case -2:
-		printf("\tadcz; %u,%u\n", r, r);
+		printf("\tadcz %u,%u\n", r, r);
 		return 1;
 	}
 	return 0;
@@ -443,7 +446,7 @@ static unsigned gen_constant(unsigned r, int16_t v)
  *	implementable subtrees even - eg deref of thing we can do or
  *	maths ops via AC2 on AC0
  */
-static unsigned can_load_ac0(struct node *n)
+static unsigned can_load_ac(struct node *n)
 {
 	/* Start with simple stuff */
 	unsigned s = get_size(n->type);
@@ -462,13 +465,13 @@ static unsigned can_load_ac0(struct node *n)
 	return 0;
 }
 /*
- *	The actual helper can do more than can_load_ac0 but must either
+ *	The actual helper can do more than can_load_ac but must either
  *	generate all the code or none. This allows some ops to try and
  *	see what is possible if they can recover from a "no" answer
  *
  *	TODO: teach it the constants we can magic up in 0
  */
-static unsigned load_ac0(struct node *n)
+static unsigned load_ac(unsigned ac, struct node *n)
 {
 	unsigned s = get_size(n->type);
 	unsigned v = n->value;
@@ -478,42 +481,42 @@ static unsigned load_ac0(struct node *n)
 		return 0;
 	switch(n->op) {
 	case T_LOCAL:
-		printf("\tmov 3,0\n");
+		printf("\tmov 3,%u\n", ac);
 		printf("\tlda 2,2,1\n");
-		printf("\tadd 2,0,skp\n");
+		printf("\tadd 2,%u,skp\n", ac);
 		printf("\t.word %d\n", d);
 		return 1;
 	case T_LREF:
 		if (d >= -128 && d < 128) {
-			printf("\tlda 0,%d,3\n", d);
+			printf("\tlda %u,%d,3\n", ac, d);
 			return 1;
 		}
 		printf("\tmov 3,2\n");
-		printf("\tlda 0,2,1\n");
-		printf("\tadd 0,2,skp\n");
+		printf("\tlda %u,2,1\n", ac);
+		printf("\tadd %u,2,skp\n", ac);
 		printf("\t.word %d\n", d);
-		printf("\tlda 0,0,2\n");
+		printf("\tlda %u,0,2\n", ac);
 		return 1;
 	case T_CONSTANT:
-		if (gen_constant(0, v) == 0) {
-			printf("\tjsr @__const0,0\n");
+		if (gen_constant(ac, v) == 0) {
+			printf("\tjsr @__const%u,0\n", ac);
 			printf("\t.word %u\n", v);
 		}
 		return 1;
 	case T_NAME:
-		printf("\tjsr @__const0,0\n");
+		printf("\tjsr @__const%u,0\n", ac);
 		printf("\t.word _%s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_LABEL:
-		printf("\tjsr @__const0,0\n");
+		printf("\tjsr @__const%u,0\n", ac);
 		printf("\t.word T%u+%u\n", n->val2, v);
 		return 1;
 	case T_NREF:
-		printf("\tjsr @__iconst0\n");
+		printf("\tjsr @__iconst%u\n", ac);
 		printf("\t.word _%s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_LBREF:
-		printf("\tjsr @__iconst0\n");
+		printf("\tjsr @__iconst%u\n", ac);
 		printf("\t.word T%u+%u\n", n->val2, v);
 		return 1;
 	}
@@ -530,16 +533,36 @@ unsigned add_constant(uint16_t v)
 		printf("\tcom 1,1\n");
 		return 1;
 	}
-	printf("\tlda 0,2,1\n");
-	printf("\tadd 0,1,skp\n");
-	printf("\t.word %u\n", v & 0xFFFF);
+	if (v <= 3)
+		repeated_op(v, "inc 1,1");
+	else if (gen_constant(0, v)) {
+		printf("\tadd 0,1\n");
+	} else {
+		printf("\tlda 0,2,1\n");
+		printf("\tadd 0,1,skp\n");
+		printf("\t.word %u\n", v & 0xFFFF);
+	}
 	return 1;
+}
+
+static void node_word(struct node *n)
+{
+	unsigned v = n->value;
+	if (n->op == T_CONSTANT)
+		gen_value(n->type, n->value);
+	else if (n->op == T_NAME)
+		printf("\t.word _%s+%u\n", namestr(n->snum), v);
+	else if (n->op == T_LABEL)
+		printf("\t.word T%u+%u\n", n->val2, v);
+	else
+		error("nw");
 }
 
 /* Unless we can generate a value directly generate a helper call followed
    by the value for constants */
 static unsigned const_condop(struct node *n, char *o, char *uo)
 {
+	printf(";n->type %x\n", n->type);
 	if (get_size(n->type) == 4)
 		return 0;
 	
@@ -556,7 +579,7 @@ static unsigned const_condop(struct node *n, char *o, char *uo)
 	if (n->op != T_NAME && n->op != T_LABEL && n->op != T_CONSTANT)
 		return 0;
 	helper(n, o);
-	gen_value(n->type, n->value);
+	node_word(n);
 	return 1;
 }
 /*
@@ -568,7 +591,9 @@ unsigned gen_direct(struct node *n)
 {
 	struct node *r = n->right;
 	unsigned s = get_size(n->type);
+	unsigned nr = n->flags & NORETURN;
 	unsigned v;
+
 	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
 	   type of the function return so don't use that for the cleanup value
@@ -591,7 +616,7 @@ unsigned gen_direct(struct node *n)
 			if (add_constant(v))
 				return 1;
 		}
-		if (load_ac0(r)) {
+		if (load_ac(0, r)) {
 			printf("\tadd 0,1\n");
 			return 1;
 		}
@@ -602,7 +627,7 @@ unsigned gen_direct(struct node *n)
 			if (add_constant(-v))
 				return 1;
 		}
-		if (load_ac0(r)) {
+		if (load_ac(0, r)) {
 			printf("\tsub 0,1\n");
 			return 1;
 		}
@@ -618,7 +643,7 @@ unsigned gen_direct(struct node *n)
 			if (v == 0xFFFF)
 				return 1;
 		}
-		if (load_ac0(r)) {
+		if (load_ac(0, r)) {
 			printf("\tand 0,1\n");
 			return 1;
 		}
@@ -633,7 +658,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		if (load_ac0(r)) {
+		if (load_ac(0, r)) {
 			printf("\tcom 0,0\n");
 			printf("\tand 0,1\n");
 			printf("\tadc 0,1\n");
@@ -650,7 +675,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		if (load_ac0(r)) {
+		if (load_ac(0, r)) {
 			printf("\tmov 1,2\n");
 			printf("\tandzl 0,2\n");
 			printf("\tadd 0,1\n");
@@ -698,7 +723,7 @@ unsigned gen_direct(struct node *n)
 		n->flags |= ISBOOL;
 		return 1;
 	case T_GT:
-		switch(const_condop(r, "condgt", "condgt")) {
+		switch(const_condop(r, "condgt", "condgtu")) {
 		case 0:
 			return 0;
 		case 2:
@@ -709,7 +734,7 @@ unsigned gen_direct(struct node *n)
 		n->flags |= ISBOOL;
 		return 1;
 	case T_GTEQ:
-		switch(const_condop(r, "condgteq", "condgteq")) {
+		switch(const_condop(r, "condgteq", "condgtequ")) {
 		case 0:
 			return 0;
 		case 2:
@@ -730,6 +755,31 @@ unsigned gen_direct(struct node *n)
 		}
 		n->flags |= ISBOOL;
 		return 1;
+	/* Shrink some common eq ops */
+	/* It would be good to have helpers for byte += as they can
+	   be far more optimal than doing two sets of byte load/store
+	   dances */
+	case T_PLUSPLUS:
+		if (!nr)
+			return 0;
+	case T_PLUSEQ:
+		if (s != 1 && r->op == T_CONSTANT) {
+			helper(n, "cpluseq");
+			node_word(r);
+			return 1;
+		}
+		return 0;
+	case T_MINUSMINUS:
+		if (!nr)
+			return 0;
+	case T_MINUSEQ:
+		if (s != 1 && r->op == T_CONSTANT) {
+			helper(n, "cpluseq");
+			r->value = -r->value;
+			node_word(r);
+			return 1;
+		}
+		return 0;
 	}
 	return 0;
 }
@@ -742,6 +792,21 @@ unsigned gen_direct(struct node *n)
 unsigned gen_uni_direct(struct node *n)
 {
 	return 0;
+}
+
+static void gen_isz(int d, unsigned s)
+{
+	if (s == 2) {
+		printf("\tisz %d,3\n", d + 1);
+		/* No op to reverse skip */
+		printf("\tmov# 0,0,skp\n");
+	}
+	/* Run for single word or if low word
+	   went to 0 - carry */
+	printf("\tisz %d,3\n", d);
+	/* This might skip */
+	/* mffp 3 seems the fastest meh op */
+	printf("\tmffp 3\n");
 }
 
 /*
@@ -779,17 +844,14 @@ unsigned gen_shortcut(struct node *n)
 				return 1;
 			if (l->op == T_ARGUMENT)
 				d -= frame_len + argbase;
-			if (d < -128 || d >= 128)
+			if (d < -128 || d >= 127 + s / 2)
 				return 0;
+			printf(";pluseq fast\n");
 			if (r->value > 0) {
-				printf("\tisz %d,3\n", d);
-				/* This might skip */
-				/* mffp 3 seems the fastest meh op */
-				printf("\tmffp 3\n");
+				gen_isz(d + 1, s);
 			}
 			if (r->value == 2) {
-				printf("\tisz %d,3\n", d);
-				printf("\tmffp 3\n");
+				gen_isz(d + 1, s);
 			}
 			if (!nr)
 				printf("\tlda 1,%d,3\n", d);
@@ -823,8 +885,8 @@ unsigned gen_cast(struct node *n)
 	/* Size shrink is not always free as we work in words */
 	if (ls <= rs) {
 		if (ls == 1 && rs > 1) {	/* Need to mask */
-			printf("\tlda 0,2,1\n");
-			printf("\tand 0,N255,0\n");
+			printf("\tlda 0,N255,0\n");
+			printf("\tand 0,1\n");
 		}
 		return 1;
 	}
@@ -844,12 +906,71 @@ unsigned gen_cast(struct node *n)
 	return 1;
 }
 
+static struct node ntmp;
+
+static unsigned do_eqop(struct node *n, unsigned op, unsigned cost)
+{
+	unsigned s = get_size(n->type);
+
+	if (cost > opt || optsize)
+		return 0;
+
+	/* At this point TOS is the pointer */
+
+	printf("\tlda 2,0,3\n");
+	printf("\tsta 1,__tmp,0\n");		/* Save working value */
+	if (s == 2) {
+		printf("\tlda 2,0,3\n");
+		printf("\tlda 1,0,2\n");
+		printf("\tpsha 1\n");
+	} else if (s == 4) {
+		printf("\tlda 2,0,3\n");
+		printf("\tlda 0,0,2\n");
+		printf("\tlda 1,0,2\n");
+		printf("\tpsha 1\n");
+		printf("\tpsha 0\n");
+	} else {
+		printf("\tlda 1,0,3\n");	/* Get pointer */
+		printf("\tjsr @__derefc,1\n");
+		printf("\tpsha 1\n");
+	}
+	printf("\tlda 1,__tmp,0\n");
+	/* We now have things marshalled as we want them */
+
+	memcpy(&ntmp, n, sizeof(ntmp));
+	ntmp.op = op;
+	ntmp.left = NULL;
+
+	sp += get_stack_size(n->type) / 2;
+
+	make_node(&ntmp);
+
+	sp -= get_stack_size(n->type) / 2;
+
+	/* Result is now in hireg:1 and arg is gone from stack */
+	if (s == 2) {
+		printf("\tpopa 2\n");
+		printf("\tsta 1,0,2\n");
+		return 1;
+	}
+	if (s == 4) {
+		printf("\tpopa 2\n");
+		printf("\tlda 0,__hireg,0\n");
+		printf("\tsta 0,0,2\n");
+		printf("\tsta 1,1,2\n");
+		return 1;
+	}
+	printf("\tjsr @__assignc\n");
+	return 1;
+}
+
 unsigned gen_node(struct node *n)
 {
 	struct node *r = n->right;
 	unsigned v = n->value;
 	unsigned s = get_size(n->type);
 	int16_t d = v;
+	unsigned nr = n->flags & NORETURN;
 	
 	/* Function call arguments are special - they are removed by the
 	   act of call/return and reported via T_CLEANUP */
@@ -857,37 +978,38 @@ unsigned gen_node(struct node *n)
 		sp -= get_stack_size(n->left->type) / 2;
 	switch(n->op) {
 	case T_CALLNAME:
-		printf("\tjsr 1,1\n");
+		printf("\tjsr @1,1\n");
 		printf("\t.word _%s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_CONSTANT:
+		if (nr)
+			return 1;
 		/* We should do longs using make constant twice */
 		if (s < 4 && gen_constant(1, v))
 			return 1;
 	case T_NAME:
 	case T_LABEL:
+		if (nr)
+			return 1;
 		v = n->value;
 		if (s == 2)
-			printf("\tjsr @__const,0\n");
+			printf("\tjsr @__const1,0\n");
 		else
-			printf("\tjsr @__constl,0\n");
-		if (n->op == T_CONSTANT)
-			gen_value(n->type, n->value);
-		else if (n->op == T_NAME)
-			printf("\t.word _%s+%u\n", namestr(n->snum), v);
-		else
-			printf("\t.word T%u+%u\n", n->val2, v);
+			printf("\tjsr @__const1l,0\n");
+		node_word(n);
 		return 1;
-	case T_NREF:
 	case T_LBREF:
+		if (nr)
+			return 1;
+	case T_NREF:
 		/* Same logic but actual value */
 		v = n->value;
 		if (s == 2)
-			printf("\tjsr @__iconst,0\n");
+			printf("\tjsr @__iconst1,0\n");
 		else
-			printf("\tjsr @__iconstl,0\n");
+			printf("\tjsr @__iconst1l,0\n");
 		if (n->op == T_NREF)
-			printf("\t.word _%s_%u\n", namestr(n->snum), v);
+			printf("\t.word _%s+%u\n", namestr(n->snum), v);
 		else
 			printf("\t.word T%u+%u\n", n->val2, v);
 		return 1;
@@ -896,29 +1018,30 @@ unsigned gen_node(struct node *n)
 		/* Same logic but store  */
 		v = n->value;
 		if (s == 1 || s == 2)
-			printf("\tjsr @__sconst,0\n");
+			printf("\tjsr @__sconst1,0\n");
 		else
-			printf("\tjsr @__sconstl,0\n");
-		if (n->op == T_NREF)
-			printf("\t.word _%s_%u\n", namestr(n->snum), v);
+			printf("\tjsr @__sconst1l,0\n");
+		if (n->op == T_NSTORE)
+			printf("\t.word _%s+%u\n", namestr(n->snum), v);
 		else
 			printf("\t.word T%u+%u\n", n->val2, v);
 		return 1;
 	case T_ARGUMENT:
 		v -= argbase + frame_len;
 	case T_LOCAL:
+		if (nr)
+			return 1;
 		if (s == 1)
 			return 0;
 		printf("\tmov 3,1\n");
-		if (d) {
-			printf("\tlda 0,2,1\n");
-			printf("\tadd 1,0,skp\n");
-			printf("\t.word %d\n", (int)d);
-		}
+		if (d)
+			add_constant(d);
 		/* TODO maybe optimize generally "add const to ac" for
 		   the size tricks that work */
 		return 1;
 	case T_LREF:
+		if (nr)
+			return 1;
 		/* An LREFPLUS rewrite might be useful to fold additions */
 		/* TODO 4 is easy */
 		if (d < 128 && d >= -128) {
@@ -949,6 +1072,8 @@ unsigned gen_node(struct node *n)
 		printf("\tsta 1,0,2\n");
 		return 1;
 	case T_DEREF:
+		if (nr)
+			return 1;
 		if (s == 1)
 			return 0;
 		printf("\tmov 1,2\n");
@@ -1019,6 +1144,12 @@ unsigned gen_node(struct node *n)
 		}
 		printf("\tmov 0,1\n");
 		return 1;
+	case T_TILDE:
+		printf("\tcom 1,1\n");
+		return 1;
+	case T_NEGATE:
+		printf("\tneg 1,1\n");
+		return 1;
 	case T_AND:
 		printf("\tpopa 0\n");
 		printf("\tand 0,1\n");
@@ -1038,6 +1169,8 @@ unsigned gen_node(struct node *n)
 		printf("\tadc 0,1\n");
 		return 1;
 	case T_HAT:
+		if (s == 4)
+			return 0;
 		printf("\tpopa 0\n");
 		printf("\tmov 1,2\n");
 		printf("\tandzl 0,2\n");
@@ -1113,6 +1246,37 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		break;
+	/* We do the eq ops as a load/op/store pattern in general */
+	case T_PLUSEQ:
+		printf(";pluseq\n");
+		return do_eqop(n, T_PLUS, 2);
+	case T_MINUSEQ:
+		return do_eqop(n, T_MINUS, 2);
+	case T_STAREQ:
+		return do_eqop(n, T_STAR, 0);
+	case T_SLASHEQ:
+		return do_eqop(n, T_SLASH, 0);
+	case T_PERCENTEQ:
+		return do_eqop(n, T_PERCENT, 0);
+	case T_ANDEQ:
+		return do_eqop(n, T_AND, 2);
+	case T_OREQ:
+		return do_eqop(n, T_OR, 2);
+	case T_HATEQ:
+		return do_eqop(n, T_HAT, 2);
+	case T_SHLEQ:
+		return do_eqop(n, T_LTLT, 2);
+	case T_SHREQ:
+		return do_eqop(n, T_GTGT, 2);
+	/* These are harder */
+	case T_PLUSPLUS:
+		if (nr)
+			return do_eqop(n, T_PLUS, 2);
+		return 0;
+	case T_MINUSMINUS:
+		if (nr)
+			return do_eqop(n, T_MINUS, 2);
+		return 0;
 	}
 	return 0;
 }

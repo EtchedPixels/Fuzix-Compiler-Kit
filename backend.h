@@ -61,6 +61,9 @@ extern unsigned gen_direct(struct node *n);
 extern unsigned gen_uni_direct(struct node *n);
 extern unsigned gen_shortcut(struct node *n);
 
+/* Build a node */
+extern void make_node(struct node *n);
+
 #define A_CODE		1
 #define A_DATA		2
 #define A_BSS		3
