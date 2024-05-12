@@ -40,6 +40,13 @@
 	.export __oreq
 	.export __xoreq
 
+	.export __andeql
+	.export __oreql
+	.export __xoreql
+	.export __andl
+	.export __orl
+	.export __xorl
+
 	.export __castc_
 
 	.export __condeq
@@ -48,6 +55,21 @@
 	.export __condgtu
 	.export __condgtequ
 	.export __condltu
+	.export __condlteq
+	.export __condgt
+	.export __condgteq
+	.export __condlt
+
+	.export __cceql
+	.export __ccnel
+	.export __ccltul
+	.export __ccltequl
+	.export __ccgtul
+	.export __ccgtequl
+	.export __ccltl
+	.export __cclteql
+	.export __ccgtl
+	.export __ccgteql
 
 	.export	__cpll
 
@@ -83,6 +105,13 @@
 	.export __shrul
 	.export __shrl
 
+	.export __shleq
+	.export __shrequ
+	.export __shreq
+	.export __shleql
+	.export __shrequl
+	.export __shreql
+
 __jf:		.word	f__jf
 __jt:		.word	f__jt
 __booljf:	.word f__booljf
@@ -113,6 +142,13 @@ __andeq:	.word f__andeq
 __oreq:		.word f__oreq
 __xoreq:	.word f__xoreq
 
+__andeql:	.word f__andeql
+__oreql:	.word f__oreql
+__xoreql:	.word f__xoreql
+__andl:		.word f__andl
+__orl:		.word f__orl
+__xorl:		.word f__xorl
+
 __castc_:	.word f__castc_
 
 __condeq:	.word f__condeq
@@ -121,6 +157,21 @@ __condltequ:	.word f__condltequ
 __condgtu:	.word f__condgtu
 __condgtequ:	.word f__confgtequ
 __condltu:	.word f__condltu
+__condlteq:	.word f__condltequ
+__condgt:	.word f__condgtu
+__condgteq:	.word f__confgtequ
+__condlt:	.word f__condltu
+
+__cceql:	.word f__cceql
+__ccnel:	.word f__ccnel
+__ccltul:	.word f__ccltul
+__ccltequl:	.word f__ccleqtul
+__ccgtul:	.word f__ccgtul
+__ccgtequl:	.word f__ccgtequl
+__ccltl:	.word f__ccltl
+__cclteql:	.word f__ccleqtl
+__ccgtl:	.word f__ccgtl
+__ccgteql:	.word f__ccgteql
 
 __cpll:		.word f__cpll
 
@@ -155,3 +206,10 @@ __shr:		.word f__shr
 __shll:		.word f__shll
 __shrul:	.word f__shrul
 __shrl:		.word f__shrl
+
+__shleq:	.word f__shleq
+__shrequ:	.word f__shrequ
+__shreq:	.word f__shreq
+__shleql:	.word f__shleql
+__shrequl:	.word f__shrequl
+__shreql:	.word f__shreql

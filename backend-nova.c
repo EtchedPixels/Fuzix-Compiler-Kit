@@ -209,7 +209,7 @@ static void repeated_op(unsigned n, char *op)
 	while(n--)
 		printf("\t%s\n", op);
 }
-	
+
 /* Generate the stack frame */
 void gen_frame(unsigned size, unsigned aframe)
 {
@@ -565,16 +565,16 @@ static unsigned const_condop(struct node *n, char *o, char *uo)
 	printf(";n->type %x\n", n->type);
 	if (get_size(n->type) == 4)
 		return 0;
-	
+
 	if (n->op != T_CONSTANT)
 		return 0;
 	if (n->type & UNSIGNED)
 		o = uo;
 #if 0
-	/* Not clear this is worth it */		
+	/* Not clear this is worth it */
 	if (gen_constant(0, n->value))
 		return 2;
-#endif		
+#endif
 	/* Constant didn't work, but we there are other wins */
 	if (n->op != T_NAME && n->op != T_LABEL && n->op != T_CONSTANT)
 		return 0;
@@ -632,7 +632,7 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		break;
-	/* These ops we can do at the least */ 
+	/* These ops we can do at the least */
 	case T_AND:
 		if (r->op == T_CONSTANT && s == 2) {
 			v = r->value;
@@ -964,6 +964,15 @@ static unsigned do_eqop(struct node *n, unsigned op, unsigned cost)
 	return 1;
 }
 
+static void pop_signfix(unsigned type)
+{
+	printf("\tpopa 0\n");
+	if (!(type & UNSIGNED)) {
+		printf("\tmovl 0,0\n\tmovcr 0,0\n");
+		printf("\tmovl 1,1\n\tmovcr 1,1\n");
+	}
+}
+
 unsigned gen_node(struct node *n)
 {
 	struct node *r = n->right;
@@ -971,7 +980,7 @@ unsigned gen_node(struct node *n)
 	unsigned s = get_size(n->type);
 	int16_t d = v;
 	unsigned nr = n->flags & NORETURN;
-	
+
 	/* Function call arguments are special - they are removed by the
 	   act of call/return and reported via T_CLEANUP */
 	if (n->left && n->op != T_ARGCOMMA && n->op != T_FUNCCALL && n->op != T_CALLNAME)
@@ -1099,8 +1108,14 @@ unsigned gen_node(struct node *n)
 		if (r->flags & ISBOOL)
 			return 1;
 		s = get_size(r->type);
-		if (s == 4)
-			return 0;
+		if (s == 4) {
+			printf("\tlda 0,__hireg,0\n");
+			printf("\tmov# 1,1,snr\n");
+			printf("\tmov# 0,0,szr\n");
+			printf("\tsubzl 1,1,skp\n");
+			printf("\tsub 1,1\n");
+			return 1;
+		}
 		if (s == 1) {
 			printf("\tlda 0,__N255,0\n");
 			printf("\tand 0,1\n");
@@ -1110,11 +1125,17 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_BANG:
 		/* TODO: could optimize bool not case to
-		   com 1,1 inc 1,1 but we need to sort out the 
+		   com 1,1 inc 1,1 but we need to sort out the
 		   conditional jump story first */
 		s = get_size(r->type);
-		if (s == 4)
-			return 0;
+		if (s == 4) {
+			printf("\tlda 0,__hireg,0\n");
+			printf("\tmov# 1,1,snr\n");
+			printf("\tmov# 0,0,szr\n");
+			printf("\tsub 1,1,skp\n");
+			printf("\tsubzl 1,1\n");
+			return 1;
+		}
 		if (s == 1) {
 			printf("\tlda 0,__N255,0\n");
 			printf("\tand 0,1\n");
@@ -1204,8 +1225,8 @@ unsigned gen_node(struct node *n)
 	   nicely */
 	case T_LTEQ:
 		s = get_size(r->type);
-		if (s != 4 && (n->type & UNSIGNED)) {
-			printf("\tpopa 0\n");
+		if (s != 4) {
+			pop_signfix(n->type);
 			printf("\tsubz# 0,1,snc\n");
 			printf("\tsubzl 1,1,skp\n");
 			printf("\tsub 1,1\n");
@@ -1215,8 +1236,8 @@ unsigned gen_node(struct node *n)
 		break;
 	case T_GT:
 		s = get_size(r->type);
-		if (s != 4 && (n->type & UNSIGNED)) {
-			printf("\tpopa 0\n");
+		if (s != 4) {
+			pop_signfix(n->type);
 			printf("\tsubz# 1,0,snc\n");
 			printf("\tsubzl 1,1,skp\n");
 			printf("\tsub 1,1\n");
@@ -1226,8 +1247,8 @@ unsigned gen_node(struct node *n)
 		break;
 	case T_GTEQ:
 		s = get_size(r->type);
-		if (s != 4 && (n->type & UNSIGNED)) {
-			printf("\tpopa 0\n");
+		if (s != 4) {
+			pop_signfix(n->type);
 			printf("\tadcz# 0,1,snc\n");
 			printf("\tsubzl 1,1,skp\n");
 			printf("\tsub 1,1\n");
@@ -1237,8 +1258,8 @@ unsigned gen_node(struct node *n)
 		break;
 	case T_LT:
 		s = get_size(r->type);
-		if (s != 4 && (n->type & UNSIGNED)) {
-			printf("\tpopa 0\n");
+		if (s != 4) {
+			pop_signfix(n->type);
 			printf("\tadcz# 1,0,snc\n");
 			printf("\tsubzl 1,1,skp\n");
 			printf("\tsub 1,1\n");

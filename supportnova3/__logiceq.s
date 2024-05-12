@@ -28,6 +28,7 @@ f__xoreq:
 	psha	2
 	mov	1,2
 	add	0,1
+	andzl	0,2
 	sub	2,1
 	popa	2
 	jmp	out,1

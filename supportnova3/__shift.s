@@ -13,7 +13,6 @@ shllp:
 	inc	0,0,szr
 	jmp	shllp,1
 done:	sta	3,__tmp,0
-	popa	0		; clean stack
 	jmp	@__tmp,0
 
 f__shru:
@@ -29,7 +28,7 @@ f__shr:
 	neg	1,0
 	popa	1
 	; SHR is more interesting as we need to handle sign extension
-	movl#	1,1,snr	; get top bit into carry
+	movl#	1,1,snc	; get top bit into carry
 	jmp	shrulp,1	; starts with a zero bit so use shru
 shrlp:
 	movor	1,1	; shift right and set high bit
@@ -67,7 +66,7 @@ rlp:
 f__shrl:
 	neg	1,0
 	popa	2
-	movl#	2,2,snr
+	movl#	2,2,snc
 	jmp	via_shll,1
 r1lp:
 	movor	2,2
