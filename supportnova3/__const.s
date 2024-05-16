@@ -35,6 +35,7 @@
 	.export __derefuc
 	.export __assignc
 	.export __pluseqc
+	.export __eqcget
 
 	.export __andeq
 	.export __oreq
@@ -78,6 +79,9 @@
 	.export __divequ
 	.export __remequ
 
+	.export __div
+	.export __rem
+
 	.export __minuseq
 
 	.export __minusl
@@ -97,6 +101,7 @@
 	.export __postdec
 
 	.export __postinc
+	.export __postincl
 
 	.export __shl
 	.export __shru
@@ -137,6 +142,7 @@ __derefc:
 __derefuc:	.word f__derefc
 __assignc:	.word f__assignc
 __pluseqc:	.word f__pluseqc
+__eqcget:	.word f__eqcget
 
 __andeq:	.word f__andeq
 __oreq:		.word f__oreq
@@ -180,6 +186,9 @@ __remu:		.word f__remu
 __divequ:	.word f__divequ
 __remequ:	.word f__remequ
 
+__div:		.word f__div
+__rem:		.word f__rem
+
 __minuseq:	.word f__minuseq
 
 __minusl:	.word f__minusl
@@ -199,6 +208,7 @@ __pluseql:	.word f__pluseql
 __postdec:	.word f__postdec
 
 __postinc:	.word f__postinc
+__postincl:	.word f__postincl
 
 __shl:		.word f__shrl
 __shru:		.word f__shru

@@ -15,6 +15,7 @@
 	.export f__assignc
 
 	.export f__pluseqc
+	.export f__eqcget
 
 	.code
 
@@ -76,3 +77,24 @@ loplus:
 	sta	1,0,2
 	mffp	3
 	jmp	@__tmp,0
+
+;
+;	General byte eqop support
+;	jsr @__eqcget
+;	jsr @__someop
+;	jsr @__assignc
+;
+f__eqcget:
+	popa	2		; byte address
+	psha	2		; keep it on stack for later
+	psha	3		; save return for assignc to use
+	sta	1,__tmp2,0	; save working value
+	mov	2,1
+	jsr	f__derefc,1	; fetch byte we need
+	popa	3		; get return back
+	psha	1		; save fetched value (expression left)
+	lda	1,__tmp2,0	; recover expression right
+	sta	3,__tmp,0	; and return
+	mffp	3
+	jmp	@__tmp,0
+
