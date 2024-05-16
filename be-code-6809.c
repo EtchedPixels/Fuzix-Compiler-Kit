@@ -186,7 +186,7 @@ static void op8_on_s(const char *op, unsigned off)
 	printf("\t%sb %u,s\n", op, off);
 }
 
-static void op8_on_spi(const char *op)
+static void op8_on_tos(const char *op)
 {
 	printf("\t%sb ,s+\n", op);
 }
@@ -199,18 +199,6 @@ static void op16_on_s(const char *op, const char *op2, unsigned off)
 	printf("\t%sa %u,s\n", op2, off);
 }
 
-/* Always with D on a 6809 only op */
-static void op16d_on_spi(const char *op)
-{
-	printf("\t%sd ,s++\n", op);
-}
-
-/* Do the low byte first in case it's add adc etc */
-static void op16_on_spi(const char *op, const char *op2)
-{
-	printf("\t%sa ,s+\n", op);
-	printf("\t%sb ,s+\n", op2);
-}
 
 static void op16d_on_s(const char *op, const char *op2, unsigned off)
 {
@@ -457,36 +445,46 @@ unsigned write_uni_op(register struct node *r, const char *op, unsigned off)
 	return 1;
 }
 
-void op8_on_tos(const char *op)
-{
-	op8_on_spi(op);
-}
-
-void op16_on_tos(const char *op, const char *op2)
+static void op16_on_tos(const char *op)
 {
 	invalidate_work();		/* ?? needed on 09 ? */
-	op16_on_spi(op, op2);
+	printf("\t%sa ,s+\n", op);
+	printf("\t%sb ,s+\n", op);
 }
 
-void op16d_on_tos(const char *op, const char *op2)
+void op16d_on_tos(const char *op)
 {
 	invalidate_work();
-	op16d_on_spi(op);
+	printf("\t%sd ,s++\n", op);
 }
 
-/* TODO: this seems to be buggy for 32bit */
-unsigned write_tos_op(struct node *n, const char *op, const char *op2)
+unsigned write_tos_op(struct node *n, const char *op)
 {
 	unsigned s = get_size(n->type);
-	if (s > 2 && !cpu_has_y)
-		return 0;
 	if (s == 4) {
 		swap_d_y();
-		op16_on_tos(op2, op2);
+		op16_on_tos(op);
 		swap_d_y();
-		op16_on_tos(op, op2);
+		op16_on_tos(op);
 	} else if (s == 2)
-		op16_on_tos(op, op2);
+		op16_on_tos(op);
+	else
+		op8_on_tos(op);
+	invalidate_work();
+	return 1;
+}
+
+unsigned write_tos_opd(struct node *n, const char *op, const char *op2)
+{
+	unsigned s = get_size(n->type);
+	if (s == 4) {
+		printf("\t%s 2,s\n", op);
+		printf("\t%s 1,s\n", op2);
+		printf("\t%s ,s\n", op2);
+		printf("\tleas 4,s\n");
+		return 1;
+	} else if (s == 2)
+		op16d_on_tos(op);
 	else
 		op8_on_tos(op);
 	invalidate_work();
@@ -880,9 +878,9 @@ unsigned cmp_op(struct node *n, const char *uop, const char *op)
 	/* We can do this versus s+ or s++ */
 	/* FIXME: 6809 has cmpd unlike 6803 */
 	if (s == 1)
-		op8_on_spi("cmp");
+		op8_on_tos("cmp");
 	else if (s == 2)
-		op16d_on_spi("cmp");
+		op16d_on_tos("cmp");
 	printf("\t%s %s\n", jsr_op, op);
 	n->flags |= ISBOOL;
 	invalidate_work();

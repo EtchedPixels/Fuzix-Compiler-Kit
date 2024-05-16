@@ -104,7 +104,8 @@ extern unsigned write_op(struct node *r, const char *op, const char *op2, unsign
 extern unsigned write_opd(struct node *r, const char *op, const char *op2, unsigned off);
 extern unsigned write_uni_op(struct node *n, const char *op, unsigned off);
 extern void uniop_on_ptr(const char *op, unsigned off, unsigned size);
-extern unsigned write_tos_op(struct node *n, const char *op, const char *op2);
+extern unsigned write_tos_op(struct node *n, const char *op);
+extern unsigned write_tos_opd(struct node *n, const char *op, const char *op2);
 extern unsigned write_tos_uniop(struct node *n, const char *op);
 extern unsigned left_shift(struct node *n);
 extern unsigned right_shift(struct node *n);

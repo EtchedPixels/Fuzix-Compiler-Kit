@@ -1606,24 +1606,20 @@ unsigned gen_node(struct node *n)
 		return 0;
 	/* Double argument ops we can handle easily */
 	case T_PLUS:
-		if (s < 4 && cpu_has_d)
-			return write_tos_op(n, "add", "adc");
 		if (n->type == FLOAT)
 			return 0;
-		if (cpu_is_09) {
-			printf("\taddd 2,s\n");
-			printf("\tadcb 1,s\n");
-			printf("\tadca ,s\n");
-			printf("\tleas 4,s\n");
-			return 1;
-		}
+		/* This is a special case as we need to order the
+		   operations */
+		if ((cpu_has_d && s <= 2) || cpu_is_09)
+			return write_tos_opd(n, "add", "adc");
+		/* For 6800 punt to helper */
 		return 0;
 	case T_AND:
-		return write_tos_op(n, "and", "and");
+		return write_tos_op(n, "and");
 	case T_OR:
-		return write_tos_op(n, "or", "or");
+		return write_tos_op(n, "or");
 	case T_HAT:
-		return write_tos_op(n, "eor", "eor");
+		return write_tos_op(n, "eor");
 	/* These do the maths backwards in effect so use the other equvialent
 	   compare for the ordered part */
 	case T_EQEQ:

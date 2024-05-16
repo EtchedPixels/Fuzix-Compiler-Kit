@@ -716,30 +716,54 @@ static void op8_on_tos(const char *op)
 	printf("\tins\n");
 }
 
-static void op16_on_tos(const char *op, const char *op2)
+static void op16_on_tos(const char *op)
 {
 	unsigned off;
+	op = remap_op(op);
 	invalidate_work();
 	off = make_tos_ptr();
-	printf("\t%sb %u,x\n", remap_op(op), off + 1);
-	printf("\t%sa %u,x\n", remap_op(op2), off);
+	printf("\t%sb %u,x\n", op, off + 1);
+	printf("\t%sa %u,x\n", op, off);
 	printf("\tins\n");
 	printf("\tins\n");
 }
 
-/* TODO: this seems to be buggy for 32bit */
-unsigned write_tos_op(struct node *n, const char *op, const char *op2)
+static void op16d_on_tos(const char *op)
+{
+	unsigned off;
+	invalidate_work();
+	off = make_tos_ptr();
+	printf("\t%sd %u,x\n", op, off);
+	printf("\tins\n");
+	printf("\tins\n");
+}
+
+/* Only used for operations where there is no ordering requirement */
+unsigned write_tos_op(struct node *n, const char *op)
 {
 	unsigned s = get_size(n->type);
 	if (s > 2 && !cpu_has_y)
 		return 0;
 	if (s == 4) {
 		swap_d_y();
-		op16_on_tos(op2, op2);
+		op16_on_tos(op);
 		swap_d_y();
-		op16_on_tos(op, op2);
+		op16_on_tos(op);
 	} else if (s == 2)
-		op16_on_tos(op, op2);
+		op16_on_tos(op);
+	else
+		op8_on_tos(op);
+	invalidate_work();
+	return 1;
+}
+
+unsigned write_tos_opd(struct node *n, const char *op, const char *unused)
+{
+	unsigned s = get_size(n->type);
+	if (s > 2)
+		return 0;
+	else if (s == 2)
+		op16d_on_tos(op);
 	else
 		op8_on_tos(op);
 	invalidate_work();
