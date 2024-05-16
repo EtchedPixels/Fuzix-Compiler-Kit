@@ -54,3 +54,4 @@ processors (development only)
 -m8086: Intel 8088/8086 (compatible 80186/286/..)
 -m80186: Intel 80188/186 (compatible 80286/...)
 -m8070: NS8070 series
+-mnova3: DG Nova3, Nova4 or MicroNova
