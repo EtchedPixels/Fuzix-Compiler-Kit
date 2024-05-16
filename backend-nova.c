@@ -912,29 +912,29 @@ static unsigned do_eqop(struct node *n, unsigned op, unsigned cost)
 {
 	unsigned s = get_size(n->type);
 
-	if (cost > opt || optsize)
+	if (s != 1 && (cost > opt || optsize))
 		return 0;
 
 	/* At this point TOS is the pointer */
 
-	printf("\tlda 2,0,3\n");
-	printf("\tsta 1,__tmp,0\n");		/* Save working value */
-	if (s == 2) {
+	if (s == 1)
+		printf("\tjsr __eqcget\n");
+	else {
 		printf("\tlda 2,0,3\n");
-		printf("\tlda 1,0,2\n");
-		printf("\tpsha 1\n");
-	} else if (s == 4) {
-		printf("\tlda 2,0,3\n");
-		printf("\tlda 0,0,2\n");
-		printf("\tlda 1,0,2\n");
-		printf("\tpsha 1\n");
-		printf("\tpsha 0\n");
-	} else {
-		printf("\tlda 1,0,3\n");	/* Get pointer */
-		printf("\tjsr @__derefc,1\n");
-		printf("\tpsha 1\n");
+		printf("\tsta 1,__tmp,0\n");		/* Save working value */
+		if (s == 2) {
+			printf("\tlda 2,0,3\n");
+			printf("\tlda 1,0,2\n");
+			printf("\tpsha 1\n");
+		} else if (s == 4) {
+			printf("\tlda 2,0,3\n");
+			printf("\tlda 0,0,2\n");
+			printf("\tlda 1,0,2\n");
+			printf("\tpsha 1\n");
+			printf("\tpsha 0\n");
+			printf("\tlda 1,__tmp,0\n");
+		}
 	}
-	printf("\tlda 1,__tmp,0\n");
 	/* We now have things marshalled as we want them */
 
 	memcpy(&ntmp, n, sizeof(ntmp));
