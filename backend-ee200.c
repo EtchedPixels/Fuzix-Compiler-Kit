@@ -110,8 +110,8 @@ void gen_frame(unsigned size, unsigned aframe)
 			if (size == 2)
 				printf("\tdcr s\n");
 		} else {
-			printf("\tldb %u\n", ((unsigned)-size) & 0xFFFF);
-			printf("\tadd b,s\n");
+			printf("\tlda %u\n", ((unsigned)-size) & 0xFFFF);
+			printf("\tadd a,s\n");
 		}
 	}
 	sp = 0;
@@ -129,8 +129,8 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	else if (size == 2)
 		printf("\tinr s\n\tinr s\n");
 	else if (size) {
-		printf("\tldb %u\n", size);
-		printf("\tadd b,s\n");
+		printf("\tlda %u\n", size);
+		printf("\tadd a,s\n");
 	}
 	if (func_flags & F_REG(2)) {
 		printf("\tlda (s+)\n");
@@ -396,8 +396,14 @@ struct node *gen_rewrite_node(struct node *n)
 	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt)) {
 		if (op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
-				if (r->op == T_ARGUMENT)
+				/* Arguments are pushed word sized, but big endian
+				   so a byte argument is one byte on for an argument
+				   but not a local */
+				if (r->op == T_ARGUMENT) {
 					r->value += argbase + frame_len;
+					if (nt == CCHAR || nt == UCHAR)
+						r->value++;
+				}
 				squash_right(n, T_LREF);
 				return n;
 			}
@@ -420,8 +426,13 @@ struct node *gen_rewrite_node(struct node *n)
 				return n;
 			}
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
-				if (l->op == T_ARGUMENT)
+				if (l->op == T_ARGUMENT) {
 					l->value += argbase + frame_len;
+					/* Adjust arguments for big endian word
+					   push of local */
+					if (nt == CCHAR || nt == UCHAR)
+						l->value++;
+				}
 				squash_left(n, T_LSTORE);
 				return n;
 			}
@@ -486,6 +497,9 @@ unsigned op_into_r(char r, struct node *n, unsigned s, const char *b, const char
 		break;
 	case T_ARGUMENT:
 		v += argbase + frame_len;
+		/* Word pushed big endian - so argument is byte after */
+		if (s == 1)
+			v++;
 		/* Fall through */
 	case T_LOCAL:
 		v += sp;
@@ -1023,7 +1037,7 @@ unsigned gen_shortcut(struct node *n)
 	}
 
 	switch(n->op) {
-	case T_EQEQ:
+	case T_EQ:
 		if (can_load_reg(l, 2)) {
 			codegen_lr(r);
 			off = load_register(l, 2, &reg);

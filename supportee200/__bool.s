@@ -35,7 +35,7 @@ __notc:
 __not:
 	ori	b,b
 __cceq:
-	bnz	ret1
+	bz	ret1
 ret0:
 	clr	b
 	rsr
@@ -49,17 +49,20 @@ __cclteq:
 __ccltu:
 	bz	ret0
 __ccltequ:
+	bz	ret1
 	bnl	ret1
 	bra	ret0
 
 __ccgteq:
 	bz	ret1
 __ccgt:
+	bz	ret0
 	ble	ret0
 	bra	ret1
 
 __ccgtequ:
 	bz	ret1
 __ccgtu:
+	bz	ret0
 	bnl	ret0
 	bra	ret1
