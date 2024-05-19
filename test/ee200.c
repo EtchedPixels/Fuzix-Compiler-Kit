@@ -240,10 +240,10 @@ static void sub_flags(uint8_t r, uint8_t a, uint8_t b)
 		alu_out |= ALU_M;
 	if (a & 0x80) {
 		if (!((b | r) & 0x80))
-        		alu_out |= ALU_F;;
+			alu_out |= ALU_F;
        	} else {
        		if (b & r & 0x80)
-       			alu_out |= ALU_F;;
+			alu_out |= ALU_F;
 	}
 }
 
@@ -414,7 +414,8 @@ static int dec(unsigned reg)
 static int clr(unsigned reg)
 {
 	reg_write(reg, 0);
-	alu_out &= ~(ALU_F | ALU_L | ALU_M | ALU_V);
+	alu_out &= ~(ALU_F | ALU_L | ALU_M);
+	alu_out |= ALU_V;
 	return 0;
 }
 
@@ -599,7 +600,8 @@ static uint16_t dec16(uint16_t a)
 
 static uint16_t clr16(uint16_t a)
 {
-	alu_out &= ~(ALU_F | ALU_L | ALU_M | ALU_V);
+	alu_out &= ~(ALU_F | ALU_L | ALU_M);
+	alu_out |= ALU_V;
 	return 0;
 }
 
@@ -1391,23 +1393,21 @@ static int alu5x_op(void)
 }
 
 /*
- *	The CPU has directly controlled flags for C N Z I
- *	We know from the branch rules there is an internal V flag
- *	The front panel implies we have an L but we don't know too much
- *	about it.
+ *	There are explicit flags for Minus, Link (carry), Value (zero),
+ *	Fault (Signed overflow tracking).
  */
 static char *flagcode(void)
 {
-	static char buf[6];
-	strcpy(buf, "-----");
+	static char buf[5];
+	strcpy(buf, "----");
 	if (alu_out & ALU_F)
 		*buf = 'F';
 	if (alu_out & ALU_L)
-		buf[2] = 'L';
+		buf[1] = 'L';
 	if (alu_out & ALU_M)
-		buf[3] = 'M';
+		buf[2] = 'M';
 	if (alu_out & ALU_V)
-		buf[4] = 'V';
+		buf[3] = 'V';
 	return buf;
 }
 
@@ -1449,12 +1449,19 @@ unsigned ee200_execute_one(unsigned trace)
 	if (trace)
 		fprintf(stderr, "CPU %04X: ", pc);
 	op = fetch();
-	if (trace) {
+	if (trace == 2) {
 		fprintf(stderr,
-			"%02X %s A:%04X  B:%04X X:%04X Y:%04X Z:%04X S:%04X C:%04X LVL:%x MAP:%x | ",
+			"%02X %s A:%04X B:%04X X:%04X Y:%04X Z:%04X S:%04X C:%04X LVL:%x | ",
 			op, flagcode(), regpair_read(A), regpair_read(B),
 			regpair_read(X), regpair_read(Y), regpair_read(Z),
-			regpair_read(S), regpair_read(C), cpu_ipl, cpu_mmu);
+			regpair_read(S), regpair_read(C), cpu_ipl);
+		disassemble(op);
+	} else if (trace) {
+		fprintf(stderr,
+			"%02X %s A:%04X B:%04X X:%04X Y:%04X Z:%04X S:%04X | ",
+			op, flagcode(), regpair_read(A), regpair_read(B),
+			regpair_read(X), regpair_read(Y), regpair_read(Z),
+			regpair_read(S));
 		disassemble(op);
 	}
 	if (op < 0x10)
