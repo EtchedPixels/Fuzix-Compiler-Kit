@@ -10,6 +10,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 static uint16_t ram[32768];	/* 32KWord address space */
 static unsigned flag_c;
@@ -35,7 +38,7 @@ static uint16_t indirect(uint16_t baddr)
             fprintf(stderr, "***indirection loop at %x\n", baddr);
             exit(1);
         }
-        addr = ram[addr];
+        addr = ram[addr & 0x7FFF];
     }
     return addr;
 }
@@ -88,6 +91,12 @@ void devio_op(void)
     unsigned dev = opcode & 0x3F;
     unsigned f = (opcode >> 6) & 3;
 
+    /* Dev 0 access we use as our debug exit trap */
+    if (dev == 0) {
+        if (reg[0])
+            printf("*** %u\n", reg[0]);
+        exit(0);
+    }
     /* Extended instructions are nailed to "device" 1 */
     /* We don't strictly check every bit here but we are just a test
        tool and what a real Nova does with all the other invaliud bit patterns
@@ -313,12 +322,141 @@ void twoac_mo(void)
     }
 }
 
-void nova_execute(void)
+static const char *oph[] = { "COM", "NEG", "MOV", "INC", "ADC", "SUB", "ADD", "AND"};
+static const char *skipstr[] = { "    ", ",SKP", ",SZC", ",SNC", ",SZR", ",SNR", ",SEZ", ",SBN" };
+static const char *opna[] = { "JMP", "JSR", "ISZ", "DSZ" };
+static const char *opd[] = { "NIO", "DIA", "DOA", "DIB", "DOB", "DIC", "DOC", "SKP" };
+static const char *opsf[] = { "BN", "BZ", "DN", "DZ" };
+
+static void novaio_dis(uint16_t op)
+{
+    unsigned dop = (op >> 8) & 7;
+    /* Special rules for Nova 3/4 ops */
+    if ((op & 0x3F) == 1) {
+        unsigned ac = (op >> 11) & 3;
+        switch((op >> 6) & 0x0F) {
+        case 0:
+            printf("MTFP %u\n", ac);
+            return;
+        case 1:
+            printf("MFFP %u\n", ac);
+            return;
+        case 4:
+            printf("MTSP %u\n", ac);
+            return;
+        case 5:
+            printf("MFSP %u\n", ac);
+            return;
+        case 6:
+            printf("PSHA %u\n", ac);
+            return;
+        case 7:
+            printf("POPA %u\n", ac);
+            return;
+        case 10:
+            printf("SAV\n");
+            return;
+        case 11:
+            printf("RET\n");
+            return;
+        }
+    }
+    if (op == 0) {
+        printf("NIO%c %u\n",
+            " SCP"[(op >> 6) & 3],
+            op & 0x3F);
+        return;
+    }
+    if (op == 7) {
+        printf("SKP%s %u\n",
+            opsf[(op >> 6) & 3],
+            op & 0x3F);
+        return;
+    }
+    printf("%s%c %u,%u",
+        opd[dop],
+        " SCP"[(op >> 6) & 3],
+        (op >> 11) & 3,
+        op & 0x3F);
+}
+
+void nova_dis(uint16_t op)
+{
+    unsigned ac;
+    if (op & 0x8000) {
+        printf("%s%c%c%c", oph[(op  >> 8) & 7],
+                        " ZOC"[(op >> 4) & 3],
+                        " LRS"[(op >> 6) & 3],
+                        " #"[(op >> 3) & 1]);
+        printf(" %u,%u",
+            (op >> 13) & 3, (op >> 11) & 3);
+        printf("%s", skipstr[op & 7]);
+        return;
+    }
+    ac = (opcode >> 11) & 3;
+    switch((opcode >> 13) & 3) {
+    case 0:
+        /* No AC */
+        printf("%s", opna[ac]);
+        break;
+    case 1:
+        printf("LDA %u,", ac);
+        break;
+    case 2:
+        printf("STA %u,", ac);
+        break;
+    case 3:
+        /* Device */
+        novaio_dis(op);
+        return;
+    }
+    printf(" %c", "* "[(opcode >> 10) & 1]);
+    printf(" %u,%u\n", opcode & 0xFF, (opcode >> 8) & 3);
+}
+    
+void nova_execute_one(unsigned debug)
 {
     opcode = ram[reg_pc];
+    if (debug) {
+        printf("%04X | %c %04X %04X %04X %04X | %04X %04X | ",
+            reg_pc, " L"[flag_c], reg[0], reg[1], reg[2], reg[3], fp, sp);
+        nova_dis(opcode);
+    }            
     if (opcode & 0x8000)
         twoac_mo();
     else
         oneac_ea();
 }
 
+int main(int argc, char *argv[])
+{
+	int fd;
+	unsigned debug = 0;
+
+	if (argc == 4 && strcmp(argv[1], "-d") == 0) {
+		argv++;
+		argc--;
+		debug = 1;
+	}
+	if (argc != 3) {
+		fprintf(stderr, "nova: test map.\n");
+		exit(1);
+	}
+	fd = open(argv[1], O_RDONLY);
+	if (fd == -1) {
+		perror(argv[1]);
+		exit(1);
+	}
+	if (read(fd, ram, sizeof(ram)) < 0x210) {
+		fprintf(stderr, "nova: bad test.\n");
+		perror(argv[1]);
+		exit(1);
+	}
+	close(fd);
+
+	reg_pc = 0x0100;
+
+	while (1)
+		nova_execute_one(debug);
+	return 0;
+}

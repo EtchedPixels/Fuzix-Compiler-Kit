@@ -1,7 +1,7 @@
-all: emu6502 emu65c816 emu6800 emu85 emuz8 emuz80 byte1802 emu6809 ee200 \
+all: emu6502 emu65c816 emu6800 emu85 emuz8 emuz80 byte1802 emu6809 ee200 nova \
      testcrt0.o testcrtz80.o testcrt0_6502.o testcrt0_65c816.o \
      testcrt0_6803.o testcrt0_6809.o testcrt0_z8.o testcrt0_byte1802.o \
-     testcrt0_ee200.o
+     testcrt0_ee200.o testcrt0_nova3.o
 
 emu85: emu85.o intel_8085_emulator.o
 	$(CC) emu85.o intel_8085_emulator.o -o emu85
@@ -60,6 +60,9 @@ emu6809: emu6809.o e6809.o d6809.o
 ee200: ee200.o ee200_dis.o
 	$(CC) $(CFLAGS) -o ee200 ee200.o ee200_dis.o
 
+nova: nova.o
+	$(CC) $(CFLAGS) -o nova nova.o
+
 z80dis.o: z80dis.h
 
 testcrt0.o: testcrt0.s
@@ -86,12 +89,15 @@ testcrt0_6809.o: testcrt0_6809.s
 testcrt0_ee200.o: testcrt0_ee200.s
 	fcc -mee200 -c testcrt0_ee200.s
 
+testcrt0_nova3.o: testcrt0_nova3.s
+	fcc -mnova3 -c testcrt0_nova3.s
+
 testcrt0_z8.o: testcrt0_z8.s
 	fcc -mz8 -c testcrt0_z8.s
 
 clean:
 	rm -f *.o tests/*.o *~ tests/*~ emu85 tests/*.map *.log emuz80
-	rm -f emu6502 byte1802 emu65c816 emuz8 emu6809
+	rm -f emu6502 byte1802 emu65c816 emuz8 emu6809 ee200 nova
 	rm -f wtests/*.o
 	(cd libz80; make clean)
 	(cd lib65c816; make clean)
