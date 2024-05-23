@@ -20,8 +20,8 @@
 
 static char *symtab;
 
-#if defined(__linux__) || defined(__APPLE__)
-/* _itoa */
+/* _itoa : always use our own inbuilt one. We don't want to suck in all
+   of sscanf */
 static char buf[11];	/* Int could be 32bit */
 
 char *_uitoa(unsigned int i)
@@ -47,9 +47,6 @@ char *_itoa(int i)
 	*--p = '-';
 	return p;
 }
-
-#endif
-
 
 static unsigned char filename[33] = { "<stdin>" };
 
