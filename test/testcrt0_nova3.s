@@ -5,7 +5,7 @@
 start:
 	lda	0,spinit,1
 	mtsp	0
-	jsr	1,1
+	jsr	@1,1
 	.word	_main
 	nio	0		; our exit trap device
 spinit:

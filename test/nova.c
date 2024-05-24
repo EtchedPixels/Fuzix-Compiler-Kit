@@ -13,6 +13,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <arpa/inet.h>
 
 static uint16_t ram[32768];	/* 32KWord address space */
 static unsigned flag_c;
@@ -38,19 +39,19 @@ static uint16_t indirect(uint16_t baddr)
             fprintf(stderr, "***indirection loop at %x\n", baddr);
             exit(1);
         }
-        addr = ram[addr & 0x7FFF];
+        addr = ntohs(ram[addr & 0x7FFF]);
     }
     return addr;
 }
 
 static uint16_t read_mem(uint16_t addr)
 {
-    return ram[addr & 0x7FFF];
+    return ntohs(ram[addr & 0x7FFF]);
 }
 
 static void write_mem(uint16_t addr, int16_t v)
 {
-    ram[addr & 0x7FFF] = v;
+    ram[addr & 0x7FFF] = htons(v);
 }
     
 static void modify_ea(int n)
@@ -93,8 +94,8 @@ void devio_op(void)
 
     /* Dev 0 access we use as our debug exit trap */
     if (dev == 0) {
-        if (reg[0])
-            printf("*** %u\n", reg[0]);
+        if (reg[1])
+            printf("*** %u\n", reg[1]);
         exit(0);
     }
     /* Extended instructions are nailed to "device" 1 */
@@ -102,7 +103,7 @@ void devio_op(void)
        tool and what a real Nova does with all the other invaliud bit patterns
        is way more complicated */
     if (dev == 1) {
-        switch((opcode >> 6) & 0x0F) {
+        switch((opcode >> 7) & 0x0F) {
         case 0:
             fp = reg[ac];		/* MTFP */
             return;
@@ -334,46 +335,46 @@ static void novaio_dis(uint16_t op)
     /* Special rules for Nova 3/4 ops */
     if ((op & 0x3F) == 1) {
         unsigned ac = (op >> 11) & 3;
-        switch((op >> 6) & 0x0F) {
+        switch((op >> 7) & 0x0F) {
         case 0:
-            printf("MTFP %u\n", ac);
+            fprintf(stderr, "MTFP %u\n", ac);
             return;
         case 1:
-            printf("MFFP %u\n", ac);
+            fprintf(stderr, "MFFP %u\n", ac);
             return;
         case 4:
-            printf("MTSP %u\n", ac);
+            fprintf(stderr, "MTSP %u\n", ac);
             return;
         case 5:
-            printf("MFSP %u\n", ac);
+            fprintf(stderr, "MFSP %u\n", ac);
             return;
         case 6:
-            printf("PSHA %u\n", ac);
+            fprintf(stderr, "PSHA %u\n", ac);
             return;
         case 7:
-            printf("POPA %u\n", ac);
+            fprintf(stderr, "POPA %u\n", ac);
             return;
         case 10:
-            printf("SAV\n");
+            fprintf(stderr, "SAV\n");
             return;
         case 11:
-            printf("RET\n");
+            fprintf(stderr, "RET\n");
             return;
         }
     }
     if (op == 0) {
-        printf("NIO%c %u\n",
+        fprintf(stderr, "NIO%c %u\n",
             " SCP"[(op >> 6) & 3],
             op & 0x3F);
         return;
     }
     if (op == 7) {
-        printf("SKP%s %u\n",
+        fprintf(stderr, "SKP%s %u\n",
             opsf[(op >> 6) & 3],
             op & 0x3F);
         return;
     }
-    printf("%s%c %u,%u",
+    fprintf(stderr, "%s%c %u,%u",
         opd[dop],
         " SCP"[(op >> 6) & 3],
         (op >> 11) & 3,
@@ -384,42 +385,42 @@ void nova_dis(uint16_t op)
 {
     unsigned ac;
     if (op & 0x8000) {
-        printf("%s%c%c%c", oph[(op  >> 8) & 7],
+        fprintf(stderr, "%s%c%c%c", oph[(op  >> 8) & 7],
                         " ZOC"[(op >> 4) & 3],
                         " LRS"[(op >> 6) & 3],
                         " #"[(op >> 3) & 1]);
-        printf(" %u,%u",
+        fprintf(stderr, " %u,%u",
             (op >> 13) & 3, (op >> 11) & 3);
-        printf("%s", skipstr[op & 7]);
+        fprintf(stderr, "%s\n", skipstr[op & 7]);
         return;
     }
     ac = (opcode >> 11) & 3;
     switch((opcode >> 13) & 3) {
     case 0:
         /* No AC */
-        printf("%s", opna[ac]);
+        fprintf(stderr, "%s", opna[ac]);
         break;
     case 1:
-        printf("LDA %u,", ac);
+        fprintf(stderr, "LDA %u,", ac);
         break;
     case 2:
-        printf("STA %u,", ac);
+        fprintf(stderr, "STA %u,", ac);
         break;
     case 3:
         /* Device */
         novaio_dis(op);
         return;
     }
-    printf(" %c", "* "[(opcode >> 10) & 1]);
-    printf(" %u,%u\n", opcode & 0xFF, (opcode >> 8) & 3);
+    fprintf(stderr, " %c", " @"[(opcode >> 10) & 1]);
+    fprintf(stderr, " %u,%u\n", opcode & 0xFF, (opcode >> 8) & 3);
 }
     
 void nova_execute_one(unsigned debug)
 {
-    opcode = ram[reg_pc];
+    opcode = read_mem(reg_pc);
     if (debug) {
-        printf("%04X | %c %04X %04X %04X %04X | %04X %04X | ",
-            reg_pc, " L"[flag_c], reg[0], reg[1], reg[2], reg[3], fp, sp);
+        fprintf(stderr, "%04X | %c %04X %04X %04X %04X | %04X %04X | %04X = ",
+            reg_pc, " L"[flag_c], reg[0], reg[1], reg[2], reg[3], fp, sp, opcode);
         nova_dis(opcode);
     }            
     if (opcode & 0x8000)
