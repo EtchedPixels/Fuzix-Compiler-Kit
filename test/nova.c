@@ -26,7 +26,7 @@ static unsigned op_ac;
 static unsigned op_code;
 static unsigned op_index;
 static unsigned op_indirect;
-static int op_disp;
+static int8_t op_disp;
 static uint16_t ea;
 
 /* TODO: autoinc and autodec on non micronova */
@@ -51,6 +51,10 @@ static uint16_t read_mem(uint16_t addr)
 
 static void write_mem(uint16_t addr, int16_t v)
 {
+    if ((addr & 0x7FFF) < 86) {
+        fprintf(stderr, "***WFAULT at %x\n", reg_pc);
+        exit(1);
+    }
     ram[addr & 0x7FFF] = htons(v);
 }
     
@@ -67,7 +71,7 @@ void opdecode(void)
     op_ac = (opcode >> 11) & 3;
     op_code = (opcode >> 13) & 3;
     op_index = (opcode >> 8) & 3;
-    op_indirect = !!(opcode >> 10);
+    op_indirect = (opcode >> 10) & 1;
     op_disp = opcode & 0xFF;
 
     switch(op_index) {
@@ -108,7 +112,7 @@ void devio_op(void)
             fp = reg[ac];		/* MTFP */
             return;
         case 1:
-            reg[ac] = fp;		/* MFFP */
+            reg[ac] = fp & 0x7FFF;	/* MFFP */
             return;
         case 2:				/* Nova 4 LDB */
         case 3:
@@ -117,33 +121,36 @@ void devio_op(void)
             sp = reg[ac];		/* MTSP */
             return;
         case 5:
-            reg[ac] = sp;		/* MFSP */
+            reg[ac] = sp & 0x7FFF;	/* MFSP */
             return;
         case 6:
-            write_mem(sp++, reg[ac]);
+            write_mem(++sp, reg[ac]);
             return;
         case 7:
-            reg[ac] = read_mem(--sp);
+            reg[ac] = read_mem(sp--);
             return;
         case 8:				/* Nova 4 STB */
         case 9:
             break;
         case 10:			/* SAV */
-            write_mem(sp++, reg[0]);
-            write_mem(sp++, reg[1]);
-            write_mem(sp++, reg[2]);
-            write_mem(sp++, fp);
-            write_mem(sp++, (reg[3] & 0x7FFF) | (flag_c ? 0x8000 : 0x0000));
+            write_mem(++sp, reg[0]);
+            write_mem(++sp, reg[1]);
+            write_mem(++sp, reg[2]);
+            write_mem(++sp, fp & 0x7FFF);
+            write_mem(++sp, (reg[3] & 0x7FFF) | (flag_c ? 0x8000 : 0x0000));
+            fp = sp;
+            reg[3] = fp & 0x7FFF;
             return;
         case 11:			/* RET */
-            reg_pc = read_mem(--sp);
+            reg_pc = read_mem(sp--);
             flag_c = reg_pc >> 15;
             reg_pc &= 0x7FFF;
-            reg[3] = read_mem(--sp);
+            reg[3] = read_mem(sp--);
             fp = reg[3] & 0x7FFF;
-            reg[2] = read_mem(--sp);
-            reg[1] = read_mem(--sp);
-            reg[0] = read_mem(--sp);
+            reg[2] = read_mem(sp--);
+            reg[1] = read_mem(sp--);
+            reg[0] = read_mem(sp--);
+            reg_pc--;			/* Correct for caller changing it */
             return;
         case 12:
         case 13:			/* DIV option */
@@ -245,10 +252,12 @@ void twoac_mo(void)
         iv++;
         break;
     case 4: 	/* ADC (wrongly listed as 101 in some Nova docs) */
-        iv = reg[acd] + ~iv;
+        iv = reg[acd] + (iv ^ 0xFFFF);
         break;
     case 5:	/* SUB */
         iv = reg[acd] - iv;
+        /* This is a borrow */
+        iv ^= 0x10000;
         break;
     case 6:	/* ADD */
         iv += reg[acd];

@@ -2,5 +2,5 @@
 b=$(basename $1 .c)
 echo  $b":"
 fcc -mnova3 -X -c tests/$b.c
-ldnova -b -C512 testcrt0_nova3.o tests/$b.o -o tests/$b /opt/fcc/lib/nova/libnova.a
+ldnova -b -C512 testcrt0_nova3.o tests/$b.o -o tests/$b /opt/fcc/lib/nova/libnova.a -m tests/$b.map
 ./nova -d tests/$b tests/$b.map 2> $b.log
