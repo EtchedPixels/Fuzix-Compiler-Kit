@@ -1,7 +1,8 @@
-	.export __cpll
+	.export f__cpll
 	.code
 
-__cpll:	sta	3,__tmp,0
+f__cpll:
+	sta	3,__tmp,0
 	lda	0,__hireg,0
 	com	0,0
 	com	1,1

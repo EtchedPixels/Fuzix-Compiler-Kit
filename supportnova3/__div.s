@@ -68,7 +68,7 @@ f__div:
 	psha	3	; save return
 	sub	0,0	; 0 will track signs
 	movl#	1,1,szc
-	jmp	__neg1,1
+	jmp	neg1,1
 n1:
 	movl#	2,2,szc
 	jmp	neg2,1

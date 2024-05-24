@@ -39,7 +39,7 @@ f__condne:
 
 f__condltequ:
 	lda	0,0,3
-	subz#	0,1,snc
+	subz#	1,0,szc
 	subzl	1,1,skp
 	sub	1,1
 	jmp	condout,1
@@ -53,14 +53,14 @@ f__condgtu:
 
 f__condgtequ:
 	lda	0,0,3
-	adcz#	0,1,snc
+	adcz#	1,0,snc
 	subzl	1,1,skp
 	sub	1,1
 	jmp	condout,1
 
 f__condltu:
 	lda	0,0,3
-	adcz#	1,0,snc
+	adcz#	1,0,szc
 	subzl	1,1,skp
 	sub	1,1
 	jmp	condout,1

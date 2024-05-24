@@ -29,7 +29,7 @@ f__derefuc:
 	mov	1,2
 	lda	0,N255,0	; set ac0 with the mask
 	movr	2,2,snc		; word address skip if right byte sets up C
-	movs	3,3		; swap mask if needed
+	movs	0,0		; swap mask if needed
 	lda	1,0,2		; get word into 1
 	and	0,1,snc		; we now have the right bits masked
 				; snc will skip depending which half we need

@@ -12,6 +12,8 @@
 	.export f__const1l
 	.export f__const0
 	.export f__const0l
+	.export f__iconst0
+	.export f__iconst0l
 	.export f__iconst1
 	.export f__iconst1l
 	.export f__sconst1

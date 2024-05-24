@@ -9,5 +9,5 @@ f__castc_:
 	movl	2,2,szc		; We are good if clear
 	add	0,1		; extend sign
 	mffp	3
-	jmp	@__tmp.0
+	jmp	@__tmp,0
 	

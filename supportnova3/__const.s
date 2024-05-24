@@ -59,7 +59,7 @@
 	.export __condlteq
 	.export __condgt
 	.export __condgteq
-	.export __condlt
+	.export __condlt;
 
 	.export __cceql
 	.export __ccnel
@@ -123,14 +123,14 @@ __booljf:	.word f__booljf
 __booljt:	.word f__booljt
 __notjf:	.word f__notjf
 __notjt:	.word f__notjt
-__const1:	.word f_const1
+__const1:	.word f__const1
 __const1l:	.word f__const1l
 __const0:	.word f__const0
 __const0l:	.word f__const0l
 __iconst1:	.word f__iconst1
-__iconst1l:	.word f__inconst1l
-__iconst0:	.word f__iconst1
-__iconst0l:	.word f__inconst1l
+__iconst1l:	.word f__iconst1l
+__iconst0:	.word f__iconst0
+__iconst0l:	.word f__iconst0l
 __sconst1:	.word f__sconst1
 __sconst1l:	.word f__sconst1l
 __cpush:	.word f__cpush
@@ -161,21 +161,21 @@ __condeq:	.word f__condeq
 __condne:	.word f__condne
 __condltequ:	.word f__condltequ
 __condgtu:	.word f__condgtu
-__condgtequ:	.word f__confgtequ
+__condgtequ:	.word f__condgtequ
 __condltu:	.word f__condltu
 __condlteq:	.word f__condltequ
 __condgt:	.word f__condgtu
-__condgteq:	.word f__confgtequ
+__condgteq:	.word f__condgtequ
 __condlt:	.word f__condltu
 
 __cceql:	.word f__cceql
 __ccnel:	.word f__ccnel
 __ccltul:	.word f__ccltul
-__ccltequl:	.word f__ccleqtul
+__ccltequl:	.word f__ccltequl
 __ccgtul:	.word f__ccgtul
 __ccgtequl:	.word f__ccgtequl
 __ccltl:	.word f__ccltl
-__cclteql:	.word f__ccleqtl
+__cclteql:	.word f__cclteql
 __ccgtl:	.word f__ccgtl
 __ccgteql:	.word f__ccgteql
 

@@ -3,6 +3,7 @@ all: libnova.a crt0.o
 OBJ = __dp.o __const.o\
       __coreop.o \
       __byte.o \
+      __cast.o \
       __cc.o \
       __div.o __mul.o \
       __minuseq.o __pluseq.o \
