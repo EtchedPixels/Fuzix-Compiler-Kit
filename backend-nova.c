@@ -5,6 +5,16 @@
 #include "compiler.h"
 #include "backend.h"
 
+/*
+ *	The core compiler thinks mostly in bytes. Whilst it understands
+ *	pointer conversions and the like our stack offsets in arguments
+ *	and locals are byte oriented (as we might pack byte variables).
+ *
+ *	In addition on the Nova our stack grows up through memory so all
+ *	the argument offsets are negative upwards from the frame pointer
+ *	allowing for the SAV frame (5 words)
+ */
+
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
 
@@ -16,7 +26,7 @@ static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned argbase;	/* Argument offset */
 static unsigned unreachable;	/* Is code currently unreachable */
 
-#define ARGBASE	5		/* 5 words */
+#define ARGBASE	10		/* 5 words (10 bytes) */
 
 /* Chance to rewrite the tree from the top rather than none by node
    upwards. We will use this for 8bit ops at some point and for cconly
@@ -91,6 +101,31 @@ static void squash_right(struct node *n, unsigned op)
 	n->right = NULL;
 }
 
+static unsigned is_bytepointer(unsigned t)
+{
+	if (!PTR(t))
+		return 0;
+	t = BASE_TYPE(t) & ~UNSIGNED;
+	if (t == CCHAR || t == VOID)
+		return 1;
+	return 0;
+}
+
+/*
+ *	As a word machine our types matter for pointer conversions
+ *	and we cannot blithly throw them away as most byte machines
+ *	can. In the Nova case we need to shift it left or right between
+ *	byte pointers (void, char *, unsigned char *) and other types
+ */
+static unsigned pointer_match(unsigned t1, unsigned t2)
+{
+	if (!PTR(t1) || !PTR(t2))
+		return 0;
+	if (is_bytepointer(t1) == is_bytepointer(t2))
+		return 1;
+	return 0;
+}
+
 /*
  *	Our chance to do tree rewriting. We don't do much
  *	at this point, but we do rewrite name references and function calls
@@ -107,13 +142,20 @@ struct node *gen_rewrite_node(struct node *n)
 	   a deref pattern */
 
 	/* Rewrite references into a load operation. Don't do this with
-	   char or long. We can probably do char sanely later but char
-	   is painful */
+	   long. We can probably do long sanely later. Char is weird as
+	   we then use byte pointers */
 	if (nt == CSHORT || nt == USHORT || PTR(nt)) {
 		if (op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
+				/* Offsets are in bytes, we are a word machine */
+				/* Arguments are below the FP, variables above with
+				   a 2 byte offset */
 				if (r->op == T_ARGUMENT)
-					r->value -= argbase + frame_len;
+					r->value = -(argbase + r->value);
+				else
+					r->value += 2;
+				/* Always word addressed */
+				r->value /= 2;
 				squash_right(n, T_LREF);
 				return n;
 			}
@@ -141,7 +183,10 @@ struct node *gen_rewrite_node(struct node *n)
 			}
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
 				if (l->op == T_ARGUMENT)
-					l->value += argbase + frame_len;
+					l->value = -(argbase + l->value);
+				else
+					l->value += 2;
+				l->value /= 2;	/* Word machine */
 				squash_left(n, T_LSTORE);
 				return n;
 			}
@@ -154,7 +199,7 @@ struct node *gen_rewrite_node(struct node *n)
 	/* Eliminate casts for sign, pointer conversion or same */
 	if (op == T_CAST) {
 		if (nt == r->type || (nt ^ r->type) == UNSIGNED ||
-		 (PTR(nt) && PTR(r->type))) {
+		 (pointer_match(nt, r->type))) {
 			free_node(n);
 			r->type = nt;
 			return r;
@@ -218,7 +263,7 @@ void gen_frame(unsigned size, unsigned aframe)
 	sp = 0;
 	/* Remember the stack grows upwards so values are negative offsets */
 	printf("\tsav\n");
-	printf("\tisz -4,3\n");	/* Will never skip */
+	printf("\tisz 0,3\n");	/* Will never skip */
 	if (size == 0)
 		return;
 	if (size >= 5) {
@@ -248,7 +293,7 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	} else
 		repeated_op(size / 2, "popa 0");
 	if (!(func_flags & F_VOIDRET))
-		printf("\tsta 0,0,3\n");
+		printf("\tsta 1,-3,3\n");
 	printf("\tret\n");
 	unreachable = 1;
 }
@@ -356,25 +401,61 @@ void gen_name(struct node *n)
 	printf("\t.word _%s+%d\n", namestr(n->snum), WORD(n->value));
 }
 
+/* FIXME: we will need to add .byte and alignment padding to the
+   assembler for char arrays. This is now OK to do as the asm/ld think
+   in bytes for word machines with byte pointers */
 void gen_value(unsigned type, unsigned long value)
 {
+	unsigned v = value;
 	if (PTR(type)) {
-		printf("\t.word %u\n", (unsigned) value);
+		printf("\t.word %u\n", v);
 		return;
 	}
 	switch (type) {
+		/* Bytes alone are word aligned on the left of the word */
 	case CCHAR:
 	case UCHAR:
+		/* FIXME */
+		printf("\t.word %u\n", (v << 8) & 0xFF00);
+		break;
 	case CSHORT:
 	case USHORT:
-		printf("\t.word %d\n", (unsigned) value & 0xFFFF);
+		printf("\t.word %u\n", v);
 		break;
 	case CLONG:
 	case ULONG:
 	case FLOAT:
 		/* We are big endian - software choice */
-		printf("\t.word %d\n", (unsigned) ((value >> 16) & 0xFFFF));
-		printf("\t.word %d\n", (unsigned) (value & 0xFFFF));
+		printf("\t.word %u\n", (unsigned) ((value >> 16) & 0xFFFF));
+		printf("\t.word %u\n", v);
+		break;
+	default:
+		error("unsuported type");
+	}
+}
+
+/* Byte constants for helpers are written as words */
+void gen_wvalue(unsigned type, unsigned long value)
+{
+	unsigned v = value;
+	if (PTR(type)) {
+		printf("\t.word %u\n", v);
+		return;
+	}
+	switch (type) {
+		/* Bytes alone are word aligned on the left of the word */
+	case CCHAR:
+	case UCHAR:
+	case CSHORT:
+	case USHORT:
+		printf("\t.word %u\n", v);
+		break;
+	case CLONG:
+	case ULONG:
+	case FLOAT:
+		/* We are big endian - software choice */
+		printf("\t.word %u\n", (unsigned) ((value >> 16) & 0xFFFF));
+		printf("\t.word %u\n", v);
 		break;
 	default:
 		error("unsuported type");
@@ -473,20 +554,44 @@ static unsigned can_load_ac(struct node *n)
  */
 static unsigned load_ac(unsigned ac, struct node *n)
 {
-	unsigned s = get_size(n->type);
 	unsigned v = n->value;
 	int16_t d = v;
 
-	if (s != 2)
-		return 0;
 	switch(n->op) {
+	case T_ARGUMENT:
+		/* Stack grows upward and our offsets are in words */
+		/* Except for bytes, then our addresses for locals are
+		   byte pointers! */
+		d = -(argbase + d);	/* Bytes */
+		if (is_bytepointer(n->type)) {
+			/* Convert to byte pointer */
+			printf("\tmovzl 3,%u\n", ac);
+			d++;	/* Arguments are stacked as words so the
+				   value is 1 byte offset */
+		} else {
+			d /= 2;	/* Word offset word pointer */
+			printf("\tmov 3,%u\n", ac);
+		}
+		printf("\tlda 2,2,1\n");
+		printf("\tadd 2,%u,skp\n", ac);
+		printf("\t.word %d\n", d);
+		return 1;
 	case T_LOCAL:
-		printf("\tmov 3,%u\n", ac);
+		d += 2;		/* Byte offset for FP */
+		if (is_bytepointer(n->type)) {
+			/* Convert to byte pointer */
+			printf("\tmovzl 3,%u\n", ac);
+		} else {
+			/* Work in words */
+			printf("\tmov 3,%u\n", ac);
+			d /= 2;
+		}
 		printf("\tlda 2,2,1\n");
 		printf("\tadd 2,%u,skp\n", ac);
 		printf("\t.word %d\n", d);
 		return 1;
 	case T_LREF:
+		/* Will always be size 2 at this point */
 		if (d >= -128 && d < 128) {
 			printf("\tlda %u,%d,3\n", ac, d);
 			return 1;
@@ -505,13 +610,19 @@ static unsigned load_ac(unsigned ac, struct node *n)
 		return 1;
 	case T_NAME:
 		printf("\tjsr @__const%u,0\n", ac);
-		printf("\t.word _%s+%u\n", namestr(n->snum), v);
+		if (is_bytepointer(n->type))
+			printf("\t.byteptr _%s+%u\n", namestr(n->snum), v);
+		else
+			printf("\t.word _%s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_LABEL:
 		printf("\tjsr @__const%u,0\n", ac);
-		printf("\t.word T%u+%u\n", n->val2, v);
+		if (is_bytepointer(n->type))
+			printf("\t.byteptr T%u+%u\n", n->val2, v);
+		else
+			printf("\t.word T%u+%u\n", n->val2, v);
 		return 1;
-	case T_NREF:
+	case T_NREF:/* Refs are always word at this point */
 		printf("\tjsr @__iconst%u\n", ac);
 		printf("\t.word _%s+%u\n", namestr(n->snum), v);
 		return 1;
@@ -548,12 +659,18 @@ unsigned add_constant(uint16_t v)
 static void node_word(struct node *n)
 {
 	unsigned v = n->value;
-	if (n->op == T_CONSTANT)
-		gen_value(n->type, n->value);
-	else if (n->op == T_NAME)
-		printf("\t.word _%s+%u\n", namestr(n->snum), v);
+	if (n->op == T_CONSTANT) {
+		gen_wvalue(n->type, n->value);
+		return;
+	}	
+	if (is_bytepointer(n->type))
+		printf("\t.byteptr ");
+	else
+		printf("\t.word ");
+	if (n->op == T_NAME)
+		printf("_%s+%u\n", namestr(n->snum), v);
 	else if (n->op == T_LABEL)
-		printf("\t.word T%u+%u\n", n->val2, v);
+		printf("T%u+%u\n", n->val2, v);
 	else
 		error("nw");
 }
@@ -738,7 +855,7 @@ unsigned gen_direct(struct node *n)
 		case 0:
 			return 0;
 		case 2:
-			printf("\tadcz# 0,1,snc\n");
+			printf("\tadcz# 1,0,snc\n");
 			printf("\tsubzl 1,1,skp\n");
 			printf("\tsub 1,1\n");
 		}
@@ -749,7 +866,7 @@ unsigned gen_direct(struct node *n)
 		case 0:
 			return 0;
 		case 2:
-			printf("\tadcz# 1,0,snc\n");
+			printf("\tadcz# 1,0,szc\n");
 			printf("\tsubzl 1,1,skp\n");
 			printf("\tsub 1,1\n");
 		}
@@ -839,19 +956,21 @@ unsigned gen_shortcut(struct node *n)
 			return 0;
 	case T_PLUSEQ:	/* Very specific but common case */
 		if ((l->op == T_LOCAL || l->op == T_ARGUMENT) && r->op == T_CONSTANT && r->value <= 2 && s == 2) {
-			int d = l->value;
+			int d = l->value / 2;
 			if (r->value == 0 && nr)
 				return 1;
 			if (l->op == T_ARGUMENT)
-				d -= frame_len + argbase;
+				d -= argbase;
+			else
+				d++;
 			if (d < -128 || d >= 127 + s / 2)
 				return 0;
 			printf(";pluseq fast\n");
 			if (r->value > 0) {
-				gen_isz(d + 1, s);
+				gen_isz(d, s);
 			}
 			if (r->value == 2) {
-				gen_isz(d + 1, s);
+				gen_isz(d, s);
 			}
 			if (!nr)
 				printf("\tlda 1,%d,3\n", d);
@@ -869,6 +988,20 @@ unsigned gen_cast(struct node *n)
 	unsigned ls;
 	unsigned rs;
 
+	/* Pointer conversions: byte->word or word<-byte. Useless ones
+	   got eliminated earlier */
+	if (PTR(rt) && PTR(lt)) {
+		unsigned bt = BASE_TYPE(rt) & ~UNSIGNED;
+		if (bt == VOID || bt == CCHAR)
+			/* Convert byte pointer to word */
+			printf("\tmovzr 1,1\n");
+		else	/* Word pointer to byte */
+			printf("\tmovzl 1,1\n");
+		return 1;			
+	}
+
+	/* FIXME: check C spec - do casts of pointers to integer types
+	   give the byteptr or the typed ptr ? */
 	if (PTR(rt))
 		rt = USHORT;
 	if (PTR(lt))
@@ -896,6 +1029,8 @@ unsigned gen_cast(struct node *n)
 	/* All byte ops are word ops internally and the save and load
 	   mask so conversion from char should be free. To char unusually
 	   on the other hand is not - see above */
+	if (ls == 2)
+		return 1;
 	printf("\tsub 0,0\n");
 	if (!(rt & UNSIGNED)) {
 		/* If top bit set then set ac0 to -1 */
@@ -1001,7 +1136,7 @@ unsigned gen_node(struct node *n)
 		if (nr)
 			return 1;
 		v = n->value;
-		if (s == 2)
+		if (s <= 2)
 			printf("\tjsr @__const1,0\n");
 		else
 			printf("\tjsr @__const1l,0\n");
@@ -1026,7 +1161,7 @@ unsigned gen_node(struct node *n)
 	case T_LBSTORE:
 		/* Same logic but store  */
 		v = n->value;
-		if (s == 1 || s == 2)
+		if (s == 2)
 			printf("\tjsr @__sconst1,0\n");
 		else
 			printf("\tjsr @__sconst1l,0\n");
@@ -1036,13 +1171,30 @@ unsigned gen_node(struct node *n)
 			printf("\t.word T%u+%u\n", n->val2, v);
 		return 1;
 	case T_ARGUMENT:
-		v -= argbase + frame_len;
+		if (nr)
+			return 1;
+		d = -(argbase + d);
+		if (is_bytepointer(n->type)) {
+			/* Byte pointer */
+			printf("\tmovzl 3,1\n");
+			d++;	/* In the low half of the argument word */
+		} else {
+			printf("\tmov 3,1\n");
+			d /= 2;	/* Word machine */
+		}
+		if (d)
+			add_constant(d);
+		return 1;
 	case T_LOCAL:
 		if (nr)
 			return 1;
-		if (s == 1)
-			return 0;
-		printf("\tmov 3,1\n");
+		d += 2;		/* FP bias */
+		if (is_bytepointer(n->type))
+			printf("\tmovzl 3,1\n");
+		else {
+			printf("\tmov 3,1\n");
+			d /= 2;	/* Word machine */
+		}
 		if (d)
 			add_constant(d);
 		/* TODO maybe optimize generally "add const to ac" for
@@ -1081,6 +1233,7 @@ unsigned gen_node(struct node *n)
 		printf("\tsta 1,0,2\n");
 		return 1;
 	case T_DEREF:
+		printf(";T_DEREF %u\n", s);
 		if (nr)
 			return 1;
 		if (s == 1)
@@ -1227,7 +1380,7 @@ unsigned gen_node(struct node *n)
 		s = get_size(r->type);
 		if (s != 4) {
 			pop_signfix(n->type);
-			printf("\tsubz# 0,1,snc\n");
+			printf("\tsubz# 0,1,szc\n");
 			printf("\tsubzl 1,1,skp\n");
 			printf("\tsub 1,1\n");
 			n->flags |= ISBOOL;
@@ -1238,7 +1391,7 @@ unsigned gen_node(struct node *n)
 		s = get_size(r->type);
 		if (s != 4) {
 			pop_signfix(n->type);
-			printf("\tsubz# 1,0,snc\n");
+			printf("\tsubz# 0,1,snc\n");
 			printf("\tsubzl 1,1,skp\n");
 			printf("\tsub 1,1\n");
 			n->flags |= ISBOOL;
@@ -1260,7 +1413,8 @@ unsigned gen_node(struct node *n)
 		s = get_size(r->type);
 		if (s != 4) {
 			pop_signfix(n->type);
-			printf("\tadcz# 1,0,snc\n");
+			/* sets L if AC0 < AC1 */
+			printf("\tadcz# 0,1,szc\n");
 			printf("\tsubzl 1,1,skp\n");
 			printf("\tsub 1,1\n");
 			n->flags |= ISBOOL;
