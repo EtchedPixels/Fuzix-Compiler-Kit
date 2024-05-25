@@ -60,6 +60,14 @@ unsigned target_scale_ptr(unsigned t, unsigned scale)
 	return scale;
 }
 
+struct node *target_struct_ref(struct node *n, unsigned type, unsigned off)
+{
+	n->type = PTRTO + type;
+	n = tree(T_PLUS, n, make_constant(off, UINT));
+	n->type = type;
+	return n;
+}
+
 /* Remap any base types for simplicity on the platform */
 
 unsigned target_type_remap(unsigned type)

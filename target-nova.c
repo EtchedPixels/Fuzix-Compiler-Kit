@@ -66,6 +66,26 @@ unsigned target_scale_ptr(unsigned t, unsigned scale)
 	return scale / 2;
 }
 
+/* Generate correct scaling for a struct field refence. This can cause
+   a pointer byte change, plus offsets are always in bytes so must be fixed
+   up */
+
+struct node *target_struct_ref(struct node *n, unsigned type, unsigned off)
+{
+	/* The input node is a reference to the structure and is a word pointer */
+	if (type == CCHAR || type == UCHAR || type == VOID)
+		n = make_cast(n, PTRTO + type);
+	else {
+		n->type = PTRTO + type;
+		if (off & 1)
+			fatal("structalign");
+		off /= 2;
+	}
+	n = tree(T_PLUS, n, make_constant(off, UINT));
+	n->type = type;
+	return n;
+}
+
 /* Remap any base types for simplicity on the platform */
 
 unsigned target_type_remap(unsigned type)
