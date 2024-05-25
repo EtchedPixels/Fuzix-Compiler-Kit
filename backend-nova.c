@@ -13,6 +13,25 @@
  *	In addition on the Nova our stack grows up through memory so all
  *	the argument offsets are negative upwards from the frame pointer
  *	allowing for the SAV frame (5 words)
+ *
+ *	TODO:
+ *	The core or backend somewhere is rewriting complex objects to
+ *	the wrong base type pointers. On a byte machine it never matters
+ *	but we need to find and fix it for the Nova.
+ *
+ *	Add support for Nova4 (LDB STB)
+ *	Add support for Mul/Div hardware
+ *	Add support for Nova < 3 using helpers
+ *
+ *	Floating point
+ *
+ *	Eclipse
+ *	- Multiply/Divide/Halve/LEA/Immediate forms
+ *	- ejsr, elda, esta
+ *	- push/pop do 1-4 accumulators at a time
+ *	- msp for stack cleanup
+ *	- mffp and friends instead are memory 040/041
+ *	- signed compare two ac
  */
 
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
@@ -284,14 +303,6 @@ void gen_epilogue(unsigned size, unsigned argsize)
 		error("sp");
 	if (unreachable)
 		return;
-	if (size >= 5) {
-		printf("\tmfsp 1\n");
-		printf("\tlda 0,2,1\n");
-		printf("\tadd 0,1,skp\n");
-		printf("\t.word %u\n", ((-size / 2) & 0xFFFF));
-		printf("\tmtsp 1\n");
-	} else
-		repeated_op(size / 2, "popa 0");
 	if (!(func_flags & F_VOIDRET))
 		printf("\tsta 1,-3,3\n");
 	printf("\tret\n");
@@ -335,7 +346,7 @@ void gen_jtrue(const char *tail, unsigned n)
 
 void gen_switch(unsigned n, unsigned type)
 {
-	printf("\tjsr @switch,0\n");
+	printf("\tjsr @__switch,0\n");
 	printf("\t.word Sw%d\n", n);
 	unreachable = 1;
 	/* Although we jsr that's just to pass the table ptr */

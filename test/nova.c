@@ -1,4 +1,4 @@
- /*
+/*
  *	Nova instruction sim for compiler testing
  *
  *	This is not a full emulation. No device I/O emulation, interrupts,
@@ -58,11 +58,12 @@ static void write_mem(uint16_t addr, int16_t v)
     ram[addr & 0x7FFF] = htons(v);
 }
     
-static void modify_ea(int n)
+static uint16_t modify_ea(int n)
 {
     uint16_t v = read_mem(ea);
     v += n;
     write_mem(ea, v);
+    return v;
 }
 
 /* Decode base noac/oneac operations */
@@ -142,6 +143,7 @@ void devio_op(void)
             reg[3] = fp & 0x7FFF;
             return;
         case 11:			/* RET */
+            sp = fp;
             reg_pc = read_mem(sp--);
             flag_c = reg_pc >> 15;
             reg_pc &= 0x7FFF;
@@ -175,11 +177,13 @@ void noac_ea(void)
         reg_pc = ea;
         return;
     case 2:	/* ISZ */
-        modify_ea(1);
+        if (modify_ea(1) == 0)
+            reg_pc++;
         reg_pc++;
         return;
     case 3:	/* DSZ */
-        modify_ea(-1);
+        if (modify_ea(-1) == 0)
+            reg_pc++;
         reg_pc++;
         return;
     }
