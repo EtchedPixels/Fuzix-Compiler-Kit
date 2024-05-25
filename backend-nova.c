@@ -913,7 +913,7 @@ unsigned gen_uni_direct(struct node *n)
 
 static void gen_isz(int d, unsigned s)
 {
-	if (s == 2) {
+	if (s == 4) {
 		printf("\tisz %d,3\n", d + 1);
 		/* No op to reverse skip */
 		printf("\tmov# 0,0,skp\n");
