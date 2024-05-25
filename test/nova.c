@@ -1,4 +1,4 @@
-/*
+ /*
  *	Nova instruction sim for compiler testing
  *
  *	This is not a full emulation. No device I/O emulation, interrupts,
@@ -234,8 +234,6 @@ void twoac_mo(void)
     }
 
     iv = reg[acs];		/* Merge together carry and working reg */
-    if (flag_c)
-        iv |= (1 << 16);
 
     switch((opcode >> 8) & 7) {
     case 0:	/* COM */
@@ -246,10 +244,9 @@ void twoac_mo(void)
         iv++;
         break;
     case 2:	/* MOV */
-        iv &= 0xFFFF;	/* So we don't cause a carry */
         break;
     case 3:	/* INC */
-        iv++;
+        iv++;	/* FFFF causes a carry complement */
         break;
     case 4: 	/* ADC (wrongly listed as 101 in some Nova docs) */
         iv = reg[acd] + (iv ^ 0xFFFF);
@@ -262,7 +259,7 @@ void twoac_mo(void)
     case 6:	/* ADD */
         iv += reg[acd];
         break;
-    case 7:	/* AND - doesn't touch carry so mask carry */
+    case 7:	/* AND - doesn't touch carry */
         iv &= reg[acd];
         break;
     }
