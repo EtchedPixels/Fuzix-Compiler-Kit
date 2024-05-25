@@ -7,14 +7,15 @@ f__mul:
 	subc	0,0
 	sta	3,__tmp,0
 	lda	3,N16,1
-loop:	movr	1,1,snc
-	movr	0,0,skp
-	addzr	2,0
+loop:	movzl	0,0		; shift result left
+	movzl	1,1,szc		; shift input left and bit into carry
+	add	2,0		; if it was set add
 	inc	3,3,szr
 	jmp	loop,1
+	mov	0,1
 	mffp	3
 	jmp	@__tmp,0
-N16:	.word	16
+N16:	.word	-16
 
 f__muleq:
 	popa	2

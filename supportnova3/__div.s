@@ -9,6 +9,7 @@
 	.export f__rem
 
 	.code
+
 f__divu:
 	popa	2
 	sub	0,0
@@ -16,16 +17,19 @@ f__divu:
 ;	sub#	2,0,szc
 ;	jmp	__diverror
 	lda	3,N16,1
-	movzl	1,1
-loop:	movl	0,0
-	sub#	2,0,szc
-	sub	2,0
-	movl	1,1
+loop:	movzl	2,2		; shift dividend
+	movl	0,0		; roll into working
+	sub#	1,0,snc		; if can subtract
+	jmp	next,1		; can't subtract
+	sub	1,0		; subtract (will set L)
+	inc	0,0		; set low bit in working)
+next:
 	inc	3,3,szr
 	jmp	loop,1
 	mffp	3
 	jmp	@__tmp,0
-N16:	.word	0
+N16:	.word	-16
+
 
 f__remu:
 	psha	3
@@ -77,6 +81,7 @@ n2:
 	psha	2
 	jsr	f__divu,1
 done:
+	popa	0
 	; Now have result to sign correct
 	movr	0,0,szc	; sign change if low bit set
 	neg	1,1
@@ -103,8 +108,10 @@ f__rem:
 	movl#	1,1,szc
 	jmp	neg3,1
 n3:
+	psha	0
 	psha	2
 	jsr	f__divu,1
+	popa	0
 	mov	0,1
 	jmp	done,1
 neg3:

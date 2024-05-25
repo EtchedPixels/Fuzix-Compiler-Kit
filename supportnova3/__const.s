@@ -117,6 +117,10 @@
 	.export __shrequl
 	.export __shreql
 
+	.export __switchc
+	.export __switch
+	.export __switchl
+
 __jf:		.word	f__jf
 __jt:		.word	f__jt
 __booljf:	.word f__booljf
@@ -223,3 +227,7 @@ __shreq:	.word f__shreq
 __shleql:	.word f__shleql
 __shrequl:	.word f__shrequl
 __shreql:	.word f__shreql
+
+__switchc:	.word f__switchc
+__switch:	.word f__switch
+__switchl:	.word f__switchl

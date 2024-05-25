@@ -11,7 +11,8 @@ OBJ = __dp.o __const.o\
       __ccl.o __cpll.o __negl.o \
       __minusl.o __plusl.o __minuseql.o __pluseql.o \
       __divul.o \
-      __shift.o __shifteq.o __logiceq.o __logiceql.o
+      __shift.o __shifteq.o __logiceq.o __logiceql.o \
+      __switch.o
 
 .s.o:
 	fcc -mnova3 -c $<
