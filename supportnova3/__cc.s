@@ -33,8 +33,8 @@ condout:
 
 f__condne:
 	lda	0,0,3
-	sub#	0,1,szr
-	subzl	1,1
+	sub	0,1,szr
+	subzl	1,1,skp
 	jmp	condout,1
 
 f__condltequ:

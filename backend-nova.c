@@ -406,7 +406,7 @@ void gen_name(struct node *n)
    in bytes for word machines with byte pointers */
 void gen_value(unsigned type, unsigned long value)
 {
-	unsigned v = value;
+	unsigned v = value & 0xFFFF;
 	if (PTR(type)) {
 		printf("\t.word %u\n", v);
 		return;
@@ -437,7 +437,7 @@ void gen_value(unsigned type, unsigned long value)
 /* Byte constants for helpers are written as words */
 void gen_wvalue(unsigned type, unsigned long value)
 {
-	unsigned v = value;
+	unsigned v = value & 0xFFFF;
 	if (PTR(type)) {
 		printf("\t.word %u\n", v);
 		return;
