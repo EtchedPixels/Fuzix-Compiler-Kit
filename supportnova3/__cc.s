@@ -71,7 +71,7 @@ f__condlteq:
 	movcr	0,0		; complement and put back
 	movl	1,1		; shift top bit into carry
 	movcr	1,1		; complement and put back
-	subz#	0,1,snc
+	subz#	1,0,szc
 	subzl	1,1,skp
 	sub	1,1
 	jmp	condout,1
@@ -93,7 +93,7 @@ f__condgteq:
 	movcr	0,0		; complement and put back
 	movl	1,1		; shift top bit into carry
 	movcr	1,1		; complement and put back
-	adcz#	0,1,snc
+	adcz#	1,0,snc
 	subzl	1,1,skp
 	sub	1,1
 	jmp	condout,1
@@ -104,7 +104,7 @@ f__condlt:
 	movcr	0,0		; complement and put back
 	movl	1,1		; shift top bit into carry
 	movcr	1,1		; complement and put back
-	adcz#	1,0,snc
+	adcz#	1,0,szc
 	subzl	1,1,skp
 	sub	1,1
 	jmp	condout,1

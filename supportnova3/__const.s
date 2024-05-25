@@ -59,7 +59,7 @@
 	.export __condlteq
 	.export __condgt
 	.export __condgteq
-	.export __condlt;
+	.export __condlt
 
 	.export __cceql
 	.export __ccnel
@@ -163,10 +163,10 @@ __condltequ:	.word f__condltequ
 __condgtu:	.word f__condgtu
 __condgtequ:	.word f__condgtequ
 __condltu:	.word f__condltu
-__condlteq:	.word f__condltequ
-__condgt:	.word f__condgtu
-__condgteq:	.word f__condgtequ
-__condlt:	.word f__condltu
+__condlteq:	.word f__condlteq
+__condgt:	.word f__condgt
+__condgteq:	.word f__condgteq
+__condlt:	.word f__condlt
 
 __cceql:	.word f__cceql
 __ccnel:	.word f__ccnel
