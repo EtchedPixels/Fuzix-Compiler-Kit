@@ -255,6 +255,12 @@ void free_tree(struct node *n)
 
 static void write_subtree(struct node *n)
 {
+	/* Replace the array code with the simple type info of the
+	   node for the backend, otherwise some backends cannot work
+	   out how to access the object (Think word addressing/bytepointers) */
+	if (IS_ARRAY(n->type)) {
+		n->type = PTRTO + array_type(n->type);
+	}
 	out_block(n, sizeof(struct node));
 	if (n->left)
 		write_subtree(n->left);
