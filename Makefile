@@ -70,7 +70,7 @@ $(OBJS3): $(INC1) $(INC2)
 backend-super8.o: backend-super8.c backend-z8.c
 
 cc:	cc.o
-	gcc -g3 cc.c -o cc
+	gcc -g3 $< -o cc
 
 cc0:	$(OBJS0)
 	gcc -g3 $(OBJS0) -o cc0
