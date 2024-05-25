@@ -10,11 +10,14 @@
 f__shl:
 	neg	1,0		; no dec but we can negate and move in one
 	popa	1		; so who cares 8)
+	mov#	0,0,snr		; check if we have 0 shifts to do
+	jmp	done,1
 shllp:
 	movzl	1,1
 	inc	0,0,szr
 	jmp	shllp,1
 done:	sta	3,__tmp,0
+	mffp	3
 	jmp	@__tmp,0
 
 f__shru:
@@ -29,6 +32,8 @@ shrulp:
 f__shr:
 	neg	1,0
 	popa	1
+	mov#	0,0,snr		; check if we have 0 shifts to do
+	jmp	done,1
 	; SHR is more interesting as we need to handle sign extension
 	movl#	1,1,snc	; get top bit into carry
 	jmp	shrulp,1	; starts with a zero bit so use shru
@@ -41,6 +46,8 @@ shrlp:
 f__shruc:
 	neg	1,0
 	popa	1		; working value
+	mov#	0,0,snr		; check if we have 0 shifts to do
+	jmp	done,1
 	movs	1,1		; swap so the byte we care about is the
 				; high one
 shruclp:
@@ -53,6 +60,8 @@ shruclp:
 f__shrc:
 	neg	1,0
 	popa	1
+	mov#	0,0,snr		; check if we have 0 shifts to do
+	jmp	done,1
 	movs	1,1		; same trick for signed
 	movl#	1,1,snc
 	jmp	shruclp,1
@@ -70,11 +79,14 @@ f__shll:
 	popa	2		; high
 via_shll:
 	popa	1		; low
+	mov#	0,0,snr		; check if we have 0 shifts to do
+	jmp	store,1
 llp:
 	movzl	1,1		; shift left low fill 0
 	movl	2,2		; and upper half
 	inc	0,0,szr
 	jmp	llp,1
+store:
 	sta	2,__hireg,0
 	jmp	done,1
 
@@ -82,6 +94,8 @@ f__shrul:
 	neg	1,0
 	popa	2
 	popa	1
+	mov#	0,0,snr		; check if we have 0 shifts to do
+	jmp	store,1
 rlp:
 	movzr	2,2
 	movr	1,1
@@ -95,6 +109,8 @@ f__shrl:
 	popa	2
 	movl#	2,2,snc
 	jmp	via_shll,1
+	mov#	0,0,snr		; check if we have 0 shifts to do
+	jmp	store,1
 r1lp:
 	movor	2,2
 	movr	1,1

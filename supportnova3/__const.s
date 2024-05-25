@@ -216,7 +216,7 @@ __postdec:	.word f__postdec
 __postinc:	.word f__postinc
 __postincl:	.word f__postincl
 
-__shl:		.word f__shrl
+__shl:		.word f__shl
 __shru:		.word f__shru
 __shr:		.word f__shr
 __shruc:	.word f__shruc
