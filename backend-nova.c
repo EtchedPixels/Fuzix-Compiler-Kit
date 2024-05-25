@@ -15,9 +15,6 @@
  *	allowing for the SAV frame (5 words)
  *
  *	TODO:
- *	The core or backend somewhere is rewriting complex objects to
- *	the wrong base type pointers. On a byte machine it never matters
- *	but we need to find and fix it for the Nova.
  *
  *	Add support for Nova4 (LDB STB)
  *	Add support for Mul/Div hardware
@@ -419,7 +416,10 @@ void gen_value(unsigned type, unsigned long value)
 {
 	unsigned v = value & 0xFFFF;
 	if (PTR(type)) {
-		printf("\t.word %u\n", v);
+		if (is_bytepointer(type))
+			printf("\t.byteptr %u\n", v);
+		else
+			printf("\t.word %u\n", v);
 		return;
 	}
 	switch (type) {
@@ -449,8 +449,12 @@ void gen_value(unsigned type, unsigned long value)
 void gen_wvalue(unsigned type, unsigned long value)
 {
 	unsigned v = value & 0xFFFF;
+	printf("Type %x for wvalue\n", type);
 	if (PTR(type)) {
-		printf("\t.word %u\n", v);
+		if (is_bytepointer(type))
+			printf("\t.byteptr %u\n", v);
+		else
+			printf("\t.word %u\n", v);
 		return;
 	}
 	switch (type) {
@@ -670,6 +674,7 @@ unsigned add_constant(uint16_t v)
 static void node_word(struct node *n)
 {
 	unsigned v = n->value;
+	printf(";node word type %x\n", n->type);
 	if (n->op == T_CONSTANT) {
 		gen_wvalue(n->type, n->value);
 		return;
