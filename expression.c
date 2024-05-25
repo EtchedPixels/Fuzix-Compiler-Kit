@@ -280,15 +280,8 @@ static struct node *hier11(void)
 					l->type = CINT;
 					return l;
 				}
-				/* Type is tricky here. It's a pointer to the
-				   type of the field, sort of - except for the
-				   maths. TODO This will need work for things like
-				   bytepointer and word addressed machines */
-				l->type = PTRTO | tag[1];
-				l = tree(T_PLUS, l,
-					 make_constant(tag[2], UINT));
+				l = target_struct_ref(l, tag[1], tag[2]);
 				l->flags |= LVAL;
-				l->type = tag[1];
 			} else
 				return l;
 		}
