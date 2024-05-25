@@ -20,6 +20,20 @@
  *	Add support for Mul/Div hardware
  *	Add support for Nova < 3 using helpers
  *
+ *	Shift optimized and short helper mul/div constant
+ *	Inline small left and unsigned right shifts
+ *	Inline by 8 shifts
+ *
+ *	Compare optimizations. We can do better stuff
+ *	for 0 based compares, for 1 and -1 compares which
+ *	are all common, and for sign bit compares
+ *
+ *	Track contents of AC1 so we can avoid reloading constants
+ *	(may be worth tracing AC0 too but less clear)
+ *
+ *	Byte LREF/LSTORE etc
+ *	Long LREF/LSTORE etc
+ *
  *	Floating point
  *
  *	Eclipse
@@ -449,7 +463,6 @@ void gen_value(unsigned type, unsigned long value)
 void gen_wvalue(unsigned type, unsigned long value)
 {
 	unsigned v = value & 0xFFFF;
-	printf("Type %x for wvalue\n", type);
 	if (PTR(type)) {
 		if (is_bytepointer(type))
 			printf("\t.byteptr %u\n", v);
@@ -699,6 +712,7 @@ static unsigned const_condop(struct node *n, char *o, char *uo)
 	if (get_size(n->type) == 4)
 		return 0;
 
+	/* FIXME: this test should just apply to gen_constant */
 	if (n->op != T_CONSTANT)
 		return 0;
 	if (n->type & UNSIGNED)
@@ -715,6 +729,61 @@ static unsigned const_condop(struct node *n, char *o, char *uo)
 	node_word(n);
 	return 1;
 }
+
+unsigned gen_fast_mul(unsigned v)
+{
+	if (v == 0) {
+		gen_constant(1, 0);
+		return 1;
+	}
+	if (v == 1)
+		return 1;
+	/* Inline trivial ones */
+	if (v == 2) {
+		printf("\tmovzl 1,1\n");
+		return 1;
+	}
+	if (v == 4) {
+		printf("\tmovzl 1,1\n");
+		printf("\tmovzl 1,1\n");
+		return 1;
+	}
+	/* TODO: helpers for other simpler ones */
+	/* TODO: use MUL  if present */
+	return 0;
+}
+
+unsigned gen_fast_div(struct node *n, unsigned v)
+{
+	if (v == 1)
+		return 1;
+	if (n->type & UNSIGNED) {
+		if (v == 2) { 
+			printf("\tmovzr 1,1\n");
+			return 1;
+		}
+		if (v == 4) {
+			printf("\tmovzr 1,1\n");
+			printf("\tmovzr 1,1\n");
+			return 1;
+		}
+		if (v == 8) {
+			printf("\tmovzr 1,1\n");
+			printf("\tmovzr 1,1\n");
+			printf("\tmovzr 1,1\n");
+			return 1;
+		}
+		if (v == 16) {
+			printf("\tmovzr 1,1\n");
+			printf("\tmovzr 1,1\n");
+			printf("\tmovzr 1,1\n");
+			printf("\tmovzr 1,1\n");
+			return 1;
+		}
+	}
+	return 0;
+}
+
 /*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
@@ -913,6 +982,14 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		return 0;
+	case T_SLASH:
+		if (s == 2 && r->op == T_CONSTANT)
+			return gen_fast_div(n, r->value);
+		return 0;
+	case T_STAR:
+		if (s == 2 && r->op == T_CONSTANT)
+			return gen_fast_mul(r->value);
+		return 0;
 	}
 	return 0;
 }
@@ -1069,7 +1146,7 @@ static unsigned do_eqop(struct node *n, unsigned op, unsigned cost)
 	/* At this point TOS is the pointer */
 
 	if (s == 1)
-		printf("\tjsr __eqcget\n");
+		printf("\tjsr @__eqcget\n");
 	else {
 		printf("\tlda 2,0,3\n");
 		printf("\tsta 1,__tmp,0\n");		/* Save working value */
@@ -1314,6 +1391,8 @@ unsigned gen_node(struct node *n)
 		printf("\tsub 1,1\n");
 		return 1;
 	case T_PLUS:
+		/* FIXME: broke for long. Should be
+			add high, add low, if oveflow isz hireg,mffp 3 */
 		printf("\tpopa 0\n");
 		printf("\tadd 0,1\n");
 		if (s == 4) {
@@ -1324,6 +1403,8 @@ unsigned gen_node(struct node *n)
 		}
 		return 1;
 	case T_MINUS:
+		/* FIXME: broke for long. Should be
+			add high, add low, if oveflow isz hireg,mffp 3 */
 		printf("\tpopa 0\n");
 		printf("\tsub 1,0\n");
 		if (s == 4) {
@@ -1334,12 +1415,56 @@ unsigned gen_node(struct node *n)
 		}
 		printf("\tmov 0,1\n");
 		return 1;
+	/* TODO T_SLASH, T_PERCENT, T_STAR via MUL/DIV if present */
+	case T_STAR:
+		if (0 && s == 2) {
+			printf("\tpopa 2\n");
+			printf("\tsub 0,0\n");
+			printf("\tmul\n");
+			return 1;
+		}
+		return 0;
+	case T_SLASH:
+		if (0 && s == 2 && (n->type & UNSIGNED)) {
+			printf("\tmov 1,2\n");
+			printf("\tsub 0,0\n");
+			printf("\tpopa 1\n");
+			printf("\tdiv\n");
+			return 1;
+		}
+		return 0;
+	case T_PERCENT:
+		if (0 && s == 2 && (n->type & UNSIGNED)) {
+			printf("\tmov 1,2\n");
+			printf("\tsub 0,0\n");
+			printf("\tpopa 1\n");
+			printf("\tdiv\n");
+			printf("\tmov 0,1\n");
+			return 1;
+		}
+		return 0;
 	case T_TILDE:
 		printf("\tcom 1,1\n");
+		if (s == 4 && !optsize) {
+			printf("\tlda 0,__hireg,0\n");
+			printf("\tcom 0,0\n");
+			printf("\tsta 0,__hireg,0\n");
+		}
 		return 1;
 	case T_NEGATE:
-		printf("\tneg 1,1\n");
-		return 1;
+		if (s == 2) {
+			printf("\tneg 1,1\n");
+			return 1;
+		}
+		if (s == 4 && !optsize && n->type != FLOAT) {
+			printf("\tneg 1,1,snr\n");
+			printf("\tlda 0,__hireg,0\n");
+			printf("\tneg 0,0,skp\n");
+			printf("\tcom 0,0\n");
+			printf("\tsta 0,__hireg,0\n");
+			return 1;
+		}
+		return 0;
 	case T_AND:
 		printf("\tpopa 0\n");
 		printf("\tand 0,1\n");
