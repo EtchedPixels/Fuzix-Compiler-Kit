@@ -633,13 +633,15 @@ struct node *constify(struct node *n)
 			if (op != T_PLUS && op != T_MINUS)
 				return NULL;
 			/* Special case for name + const */
+			/* Name offsets are byte so we must scale the right handle
+			   value on a word machine */
 			if (is_name(l->op)) {
 				if (is_name(r->op))
 					return NULL;
 				if (op == T_PLUS)
-					l->value += r->value;
+					l->value += r->value * target_ptroff_to_byte(lt);
 				else
-					l->value -= r->value;
+					l->value -= r->value * target_ptroff_to_byte(lt);
 				free_node(r);
 				free_node(n);
 				return l;

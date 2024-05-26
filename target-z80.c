@@ -51,6 +51,12 @@ unsigned target_ptr_arith(unsigned t)
 	return CINT;
 }
 
+/* Scale a pointer offset to byte size */
+unsigned target_ptroff_to_byte(unsigned t)
+{
+	return 1;
+}
+
 /* Adjust scaling for a pointer of type t. For most systems this is a no-op
    but on machines with things like word addressing it isn't.*/
 

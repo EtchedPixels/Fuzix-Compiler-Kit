@@ -53,6 +53,12 @@ unsigned target_scale_ptr(unsigned t, unsigned scale)
 	return scale;
 }
 
+/* Scale a pointer offset to byte size */
+unsigned target_ptroff_to_byte(unsigned t)
+{
+	return 1;
+}
+
 struct node *target_struct_ref(struct node *n, unsigned type, unsigned off)
 {
 	n->type = PTRTO + type;

@@ -66,6 +66,15 @@ unsigned target_scale_ptr(unsigned t, unsigned scale)
 	return scale / 2;
 }
 
+/* Scale a pointer offset to byte size */
+unsigned target_ptroff_to_byte(unsigned t)
+{
+	t = type_deref(t);
+	if (t == CCHAR || t == UCHAR || t == VOID)
+		return 1;
+	return 2;
+}
+
 /* Generate correct scaling for a struct field refence. This can cause
    a pointer byte change, plus offsets are always in bytes so must be fixed
    up */

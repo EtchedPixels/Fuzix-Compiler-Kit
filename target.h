@@ -12,6 +12,7 @@ extern unsigned target_alignof(unsigned t, unsigned storage);
 extern unsigned target_argsize(unsigned t);
 extern unsigned target_ptr_arith(unsigned t);
 extern unsigned target_scale_ptr(unsigned t, unsigned scale);
+extern unsigned target_ptroff_to_byte(unsigned t);
 extern struct node *target_struct_ref(struct node *n, unsigned type, unsigned off);
 extern unsigned target_type_remap(unsigned t);
 extern unsigned target_register(unsigned t, unsigned s);
