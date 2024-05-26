@@ -133,7 +133,8 @@ static void squash_right(struct node *n, unsigned op)
 
 static unsigned is_bytepointer(unsigned t)
 {
-	if (!PTR(t))
+	/* A char ** is a word pointer, a char * is a byte pointer */
+	if (PTR(t) != 1)
 		return 0;
 	t = BASE_TYPE(t) & ~UNSIGNED;
 	if (t == CCHAR || t == VOID)
@@ -513,8 +514,8 @@ unsigned gen_push(struct node *n)
 	if (s == 4) {
 		printf("\tlda 0,__hireg, 0\n");
 		printf("\tpsha 0\n");
-	} else
-		printf("\tpsha 1\n");
+	}
+	printf("\tpsha 1\n");
 	printf(";\n");
 	return 1;
 }
@@ -610,6 +611,8 @@ static unsigned load_ac(unsigned ac, struct node *n)
 			/* Convert to byte pointer */
 			printf("\tmovzl 3,%u\n", ac);
 		} else {
+			if (d & 1)
+				error("waln");
 			/* Work in words */
 			printf("\tmov 3,%u\n", ac);
 			d /= 2;
@@ -1080,6 +1083,7 @@ unsigned gen_cast(struct node *n)
 	unsigned rt = n->right->type;
 	unsigned ls;
 	unsigned rs;
+	int scale = 0;
 
 	/* Pointer conversions: byte->word or word<-byte. Useless ones
 	   got eliminated earlier */
@@ -1092,13 +1096,16 @@ unsigned gen_cast(struct node *n)
 			printf("\tmovzl 1,1\n");
 		return 1;			
 	}
-
-	/* FIXME: check C spec - do casts of pointers to integer types
-	   give the byteptr or the typed ptr ? */
-	if (PTR(rt))
+	/* C mostly absolves itself of any responsibility for pointer
+	   cast to integer and then do maths */
+	if (PTR(rt)) {
+		scale = 1;
 		rt = USHORT;
-	if (PTR(lt))
+	}
+	if (PTR(lt)) {
+		scale = -1;
 		lt = USHORT;
+	}
 
 	/* Floats and stuff handled by helper */
 	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
@@ -1106,6 +1113,18 @@ unsigned gen_cast(struct node *n)
 
 	ls = get_size(lt);
 	rs = get_size(rt);
+
+	/* To help non-portable code that assumes byte addressing we turn all
+	   integer pointer forms into bytepointers and back as appropriate.
+	   The standard basically says we can do what we like but this seems
+	   the most programmer friendly approach */
+
+	/* Cast from pointer to integer type.. make a byte pointer */
+	if (scale == 1 && !is_bytepointer(rt))
+		printf("\tmovzl 1,1\n");
+	/* Casts from integer to pointer type */
+	if (scale == -1 && !is_bytepointer(lt))
+		printf("\tmovzr 1,1\n");
 
 	printf(";cast to %x(%u) from %x(%u)\n", lt,ls, rt,rs);
 	/* Size shrink is not always free as we work in words */
