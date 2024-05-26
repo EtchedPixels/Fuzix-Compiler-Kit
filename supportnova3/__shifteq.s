@@ -12,12 +12,14 @@ f__shleq:
 	popa	2		;	pointer
 	neg	1,0
 	lda	1,0,2
+	mov#	0,0,snr
+	jmp	out,1
 shllp:
 	movzl	1,1
 	inc	0,0,szr
 	jmp	shllp,1
 done:	sta	1,0,2
-	sta	3,__tmp,0
+out:	sta	3,__tmp,0
 	mffp	3
 	jmp	@__tmp,0
 
@@ -25,6 +27,8 @@ f__shrequ:
 	popa	2
 	neg	1,0
 	lda	1,0,2
+	mov#	0,0,snr
+	jmp	out,1
 shrulp:
 	movzr	1,1
 	inc	0,0,szr
@@ -35,6 +39,8 @@ f__shreq:
 	popa	2
 	neg	1,0
 	lda	1,0,2
+	mov#	0,0,snr
+	jmp	out,1
 	movl#	1,1,snc
 	jmp	shrulp,1
 shrlp:	movor	1,1
@@ -48,15 +54,18 @@ f__shleql:
 	neg	1,0
 	lda	3,0,2
 	lda	1,1,2
+	mov#	0,0,snr
+	jmp	lout,1
 lshllp:
 	movzl	1,1
 	movl	3,3
 	inc	0,0,szr
 	jmp	lshllp,1
 ldone:
-	sta	3,__hireg,0
 	sta	3,0,2
 	sta	1,1,2
+lout:
+	sta	3,__hireg,0
 	mffp	3
 	jmp	@__tmp,0
 
@@ -66,6 +75,8 @@ f__shrequl:
 	neg	1,0
 	lda	3,0,2
 	lda	1,1,2
+	mov#	0,0,snr
+	jmp	lout,1
 lshrulp:
 	movzr	3,3
 	movr	1,1
@@ -79,6 +90,8 @@ f__shreql:
 	neg	1,0
 	lda	3,0,2
 	lda	1,1,2
+	mov#	0,0,snr
+	jmp	lout,1
 	movl#	3,3,snc
 	jmp	lshrulp,1
 lshrlp:

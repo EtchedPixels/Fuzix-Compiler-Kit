@@ -24,6 +24,6 @@ f__cpluseql:
 	inc	3,3
 	inc	3,3
 	psha	1
-	lda	0,-1,3
-	lda	1,-2,3
+	lda	0,-2,3
+	lda	1,-1,3
 	jmp	peq,1

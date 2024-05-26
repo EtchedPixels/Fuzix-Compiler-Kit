@@ -76,9 +76,8 @@ shrclp:
 
 f__shll:
 	neg	1,0
-	popa	2		; high
-via_shll:
 	popa	1		; low
+	popa	2		; high
 	mov#	0,0,snr		; check if we have 0 shifts to do
 	jmp	store,1
 llp:
@@ -92,8 +91,9 @@ store:
 
 f__shrul:
 	neg	1,0
-	popa	2
 	popa	1
+	popa	2
+via_shrul:
 	mov#	0,0,snr		; check if we have 0 shifts to do
 	jmp	store,1
 rlp:
@@ -106,9 +106,10 @@ rlp:
 	
 f__shrl:
 	neg	1,0
+	popa	1
 	popa	2
 	movl#	2,2,snc
-	jmp	via_shll,1
+	jmp	via_shrul,1
 	mov#	0,0,snr		; check if we have 0 shifts to do
 	jmp	store,1
 r1lp:

@@ -21,8 +21,9 @@ f__postincl:
 	lda	2,0,2
 	lda	0,__hireg,0
 	sta	2,__hireg,0
+	addz	3,1,szc
+	inc	0,0
 	add	2,0
-	add	3,1
 	popa	2
 	sta	0,0,2
 	sta	1,1,2

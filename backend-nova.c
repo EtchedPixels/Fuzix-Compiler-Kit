@@ -624,10 +624,12 @@ static unsigned load_ac(unsigned ac, struct node *n)
 			printf("\tmov 3,%u\n", ac);
 			d /= 2;
 		}
+#if 0		
 		/* Our stack is upward growing so the offsets of the fields
 		   are 0,-1 so adjust here to keep sanity elsewhere */
 		if (get_size(n->type - PTRTO) == 4)
 			d--;
+#endif			
 		printf("\tlda 2,2,1\n");
 		printf("\tadd 2,%u,skp\n", ac);
 		printf("\t.word %d\n", d);
@@ -1322,10 +1324,12 @@ unsigned gen_node(struct node *n)
 			printf("\tmov 3,1\n");
 			d /= 2;	/* Word machine */
 		}
+#if 0
 		/* Our stack is upward growing so the offsets of the fields
 		   are 0,-1 so adjust here to keep sanity elsewhere */
 		if (get_size(n->type - PTRTO) == 4)
 			d--;
+#endif			
 		if (d)
 			add_constant(d);
 		/* TODO maybe optimize generally "add const to ac" for
@@ -1404,7 +1408,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (s == 1) {
-			printf("\tlda 0,__N255,0\n");
+			printf("\tlda 0,N255,0\n");
 			printf("\tand 0,1\n");
 		}
 		printf("\tmov 1,1,szr\n");
@@ -1424,7 +1428,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (s == 1) {
-			printf("\tlda 0,__N255,0\n");
+			printf("\tlda 0,N255,0\n");
 			printf("\tand 0,1\n");
 		}
 		printf("\tmov 1,1,snr\n");
