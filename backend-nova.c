@@ -587,7 +587,6 @@ static unsigned load_ac(unsigned ac, struct node *n)
 {
 	unsigned v = n->value;
 	int16_t d = v;
-	unsigned s;
 
 	switch(n->op) {
 	case T_ARGUMENT:
@@ -1168,34 +1167,33 @@ unsigned gen_cast(struct node *n)
 
 static struct node ntmp;
 
-static unsigned do_eqop(struct node *n, unsigned op, unsigned cost)
+/* TODO: out of line some of these for -Os */
+static unsigned do_eqop(struct node *n, unsigned op, unsigned cost, unsigned save)
 {
 	unsigned s = get_size(n->type);
 
-	if (s != 1 && (cost > opt || optsize))
-		return 0;
-
 	/* At this point TOS is the pointer */
-
 	if (s == 1)
 		printf("\tjsr @__eqcget\n");
 	else {
-		printf("\tlda 2,0,3\n");
-		printf("\tsta 1,__tmp,0\n");		/* Save working value */
+		printf("\tpopa 2\n");
+		printf("\tpsha 2\n");
 		if (s == 2) {
-			printf("\tlda 2,0,3\n");
-			printf("\tlda 1,0,2\n");
-			printf("\tpsha 1\n");
+			printf("\tlda 2,0,2\n");
+			printf("\tpsha 2\n");
 		} else if (s == 4) {
-			printf("\tlda 2,0,3\n");
 			printf("\tlda 0,0,2\n");
-			printf("\tlda 1,0,2\n");
-			printf("\tpsha 1\n");
 			printf("\tpsha 0\n");
-			printf("\tlda 1,__tmp,0\n");
+			printf("\tlda 2,1,2\n");
+			printf("\tpsha 2\n");
 		}
 	}
 	/* We now have things marshalled as we want them */
+	if (save) {
+		printf("\tsta 2,__tmp3,0\n");
+		if (s == 4)
+			printf("\tsta 0,__tmp4,0\n");
+	}
 
 	memcpy(&ntmp, n, sizeof(ntmp));
 	ntmp.op = op;
@@ -1211,16 +1209,19 @@ static unsigned do_eqop(struct node *n, unsigned op, unsigned cost)
 	if (s == 2) {
 		printf("\tpopa 2\n");
 		printf("\tsta 1,0,2\n");
-		return 1;
-	}
-	if (s == 4) {
+	} else if (s == 4) {
 		printf("\tpopa 2\n");
 		printf("\tlda 0,__hireg,0\n");
 		printf("\tsta 0,0,2\n");
 		printf("\tsta 1,1,2\n");
-		return 1;
-	}
-	printf("\tjsr @__assignc\n");
+		if (save) {
+			printf("\tlda 0,__tmp4,0\n");
+			printf("\tsta 0,__hireg,0\n");
+		}
+	} else
+		printf("\tjsr @__assignc\n");
+	if (save)
+		printf("\tlda 1,__tmp3,0\n");
 	return 1;
 }
 
@@ -1436,29 +1437,36 @@ unsigned gen_node(struct node *n)
 		printf("\tsub 1,1\n");
 		return 1;
 	case T_PLUS:
-		/* FIXME: broke for long. Should be
-			add high, add low, if oveflow isz hireg,mffp 3 */
-		printf("\tpopa 0\n");
-		printf("\tadd 0,1\n");
 		if (s == 4) {
+			printf("\tpopa 0\n");
 			printf("\tpopa 2\n");
-			printf("\tlda 0,__hireg,0\n");
-			printf("\tadc 2,0\n");
-			printf("\tsta 0,__hireg,0\n");
+			printf("\tlda 3,__hireg,0\n");
+			printf("\taddz 0,1,szc\n");
+			printf("\tinc 3,3\n");
+			printf("\tadd 2,3\n");
+			printf("\tsta 3,__hireg,0\n");
+			printf("\tmffp 3\n");
+		} else { 
+			printf("\tpopa 0\n");
+			printf("\tadd 0,1\n");
 		}
 		return 1;
 	case T_MINUS:
-		/* FIXME: broke for long. Should be
-			add high, add low, if oveflow isz hireg,mffp 3 */
-		printf("\tpopa 0\n");
-		printf("\tsub 1,0\n");
 		if (s == 4) {
+			printf("\tpopa 0\n");
 			printf("\tpopa 2\n");
-			printf("\tlda 1,__hireg,0\n");
-			printf("\tsub 1,2\n");
-			printf("\tsta 2,__hireg,0\n");
+			printf("\tlda 3,__hireg,0\n");
+			printf("\tsubz 1,0,szc\n");
+			printf("\tsub 2,3,skp\n");
+			printf("\tadc 2,3\n");
+			printf("\tmov 0,1\n");
+			printf("\tsta 3,__hireg,0\n");
+			printf("\tmffp 3\n");
+		} else {
+			printf("\tpopa 0\n");
+			printf("\tsub 1,0\n");
+			printf("\tmov 0,1\n");
 		}
-		printf("\tmov 0,1\n");
 		return 1;
 	/* TODO T_SLASH, T_PERCENT, T_STAR via MUL/DIV if present */
 	case T_STAR:
@@ -1610,34 +1618,30 @@ unsigned gen_node(struct node *n)
 	/* We do the eq ops as a load/op/store pattern in general */
 	case T_PLUSEQ:
 		printf(";pluseq\n");
-		return do_eqop(n, T_PLUS, 2);
+		return do_eqop(n, T_PLUS, 2, 0);
 	case T_MINUSEQ:
-		return do_eqop(n, T_MINUS, 2);
+		return do_eqop(n, T_MINUS, 2, 0);
 	case T_STAREQ:
-		return do_eqop(n, T_STAR, 0);
+		return do_eqop(n, T_STAR, 0, 0);
 	case T_SLASHEQ:
-		return do_eqop(n, T_SLASH, 0);
+		return do_eqop(n, T_SLASH, 0, 0);
 	case T_PERCENTEQ:
-		return do_eqop(n, T_PERCENT, 0);
+		return do_eqop(n, T_PERCENT, 0, 0);
 	case T_ANDEQ:
-		return do_eqop(n, T_AND, 2);
+		return do_eqop(n, T_AND, 2, 0);
 	case T_OREQ:
-		return do_eqop(n, T_OR, 2);
+		return do_eqop(n, T_OR, 2, 0);
 	case T_HATEQ:
-		return do_eqop(n, T_HAT, 2);
+		return do_eqop(n, T_HAT, 2, 0);
 	case T_SHLEQ:
-		return do_eqop(n, T_LTLT, 2);
+		return do_eqop(n, T_LTLT, 2, 0);
 	case T_SHREQ:
-		return do_eqop(n, T_GTGT, 2);
+		return do_eqop(n, T_GTGT, 2, 0);
 	/* These are harder */
 	case T_PLUSPLUS:
-		if (nr)
-			return do_eqop(n, T_PLUS, 2);
-		return 0;
+		return do_eqop(n, T_PLUS, 2, !nr);
 	case T_MINUSMINUS:
-		if (nr)
-			return do_eqop(n, T_MINUS, 2);
-		return 0;
+		return do_eqop(n, T_MINUS, 2, !nr);
 	}
 	return 0;
 }
