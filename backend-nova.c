@@ -511,6 +511,8 @@ unsigned gen_push(struct node *n)
 	/* Our push will put the object on the stack, so account for it */
 	unsigned s = get_stack_size(n->type);
 	sp += s / 2;
+	/* We are big endian but with an upward growing stack so we must
+	   push the high word first */
 	if (s == 4) {
 		printf("\tlda 0,__hireg, 0\n");
 		printf("\tpsha 0\n");
@@ -585,6 +587,7 @@ static unsigned load_ac(unsigned ac, struct node *n)
 {
 	unsigned v = n->value;
 	int16_t d = v;
+	unsigned s;
 
 	switch(n->op) {
 	case T_ARGUMENT:
@@ -601,6 +604,10 @@ static unsigned load_ac(unsigned ac, struct node *n)
 			d /= 2;	/* Word offset word pointer */
 			printf("\tmov 3,%u\n", ac);
 		}
+		/* Our stack is upward growing so the offsets of the fields
+		   are 0,-1 so adjust here to keep sanity elsewhere */
+		if (get_size(n->type - PTRTO) == 4)
+			d--;
 		printf("\tlda 2,2,1\n");
 		printf("\tadd 2,%u,skp\n", ac);
 		printf("\t.word %d\n", d);
@@ -617,6 +624,10 @@ static unsigned load_ac(unsigned ac, struct node *n)
 			printf("\tmov 3,%u\n", ac);
 			d /= 2;
 		}
+		/* Our stack is upward growing so the offsets of the fields
+		   are 0,-1 so adjust here to keep sanity elsewhere */
+		if (get_size(n->type - PTRTO) == 4)
+			d--;
 		printf("\tlda 2,2,1\n");
 		printf("\tadd 2,%u,skp\n", ac);
 		printf("\t.word %d\n", d);
@@ -1146,7 +1157,7 @@ unsigned gen_cast(struct node *n)
 	printf("\tsub 0,0\n");
 	if (!(rt & UNSIGNED)) {
 		/* If top bit set then set ac0 to -1 */
-		printf("\tmovl# 1,1,snc\n");
+		printf("\tmovl# 1,1,szc\n");
 		printf("\tadc 0,0\n");
 	}
 	printf("\tsta 0,__hireg,0\n");
@@ -1294,6 +1305,10 @@ unsigned gen_node(struct node *n)
 			printf("\tmov 3,1\n");
 			d /= 2;	/* Word machine */
 		}
+		/* Our stack is upward growing so the offsets of the fields
+		   are 0,-1 so adjust here to keep sanity elsewhere */
+		if (get_size(n->type - PTRTO) == 4)
+			d--;
 		if (d)
 			add_constant(d);
 		return 1;
@@ -1307,6 +1322,10 @@ unsigned gen_node(struct node *n)
 			printf("\tmov 3,1\n");
 			d /= 2;	/* Word machine */
 		}
+		/* Our stack is upward growing so the offsets of the fields
+		   are 0,-1 so adjust here to keep sanity elsewhere */
+		if (get_size(n->type - PTRTO) == 4)
+			d--;
 		if (d)
 			add_constant(d);
 		/* TODO maybe optimize generally "add const to ac" for
@@ -1352,8 +1371,10 @@ unsigned gen_node(struct node *n)
 			return 0;
 		printf("\tmov 1,2\n");
 		if (s == 4) {
-			printf("\tlda 1,2,2\n");
+			printf("\tlda 1,0,2\n");
 			printf("\tsta 1,__hireg,0\n");
+			printf("\tlda 1,1,2\n");
+			return 1;
 		}
 		printf("\tlda 1,0,2\n");
 		return 1;
@@ -1361,11 +1382,12 @@ unsigned gen_node(struct node *n)
 		if (s == 1)	/* Byteops are hard */
 			return 0;
 		printf("\tpopa 2\n");
-		printf("\tsta 1,0,2\n");
 		if (s == 4) {
+			printf("\tsta 1,1,2\n");
 			printf("\tlda 0,__hireg,0\n");
 			printf("\tsta 0,0,2\n");
-		}
+		} else
+			printf("\tsta 1,0,2\n");
 		return 1;
 	case T_BOOL:
 		/* Bool and conditionals the size is the size on the right */
@@ -1476,8 +1498,8 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (s == 4 && !optsize && n->type != FLOAT) {
-			printf("\tneg 1,1,snr\n");
 			printf("\tlda 0,__hireg,0\n");
+			printf("\tneg 1,1,snr\n");
 			printf("\tneg 0,0,skp\n");
 			printf("\tcom 0,0\n");
 			printf("\tsta 0,__hireg,0\n");
