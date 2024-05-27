@@ -32,11 +32,12 @@ loop:
 	sub#	0,2,snr	; work >= divisor ?
 	sub#	1,3	; compare lower half
 	mov	1,1,snc	; didn't fit
-	jmp	nofit
+	jmp	nofit,1
 	subz	1,3,szc
 	sub	0,2,skp
 	adc	0,2
 	inc	3,3
+nofit:
 	popa	1
 	popa	0
 	dsz	__tmp4,0
@@ -47,6 +48,7 @@ loop:
 	sta	3,__tmp3,0
 	mffp	3
 	jmp	@__tmp,0
+N32:	.word	32
 
 f__divul:
 	sta	3,__tmp5,0

@@ -81,6 +81,18 @@
 
 	.export __div
 	.export __rem
+	.export __diveq
+	.export __remeq
+
+	.export __divul
+	.export __remul
+	.export __divequl
+	.export __remequl
+
+	.export __divl
+	.export __reml
+	.export __diveql
+	.export __remeql
 
 	.export __minuseq
 
@@ -194,6 +206,18 @@ __remequ:	.word f__remequ
 
 __div:		.word f__div
 __rem:		.word f__rem
+__diveq:	.word f__diveq
+__remeq:	.word f__remeq
+
+__divul:	.word f__divul
+__remul:	.word f__remul
+__divequl:	.word f__divequl
+__remequl:	.word f__remequl
+
+__divl:		.word f__divl
+__reml:		.word f__reml
+__diveql:	.word f__diveql
+__remeql:	.word f__remeql
 
 __minuseq:	.word f__minuseq
 

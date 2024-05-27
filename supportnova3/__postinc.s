@@ -1,6 +1,7 @@
 	.export f__postinc
 	.export f__postincl
 	.code
+; TODO Should now be obsolete
 
 f__postinc:
 	; TOS is addr, AC1 value
