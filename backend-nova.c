@@ -20,6 +20,9 @@
  *	Add support for Mul/Div hardware
  *	Add support for Nova < 3 using helpers
  *
+ *	Inline shifts (including using ADDZL for double left shift)
+ *	Inline easy mul forms (0-16 etc)
+ *
  *	Shift optimized and short helper mul/div constant
  *	Inline small left and unsigned right shifts
  *	Inline by 8 shifts
@@ -293,18 +296,25 @@ void gen_frame(unsigned size, unsigned aframe)
 	argbase = ARGBASE;
 	sp = 0;
 	/* Remember the stack grows upwards so values are negative offsets */
-	printf("\tsav\n");
-	printf("\tisz 0,3\n");	/* Will never skip */
-	if (size == 0)
-		return;
-	if (size >= 5) {
-		printf("\tmfsp 1\n");
-		printf("\tlda 0,2,1\n");
-		printf("\tadd 0,1,skp\n");
+	if (cpu >= 3) {
+		printf("\tsav\n");
+		printf("\tisz 0,3\n");	/* Will never skip */
+		if (size == 0)
+			return;
+		if (size >= 5) {
+			printf("\tmfsp 1\n");
+			printf("\tlda 0,2,1\n");
+			printf("\tadd 0,1,skp\n");
+			printf("\t.word %u\n", size / 2);
+			printf("\tmtsp 1\n");
+		} else
+			repeated_op(size / 2, "psha 0");
+	} else {
+		/* We can uninline most of this */
+		printf("\tmov 3,2\n");
+		printf("\tjsr @enter,0\n");
 		printf("\t.word %u\n", size / 2);
-		printf("\tmtsp 1\n");
-	} else
-		repeated_op(size / 2, "psha 0");
+	}
 	printf(";\n");
 }
 
@@ -315,9 +325,12 @@ void gen_epilogue(unsigned size, unsigned argsize)
 		error("sp");
 	if (unreachable)
 		return;
-	if (!(func_flags & F_VOIDRET))
-		printf("\tsta 1,-3,3\n");
-	printf("\tret\n");
+	if (cpu >= 3) {
+		if (!(func_flags & F_VOIDRET))
+			printf("\tsta 1,-3,3\n");
+		printf("\tret\n");
+	} else
+		printf("\tjmp @ret,0\n");
 	unreachable = 1;
 }
 
@@ -329,10 +342,14 @@ void gen_label(const char *tail, unsigned n)
 
 unsigned gen_exit(const char *tail, unsigned n)
 {
-	/* TODO: we need an ejmp that works out if it's in range as it often
-	   will be doable relative */
-	printf("\tjmp @1,1\n");
-	printf("\t.word L%d%s\n", n, tail);
+	/* It's as cheap to return as jmp ahead for some cases */
+	if (cpu >= 3) {
+		if (!(func_flags & F_VOIDRET))
+			printf("\tsta 1,-3,3\n");
+		printf("\tret\n");
+	} else {
+		printf("\tjmp @ret\n");
+	}
 	unreachable = 1;
 	return 0;
 }
@@ -506,6 +523,28 @@ void gen_tree(struct node *n)
 	printf(";\n");
 }
 
+/* Use the hardware stack option on the later NOVA and the software
+   approach otherwise */
+void popa(unsigned r)
+{
+	if (cpu >= 3)
+		printf("\tpopa %u\n", r);
+	else	{
+		/* Have to do double dec due to the autoinc */
+		printf("\tdsz sp,0\n");
+		printf("\tlda %u,@sp,0\n", r);
+		printf("\tdsz sp,0\n");
+	}
+}
+
+void psha(unsigned r)
+{
+	if (cpu >= 3)
+		printf("\tpsha %u\n", r);
+	else
+		printf("\tsta %u,@sp,0\n", r);
+}
+
 unsigned gen_push(struct node *n)
 {
 	/* Our push will put the object on the stack, so account for it */
@@ -515,9 +554,9 @@ unsigned gen_push(struct node *n)
 	   push the high word first */
 	if (s == 4) {
 		printf("\tlda 0,__hireg, 0\n");
-		printf("\tpsha 0\n");
+		psha(0);
 	}
-	printf("\tpsha 1\n");
+	psha(1);
 	printf(";\n");
 	return 1;
 }
@@ -540,12 +579,73 @@ static unsigned gen_constant(unsigned r, int16_t v)
 		printf("\tsub %u,%u\n", r, r);
 		printf("\tincol %u,%u\n", r, r);
 		return 1;
+	case 4:
+		printf("\tsubzl %u,%u\n", r, r);
+		printf("\taddzl %u,%u\n", r, r);
+		return 1;
+	case 5:
+		printf("\tsubzl %u,%u\n", r, r);	/* 1 */
+		printf("\tincol %u,%u\n", r, r);	/* 5 */
+		return 1;
 	case -1:
 		printf("\tadc %u,%u\n", r, r);
 		return 1;
 	case -2:
-		printf("\tadcz %u,%u\n", r, r);
+		printf("\tadczl %u,%u\n", r, r);
 		return 1;
+	case -4:
+		printf("\tadczl %u,%u\n", r, r);
+		printf("\tadd %u,%u\n", r,r);
+		return 1;
+	case -8:
+		printf("\tadczl %u,%u\n", r, r);
+		/* This will toggle the carry so shift in a 0 */
+		printf("\taddol %u,%u\n", r,r);
+		return 1;
+	}
+	if (!optsize) {
+		switch(v) {
+		case 6:
+			printf("\tsub %u,%u\n", r, r);
+			printf("\tincol %u,%u\n", r, r);
+			printf("\tmovl %u,%u\n", r, r);
+			return 1;
+		case 8:
+			printf("\tsubzl %u,%u\n", r, r);
+			printf("\taddzl %u,%u\n", r, r);
+			printf("\tmovl %u,%u\n", r, r);
+			return 1;
+		case 10:
+			printf("\tsubzl %u,%u\n", r, r);
+			printf("\tincol %u,%u\n", r, r);
+			printf("\tmovl %u,%u\n", r, r);
+			return 1;
+		case 11:
+			printf("\tsubzl %u,%u\n", r, r);	/* 1 */
+			printf("\taddzl %u,%u\n", r, r);	/* 4 */
+			printf("\tincol %u,%u\n", r, r);	/* 11 */
+			return 1;
+		case 12:
+			printf("\tsub %u,%u\n", r, r);
+			printf("\tincol %u,%u\n", r, r);
+			printf("\taddzl %u,%u\n", r, r);
+			return 1;
+		case 13:
+			printf("\tsubzl %u,%u\n", r, r);	/* 1 */
+			printf("\tincol %u,%u\n", r, r);	/* 5 */
+			printf("\tincol %u,%u\n", r, r);	/* 13 */
+			return 1;
+		case 16:
+			printf("\tsubzl %u,%u\n", r, r);
+			printf("\taddzl %u,%u\n", r, r);
+			printf("\taddzl %u,%u\n", r, r);
+			return 1;
+		case 20:
+			printf("\tsubzl %u,%u\n", r, r);
+			printf("\tincol %u,%u\n", r, r);
+			printf("\taddzl %u,%u\n", r, r);
+			return 1;
+		}
 	}
 	return 0;
 }
@@ -747,24 +847,75 @@ static unsigned const_condop(struct node *n, char *o, char *uo)
 
 unsigned gen_fast_mul(unsigned v)
 {
-	if (v == 0) {
-		gen_constant(1, 0);
+	switch(v) {
+	case 0:
+		gen_constant(1,0);
 		return 1;
-	}
-	if (v == 1)
+	case 1:
 		return 1;
-	/* Inline trivial ones */
-	if (v == 2) {
+	case 2:
 		printf("\tmovzl 1,1\n");
 		return 1;
-	}
-	if (v == 4) {
-		printf("\tmovzl 1,1\n");
+	case 3:
+		printf("\tmovzl 1,0\n");
+		printf("\tadd 0,1\n");
+		return 1;
+	case 4:
+		printf("\taddzl 1,1\n");
+		return 1;
+	case 5:
+		printf("\tmov 1,0\n");
+		printf("\addzl 1,1\n");
+		printf("\tadd 0,1\n");
+		return 1;
+	case 6:
+		printf("\tmovzl 1,0\n");
+		printf("\taddzl 0,1\n");
+		return 1;
+	case 8:
+		printf("\taddzl 1,1\n");
+		printf("\tmovl 1,1\n");
+		return 1;
+	case 9:
+		printf("\tmovzl 1,0\n");
+		printf("\taddzl 0,0\n");
+		printf("\tadd 0,1\n");
+		return 1;
+	case 10:
+		printf("\tmov 1,0\n");
+		printf("\taddzl 1,1\n");
+		printf("\taddzl 0,1\n");
+		return 1;
+	case 12:
+		printf("\tmovzl 1,0\n");
+		printf("\taddzl 0,1\n");
 		printf("\tmovzl 1,1\n");
 		return 1;
+	case 16:
+		printf("\taddzl 1,1\n");
+		printf("\taddzl 1,1\n");
+		return 1;
+	case 18:
+		printf("\tmovzl 1,0\n");
+		printf("\taddzl 0,0\n");
+		printf("\taddzl 0,1\n");
+		return 1;
+	case 24:
+		printf("\taddzl 1,1\n");
+		printf("\tmovzl 1,0\n");
+		printf("\taddzl 0,1\n");
+		return 1;
+	case 32:
+		printf("\taddzl 1,1\n");
+		printf("\taddzl 1,1\n");
+		printf("\tmovl 1,1\n");
+		return 1;
+	case 64:
+		printf("\taddzl 1,1\n");
+		printf("\taddzl 1,1\n");
+		printf("\taddzl 1,1\n");
+		return 1;
 	}
-	/* TODO: helpers for other simpler ones */
-	/* TODO: use MUL  if present */
 	return 0;
 }
 
@@ -799,6 +950,41 @@ unsigned gen_fast_div(struct node *n, unsigned v)
 	return 0;
 }
 
+
+/* TODO: it's common that the corrected SP value will match fp. We should
+   check this and if so just mtsp 3 */
+void gen_cleanup(unsigned v)
+{
+	if (v == 0)
+		return;
+	sp -= v;
+	if (cpu > 3) {
+		/* As is common we are switching back to the frame pointer
+		   being the sp base . TODO debug check */
+		if (sp == 0 && frame_len == 0)
+			printf("\tsta 3,sp,0\n");
+		else if (v > 5) {
+			printf("\tlda 0,sp,0\n");
+			printf("\tlda 2,2,1\n");
+			printf("\tadd 2,0,skp\n");
+			printf("\t.word %u\n", (-v) & 0xFFFF);
+			printf("\tsta 2,sp,0\n");
+		} else {
+			repeated_op(v, "dsz sp,0");
+		}
+	} else {
+		if (sp == 0 && frame_len == 0)
+			printf("\tmtsp 3\n");
+		else if (v > 5) {
+			printf("\tmfsp 1\n");
+			printf("\tlda 0,2,1\n");
+			printf("\tadd 0,1,skp\n");
+			printf("\t.word %u\n", (-v) & 0xFFFF);
+		 	printf("\tmtsp 1\n");
+		} else
+			repeated_op(v, "popa 0");
+	}
+}
 /*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
@@ -817,15 +1003,7 @@ unsigned gen_direct(struct node *n)
 	   in n->right */
 	case T_CLEANUP:
 		v = r->value / 2;
-		if (v >= 5) {
-			printf("\tmfsp 1\n");
-			printf("\tlda 0,2,1\n");
-			printf("\tadd 0,1,skp\n");
-			printf("\t.word %u\n", (-v) & 0xFFFF);
-			printf("\tmtsp 1\n");
-		} else
-			repeated_op(v, "popa 0");
-		sp -= v;
+		gen_cleanup(v);
 		return 1;
 	case T_PLUS:
 		if (r->op == T_CONSTANT && s == 2) {
@@ -1176,16 +1354,16 @@ static unsigned do_eqop(struct node *n, unsigned op, unsigned cost, unsigned sav
 	if (s == 1)
 		printf("\tjsr @__eqcget\n");
 	else {
-		printf("\tpopa 2\n");
-		printf("\tpsha 2\n");
+		popa(2);
+		psha(2);
 		if (s == 2) {
 			printf("\tlda 2,0,2\n");
-			printf("\tpsha 2\n");
+			psha(2);
 		} else if (s == 4) {
 			printf("\tlda 0,0,2\n");
-			printf("\tpsha 0\n");
+			psha(0);
 			printf("\tlda 2,1,2\n");
-			printf("\tpsha 2\n");
+			psha(2);
 		}
 	}
 	/* We now have things marshalled as we want them */
@@ -1207,10 +1385,10 @@ static unsigned do_eqop(struct node *n, unsigned op, unsigned cost, unsigned sav
 
 	/* Result is now in hireg:1 and arg is gone from stack */
 	if (s == 2) {
-		printf("\tpopa 2\n");
+		popa(2);
 		printf("\tsta 1,0,2\n");
 	} else if (s == 4) {
-		printf("\tpopa 2\n");
+		popa(2);
 		printf("\tlda 0,__hireg,0\n");
 		printf("\tsta 0,0,2\n");
 		printf("\tsta 1,1,2\n");
@@ -1227,7 +1405,7 @@ static unsigned do_eqop(struct node *n, unsigned op, unsigned cost, unsigned sav
 
 static void pop_signfix(unsigned type)
 {
-	printf("\tpopa 0\n");
+	popa(0);
 	if (!(type & UNSIGNED)) {
 		printf("\tmovl 0,0\n\tmovcr 0,0\n");
 		printf("\tmovl 1,1\n\tmovcr 1,1\n");
@@ -1386,7 +1564,7 @@ unsigned gen_node(struct node *n)
 	case T_EQ:
 		if (s == 1)	/* Byteops are hard */
 			return 0;
-		printf("\tpopa 2\n");
+		popa(2);
 		if (s == 4) {
 			printf("\tsta 1,1,2\n");
 			printf("\tlda 0,__hireg,0\n");
@@ -1438,8 +1616,8 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_PLUS:
 		if (s == 4) {
-			printf("\tpopa 0\n");
-			printf("\tpopa 2\n");
+			popa(0);
+			popa(2);
 			printf("\tlda 3,__hireg,0\n");
 			printf("\taddz 0,1,szc\n");
 			printf("\tinc 3,3\n");
@@ -1447,14 +1625,14 @@ unsigned gen_node(struct node *n)
 			printf("\tsta 3,__hireg,0\n");
 			printf("\tmffp 3\n");
 		} else { 
-			printf("\tpopa 0\n");
+			popa(0);
 			printf("\tadd 0,1\n");
 		}
 		return 1;
 	case T_MINUS:
 		if (s == 4) {
-			printf("\tpopa 0\n");
-			printf("\tpopa 2\n");
+			popa(0);
+			popa(2);
 			printf("\tlda 3,__hireg,0\n");
 			printf("\tsubz 1,0,szc\n");
 			printf("\tsub 2,3,skp\n");
@@ -1463,7 +1641,7 @@ unsigned gen_node(struct node *n)
 			printf("\tsta 3,__hireg,0\n");
 			printf("\tmffp 3\n");
 		} else {
-			printf("\tpopa 0\n");
+			popa(0);
 			printf("\tsub 1,0\n");
 			printf("\tmov 0,1\n");
 		}
@@ -1471,7 +1649,7 @@ unsigned gen_node(struct node *n)
 	/* TODO T_SLASH, T_PERCENT, T_STAR via MUL/DIV if present */
 	case T_STAR:
 		if (0 && s == 2) {
-			printf("\tpopa 2\n");
+			popa(2);
 			printf("\tsub 0,0\n");
 			printf("\tmul\n");
 			return 1;
@@ -1481,7 +1659,7 @@ unsigned gen_node(struct node *n)
 		if (0 && s == 2 && (n->type & UNSIGNED)) {
 			printf("\tmov 1,2\n");
 			printf("\tsub 0,0\n");
-			printf("\tpopa 1\n");
+			popa(1);
 			printf("\tdiv\n");
 			return 1;
 		}
@@ -1490,7 +1668,7 @@ unsigned gen_node(struct node *n)
 		if (0 && s == 2 && (n->type & UNSIGNED)) {
 			printf("\tmov 1,2\n");
 			printf("\tsub 0,0\n");
-			printf("\tpopa 1\n");
+			popa(1);
 			printf("\tdiv\n");
 			printf("\tmov 0,1\n");
 			return 1;
@@ -1519,10 +1697,10 @@ unsigned gen_node(struct node *n)
 		}
 		return 0;
 	case T_AND:
-		printf("\tpopa 0\n");
+		popa(0);
 		printf("\tand 0,1\n");
 		if (s == 4) {
-			printf("\tpopa 0\n");
+			popa(0);
 			printf("\tlda 2,__hireg,0\n");
 			printf("\tand 2,0\n");
 			printf("\tsta 0,__hireg,0\n");
@@ -1531,7 +1709,7 @@ unsigned gen_node(struct node *n)
 	case T_OR:
 		if (s == 4)
 			return 0;
-		printf("\tpopa 0\n");
+		popa(0);
 		printf("\tcom 0,0\n");
 		printf("\tand 0,1\n");
 		printf("\tadc 0,1\n");
@@ -1539,7 +1717,7 @@ unsigned gen_node(struct node *n)
 	case T_HAT:
 		if (s == 4)
 			return 0;
-		printf("\tpopa 0\n");
+		popa(0);
 		printf("\tmov 1,2\n");
 		printf("\tandzl 0,2\n");
 		printf("\tadd 0,1\n");
@@ -1548,7 +1726,7 @@ unsigned gen_node(struct node *n)
 	case T_EQEQ:
 		if (s == 4)
 			return 0;
-		printf("\tpopa 0\n");
+		popa(0);
 		printf("\tsub 0,1,snr\n");
 		printf("\tsubzl 1,1,skp\n");
 		printf("\tsub 1,1\n");
