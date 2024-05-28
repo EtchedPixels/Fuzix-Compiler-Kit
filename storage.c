@@ -38,6 +38,10 @@ unsigned get_storage(unsigned dflt)
 void put_typed_data(struct node *n)
 {
 	unsigned op = n->op;
+	/* Collapse array types down to their underlying type so the backend
+	   can use the correct pointer types on a word/byteptr machine */
+	if (IS_ARRAY(n->type) && PTR(n->type) == 0)
+		n->type = PTRTO + array_type(n->type);
 	out_block("%[", 2);
 	if (op != T_CASELABEL && op != T_PAD && op != T_LABEL &&
 		op != T_NAME && op != T_CONSTANT)
