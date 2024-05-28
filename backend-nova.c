@@ -301,19 +301,21 @@ void gen_frame(unsigned size, unsigned aframe)
 		printf("\tisz 0,3\n");	/* Will never skip */
 		if (size == 0)
 			return;
+		/* In words, rounded in case an odd number of bytes */
+		size = (size + 1) / 2;
 		if (size >= 5) {
 			printf("\tmfsp 1\n");
 			printf("\tlda 0,2,1\n");
 			printf("\tadd 0,1,skp\n");
-			printf("\t.word %u\n", size / 2);
+			printf("\t.word %u\n", size);
 			printf("\tmtsp 1\n");
 		} else
-			repeated_op(size / 2, "psha 0");
+			repeated_op(size, "psha 0");
 	} else {
 		/* We can uninline most of this */
 		printf("\tmov 3,2\n");
 		printf("\tjsr @enter,0\n");
-		printf("\t.word %u\n", size / 2);
+		printf("\t.word %u\n", size);
 	}
 	printf(";\n");
 }
@@ -375,8 +377,9 @@ void gen_jtrue(const char *tail, unsigned n)
 
 void gen_switch(unsigned n, unsigned type)
 {
-	printf("\tjsr @__switch,0\n");
-	printf("\t.word Sw%d\n", n);
+	printf("\tjsr @__switch");
+	helper_type(type, 0);
+	printf(",0\n\t.word Sw%d\n", n);
 	unreachable = 1;
 	/* Although we jsr that's just to pass the table ptr */
 }
