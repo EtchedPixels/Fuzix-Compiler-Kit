@@ -71,8 +71,5 @@ int main(int argc, char *argv[])
     if (test_ule(0xFFEEDDCC, 0xFFEEDDCC) == 0)
         return 15;
 
-
-
-
     return 0;
 }
