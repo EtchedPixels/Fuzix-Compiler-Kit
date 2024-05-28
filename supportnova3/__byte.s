@@ -84,6 +84,9 @@ loplus:
 ;	jsr @__someop
 ;	jsr @__assignc
 ;
+;	Passed a pointer on the stack which should be kept, must preserve
+;	AC1, stack deref result and return it in AC2
+;
 f__eqcget:
 	popa	2		; byte address
 	psha	2		; keep it on stack for later
@@ -93,6 +96,7 @@ f__eqcget:
 	jsr	f__derefc,1	; fetch byte we need
 	popa	3		; get return back
 	psha	1		; save fetched value (expression left)
+	mov	1,2		; core code wants a copy to save in AC2
 	lda	1,__tmp2,0	; recover expression right
 	sta	3,__tmp,0	; and return
 	mffp	3
