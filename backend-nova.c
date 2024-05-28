@@ -428,9 +428,12 @@ void gen_space(unsigned value)
 	printf("\t.ds %d\n", (value + 1) / 2);
 }
 
-void gen_text_data(unsigned n)
+void gen_text_data(struct node *n)
 {
-	printf("\t.word T%d\n", n);
+	if (is_bytepointer(n->type))
+		printf("\t.byteptr T%d\n", n->val2);
+	else
+		printf("\t.word T%d\n", n->val2);
 }
 
 void gen_literal(unsigned n)
@@ -461,8 +464,7 @@ void gen_value(unsigned type, unsigned long value)
 		/* Bytes alone are word aligned on the left of the word */
 	case CCHAR:
 	case UCHAR:
-		/* FIXME */
-		printf("\t.word %u\n", (v << 8) & 0xFF00);
+		printf("\t.byte %u\n", v & 0xFF);
 		break;
 	case CSHORT:
 	case USHORT:

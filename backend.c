@@ -621,7 +621,7 @@ void process_data(void)
 		gen_space(n->value);
 		break;
 	case T_LABEL:
-		gen_text_data(n->val2);
+		gen_text_data(n);
 		break;
 	case T_NAME:
 		gen_name(n);
@@ -864,7 +864,7 @@ void make_node(register struct node *n)
 	case T_LABEL:
 		helper(n, "const");
 		/* Used for const strings */
-		gen_text_data(n->val2);
+		gen_text_data(n);
 		break;
 	case T_CAST:
 		helper_s(n, "cast");

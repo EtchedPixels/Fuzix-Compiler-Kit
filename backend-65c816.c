@@ -1397,9 +1397,9 @@ void gen_space(unsigned value)
 	outputnc(".ds %d", value);
 }
 
-void gen_text_data(unsigned n)
+void gen_text_data(struct node *n)
 {
-	outputnc(".word T%d", n);
+	output(".word T%d", n->val2);
 }
 
 void gen_literal(unsigned n)

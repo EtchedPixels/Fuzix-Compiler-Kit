@@ -587,9 +587,9 @@ void gen_space(unsigned value)
 	opcode(OP_DATA, 0, 0, ".ds %u", value);
 }
 
-void gen_text_data(unsigned n)
+void gen_text_data(struct node *n)
 {
-	opcode(OP_DATA, 0, 0, ".word T%u", n);
+	opcode(OP_DATA, 0, 0, ".word T%u", n->val2);
 }
 
 /* The label for a literal (currently only strings) */
