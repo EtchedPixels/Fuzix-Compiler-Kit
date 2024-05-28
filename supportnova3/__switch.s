@@ -24,27 +24,26 @@ switchn:
 	jmp	@1,2
 
 f__switchl:
-	lda	3,0,3
-	lda	0,0,3
+	lda	2,0,3
+	lda	0,0,2
 	sta	0,__tmp,0
 	lda	0,__hireg,0
 switchln:
-	lda	2,1,3
-	subz#	1,2,snr
+	lda	3,1,2
+	subz#	0,3,szr
 	jmp	nextm,1
-	lda	2,2,3
-	subz#	0,2,snr
+	lda	3,2,2
+	subz#	1,3,snr
 	; Matched
 	jmp	matched,1	; off we go
 nextm:
-	inc	3,3
-	inc	3,3
-	inc	3,3
+	inc	2,2
+	inc	2,2
+	inc	2,2
 	dsz	__tmp,0
 	jmp	switchln,1
 	mffp	3
-	jmp	@1,3
+	jmp	@1,2
 matched:
 	mffp	3
-	jmp	@3,3
-	
+	jmp	@3,2

@@ -10,7 +10,7 @@ OBJ = __dp.o __const.o\
       __postdec.o __postinc.o \
       __ccl.o __cpll.o __negl.o \
       __minusl.o __plusl.o __minuseql.o __pluseql.o \
-      __divul.o \
+      __divul.o __mull.o \
       __shift.o __shifteq.o __logiceq.o __logiceql.o \
       __switch.o
 

@@ -102,6 +102,8 @@
 
 	.export __mul
 
+	.export __mull
+
 	.export __negl
 
 	.export	__cpluseq
@@ -226,6 +228,8 @@ __minusl:	.word f__minusl
 __minuseql:	.word f__minuseql
 
 __mul:		.word f__mul
+
+__mull:		.word f__mull
 
 __negl:		.word f__negl
 
