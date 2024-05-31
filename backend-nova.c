@@ -106,10 +106,6 @@ static unsigned get_stack_size(unsigned t)
 #define T_LSTORE	(T_USER+4)
 #define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
 #define T_LBSTORE	(T_USER+6)
-#define T_RREF		(T_USER+7)
-#define T_RSTORE	(T_USER+8)
-#define T_RDEREF	(T_USER+9)		/* *regptr */
-#define T_REQ		(T_USER+10)		/* *regptr */
 
 static void squash_node(struct node *n, struct node *o)
 {
@@ -166,36 +162,32 @@ static unsigned pointer_match(unsigned t1, unsigned t2)
  *	at this point, but we do rewrite name references and function calls
  *	to make them easier to process.
  */
-struct node *gen_rewrite_node(struct node *n)
+struct node *gen_rewrite_node(register struct node *n)
 {
-	struct node *l = n->left;
-	struct node *r = n->right;
-	unsigned op = n->op;
-	unsigned nt = n->type;
+	register struct node *l = n->left;
+	register struct node *r = n->right;
+	register unsigned op = n->op;
+	register unsigned nt = n->type;
 
 	/* TODO: implement derefplus as we can fold small values into
 	   a deref pattern */
 
-	/* Rewrite references into a load operation. Don't do this with
-	   long. We can probably do long sanely later. Char is weird as
-	   we then use byte pointers */
-	if (nt == CSHORT || nt == USHORT || PTR(nt)) {
+	/* Rewrite references into a load operation.
+	   Char is weird as we then use byte pointers and helpers so avoid */
+	if (nt == CSHORT || nt == USHORT || PTR(nt) || nt == CLONG || nt == ULONG ) {
 		if (op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
 				/* Offsets are in bytes, we are a word machine */
 				/* Arguments are below the FP, variables above with
 				   a 2 byte offset */
-				if (r->op == T_ARGUMENT)
-					r->value = -(argbase + r->value);
-				else
-					r->value += 2;
-				/* Always word addressed */
-				r->value /= 2;
+				if (r->op == T_ARGUMENT) {
+					r->value = -(argbase + r->value) / 2;
+					if (nt == CLONG || nt == ULONG)
+						r->value --;
+				} else
+					/* Always word addressed */
+					r->value = r->value / 2 + 1;
 				squash_right(n, T_LREF);
-				return n;
-			}
-			if (r->op == T_REG) {
-				squash_right(n, T_RREF);
 				return n;
 			}
 			if (r->op == T_NAME) {
@@ -217,16 +209,14 @@ struct node *gen_rewrite_node(struct node *n)
 				return n;
 			}
 			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
-				if (l->op == T_ARGUMENT)
-					l->value = -(argbase + l->value);
-				else
-					l->value += 2;
-				l->value /= 2;	/* Word machine */
+				if (l->op == T_ARGUMENT) {
+					l->value = -(argbase + l->value) / 2;
+					if (nt == CLONG || nt == ULONG)
+						l->value --;
+				} else
+					/* Word machine */
+					l->value = l->value / 2 + 1;
 				squash_left(n, T_LSTORE);
-				return n;
-			}
-			if (l->op == T_REG) {
-				squash_left(n, T_RSTORE);
 				return n;
 			}
 		}
@@ -1541,7 +1531,7 @@ unsigned gen_node(struct node *n)
 				printf("\tlda 1,%d,3\n", d);
 			else {
 				printf("\tlda 1,%d,3\n", d + 1);
-				printf("\tda 0,%d,3\n", d); 
+				printf("\tlda 0,%d,3\n", d); 
 				store_hireg(0);
 			}
 			return 1;
