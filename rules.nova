@@ -80,3 +80,16 @@
 =
 	jsr @__cipushl,0
 	.word %1
+
+# Optimize hireg a bit (should do tracking in compiler backend)
+	sta 0,__hireg,0
+	lda 0,__hireg,0
+=
+	sta 0,__hireg,0
+
+
+# Ditto for locals (globals we need compiler to do because volatile
+	sta %1,%2,3
+	lda %1,%2,3
+=
+	sta %1,%2,3

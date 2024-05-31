@@ -26,12 +26,12 @@
 	.code
 
 f__notjt:
-	sub	1,1,snr		; skip if value is non zero
+	mov	1,1,snr		; skip if value is non zero
 	subzl	1,1,skp		; was 0 value so set 1
 	sub	1,1		; else set 0
 	jmp	f__jt,1
 f__booljt:
-	sub	1,1,szr		; if it was 0 skip (stays 0)
+	mov	1,1,szr		; if it was 0 skip (stays 0)
 	subzl	1,1		; set 1
 f__jt:	; AC3 now holds our return ptr
 	inc	3,3
@@ -40,12 +40,12 @@ f__jt:	; AC3 now holds our return ptr
 	jmp	out,1
 
 f__notjf:
-	sub	1,1,snr		; skip if value is non zero
+	mov	1,1,snr		; skip if value is non zero
 	subzl	1,1,skp
 	sub	1,1
 	jmp	f__jf,1
 f__booljf:
-	sub	1,1,szr		; if it was 0 skip (stays 0)
+	mov	1,1,szr		; if it was 0 skip (stays 0)
 	subzl	1,1		; set 1
 f__jf:
 	inc	3,3
