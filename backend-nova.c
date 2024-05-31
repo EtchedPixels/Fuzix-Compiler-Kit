@@ -21,7 +21,7 @@
  *	Add support for Nova < 3 using helpers
  *
  *	Inline shifts (including using ADDZL for double left shift)
- *	Inline easy mul forms (0-16 etc)
+ *	IP Inline easy mul forms (0-16 etc)
  *
  *	Shift optimized and short helper mul/div constant
  *	Inline small left and unsigned right shifts
@@ -33,6 +33,7 @@
  *
  *	Track contents of AC1 so we can avoid reloading constants
  *	(may be worth tracing AC0 too but less clear)
+ *	Track whether AC0 holds __hireg and optimize load/saves of it
  *
  *	Byte LREF/LSTORE etc
  *	Long LREF/LSTORE etc
@@ -550,6 +551,17 @@ void psha(unsigned r)
 		printf("\tsta %u,@sp,0\n", r);
 }
 
+/* So we can track this later and suppress some */
+static void load_hireg(unsigned ac)
+{
+	printf("\tlda %u,__hireg,0\n", ac);
+}
+
+static void store_hireg(unsigned ac)
+{
+	printf("\tsta %u,__hireg,0\n", ac);
+}
+
 unsigned gen_push(struct node *n)
 {
 	/* Our push will put the object on the stack, so account for it */
@@ -558,7 +570,7 @@ unsigned gen_push(struct node *n)
 	/* We are big endian but with an upward growing stack so we must
 	   push the high word first */
 	if (s == 4) {
-		printf("\tlda 0,__hireg, 0\n");
+		load_hireg(0);
 		psha(0);
 	}
 	psha(1);
@@ -655,6 +667,7 @@ static unsigned gen_constant(unsigned r, int16_t v)
 	return 0;
 }
 
+
 /*
  *	True if we can load ac0 with the value we need without trashing
  *	AC1. This lets us avoid a lot of the pushing and popping we would
@@ -688,10 +701,14 @@ static unsigned can_load_ac(struct node *n)
  *
  *	TODO: teach it the constants we can magic up in 0
  */
-static unsigned load_ac(unsigned ac, struct node *n)
+static unsigned load_ac(unsigned ac, register struct node *n)
 {
 	unsigned v = n->value;
-	int16_t d = v;
+	register int16_t d = v;
+	unsigned s = get_size(n->type);
+
+	if (s != 2)
+		return 0;
 
 	switch(n->op) {
 	case T_ARGUMENT:
@@ -704,39 +721,37 @@ static unsigned load_ac(unsigned ac, struct node *n)
 			printf("\tmovzl 3,%u\n", ac);
 			d++;	/* Arguments are stacked as words so the
 				   value is 1 byte offset */
+			printf("\tlda 2,2,1\n");
+			printf("\tadd 2,%u,skp\n", ac);
+			printf("\t.word %d\n", d);
 		} else {
 			d /= 2;	/* Word offset word pointer */
-			printf("\tmov 3,%u\n", ac);
+			/* Our stack is upward growing so the offsets of the fields
+			   are 0,-1 so adjust here to keep sanity elsewhere */
+			if (get_size(n->type - PTRTO) == 4)
+				d--;
+			printf("\tlda %u,2,1\n", ac);
+			printf("\tadd 3,%u,skp\n", ac);
+			printf("\t.word %d\n", d);
 		}
-		/* Our stack is upward growing so the offsets of the fields
-		   are 0,-1 so adjust here to keep sanity elsewhere */
-		if (get_size(n->type - PTRTO) == 4)
-			d--;
-		printf("\tlda 2,2,1\n");
-		printf("\tadd 2,%u,skp\n", ac);
-		printf("\t.word %d\n", d);
 		return 1;
 	case T_LOCAL:
 		d += 2;		/* Byte offset for FP */
 		if (is_bytepointer(n->type)) {
 			/* Convert to byte pointer */
 			printf("\tmovzl 3,%u\n", ac);
+			printf("\tlda 2,2,1\n");
+			printf("\tadd 2,%u,skp\n", ac);
+			printf("\t.word %d\n", d);
 		} else {
 			if (d & 1)
 				error("waln");
 			/* Work in words */
-			printf("\tmov 3,%u\n", ac);
 			d /= 2;
+			printf("\tlda %u,2,1\n", ac);
+			printf("\tadd 3,%u,skp\n", ac);
+			printf("\t.word %d\n", d);
 		}
-#if 0		
-		/* Our stack is upward growing so the offsets of the fields
-		   are 0,-1 so adjust here to keep sanity elsewhere */
-		if (get_size(n->type - PTRTO) == 4)
-			d--;
-#endif			
-		printf("\tlda 2,2,1\n");
-		printf("\tadd 2,%u,skp\n", ac);
-		printf("\t.word %d\n", d);
 		return 1;
 	case T_LREF:
 		/* Will always be size 2 at this point */
@@ -744,9 +759,9 @@ static unsigned load_ac(unsigned ac, struct node *n)
 			printf("\tlda %u,%d,3\n", ac, d);
 			return 1;
 		}
-		printf("\tmov 3,2\n");
-		printf("\tlda %u,2,1\n", ac);
-		printf("\tadd %u,2,skp\n", ac);
+		/* TODO optimize a few easy constant cases especially 1 */
+		printf("\tlda 2,2,1\n");
+		printf("\tadd 3,2,skp\n");
 		printf("\t.word %d\n", d);
 		printf("\tlda %u,0,2\n", ac);
 		return 1;
@@ -1243,8 +1258,6 @@ unsigned gen_shortcut(struct node *n)
 	}
 	switch(n->op) {
 	case T_PLUSPLUS:
-		if (!nr)
-			return 0;
 	case T_PLUSEQ:	/* Very specific but common case */
 		if ((l->op == T_LOCAL || l->op == T_ARGUMENT) && r->op == T_CONSTANT && r->value <= 2 && s == 2) {
 			int d = l->value / 2;
@@ -1257,14 +1270,20 @@ unsigned gen_shortcut(struct node *n)
 			if (d < -128 || d >= 127 + s / 2)
 				return 0;
 			printf(";pluseq fast\n");
+			if (!nr && n->op == T_PLUSPLUS)
+				printf("\tlda 2,%d,3\n", d);
 			if (r->value > 0) {
 				gen_isz(d, s);
 			}
 			if (r->value == 2) {
 				gen_isz(d, s);
 			}
-			if (!nr)
-				printf("\tlda 1,%d,3\n", d);
+			if (!nr) {
+				if (n->op == T_PLUSPLUS)
+					printf("\tmov 2,1\n");
+				else
+					printf("\tlda 1,%d,3\n", d);
+			}
 			return 1;
 		}
 		break;
@@ -1344,7 +1363,7 @@ unsigned gen_cast(struct node *n)
 		printf("\tmovl# 1,1,szc\n");
 		printf("\tadc 0,0\n");
 	}
-	printf("\tsta 0,__hireg,0\n");
+	store_hireg(0);
 	return 1;
 }
 
@@ -1394,12 +1413,12 @@ static unsigned do_eqop(struct node *n, unsigned op, unsigned cost, unsigned sav
 		printf("\tsta 1,0,2\n");
 	} else if (s == 4) {
 		popa(2);
-		printf("\tlda 0,__hireg,0\n");
+		load_hireg(0);
 		printf("\tsta 0,0,2\n");
 		printf("\tsta 1,1,2\n");
 		if (save) {
 			printf("\tlda 0,__tmp4,0\n");
-			printf("\tsta 0,__hireg,0\n");
+			store_hireg(0);
 		}
 	} else
 		printf("\tjsr @__assignc\n");
@@ -1508,12 +1527,6 @@ unsigned gen_node(struct node *n)
 			printf("\tmov 3,1\n");
 			d /= 2;	/* Word machine */
 		}
-#if 0
-		/* Our stack is upward growing so the offsets of the fields
-		   are 0,-1 so adjust here to keep sanity elsewhere */
-		if (get_size(n->type - PTRTO) == 4)
-			d--;
-#endif			
 		if (d)
 			add_constant(d);
 		/* TODO maybe optimize generally "add const to ac" for
@@ -1523,33 +1536,57 @@ unsigned gen_node(struct node *n)
 		if (nr)
 			return 1;
 		/* An LREFPLUS rewrite might be useful to fold additions */
-		/* TODO 4 is easy */
-		if (d < 128 && d >= -128) {
-			printf("\tlda 1,%d,3\n", (int)(int16_t)v);
+		if (d < 128 && d >= -127) {
+			if (s == 2)
+				printf("\tlda 1,%d,3\n", d);
+			else {
+				printf("\tlda 1,%d,3\n", d + 1);
+				printf("\tda 0,%d,3\n", d); 
+				store_hireg(0);
+			}
 			return 1;
 		}
 		/* Fix code dup with T_LOCAL */
-		printf("\tmov 3,2\n");
-		if (d) {
-			printf("\tlda 0,2,1\n");
-			printf("\tadd 0,2,skp\n");
+		if (d == 0)
+			printf("\tmov 3,2\n");
+		else {
+			printf("\tlda 2,2,1\n");
+			printf("\tadd 3,2,skp\n");
 			printf("\t.word %d\n", (int) d);
 		}
-		printf("\tlda 1,0,2\n");
+		if (s == 2)
+			printf("\tlda 1,0,2\n");
+		else {
+			printf("\tlda 0,0,2\n");
+			printf("\tlda 1,1,2\n");
+			store_hireg(0);
+		}
 		return 1;
 	case T_LSTORE:
-		if (d < 128 && d >= -128) {
-			printf("\tsta 1,%d,3\n", (int)(int16_t)v);
+		if (d < 128 && d >= -127) {
+			if (s == 2)
+				printf("\tsta 1,%d,3\n", d);
+			else {
+				printf("\tsta 1,%d,3\n", d + 1);
+				load_hireg(0);
+				printf("\tsta 0,%d,3\n", d);
+			}
 			return 1;
 		}
-		/* Fix code dup with T_LOCAL */
-		printf("\tmov 3,2\n");
-		if (d) {
-			printf("\tlda 0,2,1\n");
-			printf("\tadd 0,2,skp\n");
+		if (d == 0)
+			printf("\tmov 3,2\n");
+		else {
+			printf("\tlda 2,2,1\n");
+			printf("\tadd 3,2,skp\n");
 			printf("\t.word %d\n", (int)d);
 		}
-		printf("\tsta 1,0,2\n");
+		if (s == 2)
+			printf("\tsta 1,0,2\n");
+		else {
+			load_hireg(0);
+			printf("\tsta 1,1,2\n");
+			printf("\tsta 0,0,2\n");
+		}
 		return 1;
 	case T_DEREF:
 		printf(";T_DEREF %u\n", s);
@@ -1559,12 +1596,11 @@ unsigned gen_node(struct node *n)
 			return 0;
 		printf("\tmov 1,2\n");
 		if (s == 4) {
-			printf("\tlda 1,0,2\n");
-			printf("\tsta 1,__hireg,0\n");
+			printf("\tlda 0,0,2\n");
+			store_hireg(0);
 			printf("\tlda 1,1,2\n");
-			return 1;
-		}
-		printf("\tlda 1,0,2\n");
+		} else
+			printf("\tlda 1,0,2\n");
 		return 1;
 	case T_EQ:
 		if (s == 1)	/* Byteops are hard */
@@ -1572,7 +1608,7 @@ unsigned gen_node(struct node *n)
 		popa(2);
 		if (s == 4) {
 			printf("\tsta 1,1,2\n");
-			printf("\tlda 0,__hireg,0\n");
+			load_hireg(0);
 			printf("\tsta 0,0,2\n");
 		} else
 			printf("\tsta 1,0,2\n");
@@ -1584,7 +1620,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		s = get_size(r->type);
 		if (s == 4) {
-			printf("\tlda 0,__hireg,0\n");
+			load_hireg(0);
 			printf("\tmov# 1,1,snr\n");
 			printf("\tmov# 0,0,szr\n");
 			printf("\tsubzl 1,1,skp\n");
@@ -1604,7 +1640,7 @@ unsigned gen_node(struct node *n)
 		   conditional jump story first */
 		s = get_size(r->type);
 		if (s == 4) {
-			printf("\tlda 0,__hireg,0\n");
+			load_hireg(0);
 			printf("\tmov# 1,1,snr\n");
 			printf("\tmov# 0,0,szr\n");
 			printf("\tsub 1,1,skp\n");
@@ -1623,11 +1659,11 @@ unsigned gen_node(struct node *n)
 		if (s == 4) {
 			popa(0);
 			popa(2);
-			printf("\tlda 3,__hireg,0\n");
+			load_hireg(3);
 			printf("\taddz 0,1,szc\n");
 			printf("\tinc 3,3\n");
 			printf("\tadd 2,3\n");
-			printf("\tsta 3,__hireg,0\n");
+			store_hireg(3);
 			printf("\tmffp 3\n");
 		} else { 
 			popa(0);
@@ -1638,12 +1674,12 @@ unsigned gen_node(struct node *n)
 		if (s == 4) {
 			popa(0);
 			popa(2);
-			printf("\tlda 3,__hireg,0\n");
+			load_hireg(3);
 			printf("\tsubz 1,0,szc\n");
 			printf("\tsub 2,3,skp\n");
 			printf("\tadc 2,3\n");
 			printf("\tmov 0,1\n");
-			printf("\tsta 3,__hireg,0\n");
+			store_hireg(3);
 			printf("\tmffp 3\n");
 		} else {
 			popa(0);
@@ -1682,9 +1718,9 @@ unsigned gen_node(struct node *n)
 	case T_TILDE:
 		printf("\tcom 1,1\n");
 		if (s == 4 && !optsize) {
-			printf("\tlda 0,__hireg,0\n");
+			load_hireg(0);
 			printf("\tcom 0,0\n");
-			printf("\tsta 0,__hireg,0\n");
+			store_hireg(0);
 		}
 		return 1;
 	case T_NEGATE:
@@ -1693,11 +1729,11 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (s == 4 && !optsize && n->type != FLOAT) {
-			printf("\tlda 0,__hireg,0\n");
+			load_hireg(0);
 			printf("\tneg 1,1,snr\n");
 			printf("\tneg 0,0,skp\n");
 			printf("\tcom 0,0\n");
-			printf("\tsta 0,__hireg,0\n");
+			store_hireg(0);
 			return 1;
 		}
 		return 0;
@@ -1705,10 +1741,10 @@ unsigned gen_node(struct node *n)
 		popa(0);
 		printf("\tand 0,1\n");
 		if (s == 4) {
-			popa(0);
-			printf("\tlda 2,__hireg,0\n");
+			popa(2);
+			load_hireg(0);
 			printf("\tand 2,0\n");
-			printf("\tsta 0,__hireg,0\n");
+			store_hireg(0);
 		}
 		return 1;
 	case T_OR:
