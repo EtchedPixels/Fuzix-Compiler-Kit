@@ -36,7 +36,6 @@
  *	Track whether AC0 holds __hireg and optimize load/saves of it
  *
  *	Byte LREF/LSTORE etc
- *	Long LREF/LSTORE etc
  *
  *	Floating point
  *
@@ -392,20 +391,89 @@ void gen_case_data(unsigned tag, unsigned entry)
 	printf("\t.word Sw%d_%d\n", tag, entry);
 }
 
+void gen_cleanup(unsigned v)
+{
+	if (v == 0)
+		return;
+	sp -= v;
+	if (cpu > 3) {
+		/* As is common we are switching back to the frame pointer
+		   being the sp base . TODO debug check */
+		if (sp == 0 && frame_len == 0)
+			printf("\tsta 3,sp,0\n");
+		else if (v > 5) {
+			printf("\tlda 0,sp,0\n");
+			printf("\tlda 2,2,1\n");
+			printf("\tadd 2,0,skp\n");
+			printf("\t.word %u\n", (-v) & 0xFFFF);
+			printf("\tsta 2,sp,0\n");
+		} else {
+			repeated_op(v, "dsz sp,0");
+		}
+	} else {
+		if (sp == 0 && frame_len == 0)
+			printf("\tmtsp 3\n");
+		else if (v > 5) {
+			printf("\tmfsp 1\n");
+			printf("\tlda 0,2,1\n");
+			printf("\tadd 0,1,skp\n");
+			printf("\t.word %u\n", (-v) & 0xFFFF);
+		 	printf("\tmtsp 1\n");
+		} else
+			repeated_op(v, "popa 0");
+	}
+}
+
+/* True if the helper is to be called C style */
+static unsigned c_style(struct node *np)
+{
+	register struct node *n = np;
+	/* Assignment is done asm style */
+	if (n->op == T_EQ)
+		return 0;
+	/* Float ops otherwise are C style */
+	if (n->type == FLOAT)
+		return 1;
+	n = n->right;
+	if (n && n->type == FLOAT)
+		return 1;
+	return 0;
+}
+
 void gen_helpcall(struct node *n)
 {
 	/* TODO need to figure out what is indirected this way and what
 	   is done jsr @1,1 style */
-	printf("\tjsr @__");
+	if (c_style(n)) {
+		gen_push(n->right);
+		printf("\tjsr @1,1\n");
+		printf(".word __");
+	} else
+		printf("\tjsr @__");
 }
 
 void gen_helptail(struct node *n)
 {
-	printf(",0");
+	if (!c_style(n))
+		printf(",0");
 }
 
-void gen_helpclean(struct node *n)
+void gen_helpclean(register struct node *n)
 {
+	unsigned v = 0;
+	/* C style helpers pushed a word */
+	if (!c_style(n))
+		return;
+	if (n->left) {
+		v = get_stack_size(n->left->type);
+		sp += v / 2;
+	}
+	v += get_stack_size(n->right->type);
+	gen_cleanup(v / 2);
+	if (n->flags & ISBOOL) {
+		printf("\tmov 1,1,szr\n");
+		printf("\tsubzl 1,1\n");
+	}
 }
 
 void gen_data_label(const char *name, unsigned align)
@@ -833,7 +901,6 @@ static void node_word(struct node *n)
    by the value for constants */
 static unsigned const_condop(struct node *n, char *o, char *uo)
 {
-	printf(";n->type %x\n", n->type);
 	if (get_size(n->type) == 4)
 		return 0;
 
@@ -961,40 +1028,6 @@ unsigned gen_fast_div(struct node *n, unsigned v)
 }
 
 
-/* TODO: it's common that the corrected SP value will match fp. We should
-   check this and if so just mtsp 3 */
-void gen_cleanup(unsigned v)
-{
-	if (v == 0)
-		return;
-	sp -= v;
-	if (cpu > 3) {
-		/* As is common we are switching back to the frame pointer
-		   being the sp base . TODO debug check */
-		if (sp == 0 && frame_len == 0)
-			printf("\tsta 3,sp,0\n");
-		else if (v > 5) {
-			printf("\tlda 0,sp,0\n");
-			printf("\tlda 2,2,1\n");
-			printf("\tadd 2,0,skp\n");
-			printf("\t.word %u\n", (-v) & 0xFFFF);
-			printf("\tsta 2,sp,0\n");
-		} else {
-			repeated_op(v, "dsz sp,0");
-		}
-	} else {
-		if (sp == 0 && frame_len == 0)
-			printf("\tmtsp 3\n");
-		else if (v > 5) {
-			printf("\tmfsp 1\n");
-			printf("\tlda 0,2,1\n");
-			printf("\tadd 0,1,skp\n");
-			printf("\t.word %u\n", (-v) & 0xFFFF);
-		 	printf("\tmtsp 1\n");
-		} else
-			repeated_op(v, "popa 0");
-	}
-}
 /*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
@@ -1012,8 +1045,7 @@ unsigned gen_direct(struct node *n)
 	   type of the function return so don't use that for the cleanup value
 	   in n->right */
 	case T_CLEANUP:
-		v = r->value / 2;
-		gen_cleanup(v);
+		gen_cleanup(r->value / 2);
 		return 1;
 	case T_PLUS:
 		if (r->op == T_CONSTANT && s == 2) {

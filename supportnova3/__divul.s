@@ -72,20 +72,20 @@ f__divul:
 f__divl:
 	sta	3,__tmp5,0
 	lda	0,__hireg,0
+	sub	2,2
 	movl#	0,0,szc
 	jsr	negate,1
 	sta	0,__tmp2,0
 	sta	1,__tmp3,0
 	popa	1
 	popa	0
-	sub	3,3
 	movl#	0,0,szc
 	jsr	negate,1
-	psha	3
+	psha	2
 	jsr	dodiv32,1
 divout:
-	popa	3
-	movr#	3,3,snc
+	popa	2
+	movr#	2,2,szc
 	jsr	negate,1
 	sta	0,__hireg,0
 	mffp	3
@@ -94,16 +94,16 @@ divout:
 f__reml:
 	sta	3,__tmp5,0
 	lda	0,__hireg,0
-	sub	3,3
 	movl#	0,0,szc
 	jsr	negate,1
+	sub	2,2
 	sta	0,__tmp2,0
 	sta	1,__tmp3,0
 	popa	1
 	popa	0
 	movl#	0,0,szc
 	jsr	negate,1
-	psha	3
+	psha	2
 	jsr	dodiv32,1
 	lda	0,__tmp2,0
 	lda	1,__tmp3,0
@@ -194,7 +194,8 @@ f__remeql:
 	jmp	@__tmp,0
 
 negate:
-	inc	3,3
+	sta	3,__tmp,0
+	inc	2,2
 	neg	1,1,snr
 	neg	0,0,skp
 	com	0,0
