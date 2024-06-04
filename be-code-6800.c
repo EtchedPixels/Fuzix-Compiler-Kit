@@ -229,13 +229,6 @@ void adjust_s(int n, unsigned save_d)
 	unsigned hardcost;
 	unsigned cost;
 
-	/* 6809	 is nice and simple */
-	if (cpu_has_lea) {
-		if (n)
-			printf("\tleas %d,s\n", n);
-		return;
-	}
-
 	if (cpu_has_d)
 		hardcost = 15 + 4 * save_d;
 	else
@@ -286,9 +279,9 @@ void adjust_s(int n, unsigned save_d)
 	if (n > 0 && cpu_has_abx && cost == abxcost) {
 		/* TODO track b properly when save save_d */
 		/* FIXME: need top put S into X and back.. */
+		printf("\ttsx\n");
 		if (save_d)
 			printf("\tpshb\n");
-		printf("\ttsx\n");
 		if(n > 255) {
 			load_b_const(255);
 			while(n >= 255) {
@@ -300,9 +293,9 @@ void adjust_s(int n, unsigned save_d)
 			load_b_const(n);
 			printf("\tabx\n");
 		}
-		printf("\ttsx\n");
 		if (save_d)
 			printf("\tpulb\n");
+		printf("\ttxs\n");
 		x_fprel = 1;
 		x_fpoff = 0;
 		return;
@@ -437,25 +430,22 @@ void uniop_on_ptr(register const char *op, register unsigned off,
 		printf("\t%s %u,x\n", op, --off);
 }
 
-/* TODO: propogate down if we need to save B */
+/*
+ *	This is broken. Very broken
+ */
 unsigned make_local_ptr(unsigned off, unsigned rlim)
 {
 	/* Both relative to frame base */
 	int noff = off - x_fpoff;
 
-	/* Although we can access arguments via S we sometimes still need
-	   this path to make pointers to locals. We do need to go through
-	   the cases we can just use ,s to make sure we avoid two steps */
-	if (cpu_has_lea) {
-		printf("\tleax %u,s\n", off + sp);
-		return 0;
-	}
-
 	printf(";make local ptr off %u, rlim %u noff %u\n", off, rlim, noff);
 
 	/* TODO: if we can d a small < 7 or so shift by decrement then
 	   it may beat going via tsx */
-	if (x_fprel == 0 ||  noff < 0) {
+	/* HACK: for the moment disable this stuff whilst we debug the
+	   rest of the code as the make_local_ptr tracking is currently
+	   totally broken */
+	if (1 || x_fprel == 0 ||  noff < 0) {
 		printf("\ttsx\n");
 		x_fprel = 1;
 		x_fpoff = 0;
@@ -1075,16 +1065,14 @@ unsigned cmp_op(struct node *n, const char *uop, const char *op)
 	if (n->right->type & UNSIGNED)
 		op = uop;
 	if (s == 1) {
-		op8_on_ptr("cmp", 0);
+		op8_on_tos("cmp");
 		printf("\t%s %s\n", jsr_op, op);
 		n->flags |= ISBOOL;
 		invalidate_work();
 		return 1;
 	}
 	if (s == 2 && cpu_has_d) {
-		op16d_on_ptr("sub", "sbc", 0);
-		printf("\tins\n");
-		printf("\tins\n");
+		op16d_on_tos("sub");
 		printf("\t%s %s\n", jsr_op, op);
 		n->flags |= ISBOOL;
 		invalidate_work();
