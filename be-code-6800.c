@@ -940,6 +940,8 @@ static unsigned load_r_with(char reg, struct node *r, unsigned off)
 	case T_LABEL:
 	case T_NREF:
 	case T_NAME:
+		printf("\tld%c %s\n", reg, addr_form(r, off, 2));
+		break;
 	default:
 		error("lxw");
 	}
