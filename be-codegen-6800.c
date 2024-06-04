@@ -1146,10 +1146,13 @@ unsigned gen_shortcut(struct node *n)
 		   TODO: think v + off is all that is needed but for non
 		   6809 that means range checking complications */
 		if (can_load_r_simple(r, 0)) {
-			load_x_with(r, 0);
-
+			printf("; go via shortcut\n");
+			v += load_x_with(r, 0);
 			invalidate_work();
-			opd_on_ptr(n, "ld", "ld", v);
+			if (s == 4)
+				load32(v);
+			else
+				opd_on_ptr(n, "ld", "ld", v);
 			return 1;
 		}
 		return 0;
@@ -1342,6 +1345,7 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_DEREF:
 	case T_DEREFPLUS:
+		printf(";deref %u\n", v);
 		make_x_d();
 		if (s == 1) {
 			op8_on_ptr("ld", v);
@@ -1354,11 +1358,12 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (s == 4 && cpu_has_y) {
-			printf("\tldy ,x\n");
-			printf("\tldd 2,x\n");
+			printf("\tldy %u,x\n", v);
+			printf("\tldd %u,x\n", v + 2);
 			set_d_node(n);	/* TODO: review 32 bit cases */
 			return 1;
 		}
+		load32(v);
 		break;
 	case T_EQ:	/* Assign - ToS is address, working value is value */
 	case T_EQPLUS:

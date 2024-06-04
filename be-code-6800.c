@@ -376,7 +376,7 @@ void op16d_on_ptr(const char *op, const char *op2, unsigned off)
 	}
 }
 
-void op32_on_ptr(const char *op, const char *op2, unsigned off)
+static void op32_on_ptr(const char *op, const char *op2, unsigned off)
 {
 	op = remap_op(op);
 	op2 = remap_op(op2);
@@ -388,7 +388,7 @@ void op32_on_ptr(const char *op, const char *op2, unsigned off)
 		printf("\t%sa %u,x\n", op2, off);
 		swap_d_y();
 	} else {
-		printf("\tpshb\n\tpsha");
+		printf("\tpshb\n\tpsha\n");
 		printf("\tldaa @hireg\n\tldab @hireg+1\n");
 		printf("\t%sb %u,x\n", op2, off + 1);
 		printf("\t%sa %u,x\n", op2, off);
@@ -412,12 +412,27 @@ void op32d_on_ptr(const char *op, const char *op2, unsigned off)
 		printf("\t%sa %u,x\n", op2, off);
 		swap_d_y();
 	} else {
-		printf("\tpshb\n\tpsha");
+		printf("\tpshb\n\tpsha\n");
 		printf("\tldd @hireg\n");
 		printf("\t%sb %u,x\n", op2, off + 1);
 		printf("\t%sa %u,x\n", op2, off);
 		printf("\tstd @hireg\n");
 		printf("\tpula\n\tpulb\n");
+	}
+}
+
+void load32(unsigned off)
+{
+	if (cpu_has_y) {
+		printf("\tldd %u,x\n", off);
+		swap_d_y();
+		printf("\tldd %u,x\n", off + 2);
+	} else if (cpu_has_d)
+		printf("\tldd %u,x\n\tstd @hireg\n\tldd %u,x\n", off, off + 2);
+	else {
+		printf("\tldaa %u,x\nldab %u,x\n\tldx %u,x\nstx @hireg\n",
+			off + 2, off + 3, off);
+		invalidate_x();
 	}
 }
 
@@ -884,6 +899,9 @@ unsigned right_shift(struct node *n)
    later, and will be true for some load cases */
 unsigned can_load_r_simple(struct node *r, unsigned off)
 {
+	unsigned s = get_size(r->type);
+	if (s == 4)
+		return 0;
 	switch(r->op) {
 	case T_ARGUMENT:
 	case T_LOCAL:
@@ -904,6 +922,9 @@ unsigned can_load_r_simple(struct node *r, unsigned off)
    lea for offsets on things like struct */
 unsigned can_load_r_with(struct node *r, unsigned off)
 {
+	unsigned s = get_size(r->type);
+	if (s == 4)
+		return 0;
 	switch(r->op) {
 	case T_ARGUMENT:
 	case T_LOCAL:
@@ -1096,9 +1117,12 @@ unsigned gen_push(struct node *n)
 		printf("\tpshb\n\tpsha\n");
 		return 1;
 	case 4:
+		/* TODO: if we have no valid X we should ldx/pshx on 6803 */
 		printf("\tpshb\n\tpsha\n");
 		if (cpu_has_y)
 			printf("\tpshy\n");
+		else if (cpu_has_d)
+			printf("\tldd @hireg\n\tpshb\n\tpsha\n");
 		else {
 			printf("\tldaa @hireg+1\n");
 			printf("\tpsha\n");

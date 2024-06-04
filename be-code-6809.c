@@ -206,7 +206,7 @@ static void op16d_on_s(const char *op, const char *op2, unsigned off)
 	printf("\t%sd %u,s\n", op, off);
 }
 
-void op32_on_ptr(const char *op, const char *op2, unsigned off)
+static void op32_on_ptr(const char *op, const char *op2, unsigned off)
 {
 	printf("\t%sb %u,x\n", op, off + 3);
 	printf("\t%sa %u,x\n", op2, off + 2);
@@ -223,6 +223,11 @@ void op32d_on_ptr(const char *op, const char *op2, unsigned off)
 	printf("\t%sb %u,x\n", op2, off + 1);
 	printf("\t%sa %u,x\n", op2, off);
 	swap_d_y();
+}
+
+void load32(unsigned off)
+{
+	printf("\tldy %u,x\n\tldd %u,x\n", off, off + 2);
 }
 
 void uniop_on_ptr(register const char *op, register unsigned off,
