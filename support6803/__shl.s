@@ -23,8 +23,8 @@ shlf:
 	bne shlf
 done:
 	pulx
-	inx
-	inx
+	ins
+	ins
 	jmp ,x
 nofast:
 	stab @tmp

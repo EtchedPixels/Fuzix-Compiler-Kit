@@ -12,6 +12,7 @@ __shru:	clra
 	beq bytemove
 	bcs nofast
 	subb #8
+	tsx
 	ldx 1,x	; high byte into low of X will become B
 	xgdx
 	clra
