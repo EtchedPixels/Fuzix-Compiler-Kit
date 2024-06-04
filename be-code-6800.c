@@ -1121,9 +1121,10 @@ unsigned gen_push(struct node *n)
 		printf("\tpshb\n\tpsha\n");
 		if (cpu_has_y)
 			printf("\tpshy\n");
-		else if (cpu_has_d)
+		else if (cpu_has_d) {
 			printf("\tldd @hireg\n\tpshb\n\tpsha\n");
-		else {
+			invalidate_work();
+		} else {
 			printf("\tldaa @hireg+1\n");
 			printf("\tpsha\n");
 			printf("\tldaa @hireg\n");
