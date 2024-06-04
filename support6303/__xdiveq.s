@@ -54,7 +54,7 @@ __xdiveq:
 				; X = quotient, D = remainder
 	xgdx
 	ror @tmp4
-	bcs store		; low bit set -> negate
+	bcc store		; low bit set -> negate
 	bsr negd
 	bra store
 	

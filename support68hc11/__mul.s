@@ -6,27 +6,25 @@
 	.code
 
 __mul:
-	pshb
-	psha			; Save one half
 	tsx
-	; We are now doing mul 0,x with 4,x
-	ldaa	5,x		; low byte
-	mul			; low x low
+	psha
 	pshb
-	psha			; save low
-	ldaa	7,x		; low byte of arg1
-	ldab	2,x		; high byte of arg2
-	mul
-	addb	0,x		; add to upper half of result
-	stab	0,x
-	ldaa	6,x		; upper byte of arg1
-	ldab	3,x		; lower byte of arg2
-	mul
-	addb	0,x		; add to upper half
-	tba
-	ldab	1,x		; get into D
-	pulx			; discard stacked word
-	puly			; return
-	pulx			; discard arguments
+	ldaa 3,x		; low byte
+	mul			; D is now low x low
+	std @tmp
+	ldaa 2,x		; high byte
+	pulb
+	mul			; D is now high x low
+	std @tmp1
+	ldaa 3,x		; low byte
+	pulb			; high byte of D
+	mul			; D is now low x high
+	addd @tmp1		; High bytes
+	tba			; Shift left 8, discarding
+	clrb
+	addd @tmp		; Add the low x low
 	pulx
-	jmp	,y
+	ins
+	ins
+	jmp ,x
+

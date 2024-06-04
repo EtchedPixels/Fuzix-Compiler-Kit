@@ -61,7 +61,7 @@ __xdiveq:
 	stx @tmp
 	ldd @tmp
 	ror @tmp4
-	bcs store		; low bit set -> negate
+	bcc store		; low bit set -> negate
 	bsr negd
 	bra store
 	
