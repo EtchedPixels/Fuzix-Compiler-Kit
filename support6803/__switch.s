@@ -4,22 +4,24 @@
 
 __switch:
 	; X holds the switch table, D the value
-	std @tmp
+	std @tmp		; comparison value
 	ldd ,x
-	std @tmp1
+	stab @tmp1		; get length (will be < 256)
+	beq gotit		; zero length table -> take default
 	inx
 	inx
-	beq gotit
 next:
-	ldd ,x
-	subd @tmp
-	inx
-	inx
+	ldd ,x			; get arg
+	subd @tmp		; compare
 	beq gotit
+	inx			; skip to next record
+	inx
 	inx
 	inx
 	dec @tmp1
 	bne next
+	ldx ,x			; take default
+	jmp ,x
 gotit:
-	ldx ,x
+	ldx 2,x
 	jmp ,x

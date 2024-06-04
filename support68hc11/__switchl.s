@@ -11,14 +11,16 @@ __switchl:
 	bra incmv
 next:
 	cpy ,x
-	inx
-	inx
 	bne nomat
-	cmpa ,x
+	cmpa 2,x
 	bne nomat
-	cmpb 1,x
-	beq gotit
+	cmpb 3,x
+	bne nomat
+	ldx 4,x
+	jmp ,x
 nomat:
+	inx
+	inx
 	inx
 	inx
 incmv:
@@ -27,10 +29,5 @@ incmv:
 moveon:
 	dec @tmp		; We know < 256 entries per switch
 	bne next
-	bra def
-gotit:
-	inx
-	inx
-def:
 	ldx ,x
 	jmp ,x

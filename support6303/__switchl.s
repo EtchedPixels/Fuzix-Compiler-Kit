@@ -6,20 +6,23 @@ __switchl:
 	; X holds the switch table, hireg:D the value
 	; Juggle as we are short of regs here - TODO find a nicer approach
 	std @tmp
-	ldab ,x
+	ldab 1,x		; length
 	stab @tmp1
 	inc @tmp1
 	bra incmv
 next:
 	ldd ,x
 	subd @hireg
-	inx
-	inx
 	bne nomat
 	ldd @tmp
-	subd ,x
-	beq gotit
+	subd 2,x
+	bne nomat
+	ldx 4,x
+	jmp ,x
+
 nomat:
+	inx
+	inx
 	inx
 	inx
 incmv:
@@ -28,10 +31,5 @@ incmv:
 moveon:
 	dec @tmp		; We know < 256 entries per switch
 	bne next
-	bra def
-gotit:
-	inx
-	inx
-def:
 	ldx ,x
 	jmp ,x
