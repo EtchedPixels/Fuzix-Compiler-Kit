@@ -173,7 +173,7 @@ struct node *gen_rewrite_node(register struct node *n)
 
 	/* Rewrite references into a load operation.
 	   Char is weird as we then use byte pointers and helpers so avoid */
-	if (nt == CSHORT || nt == USHORT || PTR(nt) || nt == CLONG || nt == ULONG ) {
+	if (nt == CSHORT || nt == USHORT || PTR(nt) || nt == CLONG || nt == ULONG || nt == FLOAT) {
 		if (op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
 				/* Offsets are in bytes, we are a word machine */
@@ -396,7 +396,7 @@ void gen_cleanup(unsigned v)
 	if (v == 0)
 		return;
 	sp -= v;
-	if (cpu > 3) {
+	if (cpu < 3) {
 		/* As is common we are switching back to the frame pointer
 		   being the sp base . TODO debug check */
 		if (sp == 0 && frame_len == 0)
@@ -447,7 +447,7 @@ void gen_helpcall(struct node *n)
 	if (c_style(n)) {
 		gen_push(n->right);
 		printf("\tjsr @1,1\n");
-		printf(".word __");
+		printf("\t.word __");
 	} else
 		printf("\tjsr @__");
 }
@@ -1640,6 +1640,8 @@ unsigned gen_node(struct node *n)
 		/* Already bool ? */
 		if (r->flags & ISBOOL)
 			return 1;
+		if (r->type == FLOAT)
+			return 0;
 		s = get_size(r->type);
 		if (s == 4) {
 			load_hireg(0);
@@ -1660,6 +1662,8 @@ unsigned gen_node(struct node *n)
 		/* TODO: could optimize bool not case to
 		   com 1,1 inc 1,1 but we need to sort out the
 		   conditional jump story first */
+		if (r->type == FLOAT)
+			return 0;
 		s = get_size(r->type);
 		if (s == 4) {
 			load_hireg(0);
@@ -1693,6 +1697,8 @@ unsigned gen_node(struct node *n)
 		}
 		return 1;
 	case T_MINUS:
+		if (r->type == FLOAT)
+			return 0;
 		if (s == 4) {
 			popa(0);
 			popa(2);
