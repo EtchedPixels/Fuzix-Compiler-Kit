@@ -11,6 +11,13 @@
 	psha 3
 ;
 
+	mov 3,1
+	sta 1,@__sp,0
+;
+=
+	sta 3,@__sp,0
+;
+
 #	Bool/jtrue or bool/jfalse and not
 	mov 1,1,szr
 	subzl 1,1
@@ -51,32 +58,67 @@
 	jsr @__derefc,0
 
 # Optimize pushes
-	jsr @__const,0
+	jsr @__const1,0
 	.word %1
 	psha 1
 =
 	jsr @__cpush,0
 	.word %1
 
-	jsr @__iconst,0
+	jsr @__iconst1,0
 	.word %1
 	psha 1
 =
 	jsr @__cipush,0
 	.word %1
 
-	jsr @__constl,0
+	jsr @__const1l,0
 	.word %1
-	.word $%2
+	.word %2
+	lda 0,__hireg,0
+	psha 0
 	psha 1
 =
 	jsr @__cpushl,0
 	.word %1
 	.word %2
 
-	jsr @__iconstl,0
+	jsr @__iconst1l,0
 	.word %1
 	psha 1
+=
+	jsr @__cipushl,0
+	.word %1
+
+# Optimize pushes
+	jsr @__const1,0
+	.word %1
+	sta 1,@__sp,0
+=
+	jsr @__cpush,0
+	.word %1
+
+	jsr @__iconst1,0
+	.word %1
+	sta 1,@__sp,0
+=
+	jsr @__cipush,0
+	.word %1
+
+	jsr @__const1l,0
+	.word %1
+	.word %2
+	lda 0,__hireg,0
+	sta 0,@__sp,0
+	sta 1,@__sp,0
+=
+	jsr @__cpushl,0
+	.word %1
+	.word %2
+
+	jsr @__iconst1l,0
+	.word %1
+	sta 1,@__sp,0
 =
 	jsr @__cipushl,0
 	.word %1
@@ -93,3 +135,34 @@
 	lda %1,%2,3
 =
 	sta %1,%2,3
+
+# Clean up cases the compiler didn't manage to avoid push/pops
+# (need two forms of the rule according to Nova type)
+
+	lda 1,%1
+	psha 1
+;
+	lda 1,%2
+	popa 0
+=
+	lda 0,%1
+	lda 1,%2
+
+	lda 1,%1
+	sta 1,@__sp,0
+;
+	lda 1,%2
+	dsz __sp,0
+	lda 0,@__sp,0
+	dsz __sp,0
+=
+	lda 0,%1
+	lda 1,%2
+
+#	Store and reload (need to make the target backend do these)
+#	FIXME
+	sta %1,%2
+	lda %1,%2
+=
+	sta %1,%2
+
