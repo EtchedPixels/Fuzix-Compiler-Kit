@@ -99,11 +99,11 @@ f__eqcget:
 	mov	2,1
 	jsr	f__derefc,1	; fetch byte we need
 	lda	3,__sp,0
-	lda	3,0,3		; get return back
+	lda	0,0,3		; get return back
 	sta	1,0,3		; swap with saved fetch value (left)
 	mov	1,2		; core code wants a copy to save in AC2
 	lda	1,__tmp2,0	; recover expression right
-	sta	3,__tmp,0	; and return
+	sta	0,__tmp,0	; and return
 	lda	3,__fp,0
 	jmp	@__tmp,0
 

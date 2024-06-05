@@ -61,8 +61,8 @@ f__xoreql:
 
 f__andl:
 	sta	3,__tmp,0
-	popa	2
 	popa	3
+	popa	2
 	lda	0,__hireg,0
 	and	2,0
 	and	3,1
@@ -72,8 +72,8 @@ f__andl:
 
 f__orl:
 	sta	3,__tmp,0
-	popa	2
 	popa	3
+	popa	2
 	lda	0,__hireg,0
 	com	2,2
 	and	2,0
@@ -87,6 +87,11 @@ f__orl:
 
 f__xorl:
 	sta	3,__tmp,0
+	popa	2		; low
+	mov	1,3
+	andzl	2,3
+	add	2,1
+	sub	3,1
 	popa	2		; high
 	lda	0,__hireg,0
 	mov	0,3
@@ -94,10 +99,5 @@ f__xorl:
 	add	2,0
 	sub	3,0
 	sta	0,__hireg,0
-	popa	2		; low
-	mov	1,3
-	andzl	2,3
-	add	2,1
-	sub	3,1
 	mffp	3
 	jmp	@__tmp,0

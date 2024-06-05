@@ -18,10 +18,11 @@
  *
  *	Add support for Nova4 (LDB STB)
  *	Add support for Mul/Div hardware
- *	Add support for Nova < 3 using helpers
  *
  *	Inline shifts (including using ADDZL for double left shift)
  *	IP Inline easy mul forms (0-16 etc)
+ *	Spot by 16+ shifts and move ?
+ *	Optimized long and or xor const
  *
  *	Shift optimized and short helper mul/div constant
  *	Inline small left and unsigned right shifts
@@ -181,7 +182,7 @@ struct node *gen_rewrite_node(register struct node *n)
 				   a 2 byte offset */
 				if (r->op == T_ARGUMENT) {
 					r->value = -(argbase + r->value) / 2;
-					if (nt == CLONG || nt == ULONG)
+					if (nt == CLONG || nt == ULONG || nt == FLOAT)
 						r->value --;
 				} else
 					/* Always word addressed */
@@ -883,7 +884,6 @@ unsigned add_constant(uint16_t v)
 static void node_word(struct node *n)
 {
 	unsigned v = n->value;
-	printf(";node word type %x\n", n->type);
 	if (n->op == T_CONSTANT) {
 		gen_wvalue(n->type, n->value);
 		return;
@@ -1242,6 +1242,14 @@ unsigned gen_uni_direct(struct node *n)
 	return 0;
 }
 
+static void gen_mffp(void)
+{
+	if (cpu >= 3)
+		printf("\tmffp 3\n");
+	else
+		printf("\tlda 3,__fp,0\n");
+}
+
 static void gen_isz(int d, unsigned s)
 {
 	if (s == 4) {
@@ -1253,8 +1261,11 @@ static void gen_isz(int d, unsigned s)
 	   went to 0 - carry */
 	printf("\tisz %d,3\n", d);
 	/* This might skip */
-	/* mffp 3 seems the fastest meh op */
-	printf("\tmffp 3\n");
+	/* mffp 3 seems the fastest meh op on the later Nova */
+	if (cpu >= 3)
+		printf("\tmffp 3\n");
+	else
+		printf("\tmov 1,1\n");
 }
 
 /*
@@ -1670,6 +1681,9 @@ unsigned gen_node(struct node *n)
 		s = get_size(r->type);
 		if (s == 4) {
 			load_hireg(0);
+			n->flags |= ISBOOL;
+			printf("\tsub 2,2\n");
+			store_hireg(2);
 			printf("\tmov# 1,1,snr\n");
 			printf("\tmov# 0,0,szr\n");
 			printf("\tsub 1,1,skp\n");
@@ -1685,6 +1699,8 @@ unsigned gen_node(struct node *n)
 		printf("\tsub 1,1\n");
 		return 1;
 	case T_PLUS:
+		if (r->type == FLOAT)
+			return 0;
 		if (s == 4) {
 			popa(0);
 			popa(2);
@@ -1693,7 +1709,7 @@ unsigned gen_node(struct node *n)
 			printf("\tinc 3,3\n");
 			printf("\tadd 2,3\n");
 			store_hireg(3);
-			printf("\tmffp 3\n");
+			gen_mffp();
 		} else { 
 			popa(0);
 			printf("\tadd 0,1\n");
@@ -1711,7 +1727,7 @@ unsigned gen_node(struct node *n)
 			printf("\tadc 2,3\n");
 			printf("\tmov 0,1\n");
 			store_hireg(3);
-			printf("\tmffp 3\n");
+			gen_mffp();
 		} else {
 			popa(0);
 			printf("\tsub 1,0\n");
@@ -1807,7 +1823,7 @@ unsigned gen_node(struct node *n)
 	case T_BANGEQ:
 		if (s == 4)
 			return 0;
-		printf("\tpopa 0\n");
+		popa(0);
 		printf("\tsub 0,1,szr\n");
 		printf("\tsubzl 1,1\n");
 		/* if we skipped then AC1 is already zero */

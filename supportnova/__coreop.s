@@ -114,26 +114,26 @@ f__sconst1:
 f__cpush:
 	lda	1,0,3
 	sta	1,@__sp,0
-	jmp	@outi,1
+	jmp	outi,1
 
 f__cpushl:
 	lda	0,0,3
 	inc	3,3
 	lda	1,0,3
-	sta	1,@__sp,0
 	sta	0,@__sp,0
-	jmp	@outi,1
+	sta	1,@__sp,0
+	jmp	outi,1
 
 f__cipush:
 	lda	2,0,3
 	lda	1,0,2
 	sta	1,@__sp,0
-	jmp	@outi,1
+	jmp	outi,1
 
 f__cipushl:
 	lda	2,0,3
 	lda	0,0,2
 	lda	1,1,2
-	sta	1,@__sp,0
 	sta	0,@__sp,0
-	jmp	@outi,1
+	sta	1,@__sp,0
+	jmp	outi,1
