@@ -28,8 +28,8 @@ loop:
 	movl	0,0
 	movl	3,3	; rotate bit into work (2,3)
 	movl	2,2
-	psha	0
-	psha	1
+	sta	0,__tmp6
+	sta	1,__tmp7
 	lda	0,__tmp2,0
 	lda	1,__tmp3,0
 	subz#	0,2,snr	; work >= divisor ?
@@ -39,11 +39,11 @@ loop:
 	subz	1,3,szc
 	sub	0,2,skp
 	adc	0,2
-	popa	1
+	lda	1,__tmp7,0
 	inc	1,1,skp
 nofit:
-	popa	1
-	popa	0
+	lda	1,__tmp7,0
+	lda	0,__tmp6,0
 	dsz	__tmp4,0
 	jmp	loop,1
 	; Result in 0,1 remainder in 2,3
@@ -80,14 +80,19 @@ f__divl:
 	jsr	negate,1
 	sta	0,__tmp2,0
 	sta	1,__tmp3,0
-	popa	1
-	popa	0
+	lda	3,__sp,0
+	lda	1,0,3
+	lda	0,-1,3
+	dsz	__sp,0
+	dsz	__sp,0
 	movl#	0,0,szc
 	jsr	negate,1
-	psha	2
+	sta	2,@__sp,0
 	jsr	dodiv32,1
 divout:
-	popa	2
+	lda	3,__sp,0
+	lda	2,0,3
+	dsz	__sp,0
 	movr#	2,2,szc
 	jsr	negate,1
 	sta	0,__hireg,0
@@ -99,14 +104,17 @@ f__reml:
 	lda	0,__hireg,0
 	movl#	0,0,szc
 	jsr	negate,1
-	sub	2,2
 	sta	0,__tmp2,0
 	sta	1,__tmp3,0
-	popa	1
-	popa	0
+	lda	2,__sp,0
+	lda	1,0,2
+	lda	0,-1,2
+	dsz	__sp,0
+	dsz	__sp,0
+	sub	2,2
 	movl#	0,0,szc
 	jsr	negate,1
-	psha	2
+	sta	2,@__sp,0
 	jsr	dodiv32,1
 	lda	0,__tmp2,0
 	lda	1,__tmp3,0
@@ -114,20 +122,24 @@ f__reml:
 
 f__divequl:
 	; Top of stack is the pointer
-	popa	2
-	psha	2
-	psha	3
+	lda	2,__sp,0
+	lda	2,0,2
+	sta	3,@__sp,0
 	lda	0,1,2
-	psha	0
+	sta	0,@__sp,0
 	lda	0,0,2
-	psha	0
+	sta	0,@__sp,0
 	;	Value from arg now stacked
 	lda	0,__hireg,0
 	;	0/1 is in the right places
 	jsr	f__divul,1
+uout:
 	;	result is in 0/1 (and hireg:1)
-	popa	3
-	popa	2
+	lda	2,__sp,0
+	lda	3,0,2
+	lda	2,-1,2
+	dsz	__sp,0
+	dsz	__sp,0
 	sta	0,0,2
 	sta	1,1,2
 	sta	3,__tmp,0
@@ -135,66 +147,51 @@ f__divequl:
 
 f__remequl:
 	; Top of stack is the pointer
-	popa	2
-	psha	2
-	psha	3
+	lda	2,__sp,0
+	lda	2,0,2
+	sta	3,@__sp,0
 	lda	0,1,2
-	psha	0
+	sta	0,@__sp,0
 	lda	0,0,2
-	psha	0
+	sta	0,@__sp,0
 	;	Value from arg now stacked
 	lda	0,__hireg,0
 	;	0/1 is in the right places
 	jsr	f__remul,1
 	;	result is in 0/1 (and hireg:1)
-	popa	3
-	popa	2
-	sta	0,0,2
-	sta	1,1,2
-	sta	3,__tmp,0
-	jmp	@__tmp,0
+	jmp	uout,1
 
 f__diveql:
 	; Top of stack is the pointer
-	popa	2
-	psha	2
-	psha	3
+	lda	2,__sp,0
+	lda	2,0,2
+	sta	3,@__sp,0
 	lda	0,1,2
-	psha	0
+	sta	0,@__sp,0
 	lda	0,0,2
-	psha	0
+	sta	0,@__sp,0
 	;	Value from arg now stacked
 	lda	0,__hireg,0
 	;	0/1 is in the right places
 	jsr	f__divl,1
 	;	result is in 0/1 (and hireg:1)
-	popa	3
-	popa	2
-	sta	0,0,2
-	sta	1,1,2
-	sta	3,__tmp,0
-	jmp	@__tmp,0
+	jmp	uout,1
 
 f__remeql:
 	; Top of stack is the pointer
-	popa	2
-	psha	2
-	psha	3
+	lda	2,__sp,0
+	lda	2,0,2
+	sta	3,@__sp,0
 	lda	0,1,2
-	psha	0
+	sta	0,@__sp,0
 	lda	0,0,2
-	psha	0
+	sta	0,@__sp,0
 	;	Value from arg now stacked
 	lda	0,__hireg,0
 	;	0/1 is in the right places
 	jsr	f__reml,1
 	;	result is in 0/1 (and hireg:1)
-	popa	3
-	popa	2
-	sta	0,0,2
-	sta	1,1,2
-	sta	3,__tmp,0
-	jmp	@__tmp,0
+	jmp	uout,1
 
 negate:
 	sta	3,__tmp,0
