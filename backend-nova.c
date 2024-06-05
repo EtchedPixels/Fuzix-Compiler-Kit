@@ -283,10 +283,10 @@ static void repeated_op(unsigned n, char *op)
 void gen_frame(unsigned size, unsigned aframe)
 {
 	frame_len = size;
-	argbase = ARGBASE;
 	sp = 0;
 	/* Remember the stack grows upwards so values are negative offsets */
 	if (cpu >= 3) {
+		argbase = ARGBASE;
 		printf("\tsav\n");
 		printf("\tisz 0,3\n");	/* Will never skip */
 		if (size == 0)
@@ -302,9 +302,11 @@ void gen_frame(unsigned size, unsigned aframe)
 		} else
 			repeated_op(size, "psha 0");
 	} else {
+		/* We push a smaller frame (ret and old fp) */
+		argbase = 4;	/* In bytes */
 		/* We can uninline most of this */
 		printf("\tmov 3,2\n");
-		printf("\tjsr @enter,0\n");
+		printf("\tjsr @__enter,0\n");
 		printf("\t.word %u\n", size);
 	}
 	printf(";\n");
@@ -322,7 +324,7 @@ void gen_epilogue(unsigned size, unsigned argsize)
 			printf("\tsta 1,-3,3\n");
 		printf("\tret\n");
 	} else
-		printf("\tjmp @ret,0\n");
+		printf("\tjmp @__ret,0\n");
 	unreachable = 1;
 }
 
@@ -334,22 +336,23 @@ void gen_label(const char *tail, unsigned n)
 
 unsigned gen_exit(const char *tail, unsigned n)
 {
+	unreachable = 1;
 	/* It's as cheap to return as jmp ahead for some cases */
 	if (cpu >= 3) {
 		if (!(func_flags & F_VOIDRET))
 			printf("\tsta 1,-3,3\n");
 		printf("\tret\n");
 	} else {
-		printf("\tjmp @ret\n");
+		printf("\tjmp @__ret,0\n");
 	}
-	unreachable = 1;
-	return 0;
+	return 1;
 }
 
 void gen_jump(const char *tail, unsigned n)
 {
 	printf("\tjmp @1,1\n");
 	printf("\t.word L%d%s\n", n, tail);
+	unreachable = 1;
 }
 
 void gen_jfalse(const char *tail, unsigned n)
@@ -400,15 +403,15 @@ void gen_cleanup(unsigned v)
 		/* As is common we are switching back to the frame pointer
 		   being the sp base . TODO debug check */
 		if (sp == 0 && frame_len == 0)
-			printf("\tsta 3,sp,0\n");
+			printf("\tsta 3,__sp,0\n");
 		else if (v > 5) {
-			printf("\tlda 0,sp,0\n");
+			printf("\tlda 0,__sp,0\n");
 			printf("\tlda 2,2,1\n");
 			printf("\tadd 2,0,skp\n");
 			printf("\t.word %u\n", (-v) & 0xFFFF);
-			printf("\tsta 2,sp,0\n");
+			printf("\tsta 2,__sp,0\n");
 		} else {
-			repeated_op(v, "dsz sp,0");
+			repeated_op(v, "dsz __sp,0");
 		}
 	} else {
 		if (sp == 0 && frame_len == 0)
@@ -595,9 +598,9 @@ void popa(unsigned r)
 		printf("\tpopa %u\n", r);
 	else	{
 		/* Have to do double dec due to the autoinc */
-		printf("\tdsz sp,0\n");
-		printf("\tlda %u,@sp,0\n", r);
-		printf("\tdsz sp,0\n");
+		printf("\tdsz __sp,0\n");
+		printf("\tlda %u,@__sp,0\n", r);
+		printf("\tdsz __sp,0\n");
 	}
 }
 
@@ -606,7 +609,7 @@ void psha(unsigned r)
 	if (cpu >= 3)
 		printf("\tpsha %u\n", r);
 	else
-		printf("\tsta %u,@sp,0\n", r);
+		printf("\tsta %u,@__sp,0\n", r);
 }
 
 /* So we can track this later and suppress some */
