@@ -157,6 +157,7 @@ const char *def8070[] = { "__8070__", NULL };
 const char *def8086[] = { "__8086__", NULL };
 const char *def80186[] = { "__8086__", "__80186__", NULL };
 const char *defee200[] = { "__ee200__", "__cpu4__", NULL };
+const char *defnova[] = { "__nova__", NULL };
 const char *defnova3[] = { "__nova3__", "__nova__", NULL };
 
 const char *ld6502[] = { "-b", "-C", "512", "-Z", "0x00", NULL };
@@ -166,7 +167,7 @@ const char *ld8070[] = { "-b", "-C", "1", NULL };
 const char *ld8080[] = { "-b", "-C", "256", NULL };
 const char *ld8086[] = { "-b", "-C", "256", NULL };
 const char *ldee200[] = { "-b", "-C", "256", NULL };
-const char *ldnova[] = { "-b", "-Z", "0", "-C", "512", NULL };
+const char *ldnova[] = { "-b", "-Z", "050", "-C", "512", NULL };
 const char *ldbyte[] =  { NULL };
 const char *ldthread[] = { NULL };
 const char *cpucode;
@@ -198,7 +199,13 @@ struct cpu_table cpu_rules[] = {
 	{ "8086", "8086", ".8086", "lib8086.a", "8086", def8086, ld8086, "86" , 0, NULL},
 	{ "80186", "8086", ".8086", "lib80186.a", "80186", def80186, ld8086, "186" , 0, NULL},
 	{ "ee200", "ee200", ".ee200", "libee200.a", "ee200", defee200, ldee200, "4", 0, NULL },
-	{ "nova3", "nova", ".nova", "libnova.a", "nova", defnova3, ldnova, "3", 0, NULL },
+	/* For now we are not doing anything with the CPU features on later processors */
+	{ "wrx5", "ee200", ".ee200", "libee200.a", "ee200", defee200, ldee200, "5", 0, NULL },
+	{ "wrx6", "ee200", ".ee200", "libee200.a", "ee200", defee200, ldee200, "6", 0, NULL },
+	/* Nova with autoinc/dec but not necessarily stack */
+	{ "nova", "nova", ".nova", "libnova.a", "nova", defnova, ldnova, "0", 0, NULL },
+	/* Nova with stack hardware (3+) */
+	{ "nova3", "nova", ".nova", "libnova3.a", "nova", defnova3, ldnova, "3", 0, NULL },
 	{ NULL }
 };
 
