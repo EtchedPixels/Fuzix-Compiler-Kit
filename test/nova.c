@@ -3,8 +3,6 @@
  *
  *	This is not a full emulation. No device I/O emulation, interrupts,
  *	etc etc. Just the core user bits.
- *
- *	At this point we behave like a micronova, with no autoinc/dec locations
  */
 
 #include <stdint.h>
@@ -29,20 +27,10 @@ static unsigned op_indirect;
 static int8_t op_disp;
 static uint16_t ea;
 
-/* TODO: autoinc and autodec on non micronova */
-static uint16_t indirect(uint16_t baddr)
-{
-    unsigned n = 0;
-    uint16_t addr = baddr;
-    while (addr & 0x8000) {
-        if (n++ == 64) {
-            fprintf(stderr, "***indirection loop at %x\n", baddr);
-            exit(1);
-        }
-        addr = ntohs(ram[addr & 0x7FFF]);
-    }
-    return addr;
-}
+/*
+ *	On a Nova (but not microNova) the addresses 020-037 are special
+ *	and are autoinc 02x or autodec 03x when indirected through
+ */
 
 static uint16_t read_mem(uint16_t addr)
 {
@@ -51,13 +39,39 @@ static uint16_t read_mem(uint16_t addr)
 
 static void write_mem(uint16_t addr, int16_t v)
 {
-    if ((addr & 0x7FFF) < 86) {
-        fprintf(stderr, "***WFAULT at %x\n", reg_pc);
-        exit(1);
-    }
     ram[addr & 0x7FFF] = htons(v);
 }
+
+static void automod(uint16_t addr)
+{
+    if (addr >= 020 && addr <= 027)
+        write_mem(addr, read_mem(addr) + 1);
+    else if (addr >= 030 && addr <= 037)
+        write_mem(addr, read_mem(addr) - 1);
+}
+
+/* Do an indirected address. The address we are passed is the EA
+   of the instruction. This contains the address to use. If the
+   address to use also has the indirect bit continue indirecting */
+static uint16_t indirect(uint16_t baddr)
+{
+    unsigned n = 0;
+    uint16_t addr = baddr;
     
+    do {
+        /* Autoinc and autodec apply before the indirect read */
+        automod(addr);
+        addr = ntohs(ram[addr & 0x7FFF]);
+        if (n++ == 64) {
+            fprintf(stderr, "***indirection loop at %x\n", baddr);
+            exit(1);
+        }
+        /* If the resulting address is itself indirecting then follow
+           the chain */
+    } while (addr & 0x8000);
+    return addr;
+}
+
 static uint16_t modify_ea(int n)
 {
     uint16_t v = read_mem(ea);
@@ -87,7 +101,7 @@ void opdecode(void)
         break;
     }
     if (op_indirect)
-        ea = indirect(read_mem(ea));
+        ea = indirect(ea);
 }
 
 /* 011 AC Op.3 F.2 Dev.6 */
