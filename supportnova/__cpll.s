@@ -1,0 +1,11 @@
+	.export f__cpll
+	.code
+
+f__cpll:
+	sta	3,__tmp,0
+	lda	0,__hireg,0
+	com	0,0
+	com	1,1
+	sta	0,__hireg,0
+	lda	3,__fp,0
+	jmp	@__tmp,0
