@@ -22,6 +22,11 @@
 ;	popa3:	lda	3,sp,0	lda 3,0,3, dsz sp,0
 ;
 ;
+	.export f__enter
+	.export f__ret
+
+	.code
+
 ;
 ;	called with
 ;	mov	3,2
@@ -33,25 +38,29 @@ f__enter:
 	inc	3,3
 	sta	3,__tmp,0
 	lda	0,__fp,0
+	inc	2,2		; skip over .word following entry jsr
 	sta	2,@__sp,0	; stack return address
 	sta	0,@__sp,0	; stack previous frame pointer
 	lda	0,__sp,0
 	sta	0,__fp,0	; set new frame pointer
 	add	1,0		; adjust sp for new frame size
-	sta	0,sp,0		; store new sp
-	jmp	__tmp,0		; back to caller
+	sta	0,__sp,0	; store new sp
+	lda	3,__fp,0
+	jmp	@__tmp,0		; back to caller
 
 ;
-;	jmp	@ret
+;	jmp	@__ret
+;	Preserves AC1
 ;
-ret:
+f__ret:
 	lda	2,__fp,0	; frame that was saved
-	lda	1,0,2		; get the old fp
-	sta	1,__fp,0	; restore it
-	lda	1,-1,2		; get the return address
+	lda	3,0,2		; get the old fp
+	sta	3,__fp,0	; restore it
+	lda	3,-1,2		; get the return address
 	sub	0,0
 	inczl	0,0		; get value 2
 	sub	0,2
 	sta	2,__sp,0	; store stack pointer
-	sta	1,__tmp,0
+	sta	3,__tmp,0
+	lda	3,__fp,0
 	jmp	@__tmp,0

@@ -31,6 +31,9 @@
 	.export __cipush
 	.export __cipushl
 
+	.export __enter
+	.export __ret
+
 	.export __derefc
 	.export __derefuc
 	.export __assignc
@@ -158,8 +161,11 @@ __cpushl:	.word f__cpushl
 __cipush:	.word f__cipush
 __cipushl:	.word f__cipushl
 
-__derefc:
-__derefuc:	.word f__derefc
+__enter:	.word f__enter
+__ret:		.word f__ret
+
+__derefc:	.word f__derefc
+__derefuc:	.word f__derefuc
 __assignc:	.word f__assignc
 __pluseqc:	.word f__pluseqc
 __eqcget:	.word f__eqcget

@@ -10,6 +10,8 @@
 	.export __tmp3
 	.export __tmp4
 	.export __tmp5
+	.export __tmp6
+	.export __tmp7
 	.export __fp
 	.export __sp
 
@@ -22,9 +24,14 @@ __tmp3:	.word	0
 __tmp4:	.word	0
 __tmp5:	.word	0
 __tmp6:	.word	0
+__tmp7:	.word	0
 
 ;
 ;	Autoinc for SP
 ;
-__sp	.equ	020
+	.abs
+	.org	020
+
+__sp:	.word	0
+
 

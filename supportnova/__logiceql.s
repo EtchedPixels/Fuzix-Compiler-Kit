@@ -69,8 +69,8 @@ f__andl:
 	lda	2,__sp,0
 	lda	3,-1,2
 	lda	2,0,2
-	dsz	sp
-	dsz	sp
+	dsz	__sp,0
+	dsz	__sp,0
 	lda	0,__hireg,0
 	and	2,0
 	and	3,1
@@ -83,8 +83,8 @@ f__orl:
 	lda	2,__sp,0
 	lda	3,-1,2
 	lda	2,0,2
-	dsz	sp
-	dsz	sp
+	dsz	__sp,0
+	dsz	__sp,0
 	lda	0,__hireg,0
 	com	2,2
 	and	2,0

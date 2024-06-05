@@ -82,8 +82,8 @@ n1:
 	movl#	2,2,szc
 	jmp	neg2,1
 n2:
-	sta	0,@__spm0
-	sta	2,@__spm0
+	sta	0,@__sp,0
+	sta	2,@__sp,0
 	jsr	f__divu,1
 done:
 	lda	3,__sp,0

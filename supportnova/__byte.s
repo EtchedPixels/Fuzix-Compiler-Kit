@@ -38,9 +38,9 @@ f__derefuc:
 	jmp	@__tmp,0
 
 f__assignc:
-	lda	2,sp,0
+	lda	2,__sp,0
 	lda	2,0,2
-	dsz	sp,0
+	dsz	__sp,0
 	sta	3,__tmp,0
 	lda	3,N255,0
 	and	3,1		; mask input
@@ -56,9 +56,9 @@ f__assignc:
 
 ; byte at AC2 += AC1
 f__pluseqc:
-	lda	2,sp,0
+	lda	2,__sp,0
 	lda	2,0,2
-	dsz	sp,0		; byte pointer
+	dsz	__sp,0		; byte pointer
 	sta	3,__tmp,0
 	movr	2,2,szc		; get actual word, decide side
 	jmp	loplus,1	; carry zero high byte

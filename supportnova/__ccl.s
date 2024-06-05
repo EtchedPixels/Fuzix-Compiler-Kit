@@ -20,8 +20,8 @@ f__cceql:
 	lda	2,__sp,0
 	lda	3,0,2
 	lda	2,-1,2
-	dsz	sp
-	dsz	sp
+	dsz	__sp,0
+	dsz	__sp,0
 	lda	0,__hireg,0
 	sub	0,2,szr
 	jmp	false,1
@@ -37,8 +37,8 @@ f__ccnel:
 	lda	2,__sp,0
 	lda	3,0,2
 	lda	2,-1,2
-	dsz	sp
-	dsz	sp
+	dsz	__sp,0
+	dsz	__sp,0
 	lda	0,__hireg,0
 	sub	2,0,snr		; high differs -> true
 	sub	3,1,szr		; test low, skip if 0
@@ -54,8 +54,8 @@ f__cclteql:
 	lda	2,__sp,0
 	lda	3,0,2
 	lda	2,-1,2
-	dsz	sp
-	dsz	sp
+	dsz	__sp,0
+	dsz	__sp,0
 	lda	0,__hireg,0
 	movl	0,0
 	movcr	0,0
@@ -67,8 +67,8 @@ f__ccltequl:
 	lda	2,__sp,0
 	lda	3,0,2
 	lda	2,-1,2
-	dsz	sp
-	dsz	sp
+	dsz	__sp,0
+	dsz	__sp,0
 	lda	0,__hireg,0
 dolteq:
 	sub#	2,0,snr		; skip if A != B
@@ -88,8 +88,8 @@ f__ccgtl:
 	lda	2,__sp,0
 	lda	3,0,2
 	lda	2,-1,2
-	dsz	sp
-	dsz	sp
+	dsz	__sp,0
+	dsz	__sp,0
 	lda	0,__hireg,0
 	movl	0,0
 	movcr	0,0
@@ -101,8 +101,8 @@ f__ccgtul:
 	lda	2,__sp,0
 	lda	3,0,2
 	lda	2,-1,2
-	dsz	sp
-	dsz	sp
+	dsz	__sp,0
+	dsz	__sp,0
 	lda	0,__hireg,0
 dogtl:
 	sub#	2,0,snr		; skip if  A != B
@@ -122,8 +122,8 @@ f__ccltl:
 	lda	2,__sp,0
 	lda	3,0,2
 	lda	2,-1,2
-	dsz	sp
-	dsz	sp
+	dsz	__sp,0
+	dsz	__sp,0
 	lda	0,__hireg,0
 	movl	0,0
 	movcr	0,0
@@ -135,8 +135,8 @@ f__ccltul:
 	lda	2,__sp,0
 	lda	3,0,2
 	lda	2,-1,2
-	dsz	sp
-	dsz	sp
+	dsz	__sp,0
+	dsz	__sp,0
 	lda	0,__hireg,0
 doltl:
 	sub#	2,0,snr		; skip if A != B
@@ -156,8 +156,8 @@ f__ccgteql:
 	lda	2,__sp,0
 	lda	3,0,2
 	lda	2,-1,2
-	dsz	sp
-	dsz	sp
+	dsz	__sp,0
+	dsz	__sp,0
 	lda	0,__hireg,0
 	movl	0,0
 	movcr	0,0
@@ -169,8 +169,8 @@ f__ccgtequl:
 	lda	2,__sp,0
 	lda	3,0,2
 	lda	2,-1,2
-	dsz	sp
-	dsz	sp
+	dsz	__sp,0
+	dsz	__sp,0
 	lda	0,__hireg,0
 dogteql:
 	sub#	2,0,snr		; skip if A != B

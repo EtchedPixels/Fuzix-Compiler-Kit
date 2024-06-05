@@ -11,7 +11,7 @@
 f__shleq:
 	lda	2,__sp,0
 	lda	2,0,2		;	pointer
-	dsz	sp
+	dsz	__sp,0
 	neg	1,0
 	lda	1,0,2
 	mov#	0,0,snr
@@ -28,7 +28,7 @@ out:	sta	3,__tmp,0
 f__shrequ:
 	lda	2,__sp,0
 	lda	2,0,2		;	pointer
-	dsz	sp
+	dsz	__sp,0
 	neg	1,0
 	lda	1,0,2
 	mov#	0,0,snr
@@ -42,7 +42,7 @@ shrulp:
 f__shreq:
 	lda	2,__sp,0
 	lda	2,0,2		;	pointer
-	dsz	sp
+	dsz	__sp,0
 	neg	1,0
 	lda	1,0,2
 	mov#	0,0,snr
@@ -58,7 +58,7 @@ f__shleql:
 	sta	3,__tmp,0
 	lda	2,__sp,0
 	lda	2,0,2		;	pointer
-	dsz	sp
+	dsz	__sp,0
 	neg	1,0
 	lda	3,0,2
 	lda	1,1,2
@@ -81,7 +81,7 @@ f__shrequl:
 	sta	3,__tmp,0
 	lda	2,__sp,0
 	lda	2,0,2		;	pointer
-	dsz	sp
+	dsz	__sp,0
 	neg	1,0
 	lda	3,0,2
 	lda	1,1,2
@@ -98,7 +98,7 @@ f__shreql:
 	sta	3,__tmp,0
 	lda	2,__sp,0
 	lda	2,0,2		;	pointer
-	dsz	sp
+	dsz	__sp,0
 	neg	1,0
 	lda	3,0,2
 	lda	1,1,2
