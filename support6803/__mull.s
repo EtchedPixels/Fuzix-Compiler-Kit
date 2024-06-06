@@ -103,8 +103,8 @@ is_done:
 	pula
 	pulb
 	pulx
-	inx
-	inx
-	inx
-	inx
+	ins
+	ins
+	ins
+	ins
 	rts
