@@ -17,7 +17,8 @@
  *	TODO:
  *
  *	Add support for Nova4 (LDB STB)
- *	Add support for Mul/Div hardware
+ *	DONE: Add support for Mul/Div hardware
+ *	DONE: Inline small left and unsigned right shifts
  *
  *	Inline shifts (including using ADDZL for double left shift)
  *	IP Inline easy mul forms (0-16 etc)
@@ -25,8 +26,6 @@
  *	Optimized long and or xor const
  *
  *	Shift optimized and short helper mul/div constant
- *	Inline small left and unsigned right shifts
- *	Inline by 8 shifts
  *
  *	Compare optimizations. We can do better stuff
  *	for 0 based compares, for 1 and -1 compares which
@@ -35,6 +34,9 @@
  *	Track contents of AC1 so we can avoid reloading constants
  *	(may be worth tracing AC0 too but less clear)
  *	Track whether AC0 holds __hireg and optimize load/saves of it
+ *
+ *	LDEREF and equivalents akin to 6809 as we can also do stuff like
+ *	lda 1,@n,3 to index through a local pointer
  *
  *	Byte LREF/LSTORE etc
  *
@@ -1127,7 +1129,34 @@ unsigned gen_direct(struct node *n)
 		break;
 	/* And some of the shift forms for constant */
 	case T_LTLT:
+		if (r->op == T_CONSTANT && s == 2) {
+			v = r->value;
+			if (v > 15)
+				return 1;
+			if (v <= 10) {
+				if (v & 1)
+					printf("\tmovzl 1,1\n");
+				repeated_op(v / 2, "addzl 1,1");
+				return 1;
+			}
+		}
+		break;
 	case T_GTGT:
+		if (r->op == T_CONSTANT && s == 2) {
+			v = r->value;
+			if (v > 15)
+				return 1;
+			if (v < 5 + opt && (n->type & UNSIGNED)) {
+				repeated_op(v, "movzr 1,1");
+				return 1;
+			}
+			/* Signed. Do a left shift and discard to prime
+			   carry then rotate right */
+			if (v < 3 + opt) {
+				repeated_op(v, "movzl# 1,1\n\tmovr 1,1");
+				return 1;
+			}
+		}
 		break;
 	/* Plus some constant compares */
 	case T_EQEQ:
