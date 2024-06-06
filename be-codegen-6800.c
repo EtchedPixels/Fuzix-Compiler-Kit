@@ -1367,7 +1367,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		load32(v);
-		break;
+		return 1;
 	case T_EQ:	/* Assign - ToS is address, working value is value */
 	case T_EQPLUS:
 		invalidate_mem();
