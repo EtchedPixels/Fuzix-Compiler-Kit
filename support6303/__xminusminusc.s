@@ -8,7 +8,8 @@
 __xmminusc:
 __xmminusuc:
 	ldaa ,x
+	psha
 	sba
 	staa ,x
-	tab
+	pulb
 	rts
