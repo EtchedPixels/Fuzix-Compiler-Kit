@@ -8,12 +8,12 @@
 
 __orl:
 	tsx
-	orab 0,x
-	oraa 1,x
+	orab 5,x
+	oraa 4,x
 	std @tmp
 	ldd @hireg
-	orab 2,x
-	oraa 3,x
+	orab 3,x
+	oraa 2,x
 	std @hireg
 	ldd @tmp
 	pulx

@@ -8,12 +8,12 @@
 
 __xorl:
 	tsx
-	eorb 0,x
-	eora 1,x
+	eorb 5,x
+	eora 4,x
 	std @tmp
 	ldd @hireg
-	eorb 2,x
-	eora 3,x
+	eorb 3,x
+	eora 2,x
 	std @hireg
 	ldd @tmp
 	pulx

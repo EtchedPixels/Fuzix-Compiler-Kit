@@ -8,12 +8,12 @@
 
 __bandl:
 	tsx
-	andb 0,x
-	anda 1,x
+	andb 5,x
+	anda 4,x
 	std @tmp
 	ldd @hireg
-	andb 2,x
-	anda 3,x
+	andb 3,x
+	anda 2,x
 	std @hireg
 	ldd @tmp
 	pulx

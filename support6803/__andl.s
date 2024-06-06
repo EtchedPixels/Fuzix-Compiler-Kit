@@ -8,15 +8,15 @@
 
 __bandl:
 	tsx
-	andb 0,x
-	anda 1,x
-	std @tmp
+	andb 5,x	; low word
+	anda 4,x
+	std @tmp	; save
 	ldd @hireg
-	andb 2,x
-	anda 3,x
+	andb 3,x
+	anda 2,x	; high word
 	std @hireg
-	ldd @tmp
-	pulx
+	ldd @tmp	; restore
+	pulx		; clean up
 	ins
 	ins
 	ins
