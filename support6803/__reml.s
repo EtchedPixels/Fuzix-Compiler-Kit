@@ -11,10 +11,10 @@ __reml:
 	jsr	__negatel
 	std	@tmp
 nosignfix:
-	ldd	@hireg
+	ldd	@tmp
 	pshb
 	psha
-	ldd	@tmp
+	ldd	@hireg
 	pshb
 	psha
 	tsx

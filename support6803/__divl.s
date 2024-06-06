@@ -14,10 +14,10 @@ __divl:
 	inc	@tmp4
 	std	@tmp	; save again
 nosignfix:
-	ldd	@hireg
+	ldd	@tmp
 	pshb
 	psha
-	ldd	@tmp	; low word back
+	ldd	@hireg	; high word back
 	pshb	; stack it
 	psha
 	tsx
@@ -39,14 +39,16 @@ nosignfix:
 	com	8,x
 	com	9,x
 nosignfix2:
+	tsx
 	jsr	div32x32
 	pulx
 	pulx
 	pulx	; return
 	ldab	@tmp4
 	rorb
-	ins
-	ins
+	pula
+	pulb
+	std	@hireg
 	bcc	nosignfix3
 	pula
 	pulb
