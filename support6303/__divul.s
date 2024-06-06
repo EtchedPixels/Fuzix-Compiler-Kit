@@ -13,8 +13,9 @@ __divul:
 	pulx
 	pulx
 	pulx
-	ins
-	ins
+	pula
+	pulb
+	std	@hireg
 	pula
 	pulb
 	jmp	,x

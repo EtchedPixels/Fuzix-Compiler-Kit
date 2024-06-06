@@ -3,20 +3,18 @@
 
 	.setcpu 6303
 __reml:
-	xgdx
+	xgdx			; save the low half in X
 	ldaa	@hireg
 	bita	#0x80
 	beq	nosignfix
-	xgdx
+	xgdx			; low half back into D
 	jsr	__negatel
-	xgdx
+	xgdx			; and into X
 nosignfix:
-	ldd	@hireg
-	pshb
-	psha
-	xgdx
-	pshb
-	psha
+	pshx			; stack low half
+	ldx	@hireg
+	pshx			; stack high half
+
 	tsx
 	;
 	;	Sign check
