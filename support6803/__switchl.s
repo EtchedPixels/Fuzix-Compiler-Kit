@@ -4,7 +4,6 @@
 
 __switchl:
 	; X holds the switch table, hireg:D the value
-	; Juggle as we are short of regs here - TODO find a nicer approach
 	std @tmp
 	ldab 1,x		; length
 	stab @tmp1
@@ -14,8 +13,8 @@ next:
 	ldd ,x
 	subd @hireg
 	bne nomat
-	ldd @tmp
-	subd 2,x
+	ldd 2,x
+	subd @tmp
 	bne nomat
 	ldx 4,x
 	jmp ,x
@@ -29,7 +28,7 @@ incmv:
 	inx
 	inx
 moveon:
-	dec @tmp		; We know < 256 entries per switch
+	dec @tmp1		; We know < 256 entries per switch
 	bne next
 	ldx ,x
 	jmp ,x
