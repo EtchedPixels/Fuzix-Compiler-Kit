@@ -10,7 +10,7 @@
  *	Fix up weirdness in the asm formats.
  */
 
-static const char *remap_op(const char *op)
+static const char *remap_op(register const char *op)
 {
 	/* Some 68xx ops are a bit irregular
 	   - ldd v ldab etc */
@@ -26,7 +26,7 @@ static const char *remap_op(const char *op)
 /* 16bit constant load */
 void load_d_const(uint16_t n)
 {
-	unsigned hi,lo;
+	register unsigned hi,lo;
 
 	lo = n & 0xFF;
 	hi = n >> 8;
@@ -72,7 +72,7 @@ void load_d_const(uint16_t n)
 
 }
 
-void load_a_const(uint8_t n)
+void load_a_const(register uint8_t n)
 {
 	if (a_valid && n == a_val)
 		return;
@@ -87,7 +87,7 @@ void load_a_const(uint8_t n)
 	d_valid = 0;
 }
 
-void load_b_const(uint8_t n)
+void load_b_const(register uint8_t n)
 {
 	if (b_valid && n == b_val)
 		return;
@@ -102,7 +102,7 @@ void load_b_const(uint8_t n)
 	d_valid = 0;
 }
 
-void add_d_const(uint16_t n)
+void add_d_const(register uint16_t n)
 {
 	if (n == 0)
 		return;
@@ -128,7 +128,7 @@ void add_d_const(uint16_t n)
 	b_val += (n & 0xFF);
 }
 
-void add_b_const(uint8_t n)
+void add_b_const(register uint8_t n)
 {
 	if (n == 0)
 		return;
@@ -223,10 +223,10 @@ void pop_x(void)
  *	There are multiple strategies depnding on chip features
  *	available.
  */
-void adjust_s(int n, unsigned save_d)
+void adjust_s(register int n, unsigned save_d)
 {
-	unsigned abxcost = 3 + 2 * save_d +  n / 255;
-	unsigned hardcost;
+	register unsigned abxcost = 3 + 2 * save_d +  n / 255;
+	register unsigned hardcost;
 	unsigned cost;
 
 	if (cpu_has_d)
@@ -421,7 +421,7 @@ void op32d_on_ptr(const char *op, const char *op2, unsigned off)
 	}
 }
 
-void load32(unsigned off)
+void load32(register unsigned off)
 {
 	if (cpu_has_y) {
 		printf("\tldd %u,x\n", off);
@@ -433,6 +433,22 @@ void load32(unsigned off)
 		printf("\tldaa %u,x\nldab %u,x\n\tldx %u,x\nstx @hireg\n",
 			off + 2, off + 3, off);
 		invalidate_x();
+	}
+}
+
+void store32(register unsigned off)
+{
+	if (cpu_has_y) {
+		printf("\tsty %u,x\n", off);
+		printf("\tstd %u,x\n", off + 2);
+	} else if (cpu_has_d) {
+		printf("\tstd %u,x\n\tldd @hireg\n\tstd %u,x\n\tldd %u,x\n",
+			off + 2, off, off + 2);
+	} else {
+		printf("\tstab %u,x\n\tstaa %u,x\n\tpsha\n", off + 3, off + 2);
+		printf("\tldaa @hireg+1\nstaa %u,x\n", off + 1);
+		printf("\tldaa @hireg\nstaa %u,x\n", off);
+		printf("\tpula\n");
 	}
 }
 
@@ -579,9 +595,9 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 }
 
 /* Do the low byte first in case it's add adc etc */
-unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned off)
+unsigned op16_on_node(register struct node *r, const char *op, const char *op2, unsigned off)
 {
-	unsigned v = r->value;
+	register unsigned v = r->value;
 
 	invalidate_work();
 
@@ -613,7 +629,7 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 	return 1;
 }
 
-unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned off)
+unsigned op16d_on_node(register struct node *r, const char *op, const char *op2, unsigned off)
 {
 	unsigned v = r->value;
 
@@ -639,7 +655,7 @@ unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned
 	return 1;
 }
 
-unsigned op16y_on_node(struct node *r, const char *op, unsigned off)
+unsigned op16y_on_node(register struct node *r, const char *op, unsigned off)
 {
 	unsigned v = r->value;
 	switch(r->op) {
@@ -662,7 +678,7 @@ unsigned op16y_on_node(struct node *r, const char *op, unsigned off)
 	return 1;
 }
 
-unsigned write_op(struct node *r, const char *op, const char *op2, unsigned off)
+unsigned write_op(register struct node *r, const char *op, const char *op2, unsigned off)
 {
 	unsigned s = get_size(r->type);
 	if (s == 2)
@@ -723,7 +739,7 @@ static void op8_on_tos(const char *op)
 
 static void op16_on_tos(const char *op)
 {
-	unsigned off;
+	register unsigned off;
 	op = remap_op(op);
 	invalidate_work();
 	off = make_tos_ptr();
@@ -744,9 +760,9 @@ static void op16d_on_tos(const char *op)
 }
 
 /* Only used for operations where there is no ordering requirement */
-unsigned write_tos_op(struct node *n, const char *op)
+unsigned write_tos_op(struct node *n, register const char *op)
 {
-	unsigned s = get_size(n->type);
+	register unsigned s = get_size(n->type);
 	if (s > 2 && !cpu_has_y)
 		return 0;
 	if (s == 4) {
@@ -783,9 +799,9 @@ static void uniop8_on_tos(const char *op)
 	printf("\tins\n");
 }
 
-static void uniop16_on_tos(const char *op)
+static void uniop16_on_tos(register const char *op)
 {
-	unsigned off = make_tos_ptr();
+	register unsigned off = make_tos_ptr();
 	invalidate_work();
 	printf("\t%s %u,x\n", op, off + 1);
 	printf("\t%s %u,x\n", op, off);
@@ -793,7 +809,7 @@ static void uniop16_on_tos(const char *op)
 	printf("\tins\n");
 }
 
-unsigned write_tos_uniop(struct node *n, const char *op)
+unsigned write_tos_uniop(struct node *n, register const char *op)
 {
 	unsigned s = get_size(n->type);
 	if (s > 2)
@@ -808,10 +824,10 @@ unsigned write_tos_uniop(struct node *n, const char *op)
 
 /* TODO: decide how much we inline for -Os */
 
-unsigned left_shift(struct node *n)
+unsigned left_shift(register struct node *n)
 {
-	unsigned s = get_size(n->type);
-	unsigned v;
+	register unsigned s = get_size(n->type);
+	register unsigned v;
 
 	if (s > 2 || n->right->op != T_CONSTANT)
 		return 0;
@@ -848,11 +864,11 @@ unsigned left_shift(struct node *n)
 	return 0;
 }
 
-unsigned right_shift(struct node *n)
+unsigned right_shift(register struct node *n)
 {
-	unsigned s = get_size(n->type);
-	unsigned v;
-	const char *op = "asr";
+	register unsigned s = get_size(n->type);
+	register unsigned v;
+	register const char *op = "asr";
 
 	if (n->type & UNSIGNED)
 		op = "lsr";
@@ -941,9 +957,9 @@ unsigned can_load_r_with(struct node *r, unsigned off)
 
 /* For 6800 at least it is usually cheaper to reload even if the value
    we want is in D */
-static unsigned load_r_with(char reg, struct node *r, unsigned off)
+static unsigned load_r_with(char reg, register struct node *r, unsigned off)
 {
-	unsigned v = r->value;
+	register unsigned v = r->value;
 	switch(r->op) {
 	case T_ARGUMENT:
 		v += argbase + frame_len;
@@ -984,12 +1000,13 @@ unsigned load_u_with(struct node *r, unsigned off)
 
 unsigned cmp_direct(struct node *n, const char *uop, const char *op)
 {
-	unsigned s = get_size(n->right->type);
-	unsigned v = n->right->value;
+	register struct node *r = n->right;
+	register unsigned v = r->value;
+	register unsigned s = get_size(r->type);
 
-	if (n->right->op != T_CONSTANT)
+	if (r->op != T_CONSTANT)
 		return 0;
-	if (n->right->type & UNSIGNED)
+	if (r->type & UNSIGNED)
 		op = uop;
 	if (s == 1) {
 		printf("\tcmpb #%u\n", v & 0xFF);
@@ -1024,7 +1041,6 @@ unsigned can_fast_mul(unsigned s, unsigned n)
 
 void gen_fast_mul(unsigned s, unsigned n)
 {
-
 	if (n == 0)
 		load_d_const(0);
 }
@@ -1082,7 +1098,7 @@ void opd_on_ptr(struct node *n, const char *op, const char *op2, unsigned off)
 
 /* TODO; compare and flip the boolify test rather than go via stack
    when we can */
-unsigned cmp_op(struct node *n, const char *uop, const char *op)
+unsigned cmp_op(register struct node *n, const char *uop, const char *op)
 {
 	unsigned s = get_size(n->right->type);
 	if (n->right->type & UNSIGNED)

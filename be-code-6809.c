@@ -230,6 +230,11 @@ void load32(unsigned off)
 	printf("\tldy %u,x\n\tldd %u,x\n", off, off + 2);
 }
 
+void store32(unsigned off)
+{
+	printf("\tsty %u,x\n\tstd %u,x\n", off, off + 2);
+}
+
 void uniop_on_ptr(register const char *op, register unsigned off,
 						register unsigned size)
 {

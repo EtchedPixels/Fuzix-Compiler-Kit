@@ -94,6 +94,7 @@ extern void op16_on_ptr(const char *op, const char *op2, unsigned off);
 extern void op16d_on_ptr(const char *op, const char *op2, unsigned off);
 extern void op32d_on_ptr(const char *op, const char *op2, unsigned off);
 extern void load32(unsigned off);
+extern void store32(unsigned off);
 extern unsigned make_local_ptr(unsigned off, unsigned rlim);
 extern unsigned make_tos_ptr(void);
 extern unsigned op8_on_node(struct node *r, const char *op, unsigned off);

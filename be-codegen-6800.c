@@ -1163,14 +1163,17 @@ unsigned gen_shortcut(struct node *n)
 			if (r->op == T_CONSTANT && nr && r->value == 0 && s <= 2) {
 				/* We can optimize thing = 0 for the case
 				   we don't also need the value */
-				load_x_with(l, 0);
+				v += load_x_with(l, 0);
 				uniop_on_ptr("clr", v, s);
 				return 1;
 			}
 			codegen_lr(r);
-			load_x_with(l, 0);
+			v += load_x_with(l, 0);
 			invalidate_mem();
-			opd_on_ptr(n, "st", "st", v);
+			if (s == 4)
+				store32(v);
+			else
+				opd_on_ptr(n, "st", "st", v);
 			return 1;
 		}
 		return 0;
