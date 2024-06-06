@@ -49,6 +49,8 @@
  *	- signed compare two ac
  */
 
+#define HAS_MULDIV	1
+
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
 
@@ -1734,9 +1736,9 @@ unsigned gen_node(struct node *n)
 			printf("\tmov 0,1\n");
 		}
 		return 1;
-	/* TODO T_SLASH, T_PERCENT, T_STAR via MUL/DIV if present */
 	case T_STAR:
-		if (0 && s == 2) {
+		/* TODO 32x32 helper call if have muldiv */
+		if ((cpufeat & HAS_MULDIV) && s == 2) {
 			popa(2);
 			printf("\tsub 0,0\n");
 			printf("\tmul\n");
@@ -1744,7 +1746,7 @@ unsigned gen_node(struct node *n)
 		}
 		return 0;
 	case T_SLASH:
-		if (0 && s == 2 && (n->type & UNSIGNED)) {
+		if ((cpufeat & HAS_MULDIV) && s == 2 && (n->type & UNSIGNED)) {
 			printf("\tmov 1,2\n");
 			printf("\tsub 0,0\n");
 			popa(1);
@@ -1753,7 +1755,7 @@ unsigned gen_node(struct node *n)
 		}
 		return 0;
 	case T_PERCENT:
-		if (0 && s == 2 && (n->type & UNSIGNED)) {
+		if ((cpufeat & HAS_MULDIV) && s == 2 && (n->type & UNSIGNED)) {
 			printf("\tmov 1,2\n");
 			printf("\tsub 0,0\n");
 			popa(1);
