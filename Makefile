@@ -375,8 +375,8 @@ libinst:
 	cp support65c816/crt0.o $(CCROOT)/lib/65c816/
 	cp support65c816/lib65c816.a $(CCROOT)/lib/65c816/lib65c816.a
 	ar cq $(CCROOT)/lib/65c816/libc.a
-	cp support6800/crt0.o $(CCROOT)/lib/6303/
-	cp support6800/lib6800.a $(CCROOT)/lib/6303/lib6303.a
+	cp support6303/crt0.o $(CCROOT)/lib/6303/
+	cp support6303/lib6303.a $(CCROOT)/lib/6303/lib6303.a
 	ar cq $(CCROOT)/lib/6800/libc.a
 	cp support6800/crt0.o $(CCROOT)/lib/6800/
 	cp support6800/lib6800.a $(CCROOT)/lib/6800/lib6800.a
