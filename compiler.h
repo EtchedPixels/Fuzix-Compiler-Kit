@@ -4,7 +4,7 @@
 /* This controls the number of symbols (including complex types, arrays and
    unique function prototypes. Cost is 10 bytes per node on a small box. We
    can probably make symbols the self expanding one eventually */
-#define MAXSYM			768
+#define MAXSYM			1024
 /* Expression nodes. Currently 16 bytes on a small box will be about 24 once
    we have everything in */
 #define NUM_NODES		100
