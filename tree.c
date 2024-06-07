@@ -14,7 +14,7 @@ static struct node *nodes;
 
 struct node *new_node(void)
 {
-	struct node *n;
+	register struct node *n;
 	if (nodes == NULL) {
 		error("too complex");
 		exit(1);
@@ -37,8 +37,8 @@ void free_node(struct node *n)
 
 void init_nodes(void)
 {
-	int i;
-	struct node *n = node_table;
+	register int i;
+	register struct node *n = node_table;
 	for (i = 0; i < NUM_NODES; i++)
 		free_node(n++);
 }
@@ -46,7 +46,7 @@ void init_nodes(void)
 
 struct node *tree(unsigned op, struct node *l, struct node *r)
 {
-	struct node *n = new_node();
+	register struct node *n = new_node();
 	struct node *c;
 #ifdef DEBUG
 	if (debug) {
@@ -74,7 +74,7 @@ struct node *tree(unsigned op, struct node *l, struct node *r)
 
 struct node *sf_tree(unsigned op, struct node *l, struct node *r)
 {
-	struct node *n = tree(op, l, r);
+	register struct node *n = tree(op, l, r);
 	/* A dereference is only a side effect if it might be volatile */
 	if (op == T_DEREF) {
 		if (voltrack)
@@ -86,16 +86,16 @@ struct node *sf_tree(unsigned op, struct node *l, struct node *r)
 
 struct node *make_constant(unsigned long value, unsigned type)
 {
-	struct node *n = new_node();
+	register struct node *n = new_node();
 	n->op = T_CONSTANT;
 	n->value = value;
 	n->type = type;
 	return n;
 }
 
-struct node *make_symbol(struct symbol *s)
+struct node *make_symbol(register struct symbol *s)
 {
-	struct node *n = new_node();
+	register struct node *n = new_node();
 
 	n->value = s->data.offset;
 	n->val2 = 0;
@@ -138,7 +138,7 @@ struct node *make_symbol(struct symbol *s)
 
 struct node *make_label(unsigned label)
 {
-	struct node *n = new_node();
+	register struct node *n = new_node();
 	n->op = T_LABEL;
 	n->val2 = label;
 	n->value = 0;
@@ -157,7 +157,7 @@ unsigned is_constant(struct node *n)
 }
 
 /* Constant or name in linker constant form */
-unsigned is_constname(struct node *n)
+unsigned is_constname(register struct node *n)
 {
 	/* The address of a symbol is a link time constant so can go in initializers */
 	/* A dereferenced form however is not */
@@ -181,11 +181,11 @@ unsigned is_constant_zero(struct node *n)
 
 #define IS_NAME(x)		((x) >= T_NAME && (x) <= T_ARGUMENT)
 
-static void nameref(struct node *n)
+static void nameref(register struct node *n)
 {
 	if (is_constant(n->right) && IS_NAME(n->left->op)) {
 		unsigned value = n->left->value + n->right->value;
-		struct node *l = n->left;
+		register struct node *l = n->left;
 		memcpy(n , n->right, sizeof(*n));
 		free_node(n->right);
 		n->value = value;
@@ -195,7 +195,7 @@ static void nameref(struct node *n)
 	}
 }
 
-static unsigned transitive(unsigned op)
+static unsigned transitive(register unsigned op)
 {
 	if (op == T_AND || op == T_OR || op == T_HAT ||
 	    op == T_PLUS || op == T_STAR)
@@ -203,9 +203,9 @@ static unsigned transitive(unsigned op)
 	return 0;
 }
 
-struct node *make_rval(struct node *n)
+struct node *make_rval(register struct node *n)
 {
-	unsigned nt = n->type;
+	register unsigned nt = n->type;
 	if (n->flags & LVAL) {
 		if (IS_ARRAY(nt)) {
 			if (PTR(nt) == array_num_dimensions(nt)) {
@@ -233,7 +233,7 @@ struct node *make_noreturn(struct node *n)
 	return n;
 }
 
-struct node *make_cast(struct node *n, unsigned t)
+struct node *make_cast(register struct node *n, unsigned t)
 {
 	unsigned nt = type_canonical(n->type);
 	n->type = nt;
@@ -244,7 +244,7 @@ struct node *make_cast(struct node *n, unsigned t)
 	return n;
 }
 
-void free_tree(struct node *n)
+void free_tree(register struct node *n)
 {
 	if (n->left)
 		free_tree(n->left);
@@ -253,7 +253,7 @@ void free_tree(struct node *n)
 	free_node(n);
 }
 
-static void write_subtree(struct node *n)
+static void write_subtree(register struct node *n)
 {
 	/* Replace the array code with the simple type info of the
 	   node for the backend, otherwise some backends cannot work
@@ -296,9 +296,9 @@ void write_logic_tree(struct node *n, unsigned truth)
  *	A bool tree is special, we don't optimize the T_BOOL at the
  *	top level or we'll just (wrongly) remove it.
  */
-struct node *bool_tree(struct node *n, unsigned flags)
+struct node *bool_tree(register struct node *n, unsigned flags)
 {
-	struct node *b;
+	register struct node *b;
 	if (n->op == T_BOOL)
 		return n;
 	if (flags & NEEDCC) {
@@ -337,8 +337,8 @@ static unsigned arith_pro(unsigned lt, unsigned rt)
 	return lt;
 }
 
-struct node *arith_pro_tree(unsigned op, struct node *l,
-				  struct node *r)
+struct node *arith_pro_tree(unsigned op, register struct node *l,
+				register struct node *r)
 {
 	/* We know both sides are arithmetic */
 	unsigned lt = type_canonical(l->type);
@@ -367,7 +367,7 @@ struct node *arith_tree(unsigned op, struct node *l, struct node *r)
 
 /* Two argument integer or bit pattern
    << >> & | ^ */
-struct node *intarith_tree(unsigned op, struct node *l, struct node *r)
+struct node *intarith_tree(register unsigned op, register struct node *l, register struct node *r)
 {
 	unsigned lt = l->type;
 	unsigned rt = r->type;
@@ -420,7 +420,7 @@ struct node *logic_tree(unsigned op, struct node *l, struct node *r)
 {
 	unsigned lt = l->type;
 	unsigned rt = r->type;
-	struct node *n;
+	register struct node *n;
 
 	if (!PTR(lt) && !IS_ARITH(lt))
 		badtype();
@@ -470,7 +470,7 @@ unsigned long trim_constant(unsigned t, unsigned long value, unsigned warn)
    and maybe union a float/double */
 
 /* For now this only supports integer types */
-static struct node *replace_constant(struct node *n, unsigned t, unsigned long value)
+static struct node *replace_constant(register struct node *n, unsigned t, unsigned long value)
 {
 	if (n->left)
 		free_node(n->left);
@@ -489,7 +489,7 @@ static unsigned is_name(unsigned n)
 }
 
 /* Check of the tree has side effects */
-static unsigned tree_impure(struct node *n)
+static unsigned tree_impure(register struct node *n)
 {
 	if (n->right) {
 		if (tree_impure(n->right))
@@ -513,11 +513,11 @@ static unsigned tree_impure(struct node *n)
  *	as we remove a lot of nodes as we go.
  */
 
-struct node *constify(struct node *n)
+struct node *constify(register struct node *n)
 {
-	struct node *l = n->left;
-	struct node *r = n->right;
-	unsigned op = n->op;
+	register struct node *l = n->left;
+	register struct node *r = n->right;
+	register unsigned op = n->op;
 
 	/* Remember if we are a node or child of a node that has a side
 	   effect. This determines what can be eliminated */

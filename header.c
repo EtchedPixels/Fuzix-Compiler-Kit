@@ -10,7 +10,7 @@
 
 void header(unsigned htype, unsigned name, unsigned data)
 {
-	struct header h;
+	static struct header h;
 	h.h_type = htype;
 	h.h_name = name;
 	h.h_data = data;

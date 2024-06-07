@@ -14,9 +14,9 @@ struct constant {
 static struct constant constant_tab[NUM_CONSTANT];
 static struct constant *ctnext = constant_tab;
 
-unsigned find_constant(unsigned name, unsigned *v)
+unsigned find_constant(register unsigned name, unsigned *v)
 {
-    struct constant *ct = constant_tab;
+    register struct constant *ct = constant_tab;
     while(ct < ctnext) {
         if (ct->name == name) {
             *v = ct->value;
@@ -60,8 +60,8 @@ unsigned enum_body(void)
     unsigned enum_base = 0;
     unsigned type = CINT;
     unsigned ename;
-    unsigned name;
-    struct symbol *sym = NULL;
+    register unsigned name;
+    register struct symbol *sym = NULL;
 
     /* Optional */
     ename = symname();

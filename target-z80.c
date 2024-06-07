@@ -65,7 +65,7 @@ unsigned target_scale_ptr(unsigned t, unsigned scale)
 	return scale;
 }
 
-struct node *target_struct_ref(struct node *n, unsigned type, unsigned off)
+struct node *target_struct_ref(register struct node *n, unsigned type, unsigned off)
 {
 	n->type = PTRTO + type;
 	n = tree(T_PLUS, n, make_constant(off, UINT));

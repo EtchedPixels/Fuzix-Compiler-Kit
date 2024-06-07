@@ -38,10 +38,11 @@ unsigned get_storage(unsigned dflt)
 void put_typed_data(struct node *n)
 {
 	unsigned op = n->op;
+	register unsigned t = n->type;
 	/* Collapse array types down to their underlying type so the backend
 	   can use the correct pointer types on a word/byteptr machine */
-	if (IS_ARRAY(n->type) && PTR(n->type) == 0)
-		n->type = PTRTO + array_type(n->type);
+	if (IS_ARRAY(t) && PTR(t) == 0)
+		n->type = PTRTO + array_type(t);
 	out_block("%[", 2);
 	if (op != T_CASELABEL && op != T_PAD && op != T_LABEL &&
 		op != T_NAME && op != T_CONSTANT)
@@ -51,7 +52,7 @@ void put_typed_data(struct node *n)
 
 void put_padding_data(unsigned space)
 {
-	struct node *n = make_constant(space, UINT);
+	register struct node *n = make_constant(space, UINT);
 	n->op = T_PAD;
 	put_typed_data(n);
 	free_node(n);
@@ -66,7 +67,7 @@ void put_typed_constant(unsigned type, unsigned long value)
 
 void put_typed_case(unsigned tag, unsigned entry)
 {
-	struct node *n = make_constant(tag, PTRTO|VOID);
+	register struct node *n = make_constant(tag, PTRTO|VOID);
 	n->op = T_CASELABEL;
 	n->val2 = entry;
 	put_typed_data(n);

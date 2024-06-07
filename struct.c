@@ -6,9 +6,9 @@
 
 static void struct_add_field(struct symbol *sym, unsigned name, unsigned type)
 {
-    unsigned *p = sym->data.idx;
-    unsigned n = 0;
-    unsigned *t = p + 2;
+    register unsigned *p = sym->data.idx;
+    register unsigned n = 0;
+    register unsigned *t = p + 2;
 
     while(n < *p) {
         if (*t == name)

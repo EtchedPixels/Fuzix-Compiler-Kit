@@ -25,7 +25,7 @@ struct symbol *symbol_ref(unsigned type)
 /* Find a symbol in the normal name space */
 struct symbol *find_symbol(unsigned name, unsigned global)
 {
-	struct symbol *s = last_sym;
+	register struct symbol *s = last_sym;
 	struct symbol *gmatch = NULL;
 	/* Walk backwards so that the first local we find is highest priority
 	   by scope */
@@ -44,7 +44,7 @@ struct symbol *find_symbol(unsigned name, unsigned global)
 
 struct symbol *find_symbol_by_class(unsigned name, unsigned class)
 {
-	struct symbol *s = last_sym;
+	register struct symbol *s = last_sym;
 	struct symbol *gmatch = NULL;
 	/* Walk backwards so that the first local we find is highest priority
 	   by scope */
@@ -62,7 +62,7 @@ struct symbol *find_symbol_by_class(unsigned name, unsigned class)
 
 void pop_local_symbols(struct symbol *top)
 {
-	struct symbol *s = top + 1;
+	register struct symbol *s = top + 1;
 	while (s <= last_sym) {
 		if (S_STORAGE(s->infonext) < S_STATIC) {
 			/* Write out any storage if needed */
@@ -85,7 +85,7 @@ struct symbol *mark_local_symbols(void)
    may be holes, above last_sym is free */
 struct symbol *alloc_symbol(unsigned name, unsigned local)
 {
-	struct symbol *s = local_top;
+	register struct symbol *s = local_top;
 	while (s <= &symtab[MAXSYM]) {
 		if (s->infonext == S_FREE) {
 			if (local && local_top < s)
@@ -107,11 +107,11 @@ struct symbol *alloc_symbol(unsigned name, unsigned local)
  *	the slot. Once the types are found it will get updated with the
  *	types and any checking done.
  */
-struct symbol *update_symbol(struct symbol *sym, unsigned name, unsigned storage,
+struct symbol *update_symbol(register struct symbol *sym, unsigned name, unsigned storage,
 			     unsigned type)
 {
 	unsigned local = 0;
-	unsigned symst;
+	register unsigned symst;
 
 	if (storage < S_STATIC)
 		local = 1;
@@ -195,7 +195,7 @@ struct symbol *update_symbol_by_name(unsigned name, unsigned storage,
  */
 static struct symbol *do_type_match(unsigned st, unsigned rtype, unsigned *idx)
 {
-	struct symbol *sym = symtab;
+	register struct symbol *sym = symtab;
 	while(sym <= last_sym) {
 		if (S_STORAGE(sym->infonext) == st && sym->type == rtype && sym->data.idx == idx) {
 			return sym;
@@ -211,7 +211,7 @@ static struct symbol *do_type_match(unsigned st, unsigned rtype, unsigned *idx)
 
 unsigned *sym_find_idx(unsigned storage, unsigned *idx, unsigned len)
 {
-	struct symbol *sym = symtab;
+	register struct symbol *sym = symtab;
 	unsigned blen = len * sizeof(unsigned);
 	while (sym <= last_sym) {
 		if (S_STORAGE(sym->infonext) == storage && memcmp(sym->data.idx, idx, blen) == 0)
@@ -282,7 +282,7 @@ unsigned array_type(unsigned n)
 /* Make a sized version of the array type given */
 unsigned array_with_size(unsigned t, unsigned size)
 {
-	struct symbol *sym = symbol_ref(t);
+	register struct symbol *sym = symbol_ref(t);
 	unsigned x[9];	/* Max ptr depth of 8  + size */
 	unsigned *idx;
 
@@ -334,7 +334,7 @@ static struct symbol *find_struct(unsigned name)
 
 struct symbol *update_struct(unsigned name, unsigned t)
 {
-	struct symbol *sym;
+	register struct symbol *sym;
 	if (t)
 		t = S_STRUCT;
 	else
@@ -353,8 +353,9 @@ struct symbol *update_struct(unsigned name, unsigned t)
 
 unsigned *struct_find_member(unsigned name, unsigned fname)
 {
-	struct symbol *s = symtab + INFO(name);
-	unsigned *ptr, idx;
+	register struct symbol *s = symtab + INFO(name);
+	register unsigned idx;
+	unsigned *ptr;
 	/* May be a known type but not one with fields yet declared */
 	if (s->data.idx == NULL)
 		return NULL;
@@ -378,18 +379,19 @@ unsigned type_of_struct(struct symbol *sym)
  *	Generate the BSS at the end (and at scope end for static local)
  */
 
-static void symbol_bss(struct symbol *s)
+static void symbol_bss(register struct symbol *s)
 {
 	unsigned st = S_STORAGE(s->infonext);
-	if ((PTR(s->type) || !IS_FUNCTION(s->type)) && st != S_EXTERN && st >= S_LSTATIC && st <= S_EXTDEF) {
+	register unsigned t = s->type;
+	if ((PTR(t) || !IS_FUNCTION(t)) && st != S_EXTERN && st >= S_LSTATIC && st <= S_EXTDEF) {
 		if (st == S_EXTDEF)
 			header(H_EXPORT, s->name, 0);
 		if (!(s->infonext & INITIALIZED)) {
-			unsigned n = type_sizeof(s->type);
+			unsigned n = type_sizeof(t);
 			unsigned l = s->name;
 			if (st == S_LSTATIC)
 				l = s->data.offset;
-			header(H_BSS, l, target_alignof(s->type, st));
+			header(H_BSS, l, target_alignof(t, st));
 			put_padding_data(n);
 			footer(H_BSS, l, 0);
 		}
@@ -398,7 +400,7 @@ static void symbol_bss(struct symbol *s)
 
 void write_bss(void)
 {
-	struct symbol *s = symtab;
+	register struct symbol *s = symtab;
 
 	while(s <= last_sym) {
 #ifdef DEBUG

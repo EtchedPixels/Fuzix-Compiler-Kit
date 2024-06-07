@@ -7,7 +7,7 @@
  */
 static void ini_single(struct symbol *sym, unsigned type, unsigned storage)
 {
-    struct node *n = expression_tree(0);
+    register struct node *n = expression_tree(0);
     n = typeconv(n, type, 1);
     if (storage == S_AUTO || storage == S_REGISTER) {
         n = tree(T_EQ, make_symbol(sym), n);
@@ -39,11 +39,11 @@ static unsigned ini_string(unsigned n)
  *	TODO: In theory we could have a platform that needs padding
  *	and we don't deal with that aspect of alignment yet
  */
-static unsigned ini_group(struct symbol *sym, unsigned type, unsigned n, unsigned storage)
+static unsigned ini_group(struct symbol *sym, unsigned type, register unsigned n, unsigned storage)
 {
     unsigned sized = n;
     unsigned string = 0;
-    unsigned count = 0;
+    register unsigned count = 0;
     /* C has a funky special case rule that you can write
        char x[16] = "foo"; which creates a copy of the string in that
        array not a literal reference. It's also got a second funky special case
@@ -100,8 +100,8 @@ static unsigned ini_group(struct symbol *sym, unsigned type, unsigned n, unsigne
 static void ini_struct(struct symbol *psym, unsigned type, unsigned storage)
 {
     struct symbol *sym = symbol_ref(type);
-    unsigned *p = sym->data.idx;
-    unsigned n = *p;
+    register unsigned *p = sym->data.idx;
+    register unsigned n = *p;
     unsigned s = p[1];	/* Size of object (needed for union) */
     unsigned pos = 0;
 
@@ -180,7 +180,7 @@ static void ini_array(struct symbol *sym, unsigned type, unsigned depth, unsigne
 /*
  *	Initialize an object.
  */
-void initializers(struct symbol *sym, unsigned type, unsigned storage)
+void initializers(struct symbol *sym, register unsigned type, register unsigned storage)
 {
     if (PTR(type) && !IS_ARRAY(type)) {
         ini_single(sym, type, storage);

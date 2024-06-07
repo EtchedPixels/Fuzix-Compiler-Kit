@@ -100,7 +100,7 @@ void out_block(void *pv, unsigned len)
 {
 	unsigned char *p = pv;
 	while(len) {
-		unsigned n;
+		register unsigned n;
 
 		/* Flush any full record */
 		if (outlen == 128)
@@ -137,7 +137,7 @@ unsigned tokbyte(void)
 
 void next_token(void)
 {
-	int c;
+	register int c;
 
 	/* Handle pushed back tokens */
 	if (last_token != NO_TOKEN) {
@@ -161,7 +161,7 @@ void next_token(void)
 	token |= (c << 8);
 
 	if (token == T_LINE) {
-		char *p = filename;
+		register char *p = filename;
 
 		line_num = tokbyte();
 		line_num |= tokbyte() << 8;
@@ -260,8 +260,8 @@ static unsigned char pad_zero[2] = { 0xFF, 0xFE };
 
 unsigned copy_string(unsigned label, unsigned maxlen, unsigned pad, unsigned lit)
 {
-	unsigned c;
-	unsigned l = 0;
+	register unsigned c;
+	register unsigned l = 0;
 
 	header(H_STRING, label, lit);
 

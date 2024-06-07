@@ -17,9 +17,9 @@ static void missedarg(unsigned narg, unsigned ti)
  *	At the moment this is used for functions, but it will be used for
  *	casting, hence all the sanity checks.
  */
-struct node *typeconv(struct node *n, unsigned type, unsigned warn)
+struct node *typeconv(register struct node *n, register unsigned type, unsigned warn)
 {
-	unsigned nt = type_canonical(n->type);
+	register unsigned nt = type_canonical(n->type);
 
 	/* Weirdness with functions. Properly you should write
 	         funcptr = &func,
@@ -69,9 +69,9 @@ struct node *typeconv(struct node *n, unsigned type, unsigned warn)
  *	Perform the implicit legacy type conversions C specifies for
  *	unprototyped arguments
  */
-struct node *typeconv_implicit(struct node *n)
+struct node *typeconv_implicit(register struct node *n)
 {
-	unsigned t = n->type;
+	register unsigned t = n->type;
 	if (t == CCHAR || t == UCHAR)
 		return typeconv(n, CINT, 0);
 	if (t == FLOAT)
@@ -88,9 +88,9 @@ struct node *typeconv_implicit(struct node *n)
  *	we always push 2 bytes so char as arg takes 2 and we need to do
  *	the right thing.
  */
-struct node *call_args(unsigned *narg, unsigned *argt, unsigned *argsize, unsigned *va)
+struct node *call_args(unsigned *narg, register unsigned *argt, unsigned *argsize, unsigned *va)
 {
-	struct node *n = expression_tree(0);
+	register struct node *n = expression_tree(0);
 	unsigned t;
 
 	/* See what argument type handling is needed */
@@ -131,7 +131,7 @@ struct node *call_args(unsigned *narg, unsigned *argt, unsigned *argsize, unsign
 
 static unsigned dummy_argp = ELLIPSIS;
 
-struct node *function_call(struct node *n)
+struct node *function_call(register struct node *n)
 {
 	unsigned type;
 	unsigned *argt, *argp;
@@ -223,12 +223,12 @@ struct node *get_sizeof(void)
  */
 static struct node *hier11(void)
 {
+	register struct node *l, *r;
+	register unsigned lt;
 	int direct;
-	struct node *l, *r;
 	unsigned ptr;
 	unsigned scale;
 	unsigned *tag;
-	unsigned lt;
 
 	l = primary();
 	lt = l->type;
@@ -300,7 +300,7 @@ static struct node *hier11(void)
  */
 static struct node *hier10(void)
 {
-	struct node *l, *r;
+	register struct node *l, *r;
 	unsigned op;
 	unsigned name;
 	unsigned t;
@@ -428,7 +428,7 @@ static struct node *hier10(void)
  */
 static struct node *hier9(void)
 {
-	struct node *l;
+	register struct node *l;
 	struct node *r;
 	unsigned op;
 	l = hier10();
@@ -454,7 +454,7 @@ static struct node *hier9(void)
 
 static struct node *hier8(void)
 {
-	struct node *l, *r;
+	register struct node *l, *r;
 	unsigned op;
 	int scale = 1;
 	unsigned rt;
@@ -679,7 +679,7 @@ static struct node *hier1a(void)
  */
 static struct node *hier1(void)
 {
-	struct node *l, *r;
+	register struct node *l, *r;
 	unsigned fc;
 	unsigned scale = 1;
 	l = hier1a();
@@ -743,8 +743,8 @@ static struct node *hier1(void)
     expression */
 struct node *hier0(unsigned comma)
 {
-	struct node *l = hier1();
-	struct node *r;
+	register struct node *l = hier1();
+	register struct node *r;
 	while (comma && match(T_COMMA)) {
 		l->flags |= NORETURN;
 		r = hier0(comma);
@@ -770,7 +770,7 @@ struct node *expression_tree(unsigned comma)
 /* Generate an expression and write it the output */
 static struct node *expression(unsigned comma, unsigned mkbool, unsigned flags)
 {
-	struct node *n;
+	register struct node *n;
 
 	if (token == T_SEMICOLON)
 		return NULL;
@@ -828,7 +828,7 @@ unsigned bracketed_expression(unsigned mkbool)
    does not write the tree immediately. See tree.c:write_logic as well */
 struct node *logic_expression(unsigned *truth)
 {
-	struct node *n, *r;
+	register struct node *n, *r;
 	require(T_LPAREN);
 	n = expression(1, 1, CCONLY);
 	if (n == NULL) {
@@ -848,7 +848,7 @@ struct node *logic_expression(unsigned *truth)
 
 void expression_or_null(unsigned mkbool, unsigned flags)
 {
-	struct node *n;
+	register struct node *n;
 	if (token == T_SEMICOLON || token == T_RPAREN) {
 		/* A null tree - force the type to void so we can spot it in the backend */
 		n = tree(T_NULL, NULL, NULL);
@@ -863,7 +863,7 @@ void expression_or_null(unsigned mkbool, unsigned flags)
 /* This is used for return */
 void expression_typed(unsigned type)
 {
-	struct node *n;
+	register struct node *n;
 	if (type == VOID && token == T_SEMICOLON) {
 		write_tree(tree(T_NULL, NULL, NULL));
 		return;

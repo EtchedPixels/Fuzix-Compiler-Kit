@@ -68,7 +68,7 @@ static void set_once(unsigned bits)
 
 static unsigned base_type(void)
 {
-	unsigned type = CINT;
+	register unsigned type = CINT;
 	once_flags = 0;
 
 	while (is_type_word()) {
@@ -147,8 +147,8 @@ static unsigned base_type(void)
 unsigned get_type(void)
 {
 	unsigned sflag = 0;
-	struct symbol *sym;
-	unsigned type;
+	register struct symbol *sym;
+	register unsigned type;
 
 	skip_modifiers();
 
@@ -211,8 +211,8 @@ static void parse_function_arguments(unsigned *tplt)
 	unsigned *tn = tplt + 1;
 	unsigned t;
 	unsigned an;
-	unsigned reg;
-	struct symbol *sym;
+	register unsigned reg;
+	register struct symbol *sym;
 
 	arg_flags = 0;
 
@@ -371,7 +371,7 @@ static void declarator(unsigned *name, unsigned depth)
  */
 static unsigned do_type_name_parse(unsigned type, unsigned *name)
 {
-	struct declstack *dp = decp;
+	register struct declstack *dp = decp;
 
 	*name = 0;
 
