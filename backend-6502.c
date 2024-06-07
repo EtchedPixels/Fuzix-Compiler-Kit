@@ -389,7 +389,7 @@ static void gen_internal(const char *p)
 
 
 /* Construct a direct operation if possible for the primary op */
-static int do_pri8(struct node *n, const char *op, void (*pre)(struct node * n))
+static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n))
 {
 	struct node *r = n->right;
 	const char *name;
@@ -452,7 +452,7 @@ static int do_pri8(struct node *n, const char *op, void (*pre)(struct node * n))
 }
 
 /* Construct a direct operation if possible for the primary op */
-static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node * n))
+static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__n))
 {
 	struct node *r = n->right;
 	const char *name;
@@ -513,7 +513,7 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node * n
 }
 
 /* 16bit/ We are rather limited here because we only have a few ops with x */
-static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *n))
+static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n))
 {
 	struct node *r = n->right;
 	const char *name;

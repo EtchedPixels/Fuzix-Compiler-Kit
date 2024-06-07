@@ -89,7 +89,7 @@ void invalidate_all(void)
 {
 }
 
-unsigned free_pointer_notwith(unsigned p)
+unsigned free_pointer_nw(unsigned p)
 {
 	/* Dummy up for now */
 	if (p == 3)
@@ -102,7 +102,7 @@ unsigned free_pointer(void)
 	return 3;
 }
 
-unsigned find_ref(struct node *n, unsigned notwith, int *offset)
+unsigned find_ref(struct node *n, unsigned nw, int *offset)
 {
 	return 0;
 }
@@ -500,7 +500,7 @@ unsigned gen_push(struct node *n)
 unsigned load_ptr_ea(void)
 {
 	/* FIXME: set ptr up according to ea name value in future */
-	unsigned ptr = free_pointer_notwith(0);
+	unsigned ptr = free_pointer_nw(0);
 	printf("\tld p%d, ea\n", ptr);
 	/* TODO: tracking */
 	invalidate_ea();
@@ -550,7 +550,7 @@ void discard_word(void)
  *	an optional 1 or 2 to indicate a pointer to avoid, and an
  *	optional offset return.
  */
-unsigned gen_ref_notwith(struct node *n, unsigned notwith, int *off)
+unsigned gen_ref_nw(struct node *n, unsigned nw, int *off)
 {
 	unsigned sz = get_size(n->type);
 	unsigned ptr;
@@ -566,7 +566,7 @@ unsigned gen_ref_notwith(struct node *n, unsigned notwith, int *off)
 			return 1;
 		}
 		/* Need to generate a ref. TODO pass whether EA can be mushed */
-		ptr = free_pointer_notwith(notwith);
+		ptr = free_pointer_nw(nw);
 		printf("\txch ea,p%d\n", ptr);
 		puts("\tld ea,sp");
 		printf("\tadd ea,%d\n", r);
@@ -574,11 +574,11 @@ unsigned gen_ref_notwith(struct node *n, unsigned notwith, int *off)
 		return ptr;
 	}
 	/* See if it is already accessible, often the case */
-	ptr = find_ref(n, notwith, off);
+	ptr = find_ref(n, nw, off);
 	if (ptr)
 		return ptr;
 	/* Make a reference */
-	ptr = free_pointer_notwith(notwith);
+	ptr = free_pointer_nw(nw);
 	set_ptr_ref(ptr, n);
 	if (n->op == T_NREF || n->op == T_NSTORE) { 
 		printf("\tld p%d,=_%s+%d\n", ptr, namestr(n->snum), v);
@@ -591,7 +591,7 @@ unsigned gen_ref_notwith(struct node *n, unsigned notwith, int *off)
 	return 0;
 }
 
-unsigned gen_load_notwith(struct node *n, unsigned notwith)
+unsigned gen_load_nw(struct node *n, unsigned nw)
 {
 	int off;
 	unsigned sz = get_size(n->type);
@@ -600,7 +600,7 @@ unsigned gen_load_notwith(struct node *n, unsigned notwith)
 		load_ea(sz, n->value);
 		return 1;
 	}
-	ptr = gen_ref_notwith(n, notwith, &off);
+	ptr = gen_ref_nw(n, nw, &off);
 	if (ptr == 0)
 		return 0;
 	if (sz == 1)
@@ -618,10 +618,10 @@ unsigned gen_load_notwith(struct node *n, unsigned notwith)
 
 unsigned gen_load(struct node *n)
 {
-	return gen_load_notwith(n, 0);
+	return gen_load_nw(n, 0);
 }
 
-unsigned gen_load_notwith_t(struct node *n, unsigned notwith)
+unsigned gen_load_nw_t(struct node *n, unsigned nw)
 {
 	int off;
 	unsigned sz = get_size(n->type);
@@ -630,7 +630,7 @@ unsigned gen_load_notwith_t(struct node *n, unsigned notwith)
 		load_t(n->value);
 		return 1;
 	}
-	ptr = gen_ref_notwith(n, notwith, &off);
+	ptr = gen_ref_nw(n, nw, &off);
 	/* We have to ref an extra byte */
 	if (sz <= 2)
 		printf("\tld t,%d,p%d\n", off, ptr);
@@ -641,12 +641,12 @@ unsigned gen_load_notwith_t(struct node *n, unsigned notwith)
 
 unsigned gen_load_t(struct node *n)
 {
-	return gen_load_notwith_t(n, 0);
+	return gen_load_nw_t(n, 0);
 }
 
 unsigned gen_ref(struct node *n, int *off)
 {
-	return gen_ref_notwith(n, 0, off);
+	return gen_ref_nw(n, 0, off);
 }
 
 
@@ -884,7 +884,7 @@ unsigned do_preincdec(unsigned sz, struct node *n, unsigned save)
 	if (sz > 2)
 		return 0;
 
-	gen_load_notwith(r, ptr);
+	gen_load_nw(r, ptr);
 
 	/* Rewrite constant forms positive */
 	if (r->op == T_CONSTANT && n->op == T_MINUSEQ) {
@@ -991,7 +991,7 @@ unsigned gen_direct(struct node *n)
 		/* Store right hand op in EA */
 		ptr = load_ptr_ea();	/* Turn EA into a pointer */
 		/* Generate the load without using that ptr */
-		gen_load_notwith(r, ptr);
+		gen_load_nw(r, ptr);
 		/* EA now holds the data */
 		if (s == 4) {
 			if (!(n->flags & NORETURN))
@@ -1197,7 +1197,7 @@ unsigned gen_direct(struct node *n)
 			if (r->op == T_CONSTANT)
 				printf("\tld ea,=%u\n", v);
 			else {
-				ptr2 = gen_ref_notwith(r, ptr, &off);
+				ptr2 = gen_ref_nw(r, ptr, &off);
 				if (ptr2 == 0)
 					return 0;
 				printf("\tld ea,%u,%u\n", off, ptr2);
@@ -1206,7 +1206,7 @@ unsigned gen_direct(struct node *n)
 			if (r->op == T_CONSTANT)
 				printf("\tld a,=%u\n", v);
 			else {
-				ptr2 = gen_ref_notwith(r, ptr, &off);
+				ptr2 = gen_ref_nw(r, ptr, &off);
 				if (ptr2 == 0)
 					return 0;
 				printf("\tld a,%u,%u\n", off, ptr2);
@@ -1578,15 +1578,15 @@ unsigned gen_node(struct node *n)
 	/* FIXME: need to have a returned offset as likely be be %d,sp */
 	case T_ANDEQ:
 		ptr = pop_ptr();
-		ptr2 = gen_ref_notwith(r, ptr, &off);
+		ptr2 = gen_ref_nw(r, ptr, &off);
 		return generate_logic(n, ptr, ptr2, off);
 	case T_OREQ:
 		ptr = pop_ptr();
-		ptr2 = gen_ref_notwith(r, ptr, &off);
+		ptr2 = gen_ref_nw(r, ptr, &off);
 		return generate_logic(n, ptr, ptr2, off);
 	case T_HATEQ:
 		ptr = pop_ptr();
-		ptr2 = gen_ref_notwith(r, ptr, &off);
+		ptr2 = gen_ref_nw(r, ptr, &off);
 		return generate_logic(n, ptr, ptr2, off);
 #endif
 	}

@@ -550,7 +550,7 @@ static void pre_none(struct node *n)
    register - eg X, or when storing as it doesn't set the flag. For the X
    case the caller needs to invalidate the cc either way */
 
-static int do_pri(struct node *n, const char *op, void (*pre)(struct node *n), unsigned via_x)
+static int do_pri(struct node *n, const char *op, void (*pre)(struct node *__n), unsigned via_x)
 {
 	/* TODO: consider size 4  internally - but if so remember to also
 	   fix the assumptions in argstack_helper that expect 2/1 always */
@@ -647,7 +647,7 @@ static int do_pri(struct node *n, const char *op, void (*pre)(struct node *n), u
 }
 
 
-static int do_pri_cc(struct node *n, const char *op, void (*pre)(struct node *n), unsigned via_x)
+static int do_pri_cc(struct node *n, const char *op, void (*pre)(struct node *__n), unsigned via_x)
 {
 	/* TODO: consider size 4  internally - but if so remember to also
 	   fix the assumptions in argstack_helper that expect 2/1 always */
