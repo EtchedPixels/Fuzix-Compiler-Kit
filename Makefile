@@ -392,10 +392,13 @@ libinst:
 	ar cq $(CCROOT)/lib/hc11/libc.a
 	cp support8080/crt0.o $(CCROOT)/lib/8080/
 	cp support8085/crt0.o $(CCROOT)/lib/8085/
+	cp support8080/include/*.h $(CCROOT)/lib/8080/include/
+	cp support8085/include/*.h $(CCROOT)/lib/8085/include/
 	cp support8080/lib8080.a $(CCROOT)/lib/8080/lib8080.a
 	cp support8085/lib8085.a $(CCROOT)/lib/8085/lib8085.a
 	ar cq $(CCROOT)/lib/8080/libc.a
 	cp supportz8/crt0.o $(CCROOT)/lib/z8/
+	cp supportz8/include/*.h $(CCROOT)/lib/z8/include/
 	cp supportz8/libz8.a $(CCROOT)/lib/z8/libz8.a
 	ar cq $(CCROOT)/lib/z8/libc.a
 	cp supportee200/crt0.o $(CCROOT)/lib/ee200/
@@ -407,9 +410,11 @@ libinst:
 	cp supportnova/libnova.a $(CCROOT)/lib/nova/libnova.a
 	ar cq $(CCROOT)/lib/nova/libc.a
 	cp supportsuper8/crt0.o $(CCROOT)/lib/super8/
+	cp supportsuper8/include/*.h $(CCROOT)/lib/super8/include/
 	cp supportsuper8/libsuper8.a $(CCROOT)/lib/super8/libsuper8.a
 	ar cq $(CCROOT)/lib/super8/libc.a
 	cp supportz80/crt0.o $(CCROOT)/lib/z80/
+	cp supportz80/include/*.h $(CCROOT)/lib/z80/include/
 	cp supportz80/libz80.a $(CCROOT)/lib/z80/libz80.a
 	ar cq $(CCROOT)/lib/z80/libc.a
 
