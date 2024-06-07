@@ -1036,7 +1036,7 @@ int main(int argc, char *argv[]) {
 			break;
 		case 'X':
 			uniopt(*p);
-			keep_temp = 1;
+			keep_temp++;
 			break;
 		case 'm':
 			cpu = *p + 2;
@@ -1094,7 +1094,7 @@ int main(int argc, char *argv[]) {
 	snprintf(symtab + 7, 6, "%x", getpid());
 	processing_loop();
 	unused_files();
-	if (keep_temp==0)
-	  unlink(symtab);
+	if (keep_temp < 2)
+		unlink(symtab);
 	return 0;
 }
