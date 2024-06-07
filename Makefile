@@ -405,8 +405,10 @@ libinst:
 	cp supportee200/libee200.a $(CCROOT)/lib/ee200/libee200.a
 	ar cq $(CCROOT)/lib/ee200/libc.a
 	cp supportnova3/crt0.o $(CCROOT)/lib/nova/
+	cp supportnova3/include/*.h $(CCROOT)/lib/nova/include/
 	cp supportnova3/libnova.a $(CCROOT)/lib/nova/libnova3.a
 	cp supportnova/crt0.o $(CCROOT)/lib/nova/
+	cp supportnova/include/*.h $(CCROOT)/lib/nova/include/
 	cp supportnova/libnova.a $(CCROOT)/lib/nova/libnova.a
 	ar cq $(CCROOT)/lib/nova/libc.a
 	cp supportsuper8/crt0.o $(CCROOT)/lib/super8/
