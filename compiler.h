@@ -9,7 +9,7 @@
    we have everything in */
 #define NUM_NODES		100
 /* Number of bytees of index data used for tagging structs, prototypes etc */
-#define IDX_SIZE		1024
+#define IDX_SIZE		1536
 /* Maximum number of goto labels per function (not switches), 4 bytes each */
 #define MAXLABEL		16
 /* Maximum number of fields per structure, 6 bytes per entry on stack, per
