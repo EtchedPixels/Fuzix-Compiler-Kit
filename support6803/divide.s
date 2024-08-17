@@ -28,24 +28,22 @@
 div16x16:
 	; TODO - should be we spot div by 0 and trap out ?
 	std @tmp1		; divisor
-	ldaa #16		; bit count
-	staa @tmp		; counter
 	clra
 	clrb
-	stx @tmp2
+	stx @tmp
+	ldx #16			; bit count
 loop:
-	asl @tmp2+1			; shift X left one bit at a time (dividend)
-	rol @tmp2
+	asl @tmp+1			; shift X left one bit at a time (dividend)
+	rol @tmp
 	rolb
 	rola
-	ldx @tmp2
-	inx
+	inc @tmp+1
 	subd @tmp1		; divisor
 	bcc skip
 	addd @tmp1
-	dex
+	dec @tmp+1
 skip:
-	stx @tmp2
-	dec tmp
+	dex
 	bne loop
+	ldx @tmp
 	rts

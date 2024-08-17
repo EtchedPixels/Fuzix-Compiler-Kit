@@ -28,26 +28,24 @@ div16x16:
 	; TODO - should be we spot div by 0 and trap out ?
 	staa @tmp1		; divisor
 	stab @tmp1+1
-	ldaa #16		; bit count
-	staa @tmp		; counter
 	clra
 	clrb
-	stx @tmp2
+	stx @tmp
+	ldx #16			; bit count
 loop:
-	asl @tmp2+1			; shift X left one bit at a time (dividend)
-	rol @tmp2
+	asl @tmp+1			; shift X left one bit at a time (dividend)
+	rol @tmp
 	rolb
 	rola
-	ldx @tmp2
-	inx
+	inc @tmp+1		; low bit is currently clear
 	subb @tmp1+1		; divisor
 	sbca @tmp1
 	bcc skip
 	addb @tmp1+1
 	adca @tmp1
-	dex
+	dec @tmp+1		; set low bit back clear
 skip:
-	stx @tmp2
-	dec tmp
+	dex
 	bne loop
+	ldx @tmp
 	rts
