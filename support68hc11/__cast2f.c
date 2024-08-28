@@ -21,7 +21,7 @@ uint32_t _castul_f(unsigned long a1)
 }
 
 /* We could just use the uint32_t helper but 16bit is actually much simpler */
-uint32_t __castu_f(unsigned a1)
+uint32_t _castu_f(unsigned a1)
 {
     uint32_t r;
     int exp = 24 + EXCESS;
@@ -36,7 +36,7 @@ uint32_t __castu_f(unsigned a1)
     return PACK(0, exp, r);
 }
 
-uint32_t __castuc_f(unsigned char a1)
+uint32_t _castuc_f(unsigned char a1)
 {
     uint32_t r;
     int exp = 24 + EXCESS;
@@ -51,23 +51,23 @@ uint32_t __castuc_f(unsigned char a1)
     return PACK(0, exp, r);
 }
 
-uint32_t __castl_f(long a1)
+uint32_t _castl_f(long a1)
 {
     if (a1 < 0)
-        return _negatef(__castul_f(-a1));
-    return __castul_f(a1);
+        return _negatef(_castul_f(-a1));
+    return _castul_f(a1);
 }
 
-uint32_t __cast_f(int a1)
+uint32_t _cast_f(int a1)
 {
     if (a1 < 0)
-        return _negatef(__castu_f(-a1));
-    return __castu_f(a1);
+        return _negatef(_castu_f(-a1));
+    return _castu_f(a1);
 }
 
-uint32_t __castc_f(signed char a1)
+uint32_t _castc_f(signed char a1)
 {
     if (a1 < 0)
-        return _negatef(__castuc_f(-a1));
-    return __castuc_f(a1);
+        return _negatef(_castuc_f(-a1));
+    return _castuc_f(a1);
 }
