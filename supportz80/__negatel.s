@@ -12,7 +12,7 @@ __negatel:
 		ld	l,a
 		inc	hl
 		ld	a,h
-		or	a
+		or	l
 		push	hl
 		push	af
 		ld	hl,(__hireg)
