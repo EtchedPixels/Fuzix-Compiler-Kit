@@ -228,14 +228,14 @@ static uint8_t clock_count[256][4] = {
     { 4, 3, 3, 3 },			/* BGT */
     { 4, 3, 3, 3 },			/* BLE */
     /* 0x30 */
-    { 3, 3, 1, 1 },			/* TSX */
-    { 3, 3, 1, 1 },			/* INS */
+    { 4, 3, 1, 1 },			/* TSX */
+    { 4, 3, 1, 1 },			/* INS */
     { 4, 4, 3, 3 },			/* PULA */
     { 4, 4, 3, 3 },			/* PULB */
-    { 3, 3, 1, 1 },			/* DES */
-    { 3, 3, 1, 1 },			/* TXS */
-    { 3, 3, 4, 4 },			/* PSHA */
-    { 3, 3, 4, 4 },			/* PSHB */
+    { 4, 3, 1, 1 },			/* DES */
+    { 4, 3, 1, 1 },			/* TXS */
+    { 4, 3, 4, 4 },			/* PSHA */
+    { 4, 3, 4, 4 },			/* PSHB */
     { 0, 5, 4, 4 },			/* PULX */
     { 5, 5, 5, 5 },			/* RTS */
     { 0, 3, 1, 1 },			/* ABX */
@@ -279,26 +279,9 @@ static uint8_t clock_count[256][4] = {
     { 2, 2, 1, 1 },			/* HCF / T */
     { 2, 2, 1, 1 },			/* CLRB */
     /* 0x60 : indexed form */
-    { 6, 6, 6, 6 },			/* NEG */
+    { 7, 6, 6, 6 },			/* NEG */
     { 0, 0, 7, 7 },			/* AIM */
     { 0, 0, 7, 7 },			/* OIM */
-    { 6, 6, 6, 6 },			/* COM */
-    { 6, 6, 6, 6 },			/* LSR */
-    { 0, 0, 6, 6 },			/* EIM */
-    { 6, 6, 6, 6 },			/* ROR */
-    { 6, 6, 6, 6 },			/* ASR */
-    { 6, 6, 6, 6 },			/* ASL */
-    { 6, 6, 6, 6 },			/* ROL */
-    { 6, 6, 6, 6 },			/* DEC */
-    { 0, 0, 5, 5 },			/* TIM */
-    { 6, 6, 6, 6 },			/* INC */
-    { 6, 6, 4, 4 },			/* TST */
-    { 3, 3, 3, 3 },			/* JMP */
-    { 6, 6, 5, 5 },			/* CLR */
-    /* 70: extended form (immediate for AIM/OIM etc) */
-    { 7, 6, 6, 6 },			/* NEG */
-    { 0, 0, 6, 6 },			/* AIM */
-    { 0, 0, 6, 6 },			/* OIM */
     { 7, 6, 6, 6 },			/* COM */
     { 7, 6, 6, 6 },			/* LSR */
     { 0, 0, 6, 6 },			/* EIM */
@@ -307,9 +290,26 @@ static uint8_t clock_count[256][4] = {
     { 7, 6, 6, 6 },			/* ASL */
     { 7, 6, 6, 6 },			/* ROL */
     { 7, 6, 6, 6 },			/* DEC */
+    { 0, 0, 5, 5 },			/* TIM */
+    { 6, 6, 6, 6 },			/* INC */
+    { 6, 6, 4, 4 },			/* TST */
+    { 4, 3, 3, 3 },			/* JMP */
+    { 6, 6, 5, 5 },			/* CLR */
+    /* 70: extended form (immediate for AIM/OIM etc) */
+    { 7, 6, 6, 6 },			/* NEG */
+    { 0, 0, 6, 6 },			/* AIM */
+    { 0, 0, 6, 6 },			/* OIM */
+    { 6, 6, 6, 6 },			/* COM */
+    { 6, 6, 6, 6 },			/* LSR */
+    { 0, 0, 6, 6 },			/* EIM */
+    { 6, 6, 6, 6 },			/* ROR */
+    { 6, 6, 6, 6 },			/* ASR */
+    { 6, 6, 6, 6 },			/* ASL */
+    { 6, 6, 6, 6 },			/* ROL */
+    { 6, 6, 6, 6 },			/* DEC */
     { 0, 0, 4, 4 },			/* TIM */
-    { 7, 6, 6, 6 },			/* INC */
-    { 7, 6, 4, 4 },			/* TST */
+    { 6, 6, 6, 6 },			/* INC */
+    { 6, 6, 4, 4 },			/* TST */
     { 3, 3, 3, 3 },			/* JMP */
     { 6, 6, 5, 5 },			/* CLR */
     /* 80: A ops, immed */
@@ -325,7 +325,7 @@ static uint8_t clock_count[256][4] = {
     { 2, 2, 2, 2 },			/* ADCA */
     { 2, 2, 2, 2 },			/* ORAA */
     { 2, 2, 2, 2 },			/* ADDA */
-    { 4, 4, 3, 3 },			/* CPX */
+    { 3, 4, 3, 3 },			/* CPX */
     { 8, 6, 5, 5 },			/* BSR */
     { 3, 3, 3, 3 },			/* LDS */
     { 3, 3, 3, 3 },			/* STS immed (timing uncertain) 68HC11 only: XGDX */
@@ -354,15 +354,15 @@ static uint8_t clock_count[256][4] = {
     { 5, 4, 4, 4 },			/* ANDA */
     { 5, 4, 4, 4 },			/* BITA */
     { 5, 4, 4, 4 },			/* LDAA */
-    { 5, 4, 4, 4 },			/* STAA */
+    { 6, 4, 4, 4 },			/* STAA */
     { 5, 4, 4, 4 },			/* EORA */
     { 5, 4, 4, 4 },			/* ADCA */
     { 5, 4, 4, 4 },			/* ORAA */
     { 5, 4, 4, 4 },			/* ADDA */
     { 6, 6, 5, 5 },			/* CPX */
-    { 9, 6, 5, 5 },			/* JSR */
-    { 5, 5, 5, 5 },			/* LDS */
-    { 5, 5, 5, 5 },			/* STS */
+    { 8, 6, 5, 5 },			/* JSR */
+    { 6, 5, 5, 5 },			/* LDS */
+    { 7, 5, 5, 5 },			/* STS */
     /* B0: A ops, extended */
     { 4, 4, 4, 4 },			/* SUBA */
     { 4, 4, 4, 4 },			/* CMPA */
@@ -377,8 +377,8 @@ static uint8_t clock_count[256][4] = {
     { 4, 4, 4, 4 },			/* ORAA */
     { 4, 4, 4, 4 },			/* ADDA */
     { 6, 6, 5, 5 },			/* CPX */
-    { 8, 6, 6, 6 },			/* JSR */
-    { 6, 5, 5, 5 },			/* LDS */
+    { 9, 6, 6, 6 },			/* JSR */
+    { 5, 5, 5, 5 },			/* LDS */
     { 6, 5, 5, 5 },			/* STS */
     /* C0: B ops, immed */
     { 2, 2, 2, 2 },			/* SUBB */
@@ -405,7 +405,7 @@ static uint8_t clock_count[256][4] = {
     { 3, 3, 3, 3 },			/* ANDB */
     { 3, 3, 3, 3 },			/* BITB */
     { 3, 3, 3, 3 },			/* LDAB */
-    { 3, 3, 3, 3 },			/* STAB */
+    { 4, 3, 3, 3 },			/* STAB */
     { 3, 3, 3, 3 },			/* EORB */
     { 3, 3, 3, 3 },			/* ADCB */
     { 3, 3, 3, 3 },			/* ORAB */
@@ -413,7 +413,7 @@ static uint8_t clock_count[256][4] = {
     { 0, 4, 4, 4 },			/* LDD */
     { 1, 4, 4, 4 },			/* STD (HCF on 6800) */
     { 4, 4, 4, 4 },			/* LDX */
-    { 4, 4, 4, 4 },			/* STX */
+    { 5, 4, 4, 4 },			/* STX */
     /* E0: B ops, indexed */
     { 5, 4, 4, 4 },			/* SUBB */
     { 5, 4, 4, 4 },			/* CMPB */
@@ -422,15 +422,15 @@ static uint8_t clock_count[256][4] = {
     { 5, 4, 4, 4 },			/* ANDB */
     { 5, 4, 4, 4 },			/* BITB */
     { 5, 4, 4, 4 },			/* LDAB */
-    { 5, 4, 4, 4 },			/* STAB */
+    { 6, 4, 4, 4 },			/* STAB */
     { 5, 4, 4, 4 },			/* EORB */
     { 5, 4, 4, 4 },			/* ADCB */
     { 5, 4, 4, 4 },			/* ORAB */
     { 5, 4, 4, 4 },			/* ADDB */
     { 0, 5, 5, 5 },			/* LDD */
     { 0, 5, 5, 5 },			/* STD */
-    { 5, 5, 5, 5 },			/* LDX */
-    { 5, 5, 5, 5 },			/* STX */
+    { 6, 5, 5, 5 },			/* LDX */
+    { 7, 5, 5, 5 },			/* STX */
     /* F0: B ops, extended */
     { 4, 4, 4, 4 },			/* SUBB */
     { 4, 4, 4, 4 },			/* CMPB */
@@ -439,7 +439,7 @@ static uint8_t clock_count[256][4] = {
     { 4, 4, 4, 4 },			/* ANDB */
     { 4, 4, 4, 4 },			/* BITB */
     { 4, 4, 4, 4 },			/* LDAB */
-    { 4, 4, 4, 4 },			/* STAB */
+    { 5, 4, 4, 4 },			/* STAB */
     { 4, 4, 4, 4 },			/* EORB */
     { 4, 4, 4, 4 },			/* ADCB */
     { 4, 4, 4, 4 },			/* ORAB */
@@ -447,7 +447,7 @@ static uint8_t clock_count[256][4] = {
     { 0, 5, 5, 5 },			/* LDD */
     { 0, 5, 5, 5 },			/* STD */
     { 5, 5, 5, 5 },			/* LDX */
-    { 5, 5, 5, 5 }			/* STX */
+    { 6, 5, 5, 5 }			/* STX */
 };
 
 /* By page 00/18/1A/CD */
@@ -1798,9 +1798,10 @@ static void m6800_shift16(struct m6800 *cpu, int c)
 /* CPX depends on the CPU variant. With the 6803 and later you can sensibly
    use the carry based comparisons, with the 6800 whilst V is set up the C
    flag is not affected */
-static void m6800_cpx(struct m6800 *cpu, uint16_t a, uint16_t b, uint16_t r)
+static void m6800_cpx(struct m6800 *cpu, uint16_t a, uint16_t b)
 {
     if (cpu->type == CPU_6800) {
+        uint16_t r = (a & 0xFF00) - (b & 0xFF00);
         cpu->p &= ~(P_Z|P_N|P_V);
         if (r == 0)
             cpu->p |= P_Z;
@@ -1814,7 +1815,7 @@ static void m6800_cpx(struct m6800 *cpu, uint16_t a, uint16_t b, uint16_t r)
                 cpu->p |= P_V;
         }
     } else
-        m6800_maths16_noh(cpu, a, b, r);
+        m6800_maths16_noh(cpu, a, b, a - b);
 }
 
 static void m6800_bra(struct m6800 *cpu, uint8_t data8, uint8_t taken)
@@ -1923,7 +1924,6 @@ static int m6800_execute_one(struct m6800 *cpu)
             /* TRAP pushes the faulting address */
             fprintf(stderr, "illegal instruction %02X:%02X at %04X\n",
                 opcode, m6800_do_read(cpu, fetch_pc + 1), fetch_pc);
-            exit(1);	/* For the debug emu case */
             cpu->pc = fetch_pc;
             if (cpu->type == CPU_6303)
                 m6800_vector(cpu, 0xFFEE);
@@ -1934,7 +1934,6 @@ static int m6800_execute_one(struct m6800 *cpu)
             /* An invalid instruction we don't yet model */
             fprintf(stderr, "illegal instruction %02X at %04X\n",
                 opcode, fetch_pc);
-            exit(1);	/* For the debug emu case */
             return clocks;
         }
     }
@@ -2860,10 +2859,10 @@ static int m6800_execute_one(struct m6800 *cpu)
         cpu->a = m6800_maths8(cpu, cpu->a, data8, cpu->a + data8);
         return clocks;
     case 0x188C:/* CPY */
-        m6800_cpx(cpu, cpu->y, data16, cpu->y - data16);
+        m6800_cpx(cpu, cpu->y, data16);
         return clocks;
     case 0x8C:	/* CPX */
-        m6800_cpx(cpu, cpu->x, data16, cpu->x - data16);
+        m6800_cpx(cpu, cpu->x, data16);
         return clocks;
     case 0x8D:	/* BSR */
         m6800_push16(cpu, cpu->pc);
@@ -2960,12 +2959,12 @@ static int m6800_execute_one(struct m6800 *cpu)
     case 0x189C:/* CPY */
         tmp16 = m6800_do_read(cpu, data8) << 8;
         tmp16 |= m6800_do_read(cpu, data8 + 1);
-        m6800_cpx(cpu, cpu->y, tmp16, cpu->y - tmp16);
+        m6800_cpx(cpu, cpu->y, tmp16);
         return clocks;
     case 0x9C:	/* CPX */
         tmp16 = m6800_do_read(cpu, data8) << 8;
         tmp16 |= m6800_do_read(cpu, data8 + 1);
-        m6800_cpx(cpu, cpu->x, tmp16, cpu->x - tmp16);
+        m6800_cpx(cpu, cpu->x, tmp16);
         return clocks;
     case 0x9D:	/* JSR */
         if (cpu->type == CPU_6800)
@@ -3068,13 +3067,13 @@ static int m6800_execute_one(struct m6800 *cpu)
     case 0x18AC:/* CPY ,Y*/
         tmp16 = m6800_do_read(cpu, data16) << 8;
         tmp16 |= m6800_do_read(cpu, data16 + 1);
-        m6800_cpx(cpu, cpu->y, data16, cpu->y - tmp16);
+        m6800_cpx(cpu, cpu->y, tmp16);
         return clocks;
     case 0xCDAC:/* CPX ,Y */
     case 0xAC:	/* CPX ,X*/
         tmp16 = m6800_do_read(cpu, data16) << 8;
         tmp16 |= m6800_do_read(cpu, data16 + 1);
-        m6800_cpx(cpu, cpu->x, tmp16, cpu->x - tmp16);
+        m6800_cpx(cpu, cpu->x, tmp16);
         return clocks;
     case 0x18AD:/* JSR ,Y */
     case 0xAD:	/* JSR ,X */
@@ -3160,12 +3159,12 @@ static int m6800_execute_one(struct m6800 *cpu)
     case 0x18BC:/* CPY */
         tmp16 = m6800_do_read(cpu, data16) << 8;
         tmp16 |= m6800_do_read(cpu, data16 + 1);
-        m6800_cpx(cpu, cpu->y, tmp16, cpu->y - tmp16);
+        m6800_cpx(cpu, cpu->y, tmp16);
         return clocks;
     case 0xBC:	/* CPX */
         tmp16 = m6800_do_read(cpu, data16) << 8;
         tmp16 |= m6800_do_read(cpu, data16 + 1);
-        m6800_cpx(cpu, cpu->x, tmp16, cpu->x - tmp16);
+        m6800_cpx(cpu, cpu->x, tmp16);
         return clocks;
     case 0xBD:	/* JSR ext */
         m6800_push16(cpu, cpu->pc);
