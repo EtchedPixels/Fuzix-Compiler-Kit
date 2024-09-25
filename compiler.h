@@ -11,7 +11,7 @@
 /* Number of bytees of index data used for tagging structs, prototypes etc */
 #define IDX_SIZE		1536
 /* Maximum number of goto labels per function (not switches), 4 bytes each */
-#define MAXLABEL		16
+#define MAXLABEL		32
 /* Maximum number of fields per structure, 6 bytes per entry on stack, per
    recursive struct definition */
 #define NUM_STRUCT_FIELD	50
