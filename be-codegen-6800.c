@@ -1414,7 +1414,7 @@ unsigned gen_node(struct node *n)
 		}
 		load_d_const(n->value >> 16);
 		printf("\tstaa @hireg\n");
-		printf("\tstab @hireg\n");
+		printf("\tstab @hireg+1\n");
 		load_d_const(n->value);
 		return 1;
 	case T_LABEL:

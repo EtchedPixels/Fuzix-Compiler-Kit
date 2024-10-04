@@ -50,19 +50,19 @@ void load_d_const(uint16_t n)
 		if (a_valid == 0 || hi != a_val) {
 			if (hi == 0)
 				printf("\tclra\n");
-			else if (hi == b_val) {
+			else if (b_valid && hi == b_val)
 				printf("\ttba\n");
-				printf("\t%sa #%d\n", ld8_op, hi);
-			}
+			else
+				printf("\tldaa #%d\n", hi);
 		}
 		if (b_valid == 0 || lo != b_val) {
 			if (lo == 0)
 				printf("\tclrb\n");
 			else if (lo == hi)
 				printf("\ttab\n");
-			return;
-		} else
-			printf("\t%sb #%d\n", ld8_op, lo);
+			else
+				printf("\tldab #%d\n", lo);
+		}
 	}
 	a_valid = 1;	/* We know the byte values */
 	b_valid = 1;
@@ -81,7 +81,7 @@ void load_a_const(register uint8_t n)
 	else if (b_valid && n == b_val)
 		printf("\ttba\n");
 	else
-		printf("\t%sa #%u\n", ld8_op, n & 0xFF);
+		printf("\tldaa #%u\n", n & 0xFF);
 	a_valid = 1;
 	a_val = n;
 	d_valid = 0;
@@ -96,7 +96,7 @@ void load_b_const(register uint8_t n)
 	else if (a_valid && n == a_val)
 		printf("\ttab\n");
 	else
-		printf("\t%sb #%u\n", ld8_op, n & 0xFF);
+		printf("\tldab #%u\n", n & 0xFF);
 	b_valid = 1;
 	b_val = n;
 	d_valid = 0;

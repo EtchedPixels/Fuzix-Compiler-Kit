@@ -14,5 +14,5 @@ __ccnel:
 	ldaa	@hireg
 	suba	3,x
 	bne	true
-	jmp	false4
-true:	jmp	true4
+	jmp	__false4
+true:	jmp	__true4
