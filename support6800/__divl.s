@@ -3,26 +3,17 @@
 
 __divl:
 	clr	@tmp4		; Sign tracking
-	staa	@tmp		; save low word in tmp
-	stab	@tmp+1
-	ldaa	@hireg
-	bita	#0x80
-	beq	nosignfix
-	ldaa	@tmp		; low word back
-	ldab	@tmp+1
+	tst		@hireg
+	bpl		nosignfix
 	jsr	__negatel
 	;	hireg:D now negated
 	inc	@tmp4
-	staa	@tmp	; save again
-	stab	@tmp+1
 nosignfix:
+	pshb
+	psha
 	ldaa	@hireg
 	ldab	@hireg+1
 	pshb
-	psha
-	ldaa	@tmp	; low word back
-	ldab	@tmp+1
-	pshb	; stack it
 	psha
 	tsx
 	;
@@ -49,26 +40,25 @@ nosignfix:
 	com	9,x
 nosignfix2:
 	jsr	div32x32
+	ldaa 6,x
+	ldab 7,x
+	staa @hireg
+	stab @hireg+1
+	ldaa 8,x
+	ldab 9,x
+	ldx 4,x
 	ins
 	ins
 	ins
 	ins
-	pula
-	pulb
-	tsx	; no PULX on 6800
-	ldx ,x	; return
 	ins
 	ins
-	ldab	@tmp4
-	rorb
 	ins
 	ins
+	ins
+	ins
+	ror		@tmp4
 	bcc	nosignfix3
-	pula
-	pulb
 	jsr	__negatel
-	jmp	,x
 nosignfix3:
-	pula
-	pulb
 	jmp	,x

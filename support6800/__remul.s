@@ -16,4 +16,15 @@ __remul:
 	stab	@hireg+1
 	ldaa	@tmp3
 	ldab	@tmp3+1
-	jmp	__pop4
+	ldx		4,x
+	ins
+	ins
+	ins
+	ins
+	ins
+	ins
+	ins
+	ins
+	ins
+	ins
+	jmp	0,x

@@ -27,8 +27,8 @@ __xdivequl:
 	psha
 	stx	@tmp1
 	tsx
-	inx
-	inx	; point to the constructed frame
+;	inx
+;	inx	; point to the constructed frame
 	jsr	div32x32
 	; Divison done now unpack the result
 	ldaa	6,x

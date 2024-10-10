@@ -27,8 +27,8 @@ __xremequl:
 	psha	; save hireg at 0,S in the frame
 	stx	@tmp1
 	tsx
-	inx
-	inx	; X points at the frame
+;	inx
+;	inx	; X points at the frame
 	jsr	div32x32
 	ldaa	@tmp2
 	ldab	@tmp2+1
