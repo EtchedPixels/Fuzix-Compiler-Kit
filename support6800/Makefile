@@ -2,7 +2,7 @@ all: lib6800.a crt0.o
 
 OBJ =  dp.o makebool.o cleanup.o divide.o __div.o __divu.o __xdiveq.o __mul.o \
        __shl.o __shr.o __shru.o \
-       __minus.o __xminuseq.o \
+       __minus.o __xminuseq.o __plus.o \
        __cceq.o __ccgt.o __ccgteq.o __cclt.o __cclteq.o __ccltu.o __ccne.o \
        __cceql.o __ccnel.o __ccgtl.o __ccgteql.o __ccltl.o __cclteql.o \
        __switch.o __switchc.o \
@@ -19,7 +19,8 @@ OBJ =  dp.o makebool.o cleanup.o divide.o __div.o __divu.o __xdiveq.o __mul.o \
       __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o \
       __xminusminusl.o __xdivequl.o __xremequl.o __xdiveql.o __switchl.o \
       __pop4.o __pull4.o __xremeql.o __popret.o __addxconst.o \
-      __xplusplusu.o __xplusplusuc.o
+      __xplusplusu.o __xplusplusuc.o \
+      __andl.o __orl.o __xorl.o
 
 .s.o:
 	fcc -m6800 -c $<
