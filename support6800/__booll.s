@@ -4,13 +4,12 @@
 __booll:
 	orab	@hireg
 	orab	@hireg+1
-	cmpa	#0
+	bne		true
+	tsta
 	beq	false	; If this passes then D is already zero
-	cmpb	#0
-	beq	false
 true:
 	clra
-	ldab	@one
+	ldab	#1
 	rts
 false:
 	clra
