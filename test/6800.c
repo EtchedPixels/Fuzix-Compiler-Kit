@@ -1934,6 +1934,7 @@ static int m6800_execute_one(struct m6800 *cpu)
             /* An invalid instruction we don't yet model */
             fprintf(stderr, "illegal instruction %02X at %04X\n",
                 opcode, fetch_pc);
+			exit(1);
             return clocks;
         }
     }
