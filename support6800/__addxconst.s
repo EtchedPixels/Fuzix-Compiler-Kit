@@ -18,8 +18,8 @@ __addxconst:
 	inx		; Move to word after
 	inx
 	stx @tmp1	; save the return address
-	addb @tmp	; D now holds the right value
-	adca @tmp+1
+	addb @tmp+1	; D now holds the right value
+	adca @tmp
 	staa @tmp	; D into X
 	stab @tmp+1
 	ldx @tmp
