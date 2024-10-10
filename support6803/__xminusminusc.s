@@ -1,5 +1,5 @@
 ;
-;	,X - D
+;	,X - B
 ;
 	.export __xmminusc
 	.export __xmminusuc
@@ -8,8 +8,8 @@
 __xmminusc:
 __xmminusuc:
 	ldaa ,x
-	psha
 	sba
 	staa ,x
-	pulb
+	aba
+	tab
 	rts
