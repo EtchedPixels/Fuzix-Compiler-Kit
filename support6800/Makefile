@@ -3,6 +3,7 @@ all: lib6800.a crt0.o
 OBJ =  dp.o makebool.o cleanup.o divide.o __div.o __divu.o __xdiveq.o __mul.o \
        __shl.o __shr.o __shru.o \
        __minus.o __xminuseq.o \
+       __cceq.o __ccgt.o __ccgteq.o __cclt.o __cclteq.o __ccltu.o __ccne.o \
        __cceql.o __ccnel.o __ccgtl.o __ccgteql.o __ccltl.o __cclteql.o \
        __switch.o __switchc.o \
        __cpll.o __castl.o __negatel.o __booll.o __notl.o \
