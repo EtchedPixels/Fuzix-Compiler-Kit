@@ -11,7 +11,6 @@ __true2:
 	clra
 	ldab	#1
 __pop2:
-	clra
 	tsx
 	ldx	,x
 	ins

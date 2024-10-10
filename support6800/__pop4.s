@@ -11,7 +11,6 @@ __true4:
 	clra
 	ldab	#1
 __pop4:
-	clra
 	tsx
 	ldx	,x
 	ins
