@@ -211,9 +211,10 @@ void gen_helpclean(struct node *n)
 		}
 		s += get_size(n->right->type);
 		/* No helper uses varargs */
-		/* FIXME: 6800 expects called code to clean up */
 		sp -= s;
-		adjust_s(s, 1);
+		/* 6800 expects called code to clean up */
+		if (cpu != 6800)
+			adjust_s(s, 1);
 		/* C style ops that are ISBOOL didn't set the bool flags */
 		if (n->flags & ISBOOL)
 			printf("\ttstb\n");
