@@ -65,7 +65,7 @@ loop:		; Shift the dividend left and set bit 0 assuming that
 		subb DIVIS+3,x
 		sbca DIVIS+2,x
 		staa @tmp3
-		staa @tmp3+1
+		stab @tmp3+1
 		ldaa @tmp2
 		ldab @tmp2+1
 		sbcb DIVIS+1,x
