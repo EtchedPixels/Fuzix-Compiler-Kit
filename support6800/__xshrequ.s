@@ -8,8 +8,8 @@ __xshrequ:
 	clra
 	andb	#15
 	beq	nowork
-	cmpb	#8
 	stab	@tmp
+	cmpb	#8
 	beq	bytemove
 	bcc	fast
 	ldaa	,x
