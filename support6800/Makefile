@@ -1,6 +1,6 @@
 all: lib6800.a crt0.o
 
-OBJ =  dp.o makebool.o divide.o __div.o __divu.o __xdiveq.o __mul.o \
+OBJ =  dp.o makebool.o cleanup.o divide.o __div.o __divu.o __xdiveq.o __mul.o \
        __shl.o __shr.o __shru.o \
        __minus.o __xminuseq.o \
        __cceql.o __ccnel.o __ccgtl.o __ccgteql.o __ccltl.o __cclteql.o \
