@@ -602,7 +602,7 @@ unsigned op16_on_node(register struct node *r, const char *op, const char *op2, 
 	invalidate_work();
 
 	op = remap_op(op);
-	op2 = remap_op(op);
+	op2 = remap_op(op2);
 
 	switch(r->op) {
 	case T_LSTORE:
