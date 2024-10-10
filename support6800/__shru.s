@@ -12,6 +12,7 @@ __shru:	clra
 	bcs nofast
 	subb #8
 	stab @tmp
+	tsx
 	ldab 2,x
 	clra
 shrf:	
