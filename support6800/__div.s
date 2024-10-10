@@ -20,8 +20,7 @@ __rem:
 	pshb
 	psha
 	ldaa 2,x
-	bita #$80		; sign bit of dividend
-	bne negmod
+	bmi negmod
 	ldx 2,x			; get the dividend (unsigned)
 	pula
 	pulb
@@ -29,6 +28,7 @@ __rem:
 				; X = quotient, D = remainder
 	jmp __pop2
 negmod:
+	ldab 3,x
 	bsr negd
 	staa 2,x
 	stab 3,x
@@ -76,13 +76,12 @@ divdone:
 	jmp __pop2
 
 absd:
-	bita #$80
-	beq ispos
+	tsta
+	bpl ispos
 	inc @tmp4
 negd:
-	subb #1			; negate d
+	nega			; cf. MC6809-MC6809E 8-Bit Microprocessor Programming Manual B-60
+	negb
 	sbca #0
-	coma
-	comb
 ispos:
 	rts
