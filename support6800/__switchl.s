@@ -5,39 +5,36 @@ __switchl:
 	; Juggle as we are short of regs here - TODO find a nicer approach
 	staa @tmp
 	stab @tmp+1
-	ldab ,x
-	stab @tmp1
-	inc @tmp1
-	bra incmv
+	ldab 1,x
+	inx
+	inx
+	tstb
+	beq gotit
 next:
 	ldaa ,x
 	cmpa @hireg
-	bne nom
-	ldab 1,x
-	cmpb @hireg+1
-nom:
-	inx
-	inx
 	bne nomat
-	ldaa ,x
+	ldaa 1,x
+	cmpa @hireg+1
+	bne nomat
+	ldaa 2,x
 	cmpa @tmp
 	bne nomat
-	ldab 1,x
-	cmpb @tmp+1
-	beq gotit
+	ldaa 3,x
+	cmpa @tmp+1
+	bne	nomat
+	ldx	4,x
+	jmp	,x
 nomat:
 	inx
 	inx
-incmv:
+	inx
+	inx
 	inx
 	inx
 moveon:
-	dec @tmp		; We know < 256 entries per switch
+	decb			; We know < 256 entries per switch
 	bne next
-	bra def
 gotit:
-	inx
-	inx
-def:
 	ldx ,x
 	jmp ,x

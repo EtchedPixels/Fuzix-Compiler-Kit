@@ -2,15 +2,18 @@
 
 __switchc:
 	; X holds the switch table, B the value
+	ldaa 1,x		; Table size (will always be < 256 entries)
 	inx
-	ldaa ,x		; Table size (will always be < 256 entries)
 	inx
+	tsta
 	beq gotit
 next:
-	cmpb ,x
+	cmpb 0,x
+	bne next2
 	inx
+	bra	gotit
+next2:
 	inx
-	beq gotit
 	inx
 	inx
 	deca
