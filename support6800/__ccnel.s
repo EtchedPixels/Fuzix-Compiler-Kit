@@ -5,14 +5,15 @@
 
 __ccnel:	
 	tsx
-	subb	4,x
+	subb	5,x
 	bne	true
-	suba	2,x
+	suba	4,x
 	bne	true
 	ldab	@hireg+1
 	subb	3,x
+	bne	true
 	ldaa	@hireg
-	suba	3,x
+	suba	2,x
 	bne	true
 	jmp	__false4
 true:	jmp	__true4

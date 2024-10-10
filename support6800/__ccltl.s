@@ -27,13 +27,15 @@ __ccltl:
 cclow:
 	subb	3,x
 	bhi	true
+	bcs	false
 	ldaa	@tmp
 	ldab	@tmp+1
 	suba	4,x
 	bhi	true
+	bcs	false
 	subb	5,x
 	bhi	true
 false:
-	jmp	__falss4
+	jmp	__false4
 true:
 	jmp	__true4

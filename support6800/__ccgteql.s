@@ -23,13 +23,16 @@ __ccgteql:
 	ldab	@hireg+1
 	suba	2,x
 	bgt	false
+	blt	true
 cclow:
 	subb	3,x
 	bhi	false
+	blo	true
 	ldaa	@tmp
 	ldab	@tmp+1
 	suba	4,x
 	bhi	false
+	blo	true
 	subb	5,x
 	bhi	false
 true:
