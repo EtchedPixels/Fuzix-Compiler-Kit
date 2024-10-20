@@ -494,12 +494,17 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 		x_fpoff += off - rlim;
 		return rlim;
 	}
+	/* These cases push and pop the old D but we don't have a tracking
+	   mechanism to optimise it. FIXME one day. The first half of things
+	   is fine as we push and load so can optimize, but the resulting
+	   case we can currently only invalidate for */
 	if (off - rlim < 256) {
 		printf("\tpshb\n");
 		load_b_const(off - rlim);
 		printf("\tjsr __abx\n");
 		x_fpoff += off - rlim;
 		printf("\tpulb\n");
+		invalidate_work();
 		return rlim;
 	} else {
 		/* This case is (thankfully) fairly rare */
@@ -508,6 +513,7 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 		printf("\tjsr __adx\n");
 		x_fpoff += off;
 		printf("\tpula\n\tpulb\n");
+		invalidate_work();
 		return 0;
 	}
 }
