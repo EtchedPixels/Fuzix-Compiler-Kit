@@ -341,13 +341,17 @@ void adjust_s(register int n, unsigned save_d)
 	}
 	/* TODO: if we save_d we need to keep and valid */
 	/* Inline */
-	if (save_d)
-		printf("\tpshb\n\tpsha\n");
+	if (save_d){
+		printf("\tstaa @tmp2\n");
+		printf("\tstab @tmp2+1\n");
+	}
 	move_s_d();
 	add_d_const(n);
 	move_d_s();
-	if (save_d)
-		printf("\tpulb\n\tpula\n");
+	if (save_d){
+		printf("\tldaa @tmp2\n");
+		printf("\tldab @tmp2+1\n");
+	}
 }
 
 void op8_on_ptr(const char *op, unsigned off)
@@ -430,7 +434,7 @@ void load32(register unsigned off)
 	} else if (cpu_has_d)
 		printf("\tldd %u,x\n\tstd @hireg\n\tldd %u,x\n", off, off + 2);
 	else {
-		printf("\tldaa %u,x\nldab %u,x\n\tldx %u,x\nstx @hireg\n",
+		printf("\tldaa %u,x\n\tldab %u,x\n\tldx %u,x\n\tstx @hireg\n",
 			off + 2, off + 3, off);
 		invalidate_x();
 	}
@@ -446,8 +450,8 @@ void store32(register unsigned off)
 			off + 2, off, off + 2);
 	} else {
 		printf("\tstab %u,x\n\tstaa %u,x\n\tpsha\n", off + 3, off + 2);
-		printf("\tldaa @hireg+1\nstaa %u,x\n", off + 1);
-		printf("\tldaa @hireg\nstaa %u,x\n", off);
+		printf("\tldaa @hireg+1\n\tstaa %u,x\n", off + 1);
+		printf("\tldaa @hireg\n\tstaa %u,x\n", off);
 		printf("\tpula\n");
 	}
 }
@@ -537,6 +541,8 @@ static char *addr_form(register struct node *r, unsigned off, unsigned s)
 
 	if (s == 1)
 		mod = "<";
+	else if (s == 3)
+		mod = ">";
 
 	switch(r->op) {
 	case T_CONSTANT:
@@ -622,12 +628,15 @@ unsigned op16_on_node(register struct node *r, const char *op, const char *op2, 
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
-	case T_LABEL:
 	case T_NSTORE:
 	case T_NREF:
-	case T_NAME:
 		printf("\t%sa %s\n", op, addr_form(r, off, 1));
 		printf("\t%sb %s\n", op2, addr_form(r, off + 1, 1));
+		break;
+	case T_NAME:
+	case T_LABEL:
+		printf("\t%sa %s\n", op, addr_form(r, off, 3));
+		printf("\t%sb %s\n", op2, addr_form(r, off, 1));
 		break;
 	default:
 		return 0;
