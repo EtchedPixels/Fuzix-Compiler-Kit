@@ -375,6 +375,7 @@ unsigned gen_direct(struct node *n)
 	struct node *r = n->right;
 	unsigned off;
 	uint16_t v;
+	uint16_t hv;
 
 	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
@@ -480,6 +481,13 @@ unsigned gen_direct(struct node *n)
 	case T_AND:
 		if (r->op == T_CONSTANT) {	/* No need to type check - canno tbe float */
 			v = r->value & 0xFFFF;
+			hv = r->value >> 16;
+
+			/* Check if it makes sense to do long inline. Only
+			   do so if we have Y or the upper half is trivial */
+			if (s == 4 && !cpu_has_y && hv && hv != 0xFFFF)
+				return 0;
+
 			if ((v & 0xFF) != 0xFF) {
 				if (v & 0xFF)
 					printf("\tandb #%u\n", v & 0xFF);
@@ -497,19 +505,27 @@ unsigned gen_direct(struct node *n)
 				}
 				modify_a(a_val & v);
 			}
-			if (s == 4 && cpu_has_y) {
-				v = r->value >> 16;
-				swap_d_y();
-				if (v & 0xFF)
-					printf("\tandb #%u\n", v & 0xFF);
-				else
-					printf("\tclrb\n");
-				v >>= 8;
-				if (v & 0xFF)
-					printf("\tanda #%u\n", v & 0xFF);
-				else
-					printf("\tclra\n");
-				swap_d_y();
+			if (s == 4) {
+				if (hv == 0x0000) {
+					if (cpu_has_y)
+						printf("\tldy #0\n");
+					else {
+						printf("\tclr @hireg\n");
+						printf("\tclr @hireg+1\n");
+					}
+				} else if (hv != 0xFFFF) {
+					swap_d_y();
+					if (hv & 0xFF)
+						printf("\tandb #%u\n", hv & 0xFF);
+					else
+						printf("\tclrb\n");
+					hv >>= 8;
+					if (hv & 0xFF)
+						printf("\tanda #%u\n", hv & 0xFF);
+					else
+						printf("\tclra\n");
+					swap_d_y();
+				}
 			}
 			return 1;
 		}
@@ -517,6 +533,11 @@ unsigned gen_direct(struct node *n)
 	case T_OR:
 		if (r->op == T_CONSTANT) {
 			v = r->value & 0xFFFF;
+			hv = r->value >> 16;
+			/* Check if it makes sense to do long inline. Only
+			   do so if we have Y or the upper half is trivial */
+			if (s == 4 && !cpu_has_y && hv)
+				return 0;
 			if (v & 0xFF) {
 				printf("\torb #%u\n", v & 0xFF);
 				modify_b(b_val | v);
@@ -527,14 +548,18 @@ unsigned gen_direct(struct node *n)
 					printf("\tora #%u\n", v);
 				modify_a(a_val | v);
 			}
-			if (s == 4 && cpu_has_y) {
-				v = r->value >> 16;
-				swap_d_y();
-				if (v & 0xFF)
-					printf("\torb #%u\n", v & 0xFF);
-				if (v & 0xFF)
-					printf("\tora #%u\n", v & 0xFF);
-				swap_d_y();
+			if (s == 4) {
+				if (hv == 0xFFFF)
+					printf("\tldy #0xFFFF\n");
+				else if (hv) {
+					swap_d_y();
+					if (hv & 0xFF)
+						printf("\torb #%u\n", hv & 0xFF);
+					hv >>= 8;
+					if (hv & 0xFF)
+						printf("\tora #%u\n", hv & 0xFF);
+					swap_d_y();
+				}
 			}
 			return 1;
 		}
@@ -542,6 +567,9 @@ unsigned gen_direct(struct node *n)
 	case T_HAT:
 		if (r->op == T_CONSTANT) {
 			v = r->value & 0xFFFF;
+			hv = r->value >> 16;
+			if (s == 4 && !cpu_has_y && hv && hv != 0xFFFF)
+				return 0;
 			if ((v & 0xFF) == 0xFF)
 				printf("\tcomb\n");
 			else if (v & 0xFF)
@@ -555,19 +583,23 @@ unsigned gen_direct(struct node *n)
 					printf("\teora #%u\n", v);
 				modify_a(a_val ^ v);
 			}
-			if (s == 4 && cpu_has_y) {
-				v = r->value >> 16;
-				swap_d_y();
-				if ((v & 0xFF) == 0xFF)
-					printf("\tcomb\n");
-				else if (v & 0xFF)
-					printf("\teorb #%u\n", v & 0xFF);
-				v >>= 8;
-				if (v == 0xFF)
-					printf("\tcoma\n");
-				else if (v & 0xFF)
-					printf("\teora #%u\n", v);
-				swap_d_y();
+			if (s == 4) {
+				if (hv == 0xFFFF && !cpu_has_y) {
+					printf("\tcom @hireg\n");
+					printf("\tcom @hireg+1\n");
+				} else if (hv) {
+					swap_d_y();
+					if ((hv & 0xFF) == 0xFF)
+						printf("\tcomb\n");
+					else if (hv & 0xFF)
+						printf("\teorb #%u\n", hv & 0xFF);
+					hv >>= 8;
+						if (hv == 0xFF)
+						printf("\tcoma\n");
+					else if (hv & 0xFF)
+						printf("\teora #%u\n", hv);
+					swap_d_y();
+				}
 			}
 			return 1;
 		}
