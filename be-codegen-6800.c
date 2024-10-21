@@ -745,10 +745,14 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 				printf("\taddd #%u\n", off);
 				printf("\txgdx\n");
 			} else {
-				/* FIXME: merge this into _off versions of
-				   helpers that do the jsr as more compact */
-				printf("\tjsr __addxconst\n");
-				printf("\t.word %u\n", off);
+				if (off > 0 && off <= 5 + opt)
+					repeated_op(off, "inx");
+				else if (off < 0 && off >= -5 - opt)
+					repeated_op(-off, "dex");
+				else {
+					printf("\tjsr __addxconst\n");
+					printf("\t.word %u\n", off);
+				}
 			}
 			invalidate_x();
 		}
