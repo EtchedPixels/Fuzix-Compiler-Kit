@@ -21,9 +21,6 @@ unsigned cpu_pic;		/* Position independent output (6809 only) */
 
 const char *jmp_op = "jmp";
 const char *jsr_op = "jsr";
-const char *or_op = "ora";
-const char *ld8_op = "lda";
-const char *st8_op = "sta";
 const char *pic_op = "";
 
 /*
@@ -289,9 +286,6 @@ void gen_start(void)
 		cpu_has_lea = 1;
 		jmp_op = "bra";	/* Maybe a choice will be needed for jmp v bra/lbra ? */
 		jsr_op = "lbsr";
-		or_op = "or";
-		ld8_op = "ld";
-		st8_op = "st";
 		pic_op = ",pcr";
 		break;
 	case 6811:

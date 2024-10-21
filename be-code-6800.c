@@ -10,19 +10,6 @@
  *	Fix up weirdness in the asm formats.
  */
 
-static const char *remap_op(register const char *op)
-{
-	/* Some 68xx ops are a bit irregular
-	   - ldd v ldab etc */
-	if (strcmp(op, "ld") == 0)
-		return "lda";
-	if (strcmp(op, "or") == 0)
-		return "ora";
-	if (strcmp(op, "st") == 0)
-		return "sta";
-	return op;
-}
-
 /* 16bit constant load */
 void load_d_const(uint16_t n)
 {
@@ -356,15 +343,15 @@ void adjust_s(register int n, unsigned save_d)
 
 void op8_on_ptr(const char *op, unsigned off)
 {
-	printf("\t%sb %u,x\n", remap_op(op), off);
+	printf("\t%sb %u,x\n", op, off);
 }
 
 /* Do the low byte first in case it's add adc etc */
 void op16_on_ptr(const char *op, const char *op2, unsigned off)
 {
 	/* Big endian */
-	printf("\t%sb %u,x\n", remap_op(op), off + 1);
-	printf("\t%sa %u,x\n", remap_op(op2), off);
+	printf("\t%sb %u,x\n", op, off + 1);
+	printf("\t%sa %u,x\n", op2, off);
 }
 
 /* Operations where D can be used on later processors */
@@ -374,16 +361,13 @@ void op16d_on_ptr(const char *op, const char *op2, unsigned off)
 	if (cpu_has_d) {
 		printf("\t%sd %u,x\n", op, off);
 	} else {
-		/* ldd not ldab, std not stad ! */
-		printf("\t%sb %u,x\n", remap_op(op), off + 1);
-		printf("\t%sa %u,x\n", remap_op(op2), off);
+		printf("\t%sb %u,x\n", op, off + 1);
+		printf("\t%sa %u,x\n", op2, off);
 	}
 }
 
 static void op32_on_ptr(const char *op, const char *op2, unsigned off)
 {
-	op = remap_op(op);
-	op2 = remap_op(op2);
 	printf("\t%sb %u,x\n", op, off + 3);
 	printf("\t%sa %u,x\n", op2, off + 2);
 	if (cpu_has_y) {
@@ -403,8 +387,6 @@ static void op32_on_ptr(const char *op, const char *op2, unsigned off)
 
 void op32d_on_ptr(const char *op, const char *op2, unsigned off)
 {
-	op = remap_op(op);
-	op2 = remap_op(op2);
 	if (!cpu_has_d) {
 		op32_on_ptr(op, op2, off);
 		return;
@@ -459,7 +441,6 @@ void store32(register unsigned off)
 void uniop_on_ptr(register const char *op, register unsigned off,
 						register unsigned size)
 {
-	op = remap_op(op);
 	off += size;
 	while(size--)
 		printf("\t%s %u,x\n", op, --off);
@@ -583,8 +564,6 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 
 	invalidate_work();
 
-	op = remap_op(op);
-
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:
@@ -612,9 +591,6 @@ unsigned op16_on_node(register struct node *r, const char *op, const char *op2, 
 	register unsigned v = r->value;
 
 	invalidate_work();
-
-	op = remap_op(op);
-	op2 = remap_op(op2);
 
 	switch(r->op) {
 	case T_LSTORE:
@@ -724,7 +700,6 @@ unsigned write_uni_op(register struct node *r, const char *op, unsigned off)
 	if (s == 4)
 		return 0;
 
-	op = remap_op(op);
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:
@@ -748,14 +723,13 @@ unsigned write_uni_op(register struct node *r, const char *op, unsigned off)
 static void op8_on_tos(const char *op)
 {
 	unsigned off = make_tos_ptr();
-	printf("\t%sb %u,x\n", remap_op(op), off);
+	printf("\t%sb %u,x\n", op, off);
 	printf("\tins\n");
 }
 
 static void op16_on_tos(const char *op)
 {
 	register unsigned off;
-	op = remap_op(op);
 	invalidate_work();
 	off = make_tos_ptr();
 	printf("\t%sb %u,x\n", op, off + 1);
@@ -829,7 +803,6 @@ unsigned write_tos_uniop(struct node *n, register const char *op)
 	unsigned s = get_size(n->type);
 	if (s > 2)
 		return 0;
-	op = remap_op(op);
 	if (s == 2)
 		uniop16_on_tos(op);
 	else

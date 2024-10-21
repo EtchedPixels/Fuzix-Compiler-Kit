@@ -49,7 +49,7 @@ void load_a_const(uint8_t n)
 	else if (b_valid && n == b_val)
 		printf("\ttfr b,a\n");
 	else
-		printf("\t%sa #%u\n", ld8_op, n & 0xFF);
+		printf("\tlda #%u\n", n & 0xFF);
 	a_valid = 1;
 	a_val = n;
 	d_valid = 0;
@@ -64,7 +64,7 @@ void load_b_const(uint8_t n)
 	else if (a_valid && n == a_val)
 		printf("\ttfr a,b\n");
 	else
-		printf("\t%sb #%u\n", ld8_op, n & 0xFF);
+		printf("\tldb #%u\n", n & 0xFF);
 	b_valid = 1;
 	b_val = n;
 	d_valid = 0;

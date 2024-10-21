@@ -518,22 +518,22 @@ unsigned gen_direct(struct node *n)
 		if (r->op == T_CONSTANT) {
 			v = r->value & 0xFFFF;
 			if (v & 0xFF) {
-				printf("\t%sb #%u\n", or_op, v & 0xFF);
+				printf("\torb #%u\n", v & 0xFF);
 				modify_b(b_val | v);
 			}
 			if (s >= 2) {
 				v >>= 8;
 				if (v)
-					printf("\t%sa #%u\n", or_op, v);
+					printf("\tora #%u\n", v);
 				modify_a(a_val | v);
 			}
 			if (s == 4 && cpu_has_y) {
 				v = r->value >> 16;
 				swap_d_y();
 				if (v & 0xFF)
-					printf("\t%sb #%u\n", or_op, v & 0xFF);
+					printf("\torb #%u\n", v & 0xFF);
 				if (v & 0xFF)
-					printf("\t%sa #%u\n", or_op, v & 0xFF);
+					printf("\tora #%u\n", v & 0xFF);
 				swap_d_y();
 			}
 			return 1;
@@ -689,7 +689,7 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 		op_on_ptr(n, "and", off);
 		break;
 	case T_OREQ:
-		op_on_ptr(n, or_op, off);
+		op_on_ptr(n, "or", off);
 		break;
 	case T_HATEQ:
 		op_on_ptr(n, "eor", off);
@@ -791,7 +791,7 @@ unsigned write_xsimple(struct node *n, unsigned via_ptr)
 		op = op2 = "and";
 		break;
 	case T_OREQ:
-		op = op2 = or_op;
+		op = op2 = "or";
 		break;
 	case T_HATEQ:
 		op = op2 = "eor";

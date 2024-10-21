@@ -47,9 +47,6 @@ extern unsigned cpu_pic;	/* Position independent output (6809 only) */
 
 extern const char *jmp_op;
 extern const char *jsr_op;
-extern const char *or_op;
-extern const char *ld8_op;
-extern const char *st8_op;
 extern const char *pic_op;
 
 /* Tracking */
