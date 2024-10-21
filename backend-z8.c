@@ -2195,6 +2195,8 @@ static unsigned gen_fast_div(unsigned r, unsigned s, unsigned long n)
 {
 	if (n & (n - 1))
 		return 0;
+	/* Need to round towards zero */
+	add_r_const(r, n - 1, s);
 	rshift_r(r, s, ilog2(n), 1);
 	return 1;
 }
