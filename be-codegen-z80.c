@@ -656,6 +656,8 @@ static unsigned gen_fast_div(register unsigned n, unsigned s, unsigned u)
 			n >>= 1;
 		}
 	} else {
+		/* We can trash DE */
+		printf("\tld de,%u\n\tadd hl,de\n", (n - 1) & 0xFFFF);
 		while(n > 1) {
 			printf("\tsra h\n\trr l\n");
 			n >>= 1;
