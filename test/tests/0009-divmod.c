@@ -135,5 +135,9 @@ int main(int argc, char *argv[])
     i %= 10;
     if (i != -8)
         return 32;
+    /* Signed divide round towards zero check */
+    i = -1;
+    if (i / 2)
+        return 33;
     return 0;
 }
