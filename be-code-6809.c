@@ -845,6 +845,7 @@ unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 			n >>= 1;
 		}
 	} else {
+		printf("\taddd #%u\n", (n - 1) & 0xFFFF);
 		while(n > 1) {
 			printf("\tasra\n\trorb\n");
 			n >>= 1;

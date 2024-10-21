@@ -1035,6 +1035,7 @@ void gen_fast_mul(unsigned s, unsigned n)
 
 unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 {
+
 	u &= UNSIGNED;
 	if (s != 2)
 		return 0;
@@ -1053,6 +1054,14 @@ unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 			n >>= 1;
 		}
 	} else {
+		/* Round towards zero */
+		unsigned m = (n - 1) & 0xFFFF;
+		if (cpu_has_d)
+			printf("\taddd #%u\n", m);
+		else {
+			printf("\taddb #%u\n\taddca #%u\n",
+				m  & 0xFF, m >> 8);
+		}
 		while(n > 1) {
 			printf("\tasra\n\trorb\n");
 			n >>= 1;
