@@ -629,7 +629,7 @@ void discard_word(void)
 /* FIXME: pass sz */
 /*
  *	Make a reference to an object. We are passed the object node
- *	an optional 1 or 2 to indicate a pointer to avoid, and an
+ *	an optional 1, 2 or 3 to indicate a pointer to avoid, and an
  *	optional offset return.
  */
 unsigned gen_ref_nw(struct node *n, unsigned nw, unsigned offset, int *off)
@@ -646,8 +646,9 @@ unsigned gen_ref_nw(struct node *n, unsigned nw, unsigned offset, int *off)
 	if (n->op == T_LREF || n->op == T_LSTORE) {
 		int r = v + sp;	/* CHECK */
 		/* Slightly pessimal for word ops */
-		if (r >= -128 && r <= 128 - sz && off) {
+		if (nw != 1 && r >= -128 && r <= 128 - sz && off) {
 			*off = r;
+			/* Dereference directly from SP */
 			return 1;
 		}
 		/* Need to generate a ref. TODO pass whether EA can be mushed */
@@ -670,7 +671,7 @@ unsigned gen_ref_nw(struct node *n, unsigned nw, unsigned offset, int *off)
 		return ptr;
 	}
 	if (n->op == T_LBREF || n->op == T_LBSTORE) {
-		printf("\tld p%d,T%d+%d\n", ptr, n->val2, v);
+		printf("\tld p%d,=T%d+%d\n", ptr, n->val2, v);
 		return ptr;
 	}
 	return 0;
