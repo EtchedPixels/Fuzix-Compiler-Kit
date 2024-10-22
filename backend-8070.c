@@ -1,3 +1,26 @@
+/*
+ *	INS8070 Backend
+ *
+ *	EA	-	16bit accumulator
+ *	T	-	various scratch uses
+ *	P0	-	program counter
+ *	P1	-	stack pointer (offsets but no inc/dec)
+ *	P2	-	working pointer (usable as pointer)
+ *	P3	-	maybe use for reg var ?
+ *
+ *	FFxx addressing (akin to zero page on some other processors) is used
+ *	for some internal state only
+ *
+ *	Oddities
+ *	- Flags are not directly testable with branches. Instead you
+ *	  have to move or and them into A
+ *	- There is no 16bit indirect addressing mode, only pointer relative
+ *	  8bit (including via PC and SP). JMP/JSR appear to be exceptions
+ *	  but are really immediate loads or PLI of a constant.
+ *	- Autoindexing is sort of like the usual (r+) and (-r) forms of other
+ *	  processors but the size of movement is encoded in the instruction so
+ *	  can be used in many ways (eg folding together *x++)
+ */
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -15,6 +38,7 @@
 static unsigned frame_len;	/* Number of bytes of stack frame */
 static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned unreachable;	/* Track unreachable code state */
+static unsigned func_cleanup;	/* Zero if we can just ret out */
 
 static unsigned get_size(unsigned t)
 {
@@ -102,7 +126,7 @@ unsigned free_pointer(void)
 	return 3;
 }
 
-unsigned find_ref(struct node *n, unsigned nw, int *offset)
+unsigned find_ref(struct node *n, unsigned nw, unsigned offset, int *off)
 {
 	return 0;
 }
@@ -121,6 +145,10 @@ void set_ptr_ref(unsigned p, struct node *n)
 #define T_LSTORE	(T_USER+4)
 #define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
 #define T_LBSTORE	(T_USER+6)
+#define T_DEREFPLUS	(T_USER+7)		/* *(thing + offset) */
+#define T_LDEREF	(T_USER+8)		/* *local + offset */
+#define T_LEQ		(T_USER+9)		/* *local + offset = n*/
+#define T_EQPLUS	(T_USER+10)		/* *(ac + n) = m */
 
 static void squash_node(struct node *n, struct node *o)
 {
@@ -186,9 +214,58 @@ struct node *gen_rewrite_node(struct node *n)
 	struct node *r = n->right;
 	unsigned op = n->op;
 	unsigned nt = n->type;
+	unsigned off;
 
+	/* Convert references with an offset into a new node so we can make proper use of the
+	   indexing on the 8070 */
+	if (op == T_DEREF || op == T_DEREFPLUS) {
+		if (op == T_DEREF)
+			n->value = 0;	/* So we can treat deref/derefplus together */
+		if (r->op == T_PLUS) {
+			off = n->value + r->right->value;
+			if (r->right->op == T_CONSTANT && off < 127) {
+				n->op = T_DEREFPLUS;
+				free_node(r->right);
+				n->right = r->left;
+				n->value = off;
+				free_node(r);
+				/* We might then rewrite this again */
+				return gen_rewrite_node(n);
+			}
+		}
+	}
+	if ((op == T_DEREF || op == T_DEREFPLUS) && r->op == T_LREF) {
+		/* At this point r->value is the offset for the local */
+		/* n->value is the offset for the ptr load */
+		r->val2 = n->value;		/* Save the offset so it is squashed in */
+		squash_right(n, T_LDEREF);	/* n->value becomes the local ref */
+		return n;
+	}
+	if ((op == T_EQ || op == T_EQPLUS) && l->op == T_LREF) {
+		/* At this point r->value is the offset for the local */
+		/* n->value is the offset for the ptr load */
+		l->val2 = n->value;		/* Save the offset so it is squashed in */
+		squash_left(n, T_LEQ);	/* n->value becomes the local ref */
+		return n;
+	}
+	if (op == T_EQ || op == T_EQPLUS) {
+		if (op == T_EQ)
+			n->value = 0;	/* So we can treat deref/derefplus together */
+		if (l->op == T_PLUS) {
+			off = n->value + l->right->value;
+			if (l->right->op == T_CONSTANT && off < 127) {
+				n->op = T_EQPLUS;
+				free_node(l->right);
+				n->left = l->left;
+				n->value = off;
+				free_node(l);
+				/* We might then rewrite this again */
+				return gen_rewrite_node(n);
+			}
+		}
+	}
 	/* Rewrite references into a load operation */
-	if (nt == CSHORT || nt == USHORT || PTR(nt)) {
+	if (nt == CSHORT || nt == USHORT || nt == CCHAR || nt == UCHAR || PTR(nt)) {
 		if (op == T_DEREF) {
 			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
 				if (r->op == T_ARGUMENT)
@@ -222,6 +299,7 @@ struct node *gen_rewrite_node(struct node *n)
 			}
 		}
 	}
+
 	/* Eliminate casts for sign, pointer conversion or same */
 	if (op == T_CAST) {
 		if (nt == r->type || (nt ^ r->type) == UNSIGNED ||
@@ -289,6 +367,11 @@ void gen_frame(unsigned size, unsigned aframe)
 	frame_len = size;
 	sp = 0;
 
+	if (size || func_flags & F_REG(1))
+		func_cleanup = 1;
+	else
+		func_cleanup = 0;
+
 	if (size > 10) {
 		printf("\tld ea,sp\n\tsub ea,=%d\n\tld sp,ea\n", size);
 		return;
@@ -313,15 +396,15 @@ void gen_cleanup(unsigned size, unsigned save)
 	}
 }
 
-/* TODO: no void save / restore EA or return in a P reg .. decisions */
+/* TODO: no void save / restore EA or return in a P reg or T .. decisions */
 void gen_epilogue(unsigned size, unsigned argsize)
 {
+	unsigned x = func_flags & F_VOIDRET;
 	if (sp)
 		error("sp");
 	if (unreachable)
 		return;
-	/* TODO: save func flags cleanup 0 for void */
-	gen_cleanup(size, 1);
+	gen_cleanup(size, x);
 	printf("\tret\n");
 	unreachable = 1;
 }
@@ -337,7 +420,7 @@ void gen_label(const char *tail, unsigned n)
 unsigned gen_exit(const char *tail, unsigned n)
 {
 	unreachable = 1;
-	if (frame_len) {
+	if (func_cleanup) {
 		printf("\tjmp L%d%s\n", n, tail);
 		return 0;
 	}
@@ -541,7 +624,6 @@ void discard_word(void)
 {
 	unsigned ptr = free_pointer();
 	printf("\tpop p%d\n", ptr);
-	sp -= 2;
 }
 
 /* FIXME: pass sz */
@@ -550,7 +632,7 @@ void discard_word(void)
  *	an optional 1 or 2 to indicate a pointer to avoid, and an
  *	optional offset return.
  */
-unsigned gen_ref_nw(struct node *n, unsigned nw, int *off)
+unsigned gen_ref_nw(struct node *n, unsigned nw, unsigned offset, int *off)
 {
 	unsigned sz = get_size(n->type);
 	unsigned ptr;
@@ -558,6 +640,9 @@ unsigned gen_ref_nw(struct node *n, unsigned nw, int *off)
 
 	if (off)
 		*off = 0;
+
+	v += offset;
+
 	if (n->op == T_LREF || n->op == T_LSTORE) {
 		int r = v + sp;	/* CHECK */
 		/* Slightly pessimal for word ops */
@@ -574,7 +659,7 @@ unsigned gen_ref_nw(struct node *n, unsigned nw, int *off)
 		return ptr;
 	}
 	/* See if it is already accessible, often the case */
-	ptr = find_ref(n, nw, off);
+	ptr = find_ref(n, nw, 0, off);
 	if (ptr)
 		return ptr;
 	/* Make a reference */
@@ -591,7 +676,7 @@ unsigned gen_ref_nw(struct node *n, unsigned nw, int *off)
 	return 0;
 }
 
-unsigned gen_load_nw(struct node *n, unsigned nw)
+unsigned gen_load_nw(struct node *n, unsigned nw, int offset)
 {
 	int off;
 	unsigned sz = get_size(n->type);
@@ -600,7 +685,7 @@ unsigned gen_load_nw(struct node *n, unsigned nw)
 		load_ea(sz, n->value);
 		return 1;
 	}
-	ptr = gen_ref_nw(n, nw, &off);
+	ptr = gen_ref_nw(n, nw, offset, &off);
 	if (ptr == 0)
 		return 0;
 	if (sz == 1)
@@ -618,10 +703,10 @@ unsigned gen_load_nw(struct node *n, unsigned nw)
 
 unsigned gen_load(struct node *n)
 {
-	return gen_load_nw(n, 0);
+	return gen_load_nw(n, 0, 0);
 }
 
-unsigned gen_load_nw_t(struct node *n, unsigned nw)
+unsigned gen_load_nw_t(struct node *n, unsigned nw, unsigned offset)
 {
 	int off;
 	unsigned sz = get_size(n->type);
@@ -630,7 +715,7 @@ unsigned gen_load_nw_t(struct node *n, unsigned nw)
 		load_t(n->value);
 		return 1;
 	}
-	ptr = gen_ref_nw(n, nw, &off);
+	ptr = gen_ref_nw(n, nw, offset, &off);
 	/* We have to ref an extra byte */
 	if (sz <= 2)
 		printf("\tld t,%d,p%d\n", off, ptr);
@@ -641,15 +726,13 @@ unsigned gen_load_nw_t(struct node *n, unsigned nw)
 
 unsigned gen_load_t(struct node *n)
 {
-	return gen_load_nw_t(n, 0);
+	return gen_load_nw_t(n, 0, 0);
 }
 
 unsigned gen_ref(struct node *n, int *off)
 {
-	return gen_ref_nw(n, 0, off);
+	return gen_ref_nw(n, 0, 0, off);
 }
-
-
 
 /* Only 8 and 16 bit as 32 is complicated by the lack of adc/sbc stuff */
 static unsigned gen_op(unsigned sz, const char *op, struct node *r)
@@ -668,6 +751,8 @@ static unsigned gen_op(unsigned sz, const char *op, struct node *r)
 		return 1;
 	}
 	ptr = gen_ref(r, &off);
+	if (ptr == 0)
+		return 0;
 	invalidate_ea();
 	if (sz == 1)
 		printf("\t%s a,%d,p%d\n", op, off, ptr);
@@ -746,7 +831,7 @@ static unsigned gen_fast_mul(unsigned sz, unsigned value)
 	if (value & 1)
 		return 0;
 	/* Shift to keep right side positive */
-	puts("\tsl ea\n");
+	puts("\tsl ea\n");	/* SR ?? FIXME */
 	load_t(value >> 1);
 	puts("\tmpy");
 	return 0;	
@@ -874,7 +959,9 @@ static unsigned op_direct8(struct node *n, const char *op, unsigned s)
 }
 
 /* EA holds the left side (ptr) r is the value to handle. Do not use
-   T as T is used by caller in postinc/dec usage */
+   T as T is used by caller in postinc/dec usage
+   
+   Needs work to use ILD/DLD and postinc/predec auto index forms */
 unsigned do_preincdec(unsigned sz, struct node *n, unsigned save)
 {
 	struct node *r = n->right;
@@ -884,7 +971,7 @@ unsigned do_preincdec(unsigned sz, struct node *n, unsigned save)
 	if (sz > 2)
 		return 0;
 
-	gen_load_nw(r, ptr);
+	gen_load_nw(r, ptr, 0);
 
 	/* Rewrite constant forms positive */
 	if (r->op == T_CONSTANT && n->op == T_MINUSEQ) {
@@ -985,26 +1072,29 @@ unsigned gen_direct(struct node *n)
 		/* A bit more complex than this but prob needs rewrite rules */
 		if (!access_direct(r))
 			return 0;
+		n->value = 0;
+	case T_EQPLUS:
+		/* EQPLUS rewrite rule is responsible for making sure this is always possible */
 		/* Nothing to do with writing back yet but this is a write
 		   to an unknown object so we must kill any possible aliases */
 		flush_writeback();
 		/* Store right hand op in EA */
 		ptr = load_ptr_ea();	/* Turn EA into a pointer */
 		/* Generate the load without using that ptr */
-		gen_load_nw(r, ptr);
+		gen_load_nw(r, ptr, n->val2);
 		/* EA now holds the data */
 		if (s == 4) {
 			if (!(n->flags & NORETURN))
 				printf("\tld t,ea");
-			printf("\tst ea,0,p%d\n", ptr);
-			printf("\tld ea,@__high\n\tst ea,2,p%d\n", ptr);
+			printf("\tst ea,%u,p%d\n", v, ptr);
+			printf("\tld ea,@__high\n\tst ea,%u,p%d\n", v + 2, ptr);
 			if (!(n->flags & NORETURN))
 				printf("\tld ea,t\n");
 		}
 		if (s == 2)
-			printf("\tst ea,0,p%d\n", ptr);
+			printf("\tst ea,%u,p%d\n", v, ptr);
 		else
-			printf("\tst a,0,p%d\n", ptr);
+			printf("\tst a,%u,p%d\n", v, ptr);
 		set_ea_node(r);
 		return 1;
 	case T_PLUS:
@@ -1197,7 +1287,7 @@ unsigned gen_direct(struct node *n)
 			if (r->op == T_CONSTANT)
 				printf("\tld ea,=%u\n", v);
 			else {
-				ptr2 = gen_ref_nw(r, ptr, &off);
+				ptr2 = gen_ref_nw(r, ptr, 0, &off);
 				if (ptr2 == 0)
 					return 0;
 				printf("\tld ea,%u,%u\n", off, ptr2);
@@ -1206,7 +1296,7 @@ unsigned gen_direct(struct node *n)
 			if (r->op == T_CONSTANT)
 				printf("\tld a,=%u\n", v);
 			else {
-				ptr2 = gen_ref_nw(r, ptr, &off);
+				ptr2 = gen_ref_nw(r, ptr, 0, &off);
 				if (ptr2 == 0)
 					return 0;
 				printf("\tld a,%u,%u\n", off, ptr2);
@@ -1309,6 +1399,7 @@ static unsigned pop_t_op(struct node *n, const char *op, unsigned sz)
 	if (sz > 2)
 		return 0;
 	puts("\txch ea,t\n\tpop ea");
+	sp -= sz;
 	return gen_t_op(sz, n, op);
 }
 
@@ -1316,6 +1407,7 @@ static unsigned pop_ptr(void)
 {
 	unsigned ptr = free_pointer();
 	printf("\tpop p%d\n", ptr);
+	sp -= 2;
 	return ptr;
 }
 
@@ -1431,19 +1523,52 @@ unsigned gen_node(struct node *n)
 		}
 		return 1;
 	case T_DEREF:
+	case T_DEREFPLUS:
 		/* Might be able to be smarter here */
 		flush_writeback();
 		/* Could noret away once volatile cleaned */
 		/* EAX = *EAX */
 		ptr = load_ptr_ea();
 		if (sz == 1)
-			printf("\tld a,0,p%d\n", ptr);
+			printf("\tld a,%u,p%d\n", v, ptr);
 		else if (sz == 2)
-			printf("\tld ea,0,p%d\n", ptr);
+			printf("\tld ea,%u,p%d\n", v, ptr);
 		else {
-			printf("\tld ea,2,p%d\n", ptr);
+			printf("\tld ea,%u,p%d\n", v + 2, ptr);
 			puts("\tst ea,@__high");
-			printf("\tld ea,0,p%d\n", ptr);
+			printf("\tld ea,%u,p%d\n", v, ptr);
+		}
+		return 1;
+	case T_LDEREF:
+		/* val2 offset of variable, val offset of ptr */
+		ptr = free_pointer();
+		printf("\tld p%u,%u,sp\n", ptr, n->val2);
+		if (sz == 1)
+			printf("\tld a,%u,p%u\n", v, ptr);
+		else if (sz == 2)
+			printf("\tld ea,%u,p%u\n", v, ptr);
+		else {
+			printf("\tld ea,%u,p%u\n", v + 2, ptr);
+			printf("\tst ea,@__high\n");
+			printf("\tld ea,%u,p%u\n", v, ptr);
+		}
+		return 1;
+	case T_LEQ:
+		/* Same idea for writing */
+		ptr = free_pointer();
+		printf("\tld p%u,%u,sp\n", ptr, n->val2);
+		if (sz == 1)
+			printf("\tst a,%u,p%u\n", v, ptr);
+		else if (sz == 2)
+			printf("\tst ea,%u,p%u\n", v, ptr);
+		else {
+			if (!noret)
+				printf("\tld t,ea\n");
+			printf("\tst ea,%u,p%u\n", v, ptr);
+			printf("\tld ea,@__high\n");
+			printf("\tst ea,%u,p%u\n", v + 2, ptr);
+			if (!noret)
+				printf("\tld ea,t\n");
 		}
 		return 1;
 	case T_FUNCCALL:
