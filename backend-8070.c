@@ -2,7 +2,7 @@
  *	INS8070 Backend
  *
  *	EA	-	16bit accumulator
- *	T	-	various scratch uses
+ *	T	-	various scratch uses, 2nd helper argument
  *	P0	-	program counter
  *	P1	-	stack pointer (offsets but no inc/dec)
  *	P2	-	working pointer (usable as pointer)
@@ -20,6 +20,13 @@
  *	- Autoindexing is sort of like the usual (r+) and (-r) forms of other
  *	  processors but the size of movement is encoded in the instruction so
  *	  can be used in many ways (eg folding together *x++)
+ *
+ *	TODO:
+ *	- Lots of basics to get working yet
+ *	- Rewrite x++ and --x forms to use autoindexing
+ *	- Implement register tracking
+ *	- Peepholes
+ *	- Lots of support routines
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -717,6 +724,10 @@ unsigned gen_load_nw_t(struct node *n, unsigned nw, unsigned offset)
 		return 1;
 	}
 	ptr = gen_ref_nw(n, nw, offset, &off);
+
+	if (ptr == 0)
+		return 0;
+
 	/* We have to ref an extra byte */
 	if (sz <= 2)
 		printf("\tld t,%d,p%d\n", off, ptr);
@@ -793,7 +804,7 @@ static unsigned gen_t_op(unsigned sz, struct node *n, const char *fn)
 {
 	flush_writeback();
 	invalidate_all();
-	printf("\tjsr %s%c", fn, "XbwXl"[sz]);
+	printf("\tjsr __%s%c", fn, "XbwXl"[sz]);
 	if (n->type & UNSIGNED)
 		putchar('u');
 	putchar('\n');
@@ -832,7 +843,7 @@ static unsigned gen_fast_mul(unsigned sz, unsigned value)
 	if (value & 1)
 		return 0;
 	/* Shift to keep right side positive */
-	puts("\tsl ea\n");	/* SR ?? FIXME */
+	puts("\tsl ea\n");
 	load_t(value >> 1);
 	puts("\tmpy");
 	return 0;	
@@ -967,65 +978,54 @@ unsigned do_preincdec(unsigned sz, struct node *n, unsigned save)
 {
 	struct node *r = n->right;
 	unsigned ptr = load_ptr_ea();
+	int nv;
 
 	/* For now at least */
-	if (sz > 2)
+	if (sz > 2 || r->op != T_CONSTANT)
 		return 0;
+
+	/* Rewrite constant forms positive */
+	if (n->op == T_MINUSEQ) {
+		n->op = T_PLUSEQ;
+		r->value = -r->value;
+	}
+	if (n->op == T_MINUSMINUS) {
+		n->op = T_PLUSPLUS;
+		r->value = -r->value;
+	}
+	if (sz == 1 && n->op == T_PLUSEQ) {
+		nv = (int)r->value;
+		if (nv > 0 && nv < 3 + opt) {
+			while(nv--)
+				printf("\tild a,0,p%u\n", ptr);
+			return 1;
+		}
+		nv = -nv;
+		if (nv > 0 && nv < 3 + opt) {
+			while(nv--)
+				printf("\tild a,0,p%u\n", ptr);
+			return 1;
+		}
+	}
 
 	gen_load_nw(r, ptr, 0);
 
-	/* Rewrite constant forms positive */
-	if (r->op == T_CONSTANT && n->op == T_MINUSEQ) {
-		n->op = T_PLUSEQ;
-		n->value = -n->value;
-	}
-	if (r->op == T_CONSTANT && n->op == T_MINUSMINUS) {
-		n->op = T_PLUSEQ;
-		n->value = -n->value;
-	}
-	if (n->op == T_PLUSPLUS || n->op == T_PLUSEQ) {
-		if (save)
-			printf("\tld t,0,p%u\n", ptr);
-		/* A or EA or high:EA now holds the data */
-		/* Now add to 0,ptr */	
-		if (sz == 1)
-			printf("\tadd a,0,p%d\n\tst a,0,p%d\n",
-				ptr, ptr);
-		else {
-			printf("\tadd ea,0,p%d\n\tst ea,0,p%d\n",
-				ptr, ptr);
-			set_ea_node(r);
-		}
-		if (save) {
-			printf("\txch ea,t\n");
-			invalidate_ea();
-		}
-		return 1;
-	}
-	/* Tricker as order matters */
-	/* A -= B */
-	if (sz == 1) {
-		/* 8bit case is easier */
-		printf("\txch a,e\n\tld a,0,p%d\n", ptr);
-		if (save)
-			printf("\tld t,ea\n");
-		printf("\tsub a,e\n\tst a,0,p%d\n", ptr);
-		if (save)
-			printf("\tld ea,t\n");
-		invalidate_ea();
-		return 1;
-	}
-	/* Messy */
-	printf("\tpush ea\n\tld ea,0,p%d\n", ptr);
 	if (save)
-		printf("\tld t,ea\n");
-	printf("\tsub ea,0(sp)\n\tst ea,0,p%d\n", ptr);
-	set_ea_node(r);
-	if (save) { 
-		printf("\tld ea,t\n");
+		printf("\tld t,0,p%u\n", ptr);
+	/* A or EA now holds the data */
+	/* Now add to 0,ptr */	
+	if (sz == 1)
+		printf("\tadd a,0,p%d\n\tst a,0,p%d\n",
+			ptr, ptr);
+	else {
+		printf("\tadd ea,0,p%d\n\tst ea,0,p%d\n",
+			ptr, ptr);
+		set_ea_node(r);
+	}
+	if (save) {
+		printf("\txch ea,t\n");
 		invalidate_ea();
 	}
-	discard_word();
 	return 1;
 }
 
@@ -1273,8 +1273,9 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		/* Helper time */
-		gen_load_t(r);
-		return gen_t_op(s, n, "shl_t");
+		if (gen_load_t(r))
+			return gen_t_op(s, n, "shl_t");
+		break;
 	case T_GTGT:
 		if (s > 2)
 			return 0;
@@ -1295,8 +1296,9 @@ unsigned gen_direct(struct node *n)
 				repeated_op("\tsr ea", v);
 			return 1;
 		}
-		gen_load_t(r);
-		return gen_t_op(s, n, "shr_t");
+		if (gen_load_t(r))
+			return gen_t_op(s, n, "shr_t");
+		break;
 	case T_PLUSPLUS:
 	case T_MINUSMINUS:
 		/* Need to look at being smarter here if we know what
@@ -1453,16 +1455,37 @@ static unsigned logic_sp_op(struct node *n, const char *op)
 	invalidate_ea();
 	if (sz == 1) {
 		printf("\t%s a,0,sp\n", op);
+		invalidate_ea();
 		discard_word();
 		return 1;
 	}
 	if (sz == 2) {
 		printf("\t%s a,0,sp\n", op);
 		printf("\txch a,e\n\t%s a,1,sp\n\txch a,e\n", op);
+		invalidate_ea();
 		discard_word();
 		return 1;
 	}
 	/* For now don't inline dword ops */
+	return 0;
+}
+
+static unsigned logic_ptr_op(unsigned ptr, const char *op, unsigned sz)
+{
+	/* *ptr op EA */
+	if (sz == 1) {
+		printf("\txch a,e\n\tld a,0,p%u\n\t%s a,e\n", ptr, op);
+		invalidate_ea();
+		return 1;
+	}
+	if (sz == 2) {
+		printf("\tst ea,@__tmp\n\tld ea,0,p%u\n", ptr);
+		printf("\t%s a,@__tmp\n", op);
+		printf("\txch a,e\n\t%s a,@__tmp+1\n\txch a,e\n", op);
+		invalidate_ea();
+		return 1;
+	}
+	/* Punt on long */
 	return 0;
 }
 
@@ -1647,22 +1670,17 @@ unsigned gen_node(struct node *n)
 		return gen_cast(n);
 	case T_PLUS:
 		invalidate_ea();
-		if (sz == 1)
+		if (sz == 1) {
 			printf("\tadd a,0,sp\n");
-		if (sz == 2)
-			printf("\tadd ea,0,sp\n");
-		if (sz == 4) {
-			puts("\tld t,ea");
-			puts("\tld ea,2,sp");
-			puts("\tadd ea,@__high");
-			puts("\tst ea,@__high");
-			puts("\tld ea,t");
-			puts("\tadd ea,0,sp");
 			discard_word();
+			return 1;
 		}
-		/* size 1 is a byte discard but how ? */
-		discard_word();
-		return 1;
+		if (sz == 2) {
+			printf("\tadd ea,0,sp\n");
+			discard_word();
+			return 1;
+		}
+		break;
 #if 0
 	/* Needs to change to be TOS - EA */
 	case T_MINUS:
@@ -1671,15 +1689,6 @@ unsigned gen_node(struct node *n)
 			printf("\tsub a,0,sp\n");
 		if (sz == 2)
 			printf("\tsub ea,0,sp\n");
-		if (sz == 4) {
-			puts("\tld t,ea");
-			puts("\tld ea,2,sp");
-			puts("\tsub ea,@__high");
-			puts("\tst ea,@__high");
-			puts("\tld ea,t");
-			puts("\tsub ea,0,sp");
-			discard_word();
-		}
 		discard_word();
 		return 1;
 #endif
@@ -1716,40 +1725,36 @@ unsigned gen_node(struct node *n)
 			printf("\tst ea,0,p%d\n", ptr);
 		}
 		return 1;
-#if 0
 	case T_MINUSEQ:
 		flush_writeback();
 		invalidate_ea();
-		if (sz > 2)
-			return 0;
-		/* TODO - awkward as it is *TOS - EA */
-		ptr = pop_ptr();
-		puts("\tpush ea");
-		gen_load_ptr(ptr);
+		/* Awkward as it is *TOS - EA */
 		if (sz == 1) {
-			puts("\tadd a,2,sp");
+			puts("\txch a,e");
+			ptr = pop_ptr();
+			printf("\tld a,0,p%d\n", ptr);
+			puts("\tsub a,e");
 			printf("\tst a,0,p%d\n", ptr);
-		} else {
-			puts("\tadd ea,2,sp");
+			return 1;
+		}
+		if (sz == 2) {
+			puts("\tst ea,@__tmp");
+			ptr = pop_ptr();
+			printf("\tld ea,p%u\n", ptr);
+			puts("\tsub ea,@__tmp");
 			printf("\tst ea,0,p%d\n", ptr);
 		}
 		return 1;
-#endif		
-#if 0
-	/* FIXME: need to have a returned offset as likely be be %d,sp */
+	/* TOS is the pointer, EA is the value */
 	case T_ANDEQ:
 		ptr = pop_ptr();
-		ptr2 = gen_ref_nw(r, ptr, &off);
-		return generate_logic(n, ptr, ptr2, off);
+		return logic_ptr_op(ptr, "and", sz);
 	case T_OREQ:
 		ptr = pop_ptr();
-		ptr2 = gen_ref_nw(r, ptr, &off);
-		return generate_logic(n, ptr, ptr2, off);
+		return logic_ptr_op(ptr, "or", sz);
 	case T_HATEQ:
 		ptr = pop_ptr();
-		ptr2 = gen_ref_nw(r, ptr, &off);
-		return generate_logic(n, ptr, ptr2, off);
-#endif
+		return logic_ptr_op(ptr, "xor", sz);
 	}
 	return 0;
 }
