@@ -1,16 +1,12 @@
 /*
- *	Beginnings of a Z8 code generator
+ *	Z8 code generator
  *
  *	TODO
- *	- register tracking
  *	- using tcm/tm for bitops
- *	- using tcm/tm for < 0 >= 0
  *	- using incw/decw for cmp -1 or 1
- *	- support library
  *	- efficient comparisons
  *	- flag switching on jtrue/false for comparisons
  *	- CCONLY Z80 style
- *	- registers in r4/5 6/7 8/9 10/11
  */
 
 #include <stdio.h>
@@ -2193,10 +2189,19 @@ static void gen_fast_mul(unsigned r, unsigned s, unsigned long n)
 
 static unsigned gen_fast_div(unsigned r, unsigned s, unsigned long n)
 {
+	unsigned hr = r;
 	if (n & (n - 1))
 		return 0;
+	if (R_ISAC(r))
+		hr = 4 - s;
+	opnoeff_r_r(hr, hr, "or");
+	printf("\tjr pl,X%u\n", ++label_count);
 	/* Need to round towards zero */
 	add_r_const(r, n - 1, s);
+	printf("X%u:\n", label_count);
+	/* We can't assume which path was taken so at this moment the reg val is
+	   unknown */
+	r_modify(r, s);
 	rshift_r(r, s, ilog2(n), 1);
 	return 1;
 }

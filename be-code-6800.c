@@ -6,6 +6,8 @@
 #include "backend.h"
 #include "backend-6800.h"
 
+static unsigned label;		/* Used to hand out local labels of the form X%u */
+
 /*
  *	Fix up weirdness in the asm formats.
  */
@@ -1056,12 +1058,14 @@ unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 	} else {
 		/* Round towards zero */
 		unsigned m = (n - 1) & 0xFFFF;
+		printf("\tbita #0x80\n\tbeq X%u\n", ++label);
 		if (cpu_has_d)
 			printf("\taddd #%u\n", m);
 		else {
 			printf("\taddb #%u\n\taddca #%u\n",
 				m  & 0xFF, m >> 8);
 		}
+		printf("X%u:\n", label);
 		while(n > 1) {
 			printf("\tasra\n\trorb\n");
 			n >>= 1;

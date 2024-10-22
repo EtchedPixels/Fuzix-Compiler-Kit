@@ -139,5 +139,8 @@ int main(int argc, char *argv[])
     i = -1;
     if (i / 2)
         return 33;
+    i = 1;
+    if (i / 2)
+        return 34;
     return 0;
 }

@@ -6,6 +6,7 @@
 #include "backend.h"
 #include "backend-6800.h"
 
+static unsigned label;		/* Used to hand out local labels in the form X%u */
 /*
  *	6809 implementation of the code generation section
  *	We have Y as the upper bits of the working value, and we have
@@ -845,7 +846,8 @@ unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 			n >>= 1;
 		}
 	} else {
-		printf("\taddd #%u\n", (n - 1) & 0xFFFF);
+		printf("\tbita #0x80\n\tbeq X%u\n", ++label);
+		printf("\taddd #%u\nX%u:\n", (n - 1) & 0xFFFF, label);
 		while(n > 1) {
 			printf("\tasra\n\trorb\n");
 			n >>= 1;
