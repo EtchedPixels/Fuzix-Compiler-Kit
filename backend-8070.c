@@ -1146,7 +1146,8 @@ unsigned gen_direct(struct node *n)
 		}
 		puts("\tld t,ea");
 		gen_load(r);
-		puts("\tjsr __mul1616");
+		puts("\tmpy\n");	/* Valid for 16bit as we use it */
+		puts("\tld ea,t");
 		invalidate_ea();
 		break;
 	case T_SLASH:
@@ -1168,15 +1169,49 @@ unsigned gen_direct(struct node *n)
 		break;
 	/* Should do T_PERCENT fast remainder cases */
 	case T_AND:
-		/* Fast const cases TODO */
+		if (r->op == T_CONSTANT && s <= 2) {
+			if (s == 2) {
+				if ((v & 0xFF00) == 0x0000)
+					printf("\tld e,=0\n");
+				else if ((v & 0xFF00) != 0xFF00)
+					printf("\txch e,a\n\tand a,=%u\n\txch e,a\n", v >> 8);
+			}
+			if ((v & 0xFF) == 0x00)
+				printf("\tld a,=0\n");
+			else if ((v & 0xFF) != 0xFF)
+				printf("\tld a,=%u\n", v);
+			return 1;
+		}
 		if (!op_direct8(r, "and", s))
 			return gen_op8(s, "and", r);
 		return 1;
 	case T_OR:
+		if (r->op == T_CONSTANT && s <= 2) {
+			if (s == 2) {
+				if ((v & 0xFF00) == 0xFF00)
+					printf("\tld e,=0xFF\n");
+				else if ((v & 0xFF00) != 0xFF00)
+					printf("\txch e,a\n\tor a,=%u\n\txch e,a\n", v >> 8);
+			}
+			if ((v & 0xFF) == 0xFF)
+				printf("\tld a,=0xFF\n");
+			else if ((v & 0xFF) != 0xFF)
+				printf("\tor a,=%u\n", v);
+			return 1;
+		}
 		if (!op_direct8(r, "or", s))
 			return gen_op8(s, "or", r);
 		return 1;
 	case T_HAT:
+		if (r->op == T_CONSTANT && s <= 2) {
+			if (s == 2) {
+				if (v & 0xFF00)
+					printf("\txch e,a\n\txor a,=%u\n\txch e,a\n", v >> 8);
+			}
+			if (v & 0xFF)
+				printf("\txor a,=%u\n", v);
+			return 1;
+		}
 		if (!op_direct8(r, "xor", s))
 			return gen_op8(s, "xor", r);
 		return 1;
