@@ -1062,7 +1062,7 @@ unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 		if (cpu_has_d)
 			printf("\taddd #%u\n", m);
 		else {
-			printf("\taddb #%u\n\taddca #%u\n",
+			printf("\taddb #%u\n\tadca #%u\n",
 				m  & 0xFF, m >> 8);
 		}
 		printf("X%u:\n", label);
