@@ -1346,11 +1346,31 @@ static unsigned gen_cast(struct node *n)
 	/* Don't do the harder ones */
 	if (!(rt & UNSIGNED)) {
 		if (cpu_is_09) {
-			if (rs == 1) {
-				printf("\tsex\n");
+			if (rs == 1 && ls == 2) {
+				puts("\tsex");
 				return 1;
 			}
 			/* TODO: 6309 has sexw */
+		}
+
+		if (cpu_has_y) {
+			if (opt && rs == 1 && ls == 2) {
+				puts("\tclra\n\tasrb\n\trolb\n\tsbca #0");
+				return 1;
+			}
+			/* TODO 2->4 byte expansion with Y register */
+			return 0;
+		}
+
+		if (opt && rs == 1) {
+			puts("\tclra\n\tasrb\n\trolb\n\tsbca #0");
+			if(ls == 4)
+				puts("\tstaa @hireg\n\tstaa @hireg+1");
+			return 1;
+		}
+		if (opt > 2 && ls == 4 && rs == 2) {
+			puts("\tpshb\n\tclrb\n\tasra\n\trola\n\tsbcb #0\n\tstab @hireg\n\tstab @hireg+1\n\tpulb");
+			return 1;
 		}
 		return 0;
 	}
@@ -1358,9 +1378,9 @@ static unsigned gen_cast(struct node *n)
 		load_a_const(0);
 	if (ls == 4) {
 		if (cpu_has_y)
-			printf("\tldy #0\n");
+			puts("\tldy #0");
 		else
-			printf("\tclr @hireg\n\tclr @hireg+1\n");
+			puts("\tclr @hireg\n\tclr @hireg+1");
 	}
 	return 1;
 }
