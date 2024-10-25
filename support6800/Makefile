@@ -20,7 +20,7 @@ OBJ =  dp.o makebool.o cleanup.o divide.o __div.o __divu.o __xdiveq.o __mul.o \
       __xminusminusl.o __xdivequl.o __xremequl.o __xdiveql.o __switchl.o \
       __pop4.o __pull4.o __xremeql.o __popret.o __addxconst.o \
       __xplusplusu.o __xplusplusuc.o \
-      __andl.o __orl.o __xorl.o
+      __andl.o __orl.o __xorl.o __pop2.o __castc.o
 
 .s.o:
 	fcc -m6800 -c $<
