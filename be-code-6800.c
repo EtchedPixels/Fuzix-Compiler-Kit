@@ -1019,7 +1019,7 @@ unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 	} else {
 		/* Round towards zero */
 		unsigned m = (n - 1) & 0xFFFF;
-		printf("\tbita #0x80\n\tbeq X%u\n", ++label);
+		printf("\ttsta\n\tbpl X%u\n", ++label);
 		if (cpu_has_d)
 			printf("\taddd #%u\n", m);
 		else {

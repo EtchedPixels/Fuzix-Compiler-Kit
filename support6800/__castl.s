@@ -6,8 +6,8 @@ __cast_ul:
 __cast_l:
 	clr @hireg
 	clr @hireg+1
-	bita #0x80
-	beq extpv
+	tsta
+	bpl extpv
 	dec @hireg
 	dec @hireg+1
 extpv:
