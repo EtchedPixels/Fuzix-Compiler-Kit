@@ -574,20 +574,20 @@ unsigned op16_on_node(register struct node *r, const char *op, const char *op2, 
 		op16_on_ptr(op, op2, off);
 		break;
 	case T_CONSTANT:
-		printf("\t%sa #>%u\n", op, (v + off) & 0xFFFF);
-		printf("\t%sb #<%u\n", op2, (v + off) & 0xFFFF);
+		printf("\t%sb #<%u\n", op, (v + off) & 0xFFFF);
+		printf("\t%sa #>%u\n", op2, (v + off) & 0xFFFF);
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
 	case T_NSTORE:
 	case T_NREF:
-		printf("\t%sa %s\n", op, addr_form(r, off, 1));
-		printf("\t%sb %s\n", op2, addr_form(r, off + 1, 1));
+		printf("\t%sb %s\n", op, addr_form(r, off + 1, 1));
+		printf("\t%sa %s\n", op2, addr_form(r, off, 1));
 		break;
 	case T_NAME:
 	case T_LABEL:
-		printf("\t%sa %s\n", op, addr_form(r, off, 3));
-		printf("\t%sb %s\n", op2, addr_form(r, off, 1));
+		printf("\t%sb %s\n", op, addr_form(r, off, 1));
+		printf("\t%sa %s\n", op2, addr_form(r, off, 3));
 		break;
 	default:
 		return 0;
