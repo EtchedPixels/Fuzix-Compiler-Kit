@@ -27,13 +27,11 @@
 ;	is appropriately set
 ;
 
-__notc:
-	cmpb	#0
-	bra	booleq
 __not:
-	cmpa	#0
+	tsta
 	bne	ret0
-	cmpb	#0
+__notc:
+	tstb
 booleq:
 	bne	ret0
 ret1:
@@ -41,13 +39,11 @@ ret1:
 	ldab	#1
 	rts
 
-__boolc:
-	cmpb	#0
-	bra	boolne
 __bool:
-	cmpa	#0
-	bne	boolne
-	cmpb	#0
+	tsta
+	bne	ret1
+__boolc:
+	tstb
 boolne:
 	bne	ret1
 ret0:
@@ -81,7 +77,7 @@ booluge:
 boolule:
 	beq	ret1
 boolult:			; use C flag
-	ldaa	#0
-	ldab	#0
-	rolb
+	bcc	ret0
+	clra
+	clrb
 	rts
