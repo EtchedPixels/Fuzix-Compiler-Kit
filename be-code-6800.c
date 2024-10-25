@@ -679,7 +679,7 @@ unsigned write_uni_op(register struct node *r, const char *op, unsigned off)
 	case T_LSTORE:
 	case T_LREF:
 		off = make_local_ptr(v + off, 254);
-		uniop_on_ptr(op, off, 2);
+		uniop_on_ptr(op, off, s);
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
