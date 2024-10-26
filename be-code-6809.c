@@ -250,9 +250,7 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 	return 0;
 }
 
-/* Get pointer to the top of stack. We can optimize this in some cases
-   when we track but it will be limited. The 6800 is quite weak on ops
-   between register so we sometimes need to build ops against top of stack */
+/* Do we need this on 6809 ? */
 unsigned make_tos_ptr(void)
 {
 	printf("\ttfr s,x\n");
@@ -500,24 +498,6 @@ unsigned write_tos_opd(struct node *n, const char *op, const char *op2)
 		op8_on_tos(op);
 	invalidate_work();
 	return 1;
-}
-
-void uniop8_on_tos(const char *op)
-{
-	unsigned off = make_tos_ptr();
-	invalidate_work();
-	printf("\t%s %u,x\n", op, off);
-	printf("\tins\n");
-}
-
-void uniop16_on_tos(const char *op)
-{
-	unsigned off = make_tos_ptr();
-	invalidate_work();
-	printf("\t%s %u,x\n", op, off + 1);
-	printf("\t%s %u,x\n", op, off);
-	printf("\tins\n");
-	printf("\tins\n");
 }
 
 unsigned write_tos_uniop(struct node *n, const char *op)

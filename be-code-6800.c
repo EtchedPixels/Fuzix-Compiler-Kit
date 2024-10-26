@@ -226,7 +226,7 @@ void adjust_s(register int n, unsigned save_d)
 		if (n > 14 || n < -14) {
 			printf("\ttsx\n\txgdx\n\taddd #%u\n\txgdx\n\ttxs\n", WORD(n));
 			x_fprel = 1;
-			x_fpoff = 0;
+			x_fpoff = sp;
 			return;
 		}
 		invalidate_x();
@@ -249,6 +249,7 @@ void adjust_s(register int n, unsigned save_d)
 		cost = abxcost;
 	/* PULX might be fastest */
 	if (n > 0 && cpu_has_pshx && (n / 2) + (n & 1) <= cost) {
+		invalidate_x();
 		repeated_op(n / 2, "pulx");
 		if (n & 1)
 			puts("\tins");
@@ -438,22 +439,20 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 	/* HACK: for the moment disable this stuff whilst we debug the
 	   rest of the code as the make_local_ptr tracking is currently
 	   totally broken */
-	if (1 || x_fprel == 0 ||  noff < 0) {
+	if (x_fprel == 0 ||  noff < 0) {
 		printf("\ttsx\n");
 		x_fprel = 1;
-		x_fpoff = 0;
-	} else
-		off = noff;
-
-	off += sp;
+		x_fpoff = sp;
+	}
+	off += x_fpoff;
 	if (off <= rlim)
 		return off;
+
 	/* It is cheaper to inx than mess around with calls for smaller
 	   values - 7 or 5 if no save needed */
 	if (off - rlim < 7) {
 		repeated_op(off - rlim, "inx");
-		/* TODO: track */
-		x_fpoff += off - rlim;
+		x_fpoff -= off - rlim;
 		return rlim;
 	}
 	/* These cases push and pop the old D but we don't have a tracking
@@ -463,8 +462,12 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 	if (off - rlim < 256) {
 		puts("\tpshb");
 		load_b_const(off - rlim);
-		puts("\tjsr __abx\n\tpulb");
-		x_fpoff += off - rlim;
+		if (cpu_has_d)	/* And thus ABX */
+			puts("\tabx");
+		else
+			puts("\tjsr __abx");
+		puts("\tpulb");
+		x_fpoff -= off - rlim;
 		invalidate_work();
 		return rlim;
 	} else {
@@ -472,7 +475,7 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 		puts("\tpshb\n\tpsha");
 		load_d_const(off);
 		puts("\tjsr __adx\n\tpula\n\tpulb");
-		x_fpoff += off;
+		x_fpoff -= off;
 		invalidate_work();
 		return 0;
 	}
@@ -480,11 +483,19 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 
 /* Get pointer to the top of stack. We can optimize this in some cases
    when we track but it will be limited. The 6800 is quite weak on ops
-   between register so we sometimes need to build ops against top of stack */
-unsigned make_tos_ptr(void)
+   between register so we sometimes need to build ops against top of stack.
+   
+   This needs some care because the stack pointer has already been adjusted
+   in codegen-6800 to allow for the removal of the data, thus we actually
+   need to offset by the passed size */
+static unsigned make_tos_ptr(unsigned s)
 {
+	printf(";make_tos_ptr %u %u, %u\n", x_fpoff, sp + s, x_fprel);
+	/* TODO: we might have X pointing below the stack but in range and that would be just fine */
+	if (x_fpoff == sp + s && x_fprel == 1)
+		return 0;
 	puts("\ttsx");
-	x_fpoff = sp;
+	x_fpoff = sp + s;
 	x_fprel = 1;
 	return 0;
 }
@@ -697,7 +708,7 @@ unsigned write_uni_op(register struct node *r, const char *op, unsigned off)
 
 static void op8_on_tos(const char *op)
 {
-	unsigned off = make_tos_ptr();
+	unsigned off = make_tos_ptr(1);
 	printf("\t%sb %u,x\n\tins\n", op, off);
 }
 
@@ -705,7 +716,7 @@ static void op16_on_tos(const char *op)
 {
 	register unsigned off;
 	invalidate_work();
-	off = make_tos_ptr();
+	off = make_tos_ptr(2);
 	printf("\t%sb %u,x\n\t%sa %u,x\n\tins\n\tins\n", op, off + 1, op, off);
 }
 
@@ -713,7 +724,7 @@ static void op16d_on_tos(const char *op)
 {
 	unsigned off;
 	invalidate_work();
-	off = make_tos_ptr();
+	off = make_tos_ptr(2);
 	printf("\t%sd %u,x\n\tins\n\tins\n", op, off);
 }
 
@@ -751,14 +762,14 @@ unsigned write_tos_opd(struct node *n, const char *op, const char *unused)
 
 static void uniop8_on_tos(const char *op)
 {
-	unsigned off = make_tos_ptr();
+	unsigned off = make_tos_ptr(1);
 	invalidate_work();
 	printf("\t%s %u,x\n\tins\n", op, off);
 }
 
 static void uniop16_on_tos(register const char *op)
 {
-	register unsigned off = make_tos_ptr();
+	register unsigned off = make_tos_ptr(2);
 	invalidate_work();
 	printf("\t%s %u,x\n\t%s %u,x\n\tins\n\tins\n", op, off + 1, op, off);
 }
