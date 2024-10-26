@@ -37,7 +37,7 @@ uint32_t _mulf(uint32_t a2, uint32_t a1)
 	a2 = MANT(a2);
 
 	/* the multiply is done as one 16x16 multiply and two 16x8 multiples */
-	result = (a1 >> 8) * (a1 >> 8);
+	result = (a1 >> 8) * (a2 >> 8);
 	result += ((a1 & 0xFFUL) * (a2 >> 8)) >> 8;
 	result += ((a2 & 0xFFUL) * (a1 >> 8)) >> 8;
 
