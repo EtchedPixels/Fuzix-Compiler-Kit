@@ -736,7 +736,10 @@ unsigned write_tos_op(struct node *n, register const char *op)
 		return 0;
 	if (s == 4) {
 		swap_d_y();
+		/* So that the second 16bit op is correctly offset */
+		sp += 2;
 		op16_on_tos(op);
+		sp -= 2;
 		swap_d_y();
 		op16_on_tos(op);
 	} else if (s == 2)
