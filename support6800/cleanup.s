@@ -1,4 +1,4 @@
-.export __cleanup
+	.export __cleanup
 	.export __cleanupb
 	.export __cleanup1
 	.export __cleanup2
@@ -43,6 +43,8 @@ __cleanup3:
 	ins
 	ins
 	ins
+	ins
+	ins
 	jmp 0,x	
 __cleanup4:			; 4 is common, 3 is not
 	tsx
@@ -77,9 +79,9 @@ __cleanupb:
 	tsx
 	ldx 0,x
 	ldab 1,x
+	ins
+	ins
 	tsx
-	inx
-	inx
 	ldx 0,x
 __cleanupbs:			; FIXME: could be very slow in extreme cases
 	ins

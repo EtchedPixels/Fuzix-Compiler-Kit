@@ -96,7 +96,7 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	else {
 		/* Icky - can we do better remembering AB is live for
 		   non void funcs */
-		printf("\t%s __cleanup\n\t.word %u\n", jmp_op, argsize);
+		printf("\t%s __cleanupb\n\t.word %u\n", jsr_op, argsize);
 	}
 	unreachable = 1;
 }
