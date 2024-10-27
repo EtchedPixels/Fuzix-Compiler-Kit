@@ -15,13 +15,16 @@
 ;	C99 says it's the sign of the dividend.
 ;
 __rem:
+	des
 	tsy
 	bsr absd
 	xgdx			; save in 
-	ldd 2,y
+	ldd 3,y
 	bmi negmod
 	xgdx
 	jsr div16x16		; do the unsigned divide
+pop2s:
+	ins
 pop2:				; X = quotient, D = remainder
 	puly
 	pulx
@@ -31,7 +34,7 @@ negmod:
 	xgdx
 	jsr div16x16
 	bsr negd
-	bra pop2
+	bra pop2s
 	
 
 ;
