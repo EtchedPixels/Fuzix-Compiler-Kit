@@ -380,7 +380,7 @@ void gen_frame(unsigned size, unsigned aframe)
 		func_cleanup = 0;
 
 	if (size > 10) {
-		printf("\tld ea,sp\n\tsub ea,=%d\n\tld sp,ea\n", size);
+		printf("\tld ea,p1\n\tsub ea,=%d\n\tld p1,ea\n", size);
 		return;
 	}
 	while(size) {
@@ -394,7 +394,7 @@ void gen_cleanup(unsigned size, unsigned save)
 	if (size > 10 + 2 * save) {
 		if (save)
 			printf("\tld t,ea\n");
-		printf("\tld ea,sp\n\tadd ea,=%d\n\tld sp,ea\n", size);
+		printf("\tld ea,p1\n\tadd ea,=%d\n\tld p1,ea\n", size);
 		if (save)
 			printf("\tld ea,t\n");
 	} else while(size) {
@@ -411,7 +411,7 @@ void gen_epilogue(unsigned size, unsigned argsize)
 		error("sp");
 	if (unreachable)
 		return;
-	gen_cleanup(size, x);
+	gen_cleanup(size, !x);
 	printf("\tret\n");
 	unreachable = 1;
 }
@@ -661,7 +661,7 @@ unsigned gen_ref_nw(struct node *n, unsigned nw, unsigned offset, int *off)
 		/* Need to generate a ref. TODO pass whether EA can be mushed */
 		ptr = free_pointer_nw(nw);
 		printf("\txch ea,p%d\n", ptr);
-		puts("\tld ea,sp");
+		puts("\tld ea,p1");
 		printf("\tadd ea,%d\n", r);
 		printf("\txch ea,p%d\n", ptr);
 		return ptr;
@@ -680,6 +680,24 @@ unsigned gen_ref_nw(struct node *n, unsigned nw, unsigned offset, int *off)
 	if (n->op == T_LBREF || n->op == T_LBSTORE) {
 		printf("\tld p%d,=T%d+%d\n", ptr, n->val2, v);
 		return ptr;
+	}
+	return 0;
+}
+
+/* For the moment just do the simple case for testing */
+unsigned gen_addr_ref(struct node *n, int *off, int offset)
+{
+	unsigned size = get_size(n->type);
+	/*unsigned ptr; */
+	unsigned v = n->value;
+	/* TODO: support notwith ? T_NAME, T_LABEL */
+	if (n->op == T_LOCAL) {
+		int r = v + sp;
+		if (r >= -128 && r <= 128 - size && off) {
+			*off = r;
+			return 1;
+		}
+		return 0;
 	}
 	return 0;
 }
@@ -981,7 +999,7 @@ unsigned do_preincdec(unsigned sz, struct node *n, unsigned save)
 	int nv;
 
 	/* For now at least */
-	if (sz > 2 || r->op != T_CONSTANT)
+	if (sz > 2)
 		return 0;
 
 	/* Rewrite constant forms positive */
@@ -1180,7 +1198,7 @@ unsigned gen_direct(struct node *n)
 			if ((v & 0xFF) == 0x00)
 				printf("\tld a,=0\n");
 			else if ((v & 0xFF) != 0xFF)
-				printf("\tld a,=%u\n", v);
+				printf("\tand a,=%u\n", v);
 			return 1;
 		}
 		if (!op_direct8(r, "and", s))
@@ -1370,9 +1388,12 @@ unsigned gen_uni_direct(struct node *n)
  */
 unsigned gen_shortcut(struct node *n)
 {
+	struct node *l = n->left;
+	struct node *r = n->right;
 	unsigned s = get_size(n->type);
 	unsigned ptr;
 	int off;
+	unsigned noret = n->flags & NORETURN;
 
 	if (unreachable)
 		return 1;
@@ -1399,6 +1420,80 @@ unsigned gen_shortcut(struct node *n)
 			printf("\tst a,%d,p%da\n", off, ptr);
 		set_ea_node(n);
 		return 1;
+	}
+	/* PLUSPLUS is preinc and always constant */
+	if (n->op == T_PLUSPLUS) {
+		if (s != 2)
+			return 0;
+		/* Try and avoid getting the pointer into EA */
+		ptr = gen_addr_ref(l, &off, 0);
+		if (ptr == 0)
+			return 0;
+		/* Ok we can construct a pointer to the left */
+		if (s == 2) {
+			printf("\tld ea,%d,p%u\n", off, ptr);
+			if (!noret)
+				printf("\tld t,ea\n");
+			printf("\tadd ea,=%u\n\tst ea,%d,p%u\n", WORD(r->value), off, ptr);
+			if (!noret)
+				printf("\tld ea,t\n");
+			return 1;
+		}
+		/* TODO size 1 and also use ILD/DLD for it */
+	}
+	/* MINUSMINUS is preinc and always constant */
+	if (n->op == T_MINUSMINUS) {
+		if (s != 2)
+			return 0;
+		/* Try and avoid getting the pointer into EA */
+		ptr = gen_addr_ref(l, &off, 0);
+		if (ptr == 0)
+			return 0;
+		/* Ok we can construct a pointer to the left */
+		if (s == 2) {
+			printf("\tld ea,%d,p%u\n", off, ptr);
+			if (!noret)
+				printf("\tld t,ea\n");
+			printf("\tsub ea,=%u\n\tst ea,%d,p%u\n", WORD(r->value), off, ptr);
+			if (!noret)
+				printf("\tld ea,t\n");
+			return 1;
+		}
+		/* TODO size 1 and also use ILD/DLD for it */
+	}
+	/* TODO: size 1 stuff. Also we need a can_gen_ref() so we can do the non const cases by generating the
+	   right and trying to gen a ref to the left. In almost call cases this will work as C rarely uses
+	   (complex expr) += (complex expr) */
+	if (n->op == T_PLUSEQ) {
+		printf(";pluseq\n");
+		if (s != 2)
+			return 0;
+		if (r->op == T_CONSTANT) {
+			ptr = gen_addr_ref(l, &off, 0);
+			if (ptr == 0)
+				return 0;
+			/* Ok we can construct a pointer to the left */
+			if (s == 2) {
+				printf("\tld ea,%d,p%u\n", off, ptr);
+				printf("\tadd ea,=%u\n\tst ea,%d,p%u\n", WORD(r->value), off, ptr);
+			}
+			return 1;
+		}
+	}
+	if (n->op == T_MINUSEQ) {
+		if (s != 2)
+			return 0;
+		if (r->op == T_CONSTANT) {
+			ptr = gen_addr_ref(l, &off, 0);
+			if (ptr == 0)
+				return 0;
+			/* Ok we can construct a pointer to the left */
+			if (s == 2) {
+				printf("\tld ea,%d,p%u\n", off, ptr);
+				printf("\tsub ea,=%u\n\tst ea,%d,p%u\n", WORD(r->value), off, ptr);
+			}
+			return 1;
+		}
 	}
 	return 0;
 }
@@ -1454,14 +1549,14 @@ static unsigned logic_sp_op(struct node *n, const char *op)
 	unsigned sz = get_size(n->type);
 	invalidate_ea();
 	if (sz == 1) {
-		printf("\t%s a,0,sp\n", op);
+		printf("\t%s a,0,p1\n", op);
 		invalidate_ea();
 		discard_word();
 		return 1;
 	}
 	if (sz == 2) {
-		printf("\t%s a,0,sp\n", op);
-		printf("\txch a,e\n\t%s a,1,sp\n\txch a,e\n", op);
+		printf("\t%s a,0,p1\n", op);
+		printf("\txch a,e\n\t%s a,1,p1\n\txch a,e\n", op);
 		invalidate_ea();
 		discard_word();
 		return 1;
@@ -1601,7 +1696,7 @@ unsigned gen_node(struct node *n)
 	case T_LDEREF:
 		/* val2 offset of variable, val offset of ptr */
 		ptr = free_pointer();
-		printf("\tld p%u,%u,sp\n", ptr, n->val2);
+		printf("\tld p%u,%u,p1\n", ptr, n->val2);
 		if (sz == 1)
 			printf("\tld a,%u,p%u\n", v, ptr);
 		else if (sz == 2)
@@ -1615,7 +1710,7 @@ unsigned gen_node(struct node *n)
 	case T_LEQ:
 		/* Same idea for writing */
 		ptr = free_pointer();
-		printf("\tld p%u,%u,sp\n", ptr, n->val2);
+		printf("\tld p%u,%u,p1\n", ptr, n->val2);
 		if (sz == 1)
 			printf("\tst a,%u,p%u\n", v, ptr);
 		else if (sz == 2)
@@ -1661,7 +1756,7 @@ unsigned gen_node(struct node *n)
 		v += frame_len + ARGBASE;
 	case T_LOCAL:
 		v += sp;
-		puts("\tld ea,sp");
+		puts("\tld ea,p1");
 		if (v)
 			printf("\tadd ea,=%d\n", v);
 		set_ea_node(n);
@@ -1671,12 +1766,12 @@ unsigned gen_node(struct node *n)
 	case T_PLUS:
 		invalidate_ea();
 		if (sz == 1) {
-			printf("\tadd a,0,sp\n");
+			printf("\tadd a,0,p1\n");
 			discard_word();
 			return 1;
 		}
 		if (sz == 2) {
-			printf("\tadd ea,0,sp\n");
+			printf("\tadd ea,0,p1\n");
 			discard_word();
 			return 1;
 		}
@@ -1686,9 +1781,9 @@ unsigned gen_node(struct node *n)
 	case T_MINUS:
 		invalidate_ea();
 		if (sz == 1)
-			printf("\tsub a,0,sp\n");
+			printf("\tsub a,0,p1\n");
 		if (sz == 2)
-			printf("\tsub ea,0,sp\n");
+			printf("\tsub ea,0,p1\n");
 		discard_word();
 		return 1;
 #endif
