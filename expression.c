@@ -83,7 +83,7 @@ struct node *typeconv_implicit(register struct node *n)
 /*
  *	Build an argument tree for right to left stacking
  *
- *	TODO: both here and in the space allocation we need to
+ *	Both here and in the space allocation we need to
  *	do type / size fixes for argument spacing. For example on an 8080
  *	we always push 2 bytes so char as arg takes 2 and we need to do
  *	the right thing.
@@ -107,8 +107,10 @@ struct node *call_args(unsigned *narg, register unsigned *argt, unsigned *argsiz
 			(*narg)--;
 			/* Once we hit ellipsis we can accept any number
 			   of arguments including none */
-			if (*argt == ELLIPSIS)
+			if (*argt == ELLIPSIS) {
+				*va = 1;
 				*narg = 0;
+			}
 		} else
 			unexarg();
 	}
