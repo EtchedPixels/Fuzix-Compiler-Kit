@@ -4,10 +4,10 @@
 	.export __ccnel
 
 __ccnel:	
-	tsy
-	cpy	2,y
+	tsx
+	cpy	2,x
 	bne	true
-	subd	4,y
+	subd	4,x
 	bne	true
 	clra
 	clrb
