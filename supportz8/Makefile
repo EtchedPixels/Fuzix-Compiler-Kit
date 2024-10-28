@@ -19,7 +19,7 @@ OBJ =	__cast.o __nref.o __nrefl.o __nref12.o __lstref.o __cleanup.o \
       __cast2f.o __castf.o __cceqf.o __ccgteqf.o __ccgtf.o __cclteqf.o \
       __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o \
       __cpluseq.o __cminuseq.o __cpluseql.o __cminuseql.o \
-      __argpush.o __pushi.o register.o __mul8.o
+      __argpush.o __pushi.o __pnref.o register.o __mul8.o
 
 .s.o:
 	fcc -mz8 -c $<

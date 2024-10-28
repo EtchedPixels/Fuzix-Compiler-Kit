@@ -50,6 +50,15 @@
 =
 	call __garg12r2str
 
+# Fold up nref and push for size 2 (usually pointers)
+	call @nref_2
+	.word %1
+	push r3
+	push r2
+=
+	call __pnref_2
+	.word %1
+
 # Shorten common functions as register calls
 
 	call __gargr2
