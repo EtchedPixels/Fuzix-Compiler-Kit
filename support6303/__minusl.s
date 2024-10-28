@@ -18,4 +18,9 @@ __minusl:
 	sbca @hireg
 	std @hireg
 	ldd @tmp
-	rts
+	pulx
+	ins
+	ins
+	ins
+	ins
+	jmp ,x
