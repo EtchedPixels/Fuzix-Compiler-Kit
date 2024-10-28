@@ -71,8 +71,8 @@ static void invalidate_ac(void)
 static void set_ac_node(struct node *n)
 {
 	register unsigned op = n->op;
-	printf(";ac node now O %u T %u V %lu\n",
-		op, n->type, n->value);
+/*	printf(";ac node now O %u T %u V %lu\n",
+		op, n->type, n->value); */
 	/* Whatever was in AC just got stored so we are now a valid lref */
 	if (op == T_LSTORE)
 		op = T_LREF;
@@ -94,9 +94,9 @@ static void gen_symref(struct node *n)
 {
 	register unsigned op = n->op;
 	register unsigned v = n->value;
-	if (op == T_NREF || op == T_NSTORE)
+	if (op == T_NREF || op == T_NSTORE || op == T_NAME)
 		printf("\t.word _%s+%u\n",  namestr(n->snum), v);
-	else if (op == T_LBREF || op == T_LBSTORE)
+	else if (op == T_LBREF || op == T_LBSTORE || op == T_LABEL)
 		printf("\t.word T%u+%u\n", n->val2, v);
 	else
 		error("gsr");
@@ -2766,26 +2766,64 @@ static unsigned argstack_helper(struct node *n, unsigned sz)
 				printf("\tcall __push%u\n", (unsigned)n->value);
 				return 1;
 			}
-			return 0;
 		}
-		/* Long it matters */
-		if (n->value == 0) {
-			/* This clears r0/r1 */
-			r_set(0, 0);
-			r_set(1, 0);
-			r_modify(12, 2);
-			printf("\tcall __pushl0\n");
-			return 1;
-		}
-		if (!(n->value & 0xFFFF0000UL)) {
-			load_r_const(R_AC, n->value, 2);
-			r_set(0, 0);
-			r_set(1, 0);
-			r_modify(12, 2);
-			printf("\tcall __pushl0a\n");
-			return 1;
+		if (sz == 4) {
+			/* Long it matters */
+			if (n->value == 0) {
+				/* This clears r0/r1 */
+				r_set(0, 0);
+				r_set(1, 0);
+				r_modify(12, 2);
+				printf("\tcall __pushl0\n");
+				return 1;
+			}
+			/* For optsize we do this differently */
+			if (!optsize && !(n->value & 0xFFFF0000UL)) {
+				load_r_const(R_AC, n->value, 2);
+				r_set(0, 0);
+				r_set(1, 0);
+				r_modify(12, 2);
+				printf("\tcall __pushl0a\n");
+				return 1;
+			}
 		}
 		/* is it worth using __pushl for anything evaluated ? */
+	}
+	if (optsize && (n->op == T_CONSTANT || n->op == T_LABEL || n->op == T_NAME)) {
+		if (sz == 2) {
+			r_modify(14, 2);
+			if (n->op == T_CONSTANT) {
+				r_set(3, v);
+				r_set(2, v >> 8);
+				printf("\tcall __pushi\n\t.word %u\n", v);
+			} else {
+				set_ac_node(n);
+				printf("\tcall __pushi\n");
+				gen_symref(n);
+			}
+			return 1;
+		} else if (sz == 4) {
+			r_modify(14, 2);
+			if (n->op == T_CONSTANT) {
+				r_set(3, v);
+				r_set(2, v >> 8);
+				v = n->value >> 16;
+				r_set(1, v);
+				r_set(0, v >> 8);
+				if (v) {
+					printf("\tcall __pushil\n");
+					gen_value(ULONG, n->value);
+				} else {
+					printf("\tcall __pushil0\n");
+					gen_value(USHORT, n->value);
+				}
+			} else {
+				printf("\tcall __pushil0\n");
+				set_ac_node(n);
+				gen_symref(n);
+			}
+			return 1;
+		}
 	}
 	/* Push a local argument */
 	if (n->op == T_LREF && n->value + sp < 254 && sz != 1) {
