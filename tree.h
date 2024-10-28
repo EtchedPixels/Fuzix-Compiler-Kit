@@ -20,6 +20,7 @@ struct node
 
 extern void init_nodes(void);
 
+extern struct node *typed_tree(unsigned op, unsigned type, struct node *l, struct node *r);
 extern struct node *tree(unsigned op, struct node *l, struct node *r);
 extern struct node *sf_tree(unsigned op, struct node *l, struct node *r);
 extern void free_node(struct node *n);

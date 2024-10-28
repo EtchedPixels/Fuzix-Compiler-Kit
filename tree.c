@@ -44,7 +44,7 @@ void init_nodes(void)
 }
 
 
-struct node *tree(unsigned op, struct node *l, struct node *r)
+struct node *typed_tree(unsigned op, unsigned type, struct node *l, struct node *r)
 {
 	register struct node *n = new_node();
 	struct node *c;
@@ -61,15 +61,22 @@ struct node *tree(unsigned op, struct node *l, struct node *r)
 	n->left = l;
 	n->right = r;
 	n->op = op;
-	/* Inherit from left if present, right if not */
-	if (l)
-		n->type = l->type;
-	else if (r)
-		n->type = r->type;
+	n->type = type;
 	c = constify(n);
 	if (c)
 		return c;
 	return n;
+}
+
+struct node *tree(unsigned op, struct node *l, struct node *r)
+{
+	unsigned type = VOID;	/* So we catch errors */
+	/* Inherit from left if present, right if not */
+	if (l)
+		type = l->type;
+	else if (r)
+		type = r->type;
+	return typed_tree(op, type, l, r);		
 }
 
 struct node *sf_tree(unsigned op, struct node *l, struct node *r)
@@ -237,10 +244,8 @@ struct node *make_cast(register struct node *n, unsigned t)
 {
 	unsigned nt = type_canonical(n->type);
 	n->type = nt;
-	if (nt != t) {
-		n = tree(T_CAST, NULL, n);
-		n->type = t;
-	}
+	if (nt != t)
+		n = typed_tree(T_CAST, t, NULL, n);
 	return n;
 }
 
@@ -310,10 +315,8 @@ struct node *bool_tree(register struct node *n, unsigned flags)
 		b->right = n;
 		b->flags |= flags;
 		return b;
-	} else {
-		n = tree(T_BOOL, NULL, n);
-		n->type = CINT;
-	}
+	} else
+		n = typed_tree(T_BOOL, CINT, NULL, n);
 	return n;
 }
 
@@ -343,7 +346,6 @@ struct node *arith_pro_tree(unsigned op, register struct node *l,
 	/* We know both sides are arithmetic */
 	unsigned lt = type_canonical(l->type);
 	unsigned rt = type_canonical(r->type);
-	struct node *n;
 
 	lt = arith_pro(lt, rt);
 
@@ -351,9 +353,7 @@ struct node *arith_pro_tree(unsigned op, register struct node *l,
 		l = make_cast(l, lt);
 	if (r->type != lt)
 		r = make_cast(r, lt);
-	n = tree(op, l, r);
-	n->type = lt;
-	return n;
+	return typed_tree(op, lt, l, r);
 }
 
 /* Two argument arithmetic including float - multiply and divide, plus
@@ -374,13 +374,10 @@ struct node *intarith_tree(register unsigned op, register struct node *l, regist
 	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
 		badtype();
 	if (op == T_LTLT || op == T_GTGT) {
-		struct node *n;
 		lt = arith_pro(lt, lt);
 		if (lt != rt)
 			l = make_cast(l, lt);
-		n = tree(op, l, make_cast(r, CINT));
-		n->type = lt;
-		return n;
+		return typed_tree(op, lt, l, make_cast(r, CINT));
 	} else
 		return arith_pro_tree(op, l, r);
 }
@@ -426,8 +423,7 @@ struct node *logic_tree(unsigned op, struct node *l, struct node *r)
 		badtype();
 	if (!PTR(rt) && !IS_ARITH(rt))
 		badtype();
-	n = tree(op, bool_tree(l, 0), bool_tree(r, 0));
-	n->type = CINT;
+	n = typed_tree(op, CINT, bool_tree(l, 0), bool_tree(r, 0));
 	return n;
 }
 
@@ -472,6 +468,8 @@ unsigned long trim_constant(unsigned t, unsigned long value, unsigned warn)
 /* For now this only supports integer types */
 static struct node *replace_constant(register struct node *n, unsigned t, unsigned long value)
 {
+	if (!IS_INTORPTR(t))
+		return n;
 	if (n->left)
 		free_node(n->left);
 	if (n->right)
@@ -527,9 +525,9 @@ struct node *constify(register struct node *n)
 	   so all we have to worry about is truncating constants and just
 	   relabelling the type on a name or label */
 	if (op == T_CAST) {
-		if (r->op == T_CONSTANT)
+		if (r->op == T_CONSTANT && IS_INTORPTR(r->type))
 			return replace_constant(n, n->type, r->value);
-		if (r->op == T_NAME || r->op == T_LABEL) {
+		if (IS_INTORPTR(n->type) && (r->op == T_NAME || r->op == T_LABEL)) {
 			r->type = n->type;
 			free_node(n);
 			return r;
@@ -664,6 +662,7 @@ struct node *constify(register struct node *n)
 			n->left = l;
 		}
 		/* Only do constant work with simple types */
+		/* The right hand type has already been made to match by arith_pro_tree() */
 		if (!IS_INTORPTR(lt))
 			return NULL;
 		if (l->flags & LVAL)
@@ -764,7 +763,7 @@ struct node *constify(register struct node *n)
 		/* We special case one float manipulation as we need it here
 		   until we change how the front end tokenises -const */
 
-		if (r->op == T_CONSTANT && (rt == FLOAT || rt == DOUBLE)) {
+		if (op == T_NEGATE && r->op == T_CONSTANT && (rt == FLOAT || rt == DOUBLE)) {
 			/* FIXME: this assumes IEE754 math at 32bit */
 			r->value ^= 0x80000000UL;
 			return r;
@@ -793,7 +792,9 @@ struct node *constify(register struct node *n)
 			/* Fall through */
 		case T_CAST:
 			/* We are working with integer constant types so this is ok */
-			return replace_constant(n, n->type, value);
+			if (IS_INTORPTR(n->type))
+				return replace_constant(n, n->type, value);
+			return NULL;
 		default:
 			return NULL;
 		}
