@@ -74,7 +74,6 @@ norip16:
 ;	is common (eg for uint * ulong cases)
 ;
 	xgdy		; again (b = sreg + 1)
-	beq	is_done
 	ldaa	9,x
 	mul
 	addb	1,x
@@ -89,6 +88,7 @@ norip16:
 ;	And finally the top 8bits so almost everything overflows
 ;
 	xgdy
+	tsta
 	beq	is_done
 	ldab	9,x
 	mul
