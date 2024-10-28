@@ -937,7 +937,8 @@ static unsigned load_r_with(char reg, register struct node *r, unsigned off)
 	case T_LREF:
 		off = make_local_ptr(v + off, 252);
 		printf("\tld%c %u,x\n", reg, off);
-		invalidate_x();
+		if(reg == 'x')
+			invalidate_x();
 		break;
 	case T_CONSTANT:
 	case T_LBREF:
@@ -945,6 +946,8 @@ static unsigned load_r_with(char reg, register struct node *r, unsigned off)
 	case T_NREF:
 	case T_NAME:
 		printf("\tld%c %s\n", reg, addr_form(r, off, 2));
+		if(reg == 'x')
+			invalidate_x();
 		break;
 	default:
 		error("lxw");
@@ -954,9 +957,7 @@ static unsigned load_r_with(char reg, register struct node *r, unsigned off)
 
 unsigned load_x_with(struct node *r, unsigned off)
 {
-	unsigned rv = load_r_with('x', r, off);
-	invalidate_x();
-	return rv;
+	return load_r_with('x', r, off);
 }
 
 /* 6809 specific register loading */
