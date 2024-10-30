@@ -533,14 +533,19 @@ static char *addr_form(register struct node *r, unsigned off, unsigned s)
 	case T_LBREF:
 		sprintf(addr, "T%u+%u%s", r->val2, v + off, pic_op);
 		return addr;
-	/* Only occurs on 6809 */
-	case T_RDEREF:
-		sprintf(addr, "%u,u", r->val2 + off);
-		return addr;
 	default:
 		error("aform");
 	}
 	return NULL;
+}
+
+/* Those with address forms we can directly load */
+unsigned can_load_d_nox(struct node *n, unsigned off)
+{
+	register unsigned op = n->op;
+	if (op == T_CONSTANT || op == T_NAME || op == T_LABEL || op == T_NREF || op == T_LBREF)
+		return 1;
+	return 0;
 }
 
 /* These functions must not touch X on the 6809, they can on others */

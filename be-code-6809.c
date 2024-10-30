@@ -294,10 +294,20 @@ static char *addr_form(register struct node *r, unsigned off, unsigned s)
 	case T_RDEREF:
 		sprintf(addr, "%u,u", r->val2 + off);
 		return addr;
+	/* TODO: Can we do locals safely via ,s ?? */
 	default:
 		error("aform");
 	}
 	return NULL;
+}
+
+/* Those with address forms we can directly load. Need to look at locals via ,s */
+unsigned can_load_d_nox(struct node *n, unsigned off)
+{
+	register unsigned op = n->op;
+	if (op == T_CONSTANT || op == T_NAME || op == T_LABEL || op == T_NREF || op == T_LBREF)
+		return 1;
+	return 0;
 }
 
 /* These functions must not touch X on the 6809, they can on others */
