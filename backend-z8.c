@@ -1630,7 +1630,6 @@ struct node *gen_rewrite_node(struct node *n)
 		- rewrite some reg ops
 	*/
 
-	/* BUG - these two break utol test */
 	/* Structure field references from locals. These end up big on the Z8 so use
 	   a helper for the lot */
 	if (optsize && op == T_DEREF && r->op == T_PLUS && r->right->op == T_CONSTANT) {
