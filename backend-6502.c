@@ -30,6 +30,7 @@
 #include <stdarg.h>
 #include "compiler.h"
 #include "backend.h"
+#include "backend-byte.h"
 
 #define NMOS_6502	0
 #define CMOS_6502	1
@@ -256,7 +257,7 @@ static void set_xa_node(struct node *n)
 		printf("; invalidate xa\n");
 		return;
 	}
-;	printf("; set XA %x, %d\n", op, value);
+	printf("; set XA %x, %d\n", op, value);
 	reg[R_X].state = op;
 	reg[R_A].state = op;
 	reg[R_A].value = value;
@@ -270,8 +271,8 @@ static void set_xa_node(struct node *n)
 
 static unsigned xa_contains(struct node *n)
 {
-//	printf(";xa contains? %x %ld\n", n->op, n->value);
-	if (n->op == T_NREF)
+	printf(";xa contains? %x %ld\n", n->op, n->value);
+	if (n->op == T_NREF)	/* TODO: volatiles */
 		return 0;
 	if (reg[R_A].state != n->op || reg[R_X].state != n->op)
 		return 0;
@@ -289,23 +290,30 @@ static void set_a_node(struct node *n)
 	unsigned value = n->value;
 
 	switch(op) {
+	case T_NSTORE:
+		op = T_NREF;
+		break;
+	case T_LBSTORE:
+		op = T_LBREF;
+		break;
+	case T_LSTORE:
+		op = T_LREF;
+		break;
 	case T_NAME:
 	case T_CONSTANT:
 	case T_NREF:
-	case T_NSTORE:
 	case T_LBREF:
-	case T_LBSTORE:
 	case T_LREF:
-	case T_LSTORE:
 	case T_LOCAL:
 	case T_ARGUMENT:
-		reg[R_A].state = op;
-		reg[R_A].value = value;
-		reg[R_A].snum = n->snum;
-		return;
+		break;
 	default:
 		invalidate_a();
+		return;
 	}
+	reg[R_A].state = op;
+	reg[R_A].value = value;
+	reg[R_A].snum = n->snum;
 }
 
 static unsigned a_contains(struct node *n)
@@ -387,6 +395,11 @@ static void gen_internal(const char *p)
 	output("jsr __%s", p);
 }
 
+static void repeated_op(unsigned n, const char *o)
+{
+	while(n--)
+		output(o);
+}
 
 /* Construct a direct operation if possible for the primary op */
 static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n))
@@ -771,6 +784,7 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 	output("pla");
 	invalidate_a();
 	invalidate_x();
+	return 1;
 }
 
 static void squash_node(struct node *n, struct node *o)
@@ -820,6 +834,7 @@ static unsigned is_simple(struct node *n)
    propagation */
 struct node *gen_rewrite(struct node *n)
 {
+	byte_label_tree(n, BTF_RELABEL);
 	return n;
 }
 
@@ -1198,6 +1213,7 @@ unsigned gen_direct(struct node *n)
 	unsigned s = get_size(n->type);
 	struct node *r = n->right;
 	unsigned nr = n->flags & NORETURN;
+	unsigned v;
 
 	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
@@ -1217,6 +1233,8 @@ unsigned gen_direct(struct node *n)
 		   NSTORE etc. Here we try and handle the other common
 		   case of  complexexpression = simple. This is often the
 		   case with things like  *x++ = 0; */
+		/* This might be BYTEROOT but it doesn't matter if so as the
+		   type handling was done for us */
 		if (s > 2)
 			return 0;
 		if (s == 1 && do_pri8(n, "lda", pre_stash)) {
@@ -1228,8 +1246,7 @@ unsigned gen_direct(struct node *n)
 			load_y(0);
 			output("sta (@tmp),y");
 			return 1;
-		}
-		else if (s == 2 && do_pri16(n, "ld", pre_stash)) {
+		} else if (s == 2 && do_pri16(n, "ld", pre_stash)) {
 			invalidate_x();
 			invalidate_a();
 			load_y(0);
@@ -1313,6 +1330,8 @@ unsigned gen_direct(struct node *n)
 		if (s == 1 && do_pri8(n, "adc", pre_clc)) {
 			if (r->op == T_CONSTANT)
 				const_a_set(reg[R_A].value + r->value);
+			else
+				invalidate_a();
 			return 1;
 		}
 		if (s == 2 && r->op == T_CONSTANT) {
@@ -1339,10 +1358,6 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		if (s == 1 && do_pri8(n, "adc", pre_clc)) {
-			invalidate_a();
-			return 1;
-		}
 		if (s == 2 && try_via_x(n, "adc", pre_clc))
 			return 1;
 		return pri_help(n, "adctmp");
@@ -1352,6 +1367,8 @@ unsigned gen_direct(struct node *n)
 		if (s == 1 && do_pri8(n, "sbc", pre_sec)) {
 			if (r->op == T_CONSTANT)
 				const_a_set(reg[R_A].value - r->value);
+			else
+				invalidate_a();
 			return 1;
 		}
 		if (s == 2 && r->op == T_CONSTANT) {
@@ -1376,24 +1393,60 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		if (s == 1 && do_pri8(n, "sbc", pre_sec)) {
-			invalidate_a();
-			return 1;
-		}
 		if (s == 2 && try_via_x(n, "sbc", pre_sec))
 			return 1;
 		return pri_help(n, "sbctmp");
 	case T_STAR:
 		if (s > 2)
 			return 0;
-		if (r->op == T_CONSTANT && r->value == 256 && (n->type & UNSIGNED)) {
-			output("tax");
-			memcpy(&reg[R_X], &reg[R_A], sizeof(struct regtrack));
-			load_a(0);
-			return 1;
+		v = r->value;
+		/* ? do we need to catch x 1 and x 0 - should always have been cleaned up but
+		   maybe not if byteop */
+		if (r->op == T_CONSTANT) {
+			if (v == 256) {
+				if (s == 2) {
+					/* Should be helpers for tax/txa */
+					output("tax");
+					memcpy(&reg[R_X], &reg[R_A], sizeof(struct regtrack));
+				}
+				load_a(0);
+				return 1;
+			}
+			/* We can do a few very simple cases directly */
+			if (s == 1) {
+				if (v == 0) {
+					load_a(0);
+					return 1;
+				}
+				/* TODO: tidy up into a proper mul helper */
+				if (v == 1)
+					return 1;
+				if (v == 2) {
+					output("lsla");
+					const_a_set(reg[R_A].value << 1);
+					return 1;
+				}
+				if (v == 4) {
+					output("lsla");
+					output("lsla");
+					const_a_set(reg[R_A].value << 2);
+					return 1;
+				}
+				if (v == 8) {
+					output("lsla");
+					output("lsla");
+					output("lsla");
+					const_a_set(reg[R_A].value << 3);
+					return 1;
+				}
+			}
+			if (v < 16) {
+				printf("\tjsr __mulc%u\n", v);
+				invalidate_x();
+				invalidate_a();
+				return 1;
+			}
 		}
-		/* TODO: power of 2 into add/shifts, short form helpers
-		   for low consts 2,4 etc */
 		return pri_help(n, "multmp");
 	case T_SLASH:
 		if (r->op == T_CONSTANT && r->value == 256 && (n->type & UNSIGNED)) {
@@ -1412,7 +1465,8 @@ unsigned gen_direct(struct node *n)
 		return pri_help(n, "remtmp");
 	/*
 	 *	There are various < 0, 0, !0, > 0 optimizations to do here
-	 *	TODO
+	 *	TODO - optimizations especially for bool/byteable cases
+	 *	Need CCONLY to make this work really
 	 */
 	case T_EQEQ:
 		if (r->op == T_CONSTANT && r->value == 0) {
@@ -1434,10 +1488,22 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		return pri_help(n, "netmp");
+	/* TODO: qq optimisations for >= fieldwidth ? */
 	case T_LTLT:
 		if (s == 2 && r->op == T_CONSTANT && r->value == 8) {
 			output("tax");
 			load_a(0);
+			return 1;
+		}
+		/* Shifts: we can get 1 byte left shifts from the byteop convertor */
+		if (s == 1 && r->op == T_CONSTANT) {
+			v = r->value;
+			if (v >= 8)
+				load_a(0);
+			else {
+				repeated_op(r->value, "lsla");
+				const_a_set(reg[R_A].value >> v);
+			}
 			return 1;
 		}
 		return pri_help(n, "lstmp");
@@ -1542,8 +1608,8 @@ unsigned gen_direct(struct node *n)
 		set_reg(R_Y, 0);
 		sp += s;
 		return 1;
-	}		
-                                                                            	return 0;
+	}	
+	return 0;
 }
 
 /*
@@ -1592,6 +1658,16 @@ unsigned gen_shortcut(struct node *n)
 	return 0;
 }
 
+static void char_to_int(void)
+{
+	load_x(0);
+	output("ora #0");
+	output("bmi X%d", ++xlabel);
+	output("dex");
+	label("X%d", xlabel);
+	invalidate_x();
+}
+
 static unsigned gen_cast(struct node *n)
 {
 	unsigned lt = n->type;
@@ -1616,12 +1692,7 @@ static unsigned gen_cast(struct node *n)
 	if (!(rt & UNSIGNED)) {
 		/* Signed */
 		if (ls == 2) {
-			load_x(0);
-			output("ora #0");
-			output("bmi X%d", ++xlabel);
-			output("dex");
-			label("X%d", xlabel);
-			invalidate_x();
+			char_to_int();
 			return 1;
 		}
 		return 0;
@@ -1731,6 +1802,8 @@ unsigned gen_node(struct node *n)
 		/* For now just helper it */
 		return 0;
 	case T_DEREF:
+		/* TODO: If BYTEABLE is set then non volatiles can be done
+		   byte sized */
 		/* We could optimize the tracing a bit here. A deref
 		   of memory where we know XA is a name, local etc is
 		   one where we can udate the contents info TODO */
