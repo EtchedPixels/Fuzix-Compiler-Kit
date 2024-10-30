@@ -1940,17 +1940,23 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		break;
-#if 0
 	/* Needs to change to be TOS - EA */
 	case T_MINUS:
 		invalidate_ea();
-		if (sz == 1)
-			printf("\tsub a,0,p1\n");
-		if (sz == 2)
+		if (sz == 1) {
+			printf("\tld e,0,p1\n");
+			printf("\txch a,e\n");
+			printf("\tsub a,e\n");
+			discard_word();
+			return 1;
+		}
+		if (sz == 2) {
+			printf("\tpush ea\n");
+			printf("\tld ea,1,p1\n");
 			printf("\tsub ea,0,p1\n");
-		discard_word();
-		return 1;
-#endif
+			discard_word();
+			return 1;
+		}
 		return pop_t_op(n, "sub_t", sz);		
 	case T_STAR:
 		return pop_t_op(n, "mul_t", sz);
