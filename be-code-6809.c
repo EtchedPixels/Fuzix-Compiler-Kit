@@ -145,6 +145,13 @@ void make_x_d(void)
 	invalidate_x();
 }
 
+/* Get X into D (may trash X) */
+void make_d_x(void)
+{
+	printf("\ttfr x,d\n");
+	invalidate_x();
+}
+
 void pop_x(void)
 {
 	printf("\tpuls x\n");
@@ -231,7 +238,7 @@ void load32(unsigned off)
 	printf("\tldy %u,x\n\tldd %u,x\n", off, off + 2);
 }
 
-void store32(unsigned off)
+void store32(unsigned off, unsigned nr)
 {
 	printf("\tsty %u,x\n\tstd %u,x\n", off, off + 2);
 }

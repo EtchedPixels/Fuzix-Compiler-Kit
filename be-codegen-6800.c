@@ -164,6 +164,19 @@ struct node *gen_rewrite_node(struct node *n)
 		free_node(n);
 		return l;
 	}
+	/* Label array referencing for locals to help the 6800 */
+	if (optsize && !cpu_has_d) {
+		if (op == T_PLUS) {
+			off = 0;
+			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
+				if (r->op == T_ARGUMENT)
+					off = argbase + frame_len;
+				squash_left(n, T_LPLUS);
+				n->value += off;
+				return n;
+			}
+		}
+	}
 	/* Turn a deref of an offset to an object into a single op so we can
 	   generate a single lda offset,x in the code generator. This happens
 	   in some array dereferencing and especially struct pointer access */
@@ -1063,6 +1076,16 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 	return 1;
 }
 
+static void gen_lplus(struct node *n, const char *post)
+{
+	/* Expression on the right plus sp plus stack ptr plus n->value */
+	unsigned v = n->value + sp;
+	if (v < 256)
+		printf("\tjsr __lplus%sb\n\t.byte %u\n", post, v);
+	else
+		printf("\tjsr __lplus%s\n\t.word %u\n", post, v);
+}
+
 /*
  *	Allow the code generator to shortcut trees it knows
  */
@@ -1188,7 +1211,7 @@ unsigned gen_shortcut(struct node *n)
 	case T_EQPLUS:
 		v = n->value;
 		if (can_load_r_simple(l, 0)) {
-			if (r->op == T_CONSTANT && nr && r->value == 0 && s <= 2) {
+			if (r->op == T_CONSTANT && nr && r->value == 0) {
 				/* We can optimize thing = 0 for the case
 				   we don't also need the value */
 				v += load_x_with(l, 0);
@@ -1199,7 +1222,39 @@ unsigned gen_shortcut(struct node *n)
 			v += load_x_with(l, 0);
 			invalidate_mem();
 			if (s == 4)
-				store32(v);
+				store32(v, nr);
+			else
+				opd_on_ptr(n, "st", "st", v);
+			return 1;
+		}
+		if (can_load_d_nox(r, 0)) {
+			if (l->op == T_LPLUS) {
+				/* Do the LPLUS expression by hand */
+				codegen_lr(l->right);
+				/* Use the helper to put it in X */
+				gen_lplus(l, "x");
+			} else {
+				codegen_lr(l);
+				make_x_d();
+			}
+			/* X is now our pointer */
+
+			/* Load D without touching X */
+			if (r->op == T_CONSTANT) {
+				if (r->value == 0 && nr) {	/* Special case */
+					uniop_on_ptr("clr", 0, s);
+					return 1;
+				} else {
+					codegen_lr(r);
+				}
+			} else
+				write_op(r, "ld", "ld", 0);
+			invalidate_work();
+
+			/* Store */
+			invalidate_mem();
+			if (s == 4)
+				store32(v, nr);
 			else
 				opd_on_ptr(n, "st", "st", v);
 			return 1;
@@ -1514,7 +1569,7 @@ unsigned gen_node(struct node *n)
 		if (cpu_has_xgdx) {
 			make_local_ptr(v, 0);
 			/* X is now the value we need */
-			make_x_d();
+			swap_d_x();
 			return 1;
 		}
 		/* The stack offsetting on the non 6809 processors is
@@ -1637,6 +1692,10 @@ unsigned gen_node(struct node *n)
 			printf("\tstb [T%u + %u]\n", n->val2, v);
 		else
 			printf("\tstd [T%u + %u]\n", n->val2, v);
+		return 1;
+	case T_LPLUS:	/* 6800 and -Os only */
+		gen_lplus(n, "");
+		invalidate_work();
 		return 1;
 	/* Type casting */
 	case T_CAST:

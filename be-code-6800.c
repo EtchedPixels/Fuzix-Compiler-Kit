@@ -169,6 +169,7 @@ void swap_d_y(void)
 
 void swap_d_x(void)
 {
+	/* Should really track on the exchange later */
 	puts("\txgdx");
 	invalidate_work();
 	invalidate_x();
@@ -177,11 +178,9 @@ void swap_d_x(void)
 /* Get D into X (may trash D) */
 void make_x_d(void)
 {
-	if (cpu_has_xgdx) {
-		/* Should really track on the exchange later */
-		invalidate_work();
-		puts("\txgdx");
-	} else {
+	if (cpu_has_xgdx)
+		swap_d_x();
+	else {
 		if (cpu_has_d)
 			puts("\tstd @tmp\n\tldx @tmp");
 		else
@@ -189,6 +188,21 @@ void make_x_d(void)
 	}
 	/* TODO: d -> x see if we know d type */
 	invalidate_x();
+}
+
+/* Get X into D (may trash X) */
+void make_d_x(void)
+{
+	if (cpu_has_xgdx)
+		swap_d_x();
+	else {
+		if (cpu_has_d)
+			puts("\tstx @tmp\n\tldd @tmp");
+		else
+			puts("\tstx @tmp\n\tldaa @tmp\n\tldab @tmp+1");
+	}
+	/* TODO: x->d  see if we know x type */
+	invalidate_work();
 }
 
 void pop_x(void)
@@ -403,13 +417,14 @@ void load32(register unsigned off)
 	}
 }
 
-void store32(register unsigned off)
+void store32(register unsigned off, unsigned nr)
 {
 	if (cpu_has_y)
 		printf("\tsty %u,x\n\tstd %u,x\n", off, off + 2);
 	else if (cpu_has_d) {
-		printf("\tstd %u,x\n\tldd @hireg\n\tstd %u,x\n\tldd %u,x\n",
-			off + 2, off, off + 2);
+		printf("\tstd %u,x\n\tldd @hireg\n\tstd %u,x\n", off + 2, off);
+		if (nr)
+			printf("\tldd %u,x\n", off + 2);
 	} else {
 		printf("\tstab %u,x\n\tstaa %u,x\n\tpsha\n", off + 3, off + 2);
 		printf("\tldaa @hireg+1\n\tstaa %u,x\n\tldaa @hireg\n\tstaa %u,x\n\tpula\n", off + 1, off);
@@ -425,7 +440,7 @@ void uniop_on_ptr(register const char *op, register unsigned off,
 }
 
 /*
- *	This is broken. Very broken
+ *	Generate a reference via X to a local
  */
 unsigned make_local_ptr(unsigned off, unsigned rlim)
 {
@@ -436,9 +451,6 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 
 	/* TODO: if we can d a small < 7 or so shift by decrement then
 	   it may beat going via tsx */
-	/* HACK: for the moment disable this stuff whilst we debug the
-	   rest of the code as the make_local_ptr tracking is currently
-	   totally broken */
 	if (x_fprel == 0 ||  noff < 0) {
 		printf("\ttsx\n");
 		x_fprel = 1;
