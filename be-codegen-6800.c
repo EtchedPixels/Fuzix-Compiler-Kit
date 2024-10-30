@@ -1509,15 +1509,29 @@ unsigned gen_node(struct node *n)
 	case T_LOCAL:
 		/* For v != 0 case it would be more efficient to load
 		   const then add @tmp/tmp+1 TODO */
-		printf(";T_LOCAL %x\n", v);
 		if (d_holds_node(n))
 			return 1;
-		move_s_d();
+		if (cpu_has_xgdx) {
+			make_local_ptr(v, 0);
+			/* X is now the value we need */
+			make_x_d();
+			return 1;
+		}
 		/* The stack offsetting on the non 6809 processors is
 		   different. TSX/TXS add and subtract one but the actual
 		   S register points one byte off from a 6809 so compensate */
-		if (!cpu_is_09)
+		if (!cpu_is_09) {
 			v++;
+			if (optsize && !cpu_has_d) {
+				/* Try and optimise 6800 cases */
+				if (v < 256)
+					printf("\tjsr __local_b\n\t.byte %u\n", v);
+				else
+					printf("\tjsr __local_d\n\t.word %u\n", v);
+				return 1;
+			}
+		}
+		move_s_d();
 		v += sp;
 		add_d_const(v);
 		set_d_node(n);
