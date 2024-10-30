@@ -993,6 +993,8 @@ unsigned cmp_direct(struct node *n, const char *uop, const char *op)
 
 /*
  *	Do fast multiplies were we can
+ *
+ *	TODO: do the other powers of two at least for -O2 and higher
  */
 
 unsigned can_fast_mul(unsigned s, unsigned n)
@@ -1000,7 +1002,7 @@ unsigned can_fast_mul(unsigned s, unsigned n)
 	/* For now */
 	/* TODO: at least do powers of 2.. might be worth doing
 	   jsr to a helper for 3-15 too */
-	if (n < 2)
+	if (n <= 2 || n == 4)
 		return 1;
 	return 0;
 }
@@ -1009,6 +1011,10 @@ void gen_fast_mul(unsigned s, unsigned n)
 {
 	if (n == 0)
 		load_d_const(0);
+	else if (n == 2)
+		puts("\tlslb\n\trola");
+	else if (n == 4)
+		puts("\tlslb\n\trola\n\tlslb\n\trola");
 }
 
 unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
