@@ -27,9 +27,9 @@ void load_d_const(uint16_t n)
 
 	if (n == 0) {
 		if (!a_valid || a_val)
-			printf("\tclra\n");
+			puts("\tclra");
 		if (!b_valid || b_val)
-			printf("\tclrb\n");
+			puts("\tclrb");
 	} else if (!a_valid || !b_valid || a_val != hi || b_val != lo)
 		printf("\tldd #%u\n", n);
 
@@ -46,9 +46,9 @@ void load_a_const(uint8_t n)
 	if (a_valid && n == a_val)
 		return;
 	if (n == 0)
-		printf("\tclra\n");
+		puts("\tclra");
 	else if (b_valid && n == b_val)
-		printf("\ttfr b,a\n");
+		puts("\ttfr b,a");
 	else
 		printf("\tlda #%u\n", n & 0xFF);
 	a_valid = 1;
@@ -61,9 +61,9 @@ void load_b_const(uint8_t n)
 	if (b_valid && n == b_val)
 		return;
 	if (n == 0)
-		printf("\tclrb\n");
+		puts("\tclrb");
 	else if (a_valid && n == a_val)
-		printf("\ttfr a,b\n");
+		puts("\ttfr a,b");
 	else
 		printf("\tldb #%u\n", n & 0xFF);
 	b_valid = 1;
@@ -101,7 +101,7 @@ void add_b_const(uint8_t n)
 
 void load_a_b(void)
 {
-	printf("\ttfr b,a\n");
+	puts("\ttfr b,a");
 	a_val = b_val;
 	a_valid = b_valid;
 	d_valid = 0;
@@ -109,7 +109,7 @@ void load_a_b(void)
 
 void load_b_a(void)
 {
-	printf("\ttfr a,b\n");
+	puts("\ttfr a,b");
 	b_val = a_val;
 	b_valid = a_valid;
 	d_valid = 0;
@@ -117,23 +117,23 @@ void load_b_a(void)
 
 void move_s_d(void)
 {
-	printf("\ttfr s,d\n");
+	puts("\ttfr s,d");
 	invalidate_work();
 }
 
 void move_d_s(void)
 {
-	printf("\ttfr d,s\n");
+	puts("\ttfr d,s");
 }
 
 void swap_d_y(void)
 {
-	printf("\texg d,y\n");
+	puts("\texg d,y");
 }
 
 void swap_d_x(void)
 {
-	printf("\texg d,x\n");
+	puts("\texg d,x");
 	invalidate_work();
 	invalidate_x();
 }
@@ -141,20 +141,20 @@ void swap_d_x(void)
 /* Get D into X (may trash D) */
 void make_x_d(void)
 {
-	printf("\ttfr d,x\n");
+	puts("\ttfr d,x");
 	invalidate_x();
 }
 
 /* Get X into D (may trash X) */
 void make_d_x(void)
 {
-	printf("\ttfr x,d\n");
+	puts("\ttfr x,d");
 	invalidate_x();
 }
 
 void pop_x(void)
 {
-	printf("\tpuls x\n");
+	puts("\tpuls x");
 	invalidate_x();
 }
 
@@ -260,7 +260,7 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 /* Do we need this on 6809 ? */
 unsigned make_tos_ptr(void)
 {
-	printf("\ttfr s,x\n");
+	puts("\ttfr s,x");
 	x_fpoff = sp;
 	x_fprel = 1;
 	return 0;
@@ -507,7 +507,7 @@ unsigned write_tos_opd(struct node *n, const char *op, const char *op2)
 		printf("\t%s 2,s\n", op);
 		printf("\t%s 1,s\n", op2);
 		printf("\t%s ,s\n", op2);
-		printf("\tleas 4,s\n");
+		puts("\tleas 4,s");
 		return 1;
 	} else if (s == 2)
 		op16d_on_tos(op);
@@ -563,7 +563,7 @@ unsigned left_shift(struct node *n)
 			return 1;
 		}
 		while(v--)
-			printf("\tlslb\n\trola\n");
+			puts("\tlslb\n\trola");
 		invalidate_work();
 		return 1;
 	}
@@ -783,9 +783,9 @@ void write_mul(unsigned n)
 	while(n > 1) {
 		if (n & 1) {
 			pops++;
-			printf("\tpshs d\n");
+			puts("\tpshs d");
 		}
-		printf("\tlslb\n\trola\n");
+		puts("\tlslb\n\trola");
 		n >>= 1;
 	}
 	while(pops--) {
@@ -839,14 +839,14 @@ unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 		return 0;
 	if (u) {
 		while(n > 1) {
-			printf("\tlsra\n\trorb\n");
+			puts("\tlsra\n\trorb");
 			n >>= 1;
 		}
 	} else {
 		printf("\tbita #0x80\n\tbeq X%u\n", ++label);
 		printf("\taddd #%u\nX%u:\n", (n - 1) & 0xFFFF, label);
 		while(n > 1) {
-			printf("\tasra\n\trorb\n");
+			puts("\tasra\n\trorb");
 			n >>= 1;
 		}
 	}
@@ -904,15 +904,14 @@ unsigned gen_push(struct node *n)
 	sp += get_stack_size(n->type);
 	switch(size) {
 	case 1:
-		printf("\tpshs b\n");
+		puts("\tpshs b");
 		return 1;
 	case 2:
-		printf("\tpshs d\n");
+		puts("\tpshs d");
 		return 1;
 	case 4:	/* Have to split them to get the order right */
 		/* Or we could go PDP11 style mixed endian long ? */
-		printf("\tpshs d\n");
-		printf("\tpshs y\n");
+		puts("\tpshs d\n\tpshs y");
 		return 1;
 	}
 	return 0;
