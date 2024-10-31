@@ -1606,6 +1606,7 @@ unsigned gen_node(struct node *n)
 			v++;
 			if (optsize && !cpu_has_d) {
 				/* Try and optimise 6800 cases */
+				v += sp;
 				if (v < 256)
 					printf("\tjsr __local_b\n\t.byte %u\n", v);
 				else
