@@ -993,17 +993,24 @@ unsigned cmp_direct(struct node *n, const char *uop, const char *op)
 		return 0;
 	if (r->type & UNSIGNED)
 		op = uop;
-	if (s == 1) {
+
+	/* If we knoww the upper half matches - eg a byte var that has been expanded then
+	   shortcut it. Need to think about this for signed math. I think we can do signed
+	   math if we use uop in the size 2 upper match case : TODO*/
+	if (s == 1 || (op == uop && a_valid && (v >> 8) == a_val)) {
 		printf("\tcmpb #%u\n\t%s %s\n", v & 0xFF, jsr_op, op);
 		n->flags |= ISBOOL;
 		invalidate_b();
 		return 1;
 	}
-	if (s == 2 && cpu_has_d) {
-		printf("\tsubd #%u\n\t%s %s\n", v & 0xFFFF, jsr_op, op);
-		n->flags |= ISBOOL;
-		invalidate_work();
-		return 1;
+	if (s == 2) {
+		/* If we know the value of A (eg from a cast) */
+		if (cpu_has_d) {
+			printf("\tsubd #%u\n\t%s %s\n", v & 0xFFFF, jsr_op, op);
+			n->flags |= ISBOOL;
+			invalidate_work();
+			return 1;
+		}
 	}
 	return 0;
 }

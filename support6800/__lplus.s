@@ -2,9 +2,15 @@
 ;
 	.export __lplus
 	.export __lplusb
+	.export __lplus2
+	.export __lplusb2
 	.export __lplusxb
 	.code
 
+;	The common forms for array scaling moved by peephole
+__lplusb2:
+	lslb
+	rola
 ;	D = D + byte + sp
 __lplusb:
 	stx	@tmp
@@ -13,6 +19,9 @@ __lplusb:
 	addb 0,x		; value to add
 	adca #0
 	bra	__lplus_s
+__lplus2:
+	lslb
+	rola
 ;	D = D + word + sp
 __lplus:
 	stx	@tmp

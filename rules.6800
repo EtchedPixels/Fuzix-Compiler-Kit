@@ -34,3 +34,31 @@
 =
 	bra L%1
 
+# Boolean eliminate extra clra
+# The casting is not needed in this case and the value of A
+# will be sorted out by the bool op
+#
+	clra
+	cmpb %1
+	jsr bool%2
+=
+	cmpb %1
+	jsr bool%2
+
+#
+# Fold x2 into the array/stack offset helper as it's
+# commonly combined. Just moves two instructions
+# so has no effect on tracking etc
+#
+	lslb
+	rola
+	jsr __lplusb
+=
+	jsr __lplusb2
+
+	lslb
+	rola
+	jsr __lplus
+=
+	jsr __lplus2
+
