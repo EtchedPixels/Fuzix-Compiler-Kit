@@ -12,7 +12,7 @@ uint32_t _castul_f(unsigned long a1)
     }
     /* Move smaller numbers up until the first 1 bit is in the implied 1
        position */
-    while(!(a1 & 0x01000000)) {
+    while(!(a1 & HIDDEN)) {
         exp--;
         a1 <<= 1;
     }
@@ -27,9 +27,9 @@ uint32_t _castu_f(unsigned a1)
     int exp = 24 + EXCESS;
 
     if (a1 == 0)
-        return a1;
+        return 0;
     r = a1;
-    while(!(r & 0x01000000)) {
+    while(!(r & HIDDEN)) {
         exp--;
         r <<= 1;
     }
@@ -42,9 +42,9 @@ uint32_t _castuc_f(unsigned char a1)
     int exp = 24 + EXCESS;
 
     if (a1 == 0)
-        return a1;
+        return 0;
     r = a1;
-    while(!(r & 0x01000000)) {
+    while(!(r & HIDDEN)) {
         exp--;
         r <<= 1;
     }
