@@ -376,6 +376,65 @@ struct node *gen_rewrite_node(struct node *n)
 	return n;
 }
 
+/*
+ *	Perform an optimized 32bit constant add
+ *
+ *	For stuff using @hireg we try and optimize the common cases of adding
+ *	smaller constants. For stuff where we add high bits only shortcut
+ *	some of the work.
+ *
+ *	Care is needed as add_d_const() will not leave carry valid if asked
+ *	to add 0, hence the use of op.
+ */
+static unsigned gen_add32(unsigned long v)
+{
+	char *op = "add";
+	unsigned l = WORD(v);
+	unsigned h = WORD(v >> 16);
+
+	if (v == 0)
+		return 1;
+
+	if (cpu_has_y) {
+		if (l) {
+			add_d_const(l);
+			swap_d_y();
+			printf("\tadcb #%u\n", h & 0xFF);
+			printf("\tadca #%u\n", (h >> 8) & 0xFF);
+			swap_d_y();
+		} else if (cpu_has_lea)
+			printf("\tleay %u,y\n", h);
+		else {
+			swap_d_y();
+			printf("\taddd #%u\n", h);
+			swap_d_y();
+		}
+		return 1;
+	}
+	if (l) {
+		add_d_const(l);
+		op = "adc";
+		if (h == 0) {
+			l = ++label;
+			printf("\tbcc X%uinc @hireg+1\n\tbne X%u\n\tinc @hireg\nX%u:\n", l, l, l);
+			return 1;
+		}
+	}
+	puts("\tpsha");
+	if (h & 0xFF) {
+		printf("\tldaa @hireg+1\n\t%sa #%u\n\tstaa @hireg+1\n", op, h & 0xFF);
+		op = "adc";
+		if (!(h & 0xFF00)) {
+			l = ++label;
+			printf("\tbcc %Xu\n\tinc @hireg\nX%u:\n", l, l);
+			return 1;
+		}
+	}
+	printf("\tldaa @hireg\n\t%sa #%u\n\tstaa @hireg\n",
+				op, (h >> 8) & 0xFF);
+	puts("\tpula");
+	return 1;
+}
 
 /*
  *	If possible turn this node into a direct access. We've already checked
@@ -432,25 +491,8 @@ unsigned gen_direct(struct node *n)
 		/* TODO: if the low word is zero or low 24 bits are 0 we can generate stuff like
 			leay %d,y */
 		if (r->op == T_CONSTANT && r->type != FLOAT) {
-			if (s == 4 && cpu_has_y) {
-				/* Handle the zero case specially as we can optimzie it, and also
-				   because add_d_const will not leave carry right if it optimizes
-				   itself out */
-				if (r->value & 0xFFFF) {
-					add_d_const(r->value & 0xFFFF);
-					swap_d_y();
-					printf("\tadcb #%u\n", (unsigned)((r->value >> 16) & 0xFF));
-					printf("\tadca #%u\n", (unsigned)((r->value >> 24) & 0xFF));
-					swap_d_y();
-				} else if (cpu_is_09)
-					printf("\tleay %u,y\n", (unsigned)(r->value >> 16));
-				else {
-					swap_d_y();
-					printf("\taddd #%u\n", (unsigned)(r->value >> 16));
-					swap_d_y();
-				}
-				return 1;
-			}
+			if (s == 4)
+				return gen_add32(r->value);
 			if (s == 2) {
 				add_d_const(r->value);
 				return 1;
@@ -463,23 +505,8 @@ unsigned gen_direct(struct node *n)
 		return write_opd(r, "add", "adc", 0);
 	case T_MINUS:
 		if (r->op == T_CONSTANT && r->type != FLOAT) {
-			if (s == 4 && cpu_has_y) {
-				r->value = -r->value;
-				if (r->value & 0xFFFF) {
-					add_d_const(r->value);
-					swap_d_y();
-					printf("\tadcb #%u\n", (unsigned)((r->value >> 16) & 0xFF));
-					printf("\tadca #%u\n", (unsigned)((r->value >> 24) & 0xFF));
-					swap_d_y();
-				} else if (cpu_has_lea)
-					printf("\tleay %u,y\n", (unsigned)(r->value >> 16));
-				else {
-					swap_d_y();
-					printf("\taddd #%u\n", (unsigned)(r->value >> 16));
-					swap_d_y();
-				}
-				return 1;
-			}
+			if (s == 4 && cpu_has_y)
+				return gen_add32(-r->value);
 			if (s == 2) {
 				add_d_const(-r->value);
 				return 1;
