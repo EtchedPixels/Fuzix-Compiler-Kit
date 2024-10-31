@@ -416,7 +416,7 @@ static unsigned gen_add32(unsigned long v)
 		op = "adc";
 		if (h == 0) {
 			l = ++label;
-			printf("\tbcc X%uinc @hireg+1\n\tbne X%u\n\tinc @hireg\nX%u:\n", l, l, l);
+			printf("\tbcc X%u\n\tinc @hireg+1\n\tbne X%u\n\tinc @hireg\nX%u:\n", l, l, l);
 			return 1;
 		}
 	}
