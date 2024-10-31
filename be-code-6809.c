@@ -6,7 +6,8 @@
 #include "backend.h"
 #include "backend-6800.h"
 
-static unsigned label;		/* Used to hand out local labels in the form X%u */
+unsigned label;		/* Used to hand out local labels in the form X%u */
+
 /*
  *	6809 implementation of the code generation section
  *	We have Y as the upper bits of the working value, and we have

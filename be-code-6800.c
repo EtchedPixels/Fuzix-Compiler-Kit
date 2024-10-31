@@ -6,7 +6,7 @@
 #include "backend.h"
 #include "backend-6800.h"
 
-static unsigned label;		/* Used to hand out local labels of the form X%u */
+unsigned label;		/* Used to hand out local labels of the form X%u */
 
 /*
  *	Fix up weirdness in the asm formats.

@@ -50,6 +50,9 @@ extern const char *jmp_op;
 extern const char *jsr_op;
 extern const char *pic_op;
 
+extern unsigned label;		/* Used to generate brach labels for code gen
+                                   created branches */
+
 /* Tracking */
 extern uint8_t a_val;
 extern uint8_t b_val;
