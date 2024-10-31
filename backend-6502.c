@@ -120,13 +120,16 @@ static void invalidate_a(void)
 
 static void invalidate_x(void)
 {
+	printf(";invalidate x\n");
 	reg[R_X].state = INVALID;
 }
 
+#if 0
 static void invalidate_y(void)
 {
 	reg[R_Y].state = INVALID;
 }
+#endif
 
 static void const_a_set(unsigned val)
 {
@@ -173,6 +176,7 @@ static void load_a(uint8_t n)
 /* Get a value into X, adjust and track */
 static void load_x(uint8_t n)
 {
+	printf(";load X %u currently %x %u\n", n, reg[R_X].state, reg[R_X].value);
 	if (reg[R_X].state == T_CONSTANT) {
 		if (reg[R_X].value == n)
 			return;
@@ -194,6 +198,7 @@ static void load_x(uint8_t n)
 		output("ldx #%u", n);
 	reg[R_X].state = T_CONSTANT;
 	reg[R_X].value = n;
+	printf(";X %u\n", n);
 }
 
 /* Get a value into Y, adjust and track */
@@ -333,6 +338,7 @@ static unsigned a_contains(struct node *n)
 /* Memory writes occured, invalidate according to what we know. Passing
    NULL indicates unknown memory changes */
 
+#if 0
 static void invalidate_node(struct node *n)
 {
 	/* For now don't deal with the complex cases of whether we might
@@ -342,6 +348,7 @@ static void invalidate_node(struct node *n)
 	if (reg[R_X].state != T_CONSTANT)
 		reg[R_X].state = INVALID;
 }
+#endif
 
 static void invalidate_mem(void)
 {
@@ -405,16 +412,17 @@ static void repeated_op(unsigned n, const char *o)
 static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n))
 {
 	struct node *r = n->right;
+	unsigned v = n->value; 
 	const char *name;
 	switch(n->op) {
 	case T_LABEL:
 		pre(n);
-		output("%s #<T%d+%d", op,  n->val2, (unsigned)n->value);
+		output("%s #<T%d+%d", op,  n->val2, v);
 		return 1;
 	case T_NAME:
 		pre(n);
 		name = namestr(n->snum);
-		output("%s #<_%s+%d", op,  name, (unsigned)n->value);
+		output("%s #<_%s+%d", op,  name, v);
 		return 1;
 	case T_CONSTANT:
 		/* These had the right squashed into them */
@@ -428,10 +436,18 @@ static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n)
 		r = n;
 		break;
 	}
+
+	v = r->value;
+
 	switch(r->op) {
 	case T_CONSTANT:
 		pre(n);
-		output("%s #%d", op, r->value & 0xFF);
+		if (strcmp(op, "lda") == 0)
+			load_a(v);
+		else if (strcmp(op, "ldx") == 0)
+			load_x(v);
+		else
+			output("%s #%d", op, r->value & 0xFF);
 		return 1;
 	case T_LREF:
 	case T_LSTORE:
@@ -469,15 +485,17 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 {
 	struct node *r = n->right;
 	const char *name;
+	unsigned v = n->value;
+
 	switch(n->op) {
 	case T_LABEL:
 		pre(n);
-		output("%s #>T%d+%d", op,  n->val2, (unsigned)n->value);
+		output("%s #>T%d+%d", op,  n->val2, v);
 		return 1;
 	case T_NAME:
 		pre(n);
 		name = namestr(n->snum);
-		output("%s #_%s+%d", op,  name, (unsigned)n->value);
+		output("%s #_%s+%d", op,  name, v);
 		return 1;
 	case T_CONSTANT:
 		/* These had the right squashed into them */
@@ -491,16 +509,25 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 		r = n;
 		break;
 	}
+
+	v = r->value;
+
 	switch(r->op) {
 	case T_CONSTANT:
 		pre(n);
-		output("%s #%d", op, (unsigned)(r->value >> 8));
+		v >>= 8;
+		if (strcmp(op, "lda") == 0)
+			load_a(v);
+		else if (strcmp(op, "ldx") == 0)
+			load_x(v);
+		else
+			output("%s #%d", op, v);
 		return 1;
 	case T_LREF:
 	case T_LSTORE:
 		if (r->value < 254) {
 			pre(n);
-			load_y(r->value + 1) ;
+			load_y(v + 1) ;
 			output("%s (@sp),y", op);
 			return 1;
 		}
@@ -510,12 +537,12 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 	case T_NSTORE:
 		pre(n);
 		name = namestr(r->snum);
-		output("%s _%s+%d", op,  name, (unsigned)r->value + 1);
+		output("%s _%s+%d", op,  name, v + 1);
 		return 1;
 	case T_LBSTORE:
 	case T_LBREF:
 		pre(n);
-		output("%s T%d+%d", op,  r->val2, (unsigned)r->value + 1);
+		output("%s T%d+%d", op,  r->val2, v + 1);
 		return 1;
 	/* If we add registers
 	case T_RREF:
@@ -530,17 +557,18 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 {
 	struct node *r = n->right;
 	const char *name;
+	unsigned v = n->value;
 	switch(n->op) {
 	case T_LABEL:
 		pre(n);
-		output("%sa #<T%d+%d", op,  n->val2, (unsigned)n->value);
-		output("%sx #>T%d+%d", op,  n->val2, ((unsigned)n->value) >> 8);
+		output("%sa #<T%d+%d", op,  n->val2, v);
+		output("%sx #>T%d+%d", op,  n->val2, v >> 8);
 		return 1;
 	case T_NAME:
 		pre(n);
 		name = namestr(n->snum);
-		output("%sa #<_%s+%d", op,  n, (unsigned)n->value);
-		output("%sx #>_%s+%d", op,  n, ((unsigned)n->value) >> 8);
+		output("%sa #<_%s+%d", op,  n, v);
+		output("%sx #>_%s+%d", op,  n, v >> 8);
 		return 1;
 	case T_LREF:
 	case T_NREF:
@@ -552,11 +580,19 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 		/* These had the right squashed into them */
 		r = n;
 	}
+
+	v = r->value;
+
 	switch(r->op) {
 	case T_CONSTANT:
 		pre(n);
-		output("%sa #%d", op, r->value & 0xFF);
-		output("%sx #%d", op, r->value >> 8);
+		if (strcmp(op, "ld") == 0) {
+			load_a(v);
+			load_x(v >> 8);
+		} else {
+			output("%sa #%u", op, v & 0xFF);
+			output("%sx #%u", op, v >> 8);
+		}
 		return 1;
 	case T_LSTORE:
 	case T_LREF:
@@ -650,6 +686,23 @@ static int pri_help(struct node *n, char *helper)
 	else if (s == 2 && pri16_help(n, helper))
 		return 1;
 	return 0;
+}
+
+static int pri_cchelp(register struct node *n, unsigned s, char *helper)
+{
+	register struct node *r = n->right;
+	unsigned v = r->value;
+
+	n->flags |= ISBOOL;
+
+	/* In the case where we know the upper half of the value. Need to sort
+	   the signed version out eventually */
+	if (r->op == T_CONSTANT && s == 2 && (n->type & UNSIGNED)) {
+		if (reg[R_X].state == T_CONSTANT && reg[R_X].value == (v >> 8))
+			return pri8_help(n, helper);
+	}
+	return pri_help(n, helper);
+	
 }
 
 static void pre_clc(struct node *n)
@@ -1000,6 +1053,9 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	}
 	sp -= size;
 
+	if (unreachable)
+		return;
+
 	if (!(func_flags & F_VARARG))
 		size += argsize;
 
@@ -1012,12 +1068,13 @@ void gen_epilogue(unsigned size, unsigned argsize)
 		output("jsr __addyasp");
 		if (!(func_flags & F_VOIDRET))
 			output("pla");
-	}
-	else if (size) {
+		output("rts");
+	} else if (size) {
 		load_y(size);
 		output("jmp __addysp");
-	}
-	output("rts");
+	} else
+		output("rts");
+	unreachable = 1;
 }
 
 void gen_label(const char *tail, unsigned n)
@@ -1031,9 +1088,11 @@ unsigned gen_exit(const char *tail, unsigned n)
 {
 	if (frame_len == 0) {
 		output("rts");
+		unreachable = 1;
 		return 1;
 	} else {
 		output("jmp L%d%s", n, tail);
+		unreachable = 1;
 		return 0;
 	}
 }
@@ -1220,7 +1279,7 @@ unsigned gen_direct(struct node *n)
 {
 	unsigned s = get_size(n->type);
 	struct node *r = n->right;
-	unsigned nr = n->flags & NORETURN;
+/*	unsigned nr = n->flags & NORETURN; */
 	unsigned v;
 
 	switch(n->op) {
@@ -1481,21 +1540,21 @@ unsigned gen_direct(struct node *n)
 			helper(n, "not");
 			return 1;
 		}
-		return pri_help(n, "eqeqtmp");
+		return pri_cchelp(n, s, "eqeqtmp");
 	case T_GTEQ:
-		return pri_help(n, "gteqtmp");
+		return pri_cchelp(n, s, "gteqtmp");
 	case T_GT:
-		return pri_help(n, "gttmp");
+		return pri_cchelp(n, s, "gttmp");
 	case T_LTEQ:
-		return pri_help(n, "lteqtmp");
+		return pri_cchelp(n, s, "lteqtmp");
 	case T_LT:
-		return pri_help(n, "lttmp");
+		return pri_cchelp(n, s, "lttmp");
 	case T_BANGEQ:
 		if (r->op == T_CONSTANT && r->value == 0) {
 			helper(n, "bool");
 			return 1;
 		}
-		return pri_help(n, "netmp");
+		return pri_cchelp(n, s, "netmp");
 	/* TODO: qq optimisations for >= fieldwidth ? */
 	case T_LTLT:
 		if (s == 2 && r->op == T_CONSTANT && r->value == 8) {
@@ -1734,12 +1793,12 @@ static unsigned gen_cast(struct node *n)
 unsigned gen_node(struct node *n)
 {
 	unsigned size = get_size(n->type);
-	unsigned v;
+/*	unsigned v;
 	char *name;
-	unsigned nr = n->flags & NORETURN;
+	unsigned nr = n->flags & NORETURN; */
 	unsigned is_byte = (n->flags & (BYTETAIL | BYTEOP)) == (BYTETAIL | BYTEOP);
 
-	v = n->value;
+/*	v = n->value; */
 
 	/* Function call arguments are special - they are removed by the
 	   act of call/return and reported via T_CLEANUP */
