@@ -321,7 +321,7 @@ void adjust_s(register int n, unsigned save_d)
 			return;
 		}
 		if (n <0 && n >= -255) {
-			printf("\tjsr __subsp8\n\t.byte %u\n", n & 0xFF);
+			printf("\tjsr __subsp8\n\t.byte %u\n", -n & 0xFF);
 			return;
 		}
 		printf("\tjsr __modsp16\n\t.word %u\n", WORD(n));
