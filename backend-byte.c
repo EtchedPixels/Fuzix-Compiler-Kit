@@ -152,7 +152,7 @@ static unsigned byte_convert(register struct node *n)
 		   no longer a BYTEROOT and should just run as a byteop */
 		/* BYTEROOT ops must do the action full size on byteop children
 		   so preserve n->type in that case */
-		if ((options & BTF_RELABEL) && !(n->flags & BYTEROOT))
+		if ((options & BTF_RELABEL) && !(n->flags & (BYTEROOT|BYTETAIL)))
 			n->type = CCHAR | (n->type & UNSIGNED);
 /*        if (depth != 0)
             n->flags &= ~BYTEROOT; */

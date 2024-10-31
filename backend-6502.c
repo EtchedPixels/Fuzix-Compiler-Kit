@@ -999,21 +999,25 @@ void gen_epilogue(unsigned size, unsigned argsize)
 		error("sp");
 	}
 	sp -= size;
-	/* TODO arg removal */
+
+	if (!(func_flags & F_VARARG))
+		size += argsize;
+
 	if (size > 256) {
 		/* Ugly as we need to preserve AX */
-		output("pha");
+		if (!(func_flags & F_VOIDRET))
+			output("pha");
 		load_a(size & 0xFF);
 		load_y(size >> 8);
-		gen_internal("return16");
-		output("pla");
+		output("jsr __addyasp");
+		if (!(func_flags & F_VOIDRET))
+			output("pla");
 	}
 	else if (size) {
 		load_y(size);
-		gen_internal("return8");
+		output("jmp __addysp");
 	}
-	else
-		output("rts");
+	output("rts");
 }
 
 void gen_label(const char *tail, unsigned n)
@@ -1025,7 +1029,6 @@ void gen_label(const char *tail, unsigned n)
 
 unsigned gen_exit(const char *tail, unsigned n)
 {
-	/* Want to use BRA/BRL if we have it */
 	if (frame_len == 0) {
 		output("rts");
 		return 1;
@@ -1037,7 +1040,7 @@ unsigned gen_exit(const char *tail, unsigned n)
 
 void gen_jump(const char *tail, unsigned n)
 {
-	/* Want to use BRA/BRL if we have it */
+	/* Want to use BRA if we have the option */
 	output("jmp L%d%s", n, tail);
 	unreachable = 1;
 }
@@ -1092,6 +1095,11 @@ void gen_helptail(struct node *n)
 
 void gen_helpclean(struct node *n)
 {
+	/* Bool return is 0 or 1 therefore X is 0 */
+	if (n->flags & ISBOOL) {
+		reg[R_X].state = T_CONSTANT;
+		reg[R_X].value = 0;
+	}
 }
 
 void gen_data_label(const char *name, unsigned align)
@@ -1729,6 +1737,7 @@ unsigned gen_node(struct node *n)
 	unsigned v;
 	char *name;
 	unsigned nr = n->flags & NORETURN;
+	unsigned is_byte = (n->flags & (BYTETAIL | BYTEOP)) == (BYTETAIL | BYTEOP);
 
 	v = n->value;
 
@@ -1751,7 +1760,8 @@ unsigned gen_node(struct node *n)
 		/* Fall through */
 	case T_NREF:
 	case T_LBREF:
-		if (size == 1) {
+		/* TODO: for volatiles we shouldn't play this game */
+		if (is_byte || size == 1) {
 			if (a_contains(n))
 				return 1;
 			if (pri8(n, "lda")) {
@@ -1825,6 +1835,9 @@ unsigned gen_node(struct node *n)
 		}
 		return 1;
 	case T_CONSTANT:
+		/* Only load the bits needed if we are constant */
+		if (is_byte)
+			size = 1;
 		if (size > 2) {
 			load_a(n->value >> 24);
 			output("sta @hireg+1");
@@ -1838,6 +1851,8 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_NAME:
 	case T_LABEL:
+		if (is_byte)
+			size = 1;
 		if (size == 1 && pri8(n, "lda")) {
 			invalidate_a();
 			return 1;
