@@ -2951,8 +2951,8 @@ unsigned gen_shortcut(struct node *n)
 			return 1;
 		}
 		/* Too big or value needed */
-		helper(n, "bool");
 		n->flags |= ISBOOL;
+		helper(n, "bool");
 		return 1;
 	}
 	/* A common pattern is a ++ or -- on a local. That gets really convoluted on the Z8, so
