@@ -3569,6 +3569,8 @@ unsigned gen_node(struct node *n)
 		add_r_const(R_AC, 1, size);
 		return 1;
 	case T_BOOL:
+		if (n->right->type == FLOAT)
+			return 0;
 		if (n->right->flags & ISBOOL)
 			return 1;
 		/* Until we do cc only */
@@ -3579,6 +3581,8 @@ unsigned gen_node(struct node *n)
 		}
 		return 0;
 	case T_BANG:
+		if (n->right->type == FLOAT)
+			return 0;
 		/* Until we do cc only. Also if right is bool can do
 		   a simple xor */
 		if (n->right->flags & ISBOOL) {
