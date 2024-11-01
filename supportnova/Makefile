@@ -13,7 +13,7 @@ OBJ = __dp.o __const.o\
       __divul.o __mull.o \
       __shift.o __shifteq.o __logiceq.o __logiceql.o \
       __switch.o \
-      __cast2f.o __castf.o __cceqf.o __ccgteqf.o __ccgtf.o __cclteqf.o \
+      __boolf.o __cast2f.o __castf.o __cceqf.o __ccgteqf.o __ccgtf.o __cclteqf.o \
       __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o
 
 .s.o:

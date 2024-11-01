@@ -1,5 +1,5 @@
 /*
- *	unsigned integer comparisons
+ *	float comparisons
  */
 int test_flt(float a, float b)
 {
@@ -71,5 +71,9 @@ int main(int argc, char *argv[])
         return 18;
     if (about(0.1, 5.0))
         return 19;
+    if (!4.5)
+         return 20;
+    if (0.0 || 0.0)
+         return 21;
     return 0;
 }

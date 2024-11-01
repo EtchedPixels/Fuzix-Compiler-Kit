@@ -64,3 +64,6 @@ extern uint32_t _castul_f(unsigned long);
 extern uint32_t _castc_f(signed char);
 extern uint32_t _cast_f(int);
 extern uint32_t _castl_f(long);
+
+extern unsigned _boolf(uint32_t);
+extern unsigned _notf(uint32_t);
