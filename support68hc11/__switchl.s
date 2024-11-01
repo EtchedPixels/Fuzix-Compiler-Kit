@@ -3,10 +3,10 @@
 __switchl:
 	; X holds the switch table, Y:D the value
 	; Juggle as we are short of regs here - TODO find a nicer approach
-	pshy
-	ldy ,x
-	sty @tmp
-	puly
+	pshb
+	ldab 1,x
+	stab @tmp
+	pulb
 	inc @tmp
 	bra incmv
 next:

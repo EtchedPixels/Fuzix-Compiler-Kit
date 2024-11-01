@@ -6,6 +6,8 @@
 #include "backend.h"
 #include "backend-6800.h"
 
+unsigned label;		/* Used to hand out local labels in the form X%u */
+
 /*
  *	6809 implementation of the code generation section
  *	We have Y as the upper bits of the working value, and we have
@@ -26,9 +28,9 @@ void load_d_const(uint16_t n)
 
 	if (n == 0) {
 		if (!a_valid || a_val)
-			printf("\tclra\n");
+			puts("\tclra");
 		if (!b_valid || b_val)
-			printf("\tclrb\n");
+			puts("\tclrb");
 	} else if (!a_valid || !b_valid || a_val != hi || b_val != lo)
 		printf("\tldd #%u\n", n);
 
@@ -45,11 +47,11 @@ void load_a_const(uint8_t n)
 	if (a_valid && n == a_val)
 		return;
 	if (n == 0)
-		printf("\tclra\n");
+		puts("\tclra");
 	else if (b_valid && n == b_val)
-		printf("\ttfr b,a\n");
+		puts("\ttfr b,a");
 	else
-		printf("\t%sa #%u\n", ld8_op, n & 0xFF);
+		printf("\tlda #%u\n", n & 0xFF);
 	a_valid = 1;
 	a_val = n;
 	d_valid = 0;
@@ -60,11 +62,11 @@ void load_b_const(uint8_t n)
 	if (b_valid && n == b_val)
 		return;
 	if (n == 0)
-		printf("\tclrb\n");
+		puts("\tclrb");
 	else if (a_valid && n == a_val)
-		printf("\ttfr a,b\n");
+		puts("\ttfr a,b");
 	else
-		printf("\t%sb #%u\n", ld8_op, n & 0xFF);
+		printf("\tldb #%u\n", n & 0xFF);
 	b_valid = 1;
 	b_val = n;
 	d_valid = 0;
@@ -100,7 +102,7 @@ void add_b_const(uint8_t n)
 
 void load_a_b(void)
 {
-	printf("\ttfr b,a\n");
+	puts("\ttfr b,a");
 	a_val = b_val;
 	a_valid = b_valid;
 	d_valid = 0;
@@ -108,7 +110,7 @@ void load_a_b(void)
 
 void load_b_a(void)
 {
-	printf("\ttfr a,b\n");
+	puts("\ttfr a,b");
 	b_val = a_val;
 	b_valid = a_valid;
 	d_valid = 0;
@@ -116,23 +118,23 @@ void load_b_a(void)
 
 void move_s_d(void)
 {
-	printf("\ttfr s,d\n");
+	puts("\ttfr s,d");
 	invalidate_work();
 }
 
 void move_d_s(void)
 {
-	printf("\ttfr d,s\n");
+	puts("\ttfr d,s");
 }
 
 void swap_d_y(void)
 {
-	printf("\texg d,y\n");
+	puts("\texg d,y");
 }
 
 void swap_d_x(void)
 {
-	printf("\texg d,x\n");
+	puts("\texg d,x");
 	invalidate_work();
 	invalidate_x();
 }
@@ -140,13 +142,20 @@ void swap_d_x(void)
 /* Get D into X (may trash D) */
 void make_x_d(void)
 {
-	printf("\ttfr d,x\n");
+	puts("\ttfr d,x");
+	invalidate_x();
+}
+
+/* Get X into D (may trash X) */
+void make_d_x(void)
+{
+	puts("\ttfr x,d");
 	invalidate_x();
 }
 
 void pop_x(void)
 {
-	printf("\tpuls x\n");
+	puts("\tpuls x");
 	invalidate_x();
 }
 
@@ -230,7 +239,7 @@ void load32(unsigned off)
 	printf("\tldy %u,x\n\tldd %u,x\n", off, off + 2);
 }
 
-void store32(unsigned off)
+void store32(unsigned off, unsigned nr)
 {
 	printf("\tsty %u,x\n\tstd %u,x\n", off, off + 2);
 }
@@ -249,12 +258,10 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 	return 0;
 }
 
-/* Get pointer to the top of stack. We can optimize this in some cases
-   when we track but it will be limited. The 6800 is quite weak on ops
-   between register so we sometimes need to build ops against top of stack */
+/* Do we need this on 6809 ? */
 unsigned make_tos_ptr(void)
 {
-	printf("\ttfr s,x\n");
+	puts("\ttfr s,x");
 	x_fpoff = sp;
 	x_fprel = 1;
 	return 0;
@@ -295,10 +302,20 @@ static char *addr_form(register struct node *r, unsigned off, unsigned s)
 	case T_RDEREF:
 		sprintf(addr, "%u,u", r->val2 + off);
 		return addr;
+	/* TODO: Can we do locals safely via ,s ?? */
 	default:
 		error("aform");
 	}
 	return NULL;
+}
+
+/* Those with address forms we can directly load. Need to look at locals via ,s */
+unsigned can_load_d_nox(struct node *n, unsigned off)
+{
+	register unsigned op = n->op;
+	if (op == T_CONSTANT || op == T_NAME || op == T_LABEL || op == T_NREF || op == T_LBREF)
+		return 1;
+	return 0;
 }
 
 /* These functions must not touch X on the 6809, they can on others */
@@ -491,7 +508,7 @@ unsigned write_tos_opd(struct node *n, const char *op, const char *op2)
 		printf("\t%s 2,s\n", op);
 		printf("\t%s 1,s\n", op2);
 		printf("\t%s ,s\n", op2);
-		printf("\tleas 4,s\n");
+		puts("\tleas 4,s");
 		return 1;
 	} else if (s == 2)
 		op16d_on_tos(op);
@@ -499,24 +516,6 @@ unsigned write_tos_opd(struct node *n, const char *op, const char *op2)
 		op8_on_tos(op);
 	invalidate_work();
 	return 1;
-}
-
-void uniop8_on_tos(const char *op)
-{
-	unsigned off = make_tos_ptr();
-	invalidate_work();
-	printf("\t%s %u,x\n", op, off);
-	printf("\tins\n");
-}
-
-void uniop16_on_tos(const char *op)
-{
-	unsigned off = make_tos_ptr();
-	invalidate_work();
-	printf("\t%s %u,x\n", op, off + 1);
-	printf("\t%s %u,x\n", op, off);
-	printf("\tins\n");
-	printf("\tins\n");
 }
 
 unsigned write_tos_uniop(struct node *n, const char *op)
@@ -565,7 +564,7 @@ unsigned left_shift(struct node *n)
 			return 1;
 		}
 		while(v--)
-			printf("\tlslb\n\trola\n");
+			puts("\tlslb\n\trola");
 		invalidate_work();
 		return 1;
 	}
@@ -785,9 +784,9 @@ void write_mul(unsigned n)
 	while(n > 1) {
 		if (n & 1) {
 			pops++;
-			printf("\tpshs d\n");
+			puts("\tpshs d");
 		}
-		printf("\tlslb\n\trola\n");
+		puts("\tlslb\n\trola");
 		n >>= 1;
 	}
 	while(pops--) {
@@ -841,12 +840,14 @@ unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 		return 0;
 	if (u) {
 		while(n > 1) {
-			printf("\tlsra\n\trorb\n");
+			puts("\tlsra\n\trorb");
 			n >>= 1;
 		}
 	} else {
+		printf("\tbita #0x80\n\tbeq X%u\n", ++label);
+		printf("\taddd #%u\nX%u:\n", (n - 1) & 0xFFFF, label);
 		while(n > 1) {
-			printf("\tasra\n\trorb\n");
+			puts("\tasra\n\trorb");
 			n >>= 1;
 		}
 	}
@@ -904,15 +905,14 @@ unsigned gen_push(struct node *n)
 	sp += get_stack_size(n->type);
 	switch(size) {
 	case 1:
-		printf("\tpshs b\n");
+		puts("\tpshs b");
 		return 1;
 	case 2:
-		printf("\tpshs d\n");
+		puts("\tpshs d");
 		return 1;
 	case 4:	/* Have to split them to get the order right */
 		/* Or we could go PDP11 style mixed endian long ? */
-		printf("\tpshs d\n");
-		printf("\tpshs y\n");
+		puts("\tpshs d\n\tpshs y");
 		return 1;
 	}
 	return 0;

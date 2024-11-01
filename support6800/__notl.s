@@ -5,7 +5,7 @@ __notl:
 	orab	@hireg
 	orab	@hireg+1
 	bne	false
-	cmpa	#0
+	tsta
 	bne	false
 	clra
 	ldab	#1

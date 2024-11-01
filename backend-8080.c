@@ -33,6 +33,7 @@ static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned argbase;	/* Argument offset in current function */
 static unsigned unreachable;	/* Code following an unconditional jump */
 static unsigned func_cleanup;	/* Zero if we can just ret out */
+static unsigned label;		/* Used to hand out local labels in the form X%u */
 
 /*
  *	Output side logic. For now dumb but route everything here so
@@ -1046,12 +1047,27 @@ static void gen_fast_mul(unsigned s, unsigned n)
 
 static unsigned gen_fast_div(unsigned s, unsigned n)
 {
+	int m = n - 1;
+
 	if (cpu != 8085)
 		return 0;
 
 	if (n & (n - 1))
 		return 0;
 
+	opcode(OP_MOV, R_H, R_A, "mov a,h");
+	opcode(OP_ORA, R_A, R_A, "ora a");
+	opcode(OP_JUMP, R_A, 0, "jp X%u", ++label);
+	/* We can trash DE */
+	if (m > 0 && m <= 4)
+		repeated_op("inx h", m);
+	else if (m < 0 && m >= -4)
+		repeated_op("dcx h", -m);
+	else {
+		opcode(OP_LXI, 0, R_HL, "lxi d,%u", (n - 1) & 0xFFFF);
+		opcode(OP_DAD, R_DE|R_HL, R_HL, "dad d");
+	}
+	printf("X%u:\n", label);
 	while(n > 1) {
 		opcode(OP_ARHL, R_HL,  R_HL, "arhl");
 		n >>= 1;

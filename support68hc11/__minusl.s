@@ -9,11 +9,17 @@ __minusl:
 	pshb
 	psha
 	pshy
+	; Stack is now
+	; 0 - high of value to subtract
+	; 2 - low of value to subtract
+	; 4 - return address
+	; 6 - high word of base value
+	; 8 - low word of base value
 	tsx
-	ldd 6,x		; low
+	ldd 8,x		; low
 	subd 2,x	; - low
 	xgdy
-	ldd 4,x
+	ldd 6,x
 	sbcb 1,x
 	sbca 0,x
 	xgdy

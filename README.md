@@ -115,8 +115,9 @@ CPU needing this sort of treatment.
 
 ### 6303/6803/68HC11
 
-This is an early sketch only based upon the CC6303 code generation and
-support code.
+6303 and 6803 pass the basic tests at this point. 68HC11 needs a little bit
+more work to nail some remaining bugs. 6803 code will run on all three, 6303
+code will run only on the 6303, and 68HC11 code only on the 68HC11.
 
 ### 6502
 
@@ -133,6 +134,15 @@ during expression evaluation and the all actual call/return addresses. Split
 code/data is supported but not multiple data or code banks in one application
 (that is pointers are 16bit). Going beyond that gets very ugly very fast as on
 8086.
+
+### 6800
+
+The 6800 backend passes the basic tests. For size reasons the 6800 ABI
+is not the same as the 6803/6303.
+
+### 8070
+
+Initial sketches only for the INS807x series of processors
 
 ### 8080/8085
 
@@ -154,11 +164,36 @@ easy way to do it the BC register pair is not used for other pointer sizes.
 Signed comparison and sign extension are significantly slower than unsigned.
 This is an instruction set limitation.
 
+### EE200
+
+Electrodata EE200 / Warrex CPU4 backend. Early work only with a view to
+deprecating the existing cc65 based project.
+
+### Nova
+
+An initial port to the DG Nova series machines. This target generates pure
+DG Nova code for the original Nova series machines. It requires that the
+autoinc/autodec memory locations are present
+
+### Nova3
+
+An initial port to the DG Nova 3 and Nova 4. Autoinc/dec memory is not
+required. The Nova 4 byte operations are not currently supported or used.
+
+### ThreadCode
+
+An initial backend that turns the C input into a series of helper references
+and data. This can easily be tweaked to make them calls, and peephole rules
+used to clean up or re-arrange them a bit to suit any need or turn it into
+bytecode etc.
+
 ### Z8
 
 This port now passes all of the self tests and the code coverage compile
 tests. It has not yet been used except on test sets so probably contains
-a few bugs. Split I/D is supported.
+a few bugs. Split I/D is supported. Size optimization support is now
+included and hugely reduces the code size with -Os but is not yet fully
+debugged.
 
 ### Z80 / Z180
 
@@ -173,13 +208,6 @@ them as register variables whilst using helpers for the locals.
 
 The Z180 is not yet differentiated. This will only matter for the support
 library code and maybe inlining a few specific multiplication cases.
-
-### ThreadCode
-
-An initial backend that turns the C input into a series of helper references
-and data. This can easily be tweaked to make them calls, and peephole rules
-used to clean up or re-arrange them a bit to suit any need or turn it into
-byytecode etc.
 
 ### Default
 
@@ -230,10 +258,16 @@ room.
 
 ### cc2
 
-For now just testing a very simple left hand walking code generator with
-minimal awareness of consts and names that can be directly accessed. This
-should suit simpler processors like the 6502, 680x, 8080, 8085 etc but isn't
-a good model for register oriented ones.
+This is at its heart a very simple left hand walking code generator. The
+core backed allows targets to rewrite subtrees, to evaluate trees in other
+orders when useful and also provides an interface that allows the target
+to shortcut the stack whenever it can access the second item of data for
+an operation without disturbing the working balue.
+
+This should suit simpler processors like the 6502, 680x, 8080, 8085 etc
+but isn't a good model for register oriented ones. It's not clear there
+is a good model for register oriented processors that works well in 64K
+of memory.
 
 On the other hand it's ludicrously easy to change it to produce fairly bad
 code for any processor you want.
@@ -244,6 +278,12 @@ The expression parser was created by turning the public domain SmallC 3.0 one
 into a more traditional tree building recursive parser and testing it in
 SmallC. The rest of the code is original although the design is influenced by
 several small C subset compilers and also ANSI pcc.
+
+The wtest code and some 6809 work were contributed by Warren Toomey
+
+The 6800 port was taken from an initial sketch to a working compiler by Zu2
+<http://www.zukeran.org/shin/d/> who also contributed other bug fixes,
+including getting the floating point side of the compiler working.
 
 ## Licence
 

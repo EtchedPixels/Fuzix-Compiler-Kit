@@ -101,10 +101,11 @@ is_done:
 	pulx
 	stx @hireg
 	pula
-	pulb
-	pulx
+	pulb		; pull result off the stack
+	pulx		; pull return address
+	ins		; and arguments
 	ins
 	ins
 	ins
-	ins
-	rts
+	jmp ,x		; and return
+

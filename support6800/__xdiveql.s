@@ -12,7 +12,7 @@ __xdiveql:
 	staa	@tmp
 	stab	@tmp+1
 	ldaa	2,x
-	ldab	4,x
+	ldab	3,x
 	pshb
 	psha
 	ldaa	,x	

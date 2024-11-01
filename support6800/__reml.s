@@ -2,23 +2,14 @@
 	.code
 
 __reml:
-	staa	@tmp
-	stab	@tmp+1
-	ldaa	@hireg
-	bita	#0x80
-	beq	nosignfix
-	ldaa	@tmp
-	ldab	@tmp+1
+	tst	@hireg
+	bpl	nosignfix
 	jsr	__negatel
-	staa	@tmp
-	stab	@tmp+1
 nosignfix:
-	ldaa	@hireg
-	ldab	@hireg+1
 	pshb
 	psha
-	ldaa	@tmp
-	ldab	@tmp+1
+	ldaa	@hireg
+	ldab	@hireg+1
 	pshb
 	psha
 	tsx
@@ -57,13 +48,10 @@ nosignfix2:
 	ldab	@tmp2+1
 	staa	@hireg
 	stab	@hireg+1
-	ldaa	@tmp4
+	ldaa	@tmp3
+	ldab	@tmp3+1
+	tst	@tmp4
 	bpl	done
-	ldaa	@tmp3
-	ldab	@tmp3+1
 	jsr	__negatel
-	jmp	__pop4
 done:
-	ldaa	@tmp3
-	ldab	@tmp3+1
 	jmp	__pop4

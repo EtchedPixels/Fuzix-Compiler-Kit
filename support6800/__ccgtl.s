@@ -27,10 +27,12 @@ __ccgtl:
 cclow:
 	subb	3,x
 	blo	true
+	bne	false
 	ldaa	@tmp
 	ldab	@tmp+1
 	suba	4,x
 	blo	true
+	bne	false
 	subb	5,x
 	blo	true
 false:

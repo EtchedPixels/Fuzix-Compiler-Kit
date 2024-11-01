@@ -83,7 +83,7 @@ struct node *typeconv_implicit(register struct node *n)
 /*
  *	Build an argument tree for right to left stacking
  *
- *	TODO: both here and in the space allocation we need to
+ *	Both here and in the space allocation we need to
  *	do type / size fixes for argument spacing. For example on an 8080
  *	we always push 2 bytes so char as arg takes 2 and we need to do
  *	the right thing.
@@ -107,8 +107,10 @@ struct node *call_args(unsigned *narg, register unsigned *argt, unsigned *argsiz
 			(*narg)--;
 			/* Once we hit ellipsis we can accept any number
 			   of arguments including none */
-			if (*argt == ELLIPSIS)
+			if (*argt == ELLIPSIS) {
+				*va = 1;
 				*narg = 0;
+			}
 		} else
 			unexarg();
 	}
@@ -116,8 +118,7 @@ struct node *call_args(unsigned *narg, register unsigned *argt, unsigned *argsiz
 	t = n->type;
 	if (match(T_COMMA)) {
 		/* Switch around for calling order */
-		n = tree(T_ARGCOMMA, call_args(narg, argt, argsize, va), n);
-		n->type = t;
+		n = typed_tree(T_ARGCOMMA, t, call_args(narg, argt, argsize, va), n);
 		return n;
 	}
 	require(T_RPAREN);
@@ -403,8 +404,7 @@ static struct node *hier10(void)
 			r->type = type_ptr(r->type);
 			return r;
 		}
-		r = tree(T_ADDROF, NULL, r);
-		r->type = type_addrof(r->type);
+		r = typed_tree(T_ADDROF, type_addrof(r->type), NULL, r);
 		return r;
 	case T_LPAREN:
 		/* Should be a type without a name */
@@ -475,22 +475,21 @@ static struct node *hier8(void)
 			scale = type_ptrscale_binop(op, l, r, &rt);
 			/* The type checking was done in type_ptrscale_binop */
 			if (scale < 0)
-				l = tree(T_SLASH, tree(op, l, r), make_constant(-scale, UINT));
+				l = typed_tree(T_SLASH, rt, typed_tree(op, rt, l, r), make_constant(-scale, UINT));
 			/* TODO: these two assume ptrdiff is an int sized type */
 			else if (PTR(l->type)) {
 				r = typeconv(r, UINT, 0);
 				if (scale)
-					l = tree(op, l, tree(T_STAR, r, make_constant(scale, UINT)));
+					l = typed_tree(op, rt, l, tree(T_STAR, r, make_constant(scale, UINT)));
 				else
-					l = tree(op, l, r);
+					l = typed_tree(op, rt, l, r);
 			} else {
 				l = typeconv(l, UINT, 0);
 				if (scale)
-					l = tree(op, tree(T_STAR, l, make_constant(scale, UINT)), r);
+					l = typed_tree(op, rt, tree(T_STAR, l, make_constant(scale, UINT)), r);
 				else
-					l = tree(op, l, r);
+					l = typed_tree(op, rt, l, r);
 			}
-			l->type = rt;
 		}
 	}
 	return l;
@@ -660,9 +659,8 @@ static struct node *hier1a(void)
 
 	/* Check the two sides of colon are compatible */
 	if (a1t == a2t || type_pointermatch(a1, a2) || (IS_ARITH(a1t) && IS_ARITH(a2t))) {
-		a2 = tree(T_QUESTION, bool_tree(l, NEEDCC), tree(T_COLON, a1, typeconv(a2, a1t, 1)));
 		/* Takes the type of the : arguments not the ? */
-		a2->type = a1t;
+		a2 = typed_tree(T_QUESTION, a1t, bool_tree(l, NEEDCC), tree(T_COLON, a1, typeconv(a2, a1t, 1)));
 	}
 	else
 		badtype();
@@ -749,8 +747,7 @@ struct node *hier0(unsigned comma)
 		l->flags |= NORETURN;
 		r = hier0(comma);
 		/* The return of a comma operator is never an lval */
-		l = tree(T_COMMA, make_rval(l), make_rval(r));
-		l->type = r->type;
+		l = typed_tree(T_COMMA, r->type, make_rval(l), make_rval(r));
 	}
 	return l;
 }
@@ -851,8 +848,7 @@ void expression_or_null(unsigned mkbool, unsigned flags)
 	register struct node *n;
 	if (token == T_SEMICOLON || token == T_RPAREN) {
 		/* A null tree - force the type to void so we can spot it in the backend */
-		n = tree(T_NULL, NULL, NULL);
-		n->type = VOID;
+		n = typed_tree(T_NULL, VOID, NULL, NULL);
 		write_tree(n);
 	} else {
 		n = expression(1, mkbool, flags);

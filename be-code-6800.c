@@ -6,22 +6,11 @@
 #include "backend.h"
 #include "backend-6800.h"
 
+unsigned label;		/* Used to hand out local labels of the form X%u */
+
 /*
  *	Fix up weirdness in the asm formats.
  */
-
-static const char *remap_op(register const char *op)
-{
-	/* Some 68xx ops are a bit irregular
-	   - ldd v ldab etc */
-	if (strcmp(op, "ld") == 0)
-		return "lda";
-	if (strcmp(op, "or") == 0)
-		return "ora";
-	if (strcmp(op, "st") == 0)
-		return "sta";
-	return op;
-}
 
 /* 16bit constant load */
 void load_d_const(uint16_t n)
@@ -37,9 +26,9 @@ void load_d_const(uint16_t n)
 	if (cpu_has_d) {
 		if (n == 0) {
 			if (!a_valid || a_val)
-				printf("\tclra\n");
+				puts("\tclra");
 			if (!b_valid || b_val)
-				printf("\tclrb\n");
+				puts("\tclrb");
 		} else if (!a_valid || !b_valid || a_val != hi || b_val != lo) {
 			printf("\tldd #%u\n", n);
 		}
@@ -49,20 +38,20 @@ void load_d_const(uint16_t n)
 		hi = n >> 8;
 		if (a_valid == 0 || hi != a_val) {
 			if (hi == 0)
-				printf("\tclra\n");
-			else if (hi == b_val) {
-				printf("\ttba\n");
-				printf("\t%sa #%d\n", ld8_op, hi);
-			}
+				puts("\tclra");
+			else if (b_valid && hi == b_val)
+				puts("\ttba");
+			else
+				printf("\tldaa #%d\n", hi);
 		}
 		if (b_valid == 0 || lo != b_val) {
 			if (lo == 0)
-				printf("\tclrb\n");
+				puts("\tclrb");
 			else if (lo == hi)
-				printf("\ttab\n");
-			return;
-		} else
-			printf("\t%sb #%d\n", ld8_op, lo);
+				puts("\ttab");
+			else
+				printf("\tldab #%d\n", lo);
+		}
 	}
 	a_valid = 1;	/* We know the byte values */
 	b_valid = 1;
@@ -77,11 +66,11 @@ void load_a_const(register uint8_t n)
 	if (a_valid && n == a_val)
 		return;
 	if (n == 0)
-		printf("\tclra\n");
+		puts("\tclra");
 	else if (b_valid && n == b_val)
-		printf("\ttba\n");
+		puts("\ttba");
 	else
-		printf("\t%sa #%u\n", ld8_op, n & 0xFF);
+		printf("\tldaa #%u\n", n & 0xFF);
 	a_valid = 1;
 	a_val = n;
 	d_valid = 0;
@@ -92,11 +81,11 @@ void load_b_const(register uint8_t n)
 	if (b_valid && n == b_val)
 		return;
 	if (n == 0)
-		printf("\tclrb\n");
+		puts("\tclrb");
 	else if (a_valid && n == a_val)
-		printf("\ttab\n");
+		puts("\ttab");
 	else
-		printf("\t%sb #%u\n", ld8_op, n & 0xFF);
+		printf("\tldab #%u\n", n & 0xFF);
 	b_valid = 1;
 	b_val = n;
 	d_valid = 0;
@@ -140,7 +129,7 @@ void add_b_const(register uint8_t n)
 
 void load_a_b(void)
 {
-	printf("\ttba\n");
+	puts("\ttba");
 	a_val = b_val;
 	a_valid = b_valid;
 	d_valid = 0;
@@ -148,7 +137,7 @@ void load_a_b(void)
 
 void load_b_a(void)
 {
-	printf("\ttab\n");
+	puts("\ttab");
 	b_val = a_val;
 	b_valid = a_valid;
 	d_valid = 0;
@@ -156,35 +145,32 @@ void load_b_a(void)
 
 void move_s_d(void)
 {
-	printf("\tsts @tmp\n");
+	puts("\tsts @tmp");
 	if (cpu_has_d)
-		printf("\tldd @tmp\n");
-	else {
-		printf("\tldaa @tmp\n");
-		printf("\tldab @tmp+1\n");
-	}
+		puts("\tldd @tmp");
+	else
+		puts("\tldaa @tmp\n\tldab @tmp+1");
 	invalidate_work();
 }
 
 void move_d_s(void)
 {
 	if (cpu_has_d)
-		printf("\tstd @tmp\n");
-	else {
-		printf("\tstaa @tmp\n");
-		printf("\tstab @tmp+1\n");
-	}
-	printf("\tlds @tmp\n");
+		puts("\tstd @tmp");
+	else
+		puts("\tstaa @tmp\n\tstab @tmp+1");
+	puts("\tlds @tmp");
 }
 
 void swap_d_y(void)
 {
-	printf("\txgdy\n");
+	puts("\txgdy");
 }
 
 void swap_d_x(void)
 {
-	printf("\txgdx\n");
+	/* Should really track on the exchange later */
+	puts("\txgdx");
 	invalidate_work();
 	invalidate_x();
 }
@@ -192,19 +178,31 @@ void swap_d_x(void)
 /* Get D into X (may trash D) */
 void make_x_d(void)
 {
-	if (cpu_has_xgdx) {
-		/* Should really track on the exchange later */
-		invalidate_work();
-		printf("\txgdx\n");
-	} else {
+	if (cpu_has_xgdx)
+		swap_d_x();
+	else {
 		if (cpu_has_d)
-			printf("\tstd @tmp\n");
+			puts("\tstd @tmp\n\tldx @tmp");
 		else
-			printf("\tstaa @tmp\n\tstab @tmp+1\n");
-		printf("\tldx @tmp\n");
+			puts("\tstaa @tmp\n\tstab @tmp+1\n\tldx @tmp");
 	}
 	/* TODO: d -> x see if we know d type */
 	invalidate_x();
+}
+
+/* Get X into D (may trash X) */
+void make_d_x(void)
+{
+	if (cpu_has_xgdx)
+		swap_d_x();
+	else {
+		if (cpu_has_d)
+			puts("\tstx @tmp\n\tldd @tmp");
+		else
+			puts("\tstx @tmp\n\tldaa @tmp\n\tldab @tmp+1");
+	}
+	/* TODO: x->d  see if we know x type */
+	invalidate_work();
 }
 
 void pop_x(void)
@@ -213,9 +211,9 @@ void pop_x(void)
 	   when we track and use offsets of current X then ins ins */
 	/* Easier said than done on a 6800 */
 	if (cpu_has_pshx)
-		printf("\tpulx\n");
+		puts("\tpulx");
 	else
-		printf("\ttsx\n\tldx ,x\n\tins\n\tins\n");
+		puts("\ttsx\n\tldx ,x\n\tins\n\tins");
 	invalidate_x();
 }
 
@@ -242,7 +240,7 @@ void adjust_s(register int n, unsigned save_d)
 		if (n > 14 || n < -14) {
 			printf("\ttsx\n\txgdx\n\taddd #%u\n\txgdx\n\ttxs\n", WORD(n));
 			x_fprel = 1;
-			x_fpoff = 0;
+			x_fpoff = sp;
 			return;
 		}
 		invalidate_x();
@@ -250,13 +248,13 @@ void adjust_s(register int n, unsigned save_d)
 			/* Otherwise we know pulx is cheapest */
 			repeated_op(n / 2, "pulx");
 			if (n & 1)
-				printf("\tins\n");
+				puts("\tins");
 		}
 		if (n < 0) {
 			/* pshx likewise is an option */
 			repeated_op(-n / 2, "pshx");
 			if (n & 1)
-				printf("\tdes\n");
+				puts("\tdes");
 		}
 		return;
 	}
@@ -265,9 +263,10 @@ void adjust_s(register int n, unsigned save_d)
 		cost = abxcost;
 	/* PULX might be fastest */
 	if (n > 0 && cpu_has_pshx && (n / 2) + (n & 1) <= cost) {
+		invalidate_x();
 		repeated_op(n / 2, "pulx");
 		if (n & 1)
-			printf("\tins\n");
+			puts("\tins");
 		return;
 	}
 	/* If not check if ins is */
@@ -279,23 +278,23 @@ void adjust_s(register int n, unsigned save_d)
 	if (n > 0 && cpu_has_abx && cost == abxcost) {
 		/* TODO track b properly when save save_d */
 		/* FIXME: need top put S into X and back.. */
-		printf("\ttsx\n");
+		puts("\ttsx");
 		if (save_d)
-			printf("\tpshb\n");
+			puts("\tpshb");
 		if(n > 255) {
 			load_b_const(255);
 			while(n >= 255) {
-				printf("\tabx\n");
+				puts("\tabx");
 				n -= 255;
 			}
 		}
 		if (n) {
 			load_b_const(n);
-			printf("\tabx\n");
+			puts("\tabx");
 		}
 		if (save_d)
-			printf("\tpulb\n");
-		printf("\ttxs\n");
+			puts("\tpulb");
+		puts("\ttxs");
 		x_fprel = 1;
 		x_fpoff = 0;
 		return;
@@ -309,7 +308,7 @@ void adjust_s(register int n, unsigned save_d)
 	if (cpu_has_pshx && n < 0 && -n/2 + (n & 1) <= hardcost) {
 		repeated_op(-n/2, "pshx");
 		if (n & 1)
-			printf("\tdes\n");
+			puts("\tdes");
 		return;
 	}
 	if (n < 0 && n >= -4) {
@@ -318,17 +317,14 @@ void adjust_s(register int n, unsigned save_d)
 	}
 	if (optsize) {
 		if (n > 0 && n <= 255) {
-			printf("\tjsr __addsp8\n");
-			printf("\t.byte %u\n", n & 0xFF);
+			printf("\tjsr __addsp8\n\t.byte %u\n", n & 0xFF);
 			return;
 		}
 		if (n <0 && n >= -255) {
-			printf("\tjsr __subsp8\n");
-			printf("\t.byte %u\n", n & 0xFF);
+			printf("\tjsr __subsp8\n\t.byte %u\n", -n & 0xFF);
 			return;
 		}
-		printf("\tjsr __modsp16\n");
-		printf("\t.word %u\n", WORD(n));
+		printf("\tjsr __modsp16\n\t.word %u\n", WORD(n));
 		return;
 	}
 	if (n >=0 && n <= hardcost) {
@@ -341,66 +337,55 @@ void adjust_s(register int n, unsigned save_d)
 	}
 	/* TODO: if we save_d we need to keep and valid */
 	/* Inline */
+
 	if (save_d)
-		printf("\tpshb\n\tpsha\n");
+		puts("\tstaa @tmp2\n\tstab @tmp2+1");
+
 	move_s_d();
 	add_d_const(n);
 	move_d_s();
 	if (save_d)
-		printf("\tpulb\n\tpula\n");
+		puts("\tldaa @tmp2\n\tldab @tmp2+1");
 }
 
 void op8_on_ptr(const char *op, unsigned off)
 {
-	printf("\t%sb %u,x\n", remap_op(op), off);
+	printf("\t%sb %u,x\n", op, off);
 }
 
 /* Do the low byte first in case it's add adc etc */
 void op16_on_ptr(const char *op, const char *op2, unsigned off)
 {
 	/* Big endian */
-	printf("\t%sb %u,x\n", remap_op(op), off + 1);
-	printf("\t%sa %u,x\n", remap_op(op2), off);
+	printf("\t%sb %u,x\n\t%sa %u,x\n", op, off + 1, op2, off);
 }
 
 /* Operations where D can be used on later processors */
 void op16d_on_ptr(const char *op, const char *op2, unsigned off)
 {
 	/* Big endian */
-	if (cpu_has_d) {
+	if (cpu_has_d)
 		printf("\t%sd %u,x\n", op, off);
-	} else {
-		/* ldd not ldab, std not stad ! */
-		printf("\t%sb %u,x\n", remap_op(op), off + 1);
-		printf("\t%sa %u,x\n", remap_op(op2), off);
-	}
+	else
+		printf("\t%sb %u,x\n\t%sa %u,x\n", op, off + 1, op2, off);
 }
 
 static void op32_on_ptr(const char *op, const char *op2, unsigned off)
 {
-	op = remap_op(op);
-	op2 = remap_op(op2);
-	printf("\t%sb %u,x\n", op, off + 3);
-	printf("\t%sa %u,x\n", op2, off + 2);
+	printf("\t%sb %u,x\n\t%sa %u,x\n", op, off + 3, op2, off + 2);
 	if (cpu_has_y) {
 		swap_d_y();
-		printf("\t%sb %u,x\n", op2, off + 1);
-		printf("\t%sa %u,x\n", op2, off);
+		printf("\t%sb %u,x\n\t%sa %u,x\n", op2, off + 1, op2, off);
 		swap_d_y();
 	} else {
-		printf("\tpshb\n\tpsha\n");
-		printf("\tldaa @hireg\n\tldab @hireg+1\n");
-		printf("\t%sb %u,x\n", op2, off + 1);
-		printf("\t%sa %u,x\n", op2, off);
-		printf("\tstaa @hireg\n\tstab @hireg+1\n");
-		printf("\tpula\n\tpulb\n");
+		puts("\tpshb\n\tpsha\n\tldaa @hireg\n\tldab @hireg+1");
+		printf("\t%sb %u,x\n\t%sa %u,x\n", op2, off + 1, op2, off);
+		puts("\tstaa @hireg\n\tstab @hireg+1\n\tpula\n\tpulb");
 	}
 }
 
 void op32d_on_ptr(const char *op, const char *op2, unsigned off)
 {
-	op = remap_op(op);
-	op2 = remap_op(op2);
 	if (!cpu_has_d) {
 		op32_on_ptr(op, op2, off);
 		return;
@@ -408,16 +393,12 @@ void op32d_on_ptr(const char *op, const char *op2, unsigned off)
 	printf("\t%sd %u,x\n", op, off + 2);
 	if (cpu_has_y) {
 		swap_d_y();
-		printf("\t%sb %u,x\n", op2, off + 1);
-		printf("\t%sa %u,x\n", op2, off);
+		printf("\t%sb %u,x\n\t%sa %u,x\n", op2, off + 1, op2, off);
 		swap_d_y();
 	} else {
-		printf("\tpshb\n\tpsha\n");
-		printf("\tldd @hireg\n");
-		printf("\t%sb %u,x\n", op2, off + 1);
-		printf("\t%sa %u,x\n", op2, off);
-		printf("\tstd @hireg\n");
-		printf("\tpula\n\tpulb\n");
+		puts("\tpshb\n\tpsha\n\tldd @hireg\n");
+		printf("\t%sb %u,x\n\t%sa %u,x\n", op2, off + 1, op2, off);
+		puts("\tstd @hireg\n\tpula\n\tpulb");
 	}
 }
 
@@ -430,39 +411,36 @@ void load32(register unsigned off)
 	} else if (cpu_has_d)
 		printf("\tldd %u,x\n\tstd @hireg\n\tldd %u,x\n", off, off + 2);
 	else {
-		printf("\tldaa %u,x\nldab %u,x\n\tldx %u,x\nstx @hireg\n",
+		printf("\tldaa %u,x\n\tldab %u,x\n\tldx %u,x\n\tstx @hireg\n",
 			off + 2, off + 3, off);
 		invalidate_x();
 	}
 }
 
-void store32(register unsigned off)
+void store32(register unsigned off, unsigned nr)
 {
-	if (cpu_has_y) {
-		printf("\tsty %u,x\n", off);
-		printf("\tstd %u,x\n", off + 2);
-	} else if (cpu_has_d) {
-		printf("\tstd %u,x\n\tldd @hireg\n\tstd %u,x\n\tldd %u,x\n",
-			off + 2, off, off + 2);
+	if (cpu_has_y)
+		printf("\tsty %u,x\n\tstd %u,x\n", off, off + 2);
+	else if (cpu_has_d) {
+		printf("\tstd %u,x\n\tldd @hireg\n\tstd %u,x\n", off + 2, off);
+		if (nr)
+			printf("\tldd %u,x\n", off + 2);
 	} else {
 		printf("\tstab %u,x\n\tstaa %u,x\n\tpsha\n", off + 3, off + 2);
-		printf("\tldaa @hireg+1\nstaa %u,x\n", off + 1);
-		printf("\tldaa @hireg\nstaa %u,x\n", off);
-		printf("\tpula\n");
+		printf("\tldaa @hireg+1\n\tstaa %u,x\n\tldaa @hireg\n\tstaa %u,x\n\tpula\n", off + 1, off);
 	}
 }
 
 void uniop_on_ptr(register const char *op, register unsigned off,
 						register unsigned size)
 {
-	op = remap_op(op);
 	off += size;
 	while(size--)
 		printf("\t%s %u,x\n", op, --off);
 }
 
 /*
- *	This is broken. Very broken
+ *	Generate a reference via X to a local
  */
 unsigned make_local_ptr(unsigned off, unsigned rlim)
 {
@@ -473,52 +451,63 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 
 	/* TODO: if we can d a small < 7 or so shift by decrement then
 	   it may beat going via tsx */
-	/* HACK: for the moment disable this stuff whilst we debug the
-	   rest of the code as the make_local_ptr tracking is currently
-	   totally broken */
-	if (1 || x_fprel == 0 ||  noff < 0) {
+	if (x_fprel == 0 ||  noff < 0) {
 		printf("\ttsx\n");
 		x_fprel = 1;
-		x_fpoff = 0;
-	} else
-		off = noff;
-
-	off += sp;
+		x_fpoff = sp;
+	}
+	off += x_fpoff;
 	if (off <= rlim)
 		return off;
+
 	/* It is cheaper to inx than mess around with calls for smaller
 	   values - 7 or 5 if no save needed */
 	if (off - rlim < 7) {
 		repeated_op(off - rlim, "inx");
-		/* TODO: track */
-		x_fpoff += off - rlim;
+		x_fpoff -= off - rlim;
 		return rlim;
 	}
+	/* These cases push and pop the old D but we don't have a tracking
+	   mechanism to optimise it. FIXME one day. The first half of things
+	   is fine as we push and load so can optimize, but the resulting
+	   case we can currently only invalidate for */
 	if (off - rlim < 256) {
-		printf("\tpshb\n");
+		puts("\tpshb");
 		load_b_const(off - rlim);
-		printf("\tjsr __abx\n");
-		x_fpoff += off - rlim;
-		printf("\tpulb\n");
+		if (cpu_has_d)	/* And thus ABX */
+			puts("\tabx");
+		else
+			puts("\tjsr __abx");
+		puts("\tpulb");
+		x_fpoff -= off - rlim;
+		invalidate_work();
 		return rlim;
 	} else {
 		/* This case is (thankfully) fairly rare */
-		printf("\tpshb\n\tpsha\n");
+		puts("\tpshb\n\tpsha");
 		load_d_const(off);
-		printf("\tjsr __adx\n");
-		x_fpoff += off;
-		printf("\tpula\n\tpulb\n");
+		puts("\tjsr __adx\n\tpula\n\tpulb");
+		x_fpoff -= off;
+		invalidate_work();
 		return 0;
 	}
 }
 
 /* Get pointer to the top of stack. We can optimize this in some cases
    when we track but it will be limited. The 6800 is quite weak on ops
-   between register so we sometimes need to build ops against top of stack */
-unsigned make_tos_ptr(void)
+   between register so we sometimes need to build ops against top of stack.
+   
+   This needs some care because the stack pointer has already been adjusted
+   in codegen-6800 to allow for the removal of the data, thus we actually
+   need to offset by the passed size */
+static unsigned make_tos_ptr(unsigned s)
 {
-	printf("\ttsx\n");
-	x_fpoff = sp;
+	printf(";make_tos_ptr %u %u, %u\n", x_fpoff, sp + s, x_fprel);
+	/* TODO: we might have X pointing below the stack but in range and that would be just fine */
+	if (x_fpoff == sp + s && x_fprel == 1)
+		return 0;
+	puts("\ttsx");
+	x_fpoff = sp + s;
 	x_fprel = 1;
 	return 0;
 }
@@ -531,6 +520,8 @@ static char *addr_form(register struct node *r, unsigned off, unsigned s)
 
 	if (s == 1)
 		mod = "<";
+	else if (s == 3)
+		mod = ">";
 
 	switch(r->op) {
 	case T_CONSTANT:
@@ -554,14 +545,19 @@ static char *addr_form(register struct node *r, unsigned off, unsigned s)
 	case T_LBREF:
 		sprintf(addr, "T%u+%u%s", r->val2, v + off, pic_op);
 		return addr;
-	/* Only occurs on 6809 */
-	case T_RDEREF:
-		sprintf(addr, "%u,u", r->val2 + off);
-		return addr;
 	default:
 		error("aform");
 	}
 	return NULL;
+}
+
+/* Those with address forms we can directly load */
+unsigned can_load_d_nox(struct node *n, unsigned off)
+{
+	register unsigned op = n->op;
+	if (op == T_CONSTANT || op == T_NAME || op == T_LABEL || op == T_NREF || op == T_LBREF)
+		return 1;
+	return 0;
 }
 
 /* These functions must not touch X on the 6809, they can on others */
@@ -570,8 +566,6 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 	unsigned v = r->value;
 
 	invalidate_work();
-
-	op = remap_op(op);
 
 	switch(r->op) {
 	case T_LSTORE:
@@ -601,9 +595,6 @@ unsigned op16_on_node(register struct node *r, const char *op, const char *op2, 
 
 	invalidate_work();
 
-	op = remap_op(op);
-	op2 = remap_op(op);
-
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:
@@ -611,17 +602,20 @@ unsigned op16_on_node(register struct node *r, const char *op, const char *op2, 
 		op16_on_ptr(op, op2, off);
 		break;
 	case T_CONSTANT:
-		printf("\t%sa #>%u\n", op, (v + off) & 0xFFFF);
-		printf("\t%sb #<%u\n", op2, (v + off) & 0xFFFF);
+		printf("\t%sb #<%u\n", op, (v + off) & 0xFFFF);
+		printf("\t%sa #>%u\n", op2, (v + off) & 0xFFFF);
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
-	case T_LABEL:
 	case T_NSTORE:
 	case T_NREF:
+		printf("\t%sb %s\n", op, addr_form(r, off + 1, 1));
+		printf("\t%sa %s\n", op2, addr_form(r, off, 1));
+		break;
 	case T_NAME:
-		printf("\t%sa %s\n", op, addr_form(r, off, 1));
-		printf("\t%sb %s\n", op2, addr_form(r, off + 1, 1));
+	case T_LABEL:
+		printf("\t%sb %s\n", op, addr_form(r, off, 1));
+		printf("\t%sa %s\n", op2, addr_form(r, off, 3));
 		break;
 	default:
 		return 0;
@@ -709,12 +703,11 @@ unsigned write_uni_op(register struct node *r, const char *op, unsigned off)
 	if (s == 4)
 		return 0;
 
-	op = remap_op(op);
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:
 		off = make_local_ptr(v + off, 254);
-		uniop_on_ptr(op, off, 2);
+		uniop_on_ptr(op, off, s);
 		break;
 	case T_LBSTORE:
 	case T_LBREF:
@@ -732,31 +725,24 @@ unsigned write_uni_op(register struct node *r, const char *op, unsigned off)
 
 static void op8_on_tos(const char *op)
 {
-	unsigned off = make_tos_ptr();
-	printf("\t%sb %u,x\n", remap_op(op), off);
-	printf("\tins\n");
+	unsigned off = make_tos_ptr(1);
+	printf("\t%sb %u,x\n\tins\n", op, off);
 }
 
 static void op16_on_tos(const char *op)
 {
 	register unsigned off;
-	op = remap_op(op);
 	invalidate_work();
-	off = make_tos_ptr();
-	printf("\t%sb %u,x\n", op, off + 1);
-	printf("\t%sa %u,x\n", op, off);
-	printf("\tins\n");
-	printf("\tins\n");
+	off = make_tos_ptr(2);
+	printf("\t%sb %u,x\n\t%sa %u,x\n\tins\n\tins\n", op, off + 1, op, off);
 }
 
 static void op16d_on_tos(const char *op)
 {
 	unsigned off;
 	invalidate_work();
-	off = make_tos_ptr();
-	printf("\t%sd %u,x\n", op, off);
-	printf("\tins\n");
-	printf("\tins\n");
+	off = make_tos_ptr(2);
+	printf("\t%sd %u,x\n\tins\n\tins\n", op, off);
 }
 
 /* Only used for operations where there is no ordering requirement */
@@ -767,7 +753,10 @@ unsigned write_tos_op(struct node *n, register const char *op)
 		return 0;
 	if (s == 4) {
 		swap_d_y();
+		/* So that the second 16bit op is correctly offset */
+		sp += 2;
 		op16_on_tos(op);
+		sp -= 2;
 		swap_d_y();
 		op16_on_tos(op);
 	} else if (s == 2)
@@ -793,20 +782,16 @@ unsigned write_tos_opd(struct node *n, const char *op, const char *unused)
 
 static void uniop8_on_tos(const char *op)
 {
-	unsigned off = make_tos_ptr();
+	unsigned off = make_tos_ptr(1);
 	invalidate_work();
-	printf("\t%s %u,x\n", op, off);
-	printf("\tins\n");
+	printf("\t%s %u,x\n\tins\n", op, off);
 }
 
 static void uniop16_on_tos(register const char *op)
 {
-	register unsigned off = make_tos_ptr();
+	register unsigned off = make_tos_ptr(2);
 	invalidate_work();
-	printf("\t%s %u,x\n", op, off + 1);
-	printf("\t%s %u,x\n", op, off);
-	printf("\tins\n");
-	printf("\tins\n");
+	printf("\t%s %u,x\n\t%s %u,x\n\tins\n\tins\n", op, off + 1, op, off);
 }
 
 unsigned write_tos_uniop(struct node *n, register const char *op)
@@ -814,7 +799,6 @@ unsigned write_tos_uniop(struct node *n, register const char *op)
 	unsigned s = get_size(n->type);
 	if (s > 2)
 		return 0;
-	op = remap_op(op);
 	if (s == 2)
 		uniop16_on_tos(op);
 	else
@@ -857,7 +841,7 @@ unsigned left_shift(register struct node *n)
 			return 1;
 		}
 		while(v--)
-			printf("\tlslb\n\trola\n");
+			puts("\tlslb\n\trola");
 		invalidate_work();
 		return 1;
 	}
@@ -970,7 +954,8 @@ static unsigned load_r_with(char reg, register struct node *r, unsigned off)
 	case T_LREF:
 		off = make_local_ptr(v + off, 252);
 		printf("\tld%c %u,x\n", reg, off);
-		invalidate_x();
+		if(reg == 'x')
+			invalidate_x();
 		break;
 	case T_CONSTANT:
 	case T_LBREF:
@@ -978,6 +963,8 @@ static unsigned load_r_with(char reg, register struct node *r, unsigned off)
 	case T_NREF:
 	case T_NAME:
 		printf("\tld%c %s\n", reg, addr_form(r, off, 2));
+		if(reg == 'x')
+			invalidate_x();
 		break;
 	default:
 		error("lxw");
@@ -987,9 +974,7 @@ static unsigned load_r_with(char reg, register struct node *r, unsigned off)
 
 unsigned load_x_with(struct node *r, unsigned off)
 {
-	unsigned rv = load_r_with('x', r, off);
-	invalidate_x();
-	return rv;
+	return load_r_with('x', r, off);
 }
 
 /* 6809 specific register loading */
@@ -1008,25 +993,32 @@ unsigned cmp_direct(struct node *n, const char *uop, const char *op)
 		return 0;
 	if (r->type & UNSIGNED)
 		op = uop;
-	if (s == 1) {
-		printf("\tcmpb #%u\n", v & 0xFF);
-		printf("\t%s %s\n", jsr_op, op);
+
+	/* If we knoww the upper half matches - eg a byte var that has been expanded then
+	   shortcut it. Need to think about this for signed math. I think we can do signed
+	   math if we use uop in the size 2 upper match case : TODO*/
+	if (s == 1 || (op == uop && a_valid && (v >> 8) == a_val)) {
+		printf("\tcmpb #%u\n\t%s %s\n", v & 0xFF, jsr_op, op);
 		n->flags |= ISBOOL;
 		invalidate_b();
 		return 1;
 	}
-	if (s == 2 && cpu_has_d) {
-		printf("\tsubd #%u\n", v & 0xFFFF);
-		printf("\t%s %s\n", jsr_op, op);
-		n->flags |= ISBOOL;
-		invalidate_work();
-		return 1;
+	if (s == 2) {
+		/* If we know the value of A (eg from a cast) */
+		if (cpu_has_d) {
+			printf("\tsubd #%u\n\t%s %s\n", v & 0xFFFF, jsr_op, op);
+			n->flags |= ISBOOL;
+			invalidate_work();
+			return 1;
+		}
 	}
 	return 0;
 }
 
 /*
  *	Do fast multiplies were we can
+ *
+ *	TODO: do the other powers of two at least for -O2 and higher
  */
 
 unsigned can_fast_mul(unsigned s, unsigned n)
@@ -1034,7 +1026,7 @@ unsigned can_fast_mul(unsigned s, unsigned n)
 	/* For now */
 	/* TODO: at least do powers of 2.. might be worth doing
 	   jsr to a helper for 3-15 too */
-	if (n < 2)
+	if (n <= 2 || n == 4)
 		return 1;
 	return 0;
 }
@@ -1043,10 +1035,15 @@ void gen_fast_mul(unsigned s, unsigned n)
 {
 	if (n == 0)
 		load_d_const(0);
+	else if (n == 2)
+		puts("\tlslb\n\trola");
+	else if (n == 4)
+		puts("\tlslb\n\trola\n\tlslb\n\trola");
 }
 
 unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 {
+
 	u &= UNSIGNED;
 	if (s != 2)
 		return 0;
@@ -1061,12 +1058,22 @@ unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
 		return 0;
 	if (u) {
 		while(n > 1) {
-			printf("\tlsra\n\trorb\n");
+			puts("\tlsra\n\trorb");
 			n >>= 1;
 		}
 	} else {
+		/* Round towards zero */
+		unsigned m = (n - 1) & 0xFFFF;
+		printf("\ttsta\n\tbpl X%u\n", ++label);
+		if (cpu_has_d)
+			printf("\taddd #%u\n", m);
+		else {
+			printf("\taddb #%u\n\tadca #%u\n",
+				m  & 0xFF, m >> 8);
+		}
+		printf("X%u:\n", label);
 		while(n > 1) {
-			printf("\tasra\n\trorb\n");
+			puts("\tasra\n\trorb");
 			n >>= 1;
 		}
 	}
@@ -1127,24 +1134,21 @@ unsigned gen_push(struct node *n)
 	sp += get_stack_size(n->type);
 	switch(size) {
 	case 1:
-		printf("\tpshb\n");
+		puts("\tpshb");
 		return 1;
 	case 2:
-		printf("\tpshb\n\tpsha\n");
+		puts("\tpshb\n\tpsha");
 		return 1;
 	case 4:
 		/* TODO: if we have no valid X we should ldx/pshx on 6803 */
-		printf("\tpshb\n\tpsha\n");
+		puts("\tpshb\n\tpsha\n");
 		if (cpu_has_y)
-			printf("\tpshy\n");
+			puts("\tpshy");
 		else if (cpu_has_d) {
-			printf("\tldd @hireg\n\tpshb\n\tpsha\n");
+			puts("\tldd @hireg\n\tpshb\n\tpsha");
 			invalidate_work();
 		} else {
-			printf("\tldaa @hireg+1\n");
-			printf("\tpsha\n");
-			printf("\tldaa @hireg\n");
-			printf("\tpsha\n");
+			puts("\tldaa @hireg+1\n\tpsha\n\tldaa @hireg\n\tpsha");
 			invalidate_work();
 		}
 		return 1;

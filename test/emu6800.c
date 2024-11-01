@@ -36,6 +36,7 @@ uint8_t m6800_inport(uint8_t addr)
 	return 0xFF;
 }
 
+#if	0
 void m6800_outport(uint8_t addr, uint8_t val)
 {
 	if (addr == 0xFF) {
@@ -44,6 +45,7 @@ void m6800_outport(uint8_t addr, uint8_t val)
 		exit(1);
 	}
 }
+#endif
 
 void m68hc11_spi_begin(struct m6800 *cpu, uint8_t val)
 {
@@ -76,13 +78,38 @@ uint8_t m6800_read(struct m6800 *cpu, uint16_t addr)
 	return m6800_read_op(cpu, addr, 0);
 }
 
+static unsigned char fefcval=0;
+
 void m6800_write(struct m6800 *cpu, uint16_t addr, uint8_t val)
 {
-	if (addr >> 8 == 0xFE) {
-		m6800_outport(addr & 0xFF, val);
-		return;
+	int x;
+
+	/* Writes to certain addresses act like system calls */
+	/* 0xFEFF:  exit() with the val as the exit value */
+	/* 0xFEFE:  putchar(val) */
+	/* 0xFEFC/D: print out the 16-bit value as a decimal */
+
+	switch(addr) {
+	    case 0xFEFF:
+		if (val == 0)
+			exit(0);
+		fprintf(stderr, "***FAIL %u\n", val);
+		exit(1);
+	    case 0xFEFE:
+		putchar(val);
+		break;
+	    case 0xFEFD:
+		/* Make the value signed */
+		x= (fefcval << 8) | val;
+		if (x>0x8000) x-= 0x10000;
+		printf("%d\n", x);
+		break;
+	    case 0xFEFC:
+		fefcval= val;	/* Save high byte for now */
+		break;
+	    default:
+		ram[addr & 0xFFFF] = val;
 	}
-	ram[addr] = val;
 }
 
 /* TODO: CPU setting option */
@@ -107,7 +134,7 @@ int main(int argc, char *argv[])
 	}
 	/* 0100-0xFDFF */
 	if (read(fd, ram, 0xFD00) < 4) {
-		fprintf(stderr, "emu6502: bad test.\n");
+		fprintf(stderr, "emu6800: bad test.\n");
 		perror(argv[2]);
 		exit(1);
 	}

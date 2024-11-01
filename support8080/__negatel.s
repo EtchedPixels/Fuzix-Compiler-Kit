@@ -13,7 +13,7 @@ __negatel:
 	mov	l,a
 	inx	h
 	mov	a,h
-	ora	a
+	ora	l
 	push	h
 	push	psw
 	lhld	__hireg

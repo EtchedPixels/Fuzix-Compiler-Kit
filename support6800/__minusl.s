@@ -23,4 +23,12 @@ __minusl:
 	stab @hireg+1
 	ldaa @tmp
 	ldab @tmp+1
-	rts
+	tsx
+	ldx	0,x
+	ins
+	ins
+	ins
+	ins
+	ins
+	ins
+	jmp ,x

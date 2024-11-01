@@ -5,9 +5,8 @@
 
 __xplusplusc:
 __xplusplusuc:
-	ldaa	,x
-	psha
+	tba
+	ldab    ,x
 	aba
 	staa	,x
-	pulb
 	rts

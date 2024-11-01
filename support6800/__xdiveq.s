@@ -19,10 +19,9 @@ __xremeq:
 	bsr absd
 	staa @tmp
 	stab @tmp+1
-	ldaa ,x
 	ldab 1,x
-	bita #0x80
-	bne negmod
+	ldaa ,x
+	bmi negmod
 	staa @tmp1
 	stab @tmp1+1
 	ldaa @tmp
@@ -62,7 +61,7 @@ __xdiveq:
 	ldab 1,x
 	bsr absd
 	staa @tmp1
-	stab @tmp+1
+	stab @tmp1+1
 	ldaa @tmp
 	ldab @tmp+1
 	ldx @tmp1
@@ -72,18 +71,17 @@ __xdiveq:
 	ldaa @tmp
 	ldab @tmp+1
 	ror @tmp4
-	bcs store		; low bit set -> negate
+	bcc store		; low bit set -> negate
 	bsr negd
 	bra store
 	
 absd:
-	bita #$80
-	beq ispos
+	tsta
+	bpl ispos
 	inc @tmp4		; count sign changes in Y
 negd:
-	subb #1			; negate d
+	nega
+	negb
 	sbca #0
-	coma
-	comb
 ispos:
 	rts

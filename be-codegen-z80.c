@@ -59,6 +59,7 @@ unsigned argbase;		/* Argument offset in current function */
 unsigned unreachable;		/* Code after an unconditional jump */
 unsigned func_cleanup;		/* Zero if we can just ret out */
 unsigned use_fp;		/* Using a frame pointer this function */
+static unsigned label;		/* Used to hand out local labels of the form X%u */
 
 const char *ccflags = ccnormal;/* True, False flags */
 
@@ -656,6 +657,16 @@ static unsigned gen_fast_div(register unsigned n, unsigned s, unsigned u)
 			n >>= 1;
 		}
 	} else {
+		int m = n - 1;
+		printf("\tbit 7,h\n\tjr z,X%u\n", ++label);
+		/* We can trash DE */
+		if (m > 0 && m <= 4)
+			repeated_op("inc hl", m);
+		else if (m < 0 && m >= -4)
+			repeated_op("dec hl", -m);
+		else
+			printf("\tld de,%u\n\tadd hl,de\n", (n - 1) & 0xFFFF);
+		printf("X%u:\n", label);
 		while(n > 1) {
 			printf("\tsra h\n\trr l\n");
 			n >>= 1;

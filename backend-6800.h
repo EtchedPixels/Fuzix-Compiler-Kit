@@ -3,12 +3,12 @@
 
 #define ARGBASE	2	/* Bytes between arguments and locals if no reg saves */
 
-#define T_NREF		(T_USER)		/* Load of C global/static */
-#define T_CALLNAME	(T_USER+1)		/* Function call by name */
-#define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
-#define T_LREF		(T_USER+3)		/* Ditto for local */
+#define T_NREF		(T_USER)	/* Load of C global/static */
+#define T_CALLNAME	(T_USER+1)	/* Function call by name */
+#define T_NSTORE	(T_USER+2)	/* Store to a C global/static */
+#define T_LREF		(T_USER+3)	/* Ditto for local */
 #define T_LSTORE	(T_USER+4)
-#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
+#define T_LBREF		(T_USER+5)	/* Ditto for labelled strings or local static */
 #define T_LBSTORE	(T_USER+6)
 #define T_DEREFPLUS	(T_USER+7)
 #define T_EQPLUS	(T_USER+8)
@@ -20,10 +20,11 @@
 #define T_LBEQ		(T_USER+14)	/* *(label + offset) = n */
 #define T_RREF		(T_USER+15)
 #define T_RSTORE	(T_USER+16)
-#define T_RDEREF	(T_USER+17)		/* *regptr */
-#define T_REQ		(T_USER+18)		/* *regptr = */
-#define T_RDEREFPLUS	(T_USER+19)		/* *regptr++ */
-#define T_REQPLUS	(T_USER+20)		/* *regptr++ =  */
+#define T_RDEREF	(T_USER+17)	/* *regptr */
+#define T_REQ		(T_USER+18)	/* *regptr = */
+#define T_RDEREFPLUS	(T_USER+19)	/* *regptr++ */
+#define T_REQPLUS	(T_USER+20)	/* *regptr++ =  */
+#define	T_LPLUS		(T_USER+21)	/* address of local[n] into D and X */
 
 extern unsigned frame_len;	/* Number of bytes of stack frame */
 extern unsigned sp;		/* Stack pointer offset tracking */
@@ -47,10 +48,10 @@ extern unsigned cpu_pic;	/* Position independent output (6809 only) */
 
 extern const char *jmp_op;
 extern const char *jsr_op;
-extern const char *or_op;
-extern const char *ld8_op;
-extern const char *st8_op;
 extern const char *pic_op;
+
+extern unsigned label;		/* Used to generate brach labels for code gen
+                                   created branches */
 
 /* Tracking */
 extern uint8_t a_val;
@@ -87,16 +88,17 @@ extern void move_d_s(void);
 extern void swap_d_y(void);
 extern void swap_d_x(void);
 extern void make_x_d(void);
+extern void make_d_x(void);
 extern void pop_x(void);
 extern void adjust_s(int n, unsigned save_d);
+extern unsigned can_load_d_nox(struct node *n, unsigned off);
 extern void op8_on_ptr(const char *op, unsigned off);
 extern void op16_on_ptr(const char *op, const char *op2, unsigned off);
 extern void op16d_on_ptr(const char *op, const char *op2, unsigned off);
 extern void op32d_on_ptr(const char *op, const char *op2, unsigned off);
 extern void load32(unsigned off);
-extern void store32(unsigned off);
+extern void store32(unsigned off, unsigned nr);
 extern unsigned make_local_ptr(unsigned off, unsigned rlim);
-extern unsigned make_tos_ptr(void);
 extern unsigned op8_on_node(struct node *r, const char *op, unsigned off);
 extern unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned off);
 extern unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned off);

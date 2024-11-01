@@ -27,9 +27,11 @@ __cclteql:
 cclow:
 	subb	3,x
 	blo	false
+	bhi	true
 	ldaa	@tmp
 	suba	4,x
 	blo	false
+	bhi	true
 	ldab	@tmp+1
 	subb	5,x
 	blo	false

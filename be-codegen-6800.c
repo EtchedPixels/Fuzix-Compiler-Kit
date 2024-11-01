@@ -164,6 +164,19 @@ struct node *gen_rewrite_node(struct node *n)
 		free_node(n);
 		return l;
 	}
+	/* Label array referencing for locals to help the 6800 */
+	if (optsize && !cpu_has_d) {
+		if (op == T_PLUS) {
+			off = 0;
+			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
+				if (r->op == T_ARGUMENT)
+					off = argbase + frame_len;
+				squash_left(n, T_LPLUS);
+				n->value += off;
+				return n;
+			}
+		}
+	}
 	/* Turn a deref of an offset to an object into a single op so we can
 	   generate a single lda offset,x in the code generator. This happens
 	   in some array dereferencing and especially struct pointer access */
@@ -363,6 +376,65 @@ struct node *gen_rewrite_node(struct node *n)
 	return n;
 }
 
+/*
+ *	Perform an optimized 32bit constant add
+ *
+ *	For stuff using @hireg we try and optimize the common cases of adding
+ *	smaller constants. For stuff where we add high bits only shortcut
+ *	some of the work.
+ *
+ *	Care is needed as add_d_const() will not leave carry valid if asked
+ *	to add 0, hence the use of op.
+ */
+static unsigned gen_add32(unsigned long v)
+{
+	char *op = "add";
+	unsigned l = WORD(v);
+	unsigned h = WORD(v >> 16);
+
+	if (v == 0)
+		return 1;
+
+	if (cpu_has_y) {
+		if (l) {
+			add_d_const(l);
+			swap_d_y();
+			printf("\tadcb #%u\n", h & 0xFF);
+			printf("\tadca #%u\n", (h >> 8) & 0xFF);
+			swap_d_y();
+		} else if (cpu_has_lea)
+			printf("\tleay %u,y\n", h);
+		else {
+			swap_d_y();
+			printf("\taddd #%u\n", h);
+			swap_d_y();
+		}
+		return 1;
+	}
+	if (l) {
+		add_d_const(l);
+		op = "adc";
+		if (h == 0) {
+			l = ++label;
+			printf("\tbcc X%u\n\tinc @hireg+1\n\tbne X%u\n\tinc @hireg\nX%u:\n", l, l, l);
+			return 1;
+		}
+	}
+	puts("\tpsha");
+	if (h & 0xFF) {
+		printf("\tldaa @hireg+1\n\t%sa #%u\n\tstaa @hireg+1\n", op, h & 0xFF);
+		op = "adc";
+		if (!(h & 0xFF00)) {
+			l = ++label;
+			printf("\tbcc %Xu\n\tinc @hireg\nX%u:\n", l, l);
+			return 1;
+		}
+	}
+	printf("\tldaa @hireg\n\t%sa #%u\n\tstaa @hireg\n",
+				op, (h >> 8) & 0xFF);
+	puts("\tpula");
+	return 1;
+}
 
 /*
  *	If possible turn this node into a direct access. We've already checked
@@ -375,6 +447,7 @@ unsigned gen_direct(struct node *n)
 	struct node *r = n->right;
 	unsigned off;
 	uint16_t v;
+	uint16_t hv;
 
 	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
@@ -418,25 +491,8 @@ unsigned gen_direct(struct node *n)
 		/* TODO: if the low word is zero or low 24 bits are 0 we can generate stuff like
 			leay %d,y */
 		if (r->op == T_CONSTANT && r->type != FLOAT) {
-			if (s == 4 && cpu_has_y) {
-				/* Handle the zero case specially as we can optimzie it, and also
-				   because add_d_const will not leave carry right if it optimizes
-				   itself out */
-				if (r->value & 0xFFFF) {
-					add_d_const(r->value & 0xFFFF);
-					swap_d_y();
-					printf("\tadcb #%u\n", (unsigned)((r->value >> 16) & 0xFF));
-					printf("\tadca #%u\n", (unsigned)((r->value >> 24) & 0xFF));
-					swap_d_y();
-				} else if (cpu_is_09)
-					printf("\tleay %u,y\n", (unsigned)(r->value >> 16));
-				else {
-					swap_d_y();
-					printf("\taddd #%u\n", (unsigned)(r->value >> 16));
-					swap_d_y();
-				}
-				return 1;
-			}
+			if (s == 4)
+				return gen_add32(r->value);
 			if (s == 2) {
 				add_d_const(r->value);
 				return 1;
@@ -449,23 +505,8 @@ unsigned gen_direct(struct node *n)
 		return write_opd(r, "add", "adc", 0);
 	case T_MINUS:
 		if (r->op == T_CONSTANT && r->type != FLOAT) {
-			if (s == 4 && cpu_has_y) {
-				r->value = -r->value;
-				if (r->value & 0xFFFF) {
-					add_d_const(r->value);
-					swap_d_y();
-					printf("\tadcb #%u\n", (unsigned)((r->value >> 16) & 0xFF));
-					printf("\tadca #%u\n", (unsigned)((r->value >> 24) & 0xFF));
-					swap_d_y();
-				} else if (cpu_has_lea)
-					printf("\tleay %u,y\n", (unsigned)(r->value >> 16));
-				else {
-					swap_d_y();
-					printf("\taddd #%u\n", (unsigned)(r->value >> 16));
-					swap_d_y();
-				}
-				return 1;
-			}
+			if (s == 4 && cpu_has_y)
+				return gen_add32(-r->value);
 			if (s == 2) {
 				add_d_const(-r->value);
 				return 1;
@@ -480,11 +521,18 @@ unsigned gen_direct(struct node *n)
 	case T_AND:
 		if (r->op == T_CONSTANT) {	/* No need to type check - canno tbe float */
 			v = r->value & 0xFFFF;
+			hv = r->value >> 16;
+
+			/* Check if it makes sense to do long inline. Only
+			   do so if we have Y or the upper half is trivial */
+			if (s == 4 && !cpu_has_y && hv && hv != 0xFFFF)
+				return 0;
+
 			if ((v & 0xFF) != 0xFF) {
 				if (v & 0xFF)
 					printf("\tandb #%u\n", v & 0xFF);
 				else
-					printf("\tclrb\n");
+					puts("\tclrb");
 				modify_b(b_val & v);
 			}
 			if (s >= 2) {
@@ -493,23 +541,30 @@ unsigned gen_direct(struct node *n)
 					if (v)
 						printf("\tanda #%u\n", v);
 					else
-						printf("\tclra\n");
+						puts("\tclra");
 				}
 				modify_a(a_val & v);
 			}
-			if (s == 4 && cpu_has_y) {
-				v = r->value >> 16;
-				swap_d_y();
-				if (v & 0xFF)
-					printf("\tandb #%u\n", v & 0xFF);
-				else
-					printf("\tclrb\n");
-				v >>= 8;
-				if (v & 0xFF)
-					printf("\tanda #%u\n", v & 0xFF);
-				else
-					printf("\tclra\n");
-				swap_d_y();
+			if (s == 4) {
+				if (hv == 0x0000) {
+					if (cpu_has_y)
+						puts("\tldy #0");
+					else {
+						puts("\tclr @hireg\n\tclr @hireg+1");
+					}
+				} else if (hv != 0xFFFF) {
+					swap_d_y();
+					if (hv & 0xFF)
+						printf("\tandb #%u\n", hv & 0xFF);
+					else
+						puts("\tclrb");
+					hv >>= 8;
+					if (hv & 0xFF)
+						printf("\tanda #%u\n", hv & 0xFF);
+					else
+						puts("\tclra");
+					swap_d_y();
+				}
 			}
 			return 1;
 		}
@@ -517,24 +572,33 @@ unsigned gen_direct(struct node *n)
 	case T_OR:
 		if (r->op == T_CONSTANT) {
 			v = r->value & 0xFFFF;
+			hv = r->value >> 16;
+			/* Check if it makes sense to do long inline. Only
+			   do so if we have Y or the upper half is trivial */
+			if (s == 4 && !cpu_has_y && hv)
+				return 0;
 			if (v & 0xFF) {
-				printf("\t%sb #%u\n", or_op, v & 0xFF);
+				printf("\torb #%u\n", v & 0xFF);
 				modify_b(b_val | v);
 			}
 			if (s >= 2) {
 				v >>= 8;
 				if (v)
-					printf("\t%sa #%u\n", or_op, v);
+					printf("\tora #%u\n", v);
 				modify_a(a_val | v);
 			}
-			if (s == 4 && cpu_has_y) {
-				v = r->value >> 16;
-				swap_d_y();
-				if (v & 0xFF)
-					printf("\t%sb #%u\n", or_op, v & 0xFF);
-				if (v & 0xFF)
-					printf("\t%sa #%u\n", or_op, v & 0xFF);
-				swap_d_y();
+			if (s == 4) {
+				if (hv == 0xFFFF)
+					puts("\tldy #0xFFFF");
+				else if (hv) {
+					swap_d_y();
+					if (hv & 0xFF)
+						printf("\torb #%u\n", hv & 0xFF);
+					hv >>= 8;
+					if (hv & 0xFF)
+						printf("\tora #%u\n", hv & 0xFF);
+					swap_d_y();
+				}
 			}
 			return 1;
 		}
@@ -542,32 +606,38 @@ unsigned gen_direct(struct node *n)
 	case T_HAT:
 		if (r->op == T_CONSTANT) {
 			v = r->value & 0xFFFF;
+			hv = r->value >> 16;
+			if (s == 4 && !cpu_has_y && hv && hv != 0xFFFF)
+				return 0;
 			if ((v & 0xFF) == 0xFF)
-				printf("\tcomb\n");
+				puts("\tcomb");
 			else if (v & 0xFF)
 				printf("\teorb #%u\n", v & 0xFF);
 			modify_b(b_val ^ v);
 			if (s >= 2) {
 				v >>= 8;
 				if (v == 0xFF)
-					printf("\tcoma\n");
+					puts("\tcoma");
 				else if (v & 0xFF)
 					printf("\teora #%u\n", v);
 				modify_a(a_val ^ v);
 			}
-			if (s == 4 && cpu_has_y) {
-				v = r->value >> 16;
-				swap_d_y();
-				if ((v & 0xFF) == 0xFF)
-					printf("\tcomb\n");
-				else if (v & 0xFF)
-					printf("\teorb #%u\n", v & 0xFF);
-				v >>= 8;
-				if (v == 0xFF)
-					printf("\tcoma\n");
-				else if (v & 0xFF)
-					printf("\teora #%u\n", v);
-				swap_d_y();
+			if (s == 4) {
+				if (hv == 0xFFFF && !cpu_has_y) {
+					puts("\tcom @hireg\n\tcom @hireg+1");
+				} else if (hv) {
+					swap_d_y();
+					if ((hv & 0xFF) == 0xFF)
+						puts("\tcomb");
+					else if (hv & 0xFF)
+						printf("\teorb #%u\n", hv & 0xFF);
+					hv >>= 8;
+						if (hv == 0xFF)
+						puts("\tcoma");
+					else if (hv & 0xFF)
+						printf("\teora #%u\n", hv);
+					swap_d_y();
+				}
 			}
 			return 1;
 		}
@@ -689,7 +759,7 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 		op_on_ptr(n, "and", off);
 		break;
 	case T_OREQ:
-		op_on_ptr(n, or_op, off);
+		op_on_ptr(n, "or", off);
 		break;
 	case T_HATEQ:
 		op_on_ptr(n, "eor", off);
@@ -702,12 +772,12 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 		   as this seems the cheapest approach */
 		size = get_size(n->type);
 		if (size == 1) {
-			printf("\tnegb\n");
+			puts("\tnegb");
 			opd_on_ptr(n, "add", "adc", off);
 			break;
 		}
 		if (size == 2) {
-			printf("\tcoma\n\tcomb\n");
+			puts("\tcoma\n\tcomb");
 			modify_a(~a_val);
 			modify_b(~b_val);
 			add_d_const(1);
@@ -721,9 +791,7 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 		/* If we have D we have mul */
 		size = get_size(n->type);
 		if (size == 1 && cpu_has_d) {
-			printf("\tlda %u,x\n", off);
-			printf("\tmul\n");
-			printf("\tstb %u,x\n", off);
+			printf("\tlda %u,x\n\tmul\n\tstb %u,x\n", off, off);
 			return 1;
 		}
 		/* Fall through */
@@ -738,17 +806,18 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 		   is easy, on 6800 it's ugly and we should have a version of the helper
 		   that adds a const then falls into the main implementation */
 		if (off) {
-			if (cpu_has_lea) {
+			if (cpu_has_lea)
 				printf("\tleax %u,x\n", off);
-			} else  if (cpu_has_xgdx) {
-				printf("\txgdx\n");
-				printf("\taddd #%u\n", off);
-				printf("\txgdx\n");
-			} else {
-				/* FIXME: merge this into _off versions of
-				   helpers that do the jsr as more compact */
-				printf("\tjsr __addxconst\n");
-				printf("\t.word %u\n", off);
+			else  if (cpu_has_xgdx)
+				printf("\txgdx\n\taddd #%u\n\txgdx\n", off);
+			else {
+				if (off > 0 && off <= 5 + opt)
+					repeated_op(off, "inx");
+				else if (off < 0 && off >= -5 - opt)
+					repeated_op(-off, "dex");
+				else {
+					printf("\tjsr __addxconst\n\t.word %u\n", off);
+				}
 			}
 			invalidate_x();
 		}
@@ -787,7 +856,7 @@ unsigned write_xsimple(struct node *n, unsigned via_ptr)
 		op = op2 = "and";
 		break;
 	case T_OREQ:
-		op = op2 = or_op;
+		op = op2 = "or";
 		break;
 	case T_HATEQ:
 		op = op2 = "eor";
@@ -875,11 +944,11 @@ unsigned do_xeqop(struct node *n, const char *op)
 unsigned do_stkeqop(struct node *n, const char *op)
 {
 	if (cpu_is_09)
-		printf("\tpuls x\n");
+		puts("\tpuls x");
 	else if (cpu_has_pshx)
-		printf("\tpulx\n");
+		puts("\tpulx");
 	else	/** Fun fun. Fake pulx on a 6800 */
-		printf("\ttsx\n\tldx ,x\n\tins\n\tins\n");
+		puts("\ttsx\n\tldx ,x\n\tins\n\tins");
 	invalidate_x();
 	return do_xptrop(n, op, 0);
 }
@@ -979,8 +1048,7 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 				v += argbase + frame_len;
 			v += sp;
 			load_d_const(sign * r->value);
-			printf("\taddd %u,s\n", v);
-			printf("\tstd %u,s\n", v);
+			printf("\taddd %u,s\n\tstd %u,s\n", v, v);
 			invalidate_work();
 			if (retres)
 				set_d_node_ptr(r);
@@ -997,17 +1065,17 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 		op8_on_ptr("ld", off);
 		if (!retres) {
 			if (cpu_is_09)
-				printf("\tpshs b\n");
+				puts("\tpshs b");
 			else
-				printf("\tpshb\n");
+				puts("\tpshb");
 		}
 		add_b_const(sign * r->value);
 		op8_on_ptr("st", off);
 		if (!retres) {
 			if (cpu_is_09)
-				printf("\tpuls b\n");
+				puts("\tpuls b");
 			else
-				printf("\tpulb\n");
+				puts("\tpulb");
 		}
 		invalidate_work();
 		invalidate_mem();
@@ -1017,22 +1085,32 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 	op16d_on_ptr("ld", "ld", off);
 	if (!retres) {
 		if (cpu_is_09)
-			printf("\tpshs d\n");
+			puts("\tpshs d");
 		else
-			printf("\tpshb\n\tpsha\n");
+			puts("\tpshb\n\tpsha");
 	}
 	add_d_const(sign * r->value);
 	op16d_on_ptr("st", "st", off);
 	if (!retres) {
 		if (cpu_is_09)
-			printf("\tpuls d\n");
+			puts("\tpuls d");
 		else
-			printf("\tpula\n\tpulb\n");
+			puts("\tpula\n\tpulb");
 	}
 	invalidate_work();
 	invalidate_mem();
 	set_d_node_ptr(l);
 	return 1;
+}
+
+static void gen_lplus(struct node *n, const char *post)
+{
+	/* Expression on the right plus sp plus stack ptr plus n->value */
+	unsigned v = n->value + sp;
+	if (v < 256)
+		printf("\tjsr __lplus%sb\n\t.byte %u\n", post, v);
+	else
+		printf("\tjsr __lplus%s\n\t.word %u\n", post, v);
 }
 
 /*
@@ -1056,7 +1134,7 @@ unsigned gen_shortcut(struct node *n)
 		switch(n->op) {
 		case T_PLUSPLUS:
 			if (!nr)
-				printf("\ttfr u,d\n");
+				puts("\ttfr u,d");
 			printf("\tleau %u,u\n", v);
 			return 1;
 		case T_PLUSEQ:
@@ -1064,10 +1142,10 @@ unsigned gen_shortcut(struct node *n)
 				printf("\tleau %u,u\n", v);
 			else {
 				codegen_lr(r);
-				printf("\tleau d,u\n");
+				puts("\tleau d,u");
 			}
 			if (!nr)
-				printf("\ttfr u,d\n");
+				puts("\ttfr u,d");
 			return 1;
 		case T_MINUSMINUS:
 			if (!nr)
@@ -1079,10 +1157,10 @@ unsigned gen_shortcut(struct node *n)
 				printf("\tleau -%u,u\n", v);
 			else {
 				codegen_lr(r);
-				printf("\tleau d,u\n");
+				puts("\tleau d,u");
 			}
 			if (!nr)
-				printf("\ttfr u,d\n");
+				puts("\ttfr u,d");
 			return 1;
 		case T_STAREQ:
 			/* TODO: fast mul forms */
@@ -1160,7 +1238,7 @@ unsigned gen_shortcut(struct node *n)
 	case T_EQPLUS:
 		v = n->value;
 		if (can_load_r_simple(l, 0)) {
-			if (r->op == T_CONSTANT && nr && r->value == 0 && s <= 2) {
+			if (r->op == T_CONSTANT && nr && r->value == 0) {
 				/* We can optimize thing = 0 for the case
 				   we don't also need the value */
 				v += load_x_with(l, 0);
@@ -1171,7 +1249,39 @@ unsigned gen_shortcut(struct node *n)
 			v += load_x_with(l, 0);
 			invalidate_mem();
 			if (s == 4)
-				store32(v);
+				store32(v, nr);
+			else
+				opd_on_ptr(n, "st", "st", v);
+			return 1;
+		}
+		if (can_load_d_nox(r, 0)) {
+			if (l->op == T_LPLUS) {
+				/* Do the LPLUS expression by hand */
+				codegen_lr(l->right);
+				/* Use the helper to put it in X */
+				gen_lplus(l, "x");
+			} else {
+				codegen_lr(l);
+				make_x_d();
+			}
+			/* X is now our pointer */
+
+			/* Load D without touching X */
+			if (r->op == T_CONSTANT) {
+				if (r->value == 0 && nr) {	/* Special case */
+					uniop_on_ptr("clr", 0, s);
+					return 1;
+				} else {
+					codegen_lr(r);
+				}
+			} else
+				write_op(r, "ld", "ld", 0);
+			invalidate_work();
+
+			/* Store */
+			invalidate_mem();
+			if (s == 4)
+				store32(v, nr);
 			else
 				opd_on_ptr(n, "st", "st", v);
 			return 1;
@@ -1250,14 +1360,13 @@ unsigned gen_shortcut(struct node *n)
 			return 1;
 		}
 		codegen_lr(r);
-		printf("\ttfr d,u\n");
+		puts("\ttfr d,u");
 		return 1;
 	case T_REQ:
 		codegen_lr(r);
 		switch(s) {
 		case 4:
-			printf("\tsty %u,u\n", n->val2);
-			printf("\tstd %u,u\n", n->val2 + 2);
+			printf("\tsty %u,u\n\tstd %u,u\n", n->val2, n->val2 + 2);
 			return 1;
 		case 2:
 			printf("\tstd %u,u\n", n->val2);
@@ -1271,13 +1380,13 @@ unsigned gen_shortcut(struct node *n)
 		codegen_lr(r);
 		switch(s) {
 		case 4:
-			printf("\tsty ,u++\n");
+			puts("\tsty ,u++");
 			/* Fall through */
 		case 2:
-			printf("\tstd ,u++\n");
+			puts("\tstd ,u++");
 			break;
 		case 1:
-			printf("\tstb ,u+\n");
+			puts("\tstb ,u+");
 			break;
 		}
 		return 1;
@@ -1310,11 +1419,31 @@ static unsigned gen_cast(struct node *n)
 	/* Don't do the harder ones */
 	if (!(rt & UNSIGNED)) {
 		if (cpu_is_09) {
-			if (rs == 1) {
-				printf("\tsex\n");
+			if (rs == 1 && ls == 2) {
+				puts("\tsex");
 				return 1;
 			}
 			/* TODO: 6309 has sexw */
+		}
+
+		if (cpu_has_y) {
+			if (opt && rs == 1 && ls == 2) {
+				puts("\tclra\n\tasrb\n\trolb\n\tsbca #0");
+				return 1;
+			}
+			/* TODO 2->4 byte expansion with Y register */
+			return 0;
+		}
+
+		if (opt && rs == 1) {
+			puts("\tclra\n\tasrb\n\trolb\n\tsbca #0");
+			if(ls == 4)
+				puts("\tstaa @hireg\n\tstaa @hireg+1");
+			return 1;
+		}
+		if (opt > 2 && ls == 4 && rs == 2) {
+			puts("\tpshb\n\tclrb\n\tasra\n\trola\n\tsbcb #0\n\tstab @hireg\n\tstab @hireg+1\n\tpulb");
+			return 1;
 		}
 		return 0;
 	}
@@ -1322,9 +1451,9 @@ static unsigned gen_cast(struct node *n)
 		load_a_const(0);
 	if (ls == 4) {
 		if (cpu_has_y)
-			printf("\tldy #0\n");
+			puts("\tldy #0");
 		else
-			printf("\tclr @hireg\n\tclr @hireg+1\n");
+			puts("\tclr @hireg\n\tclr @hireg+1");
 	}
 	return 1;
 }
@@ -1361,8 +1490,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (s == 4 && cpu_has_y) {
-			printf("\tldy %u,x\n", v);
-			printf("\tldd %u,x\n", v + 2);
+			printf("\tldy %u,x\n\tldd %u,x\n", v, v + 2);
 			set_d_node(n);	/* TODO: review 32 bit cases */
 			return 1;
 		}
@@ -1400,21 +1528,17 @@ unsigned gen_node(struct node *n)
 		if (cpu_has_y) {
 			load_d_const(v);
 			if (cpu_is_09 && (n->value >> 16) == (v & 0xFFFF))
-				printf("\ttfr d,y\n");
+				puts("\ttfr d,y");
 			else
 				/* TODO: tracking on Y ? */
 				printf("\tldy #%u\n", (unsigned)((n->value >> 16) & 0xFFFF));
 			return 1;
 		}
-		if (cpu_has_d) {
-			load_d_const(n->value >> 16);
-			printf("\tstd @hireg\n");
-			load_d_const(n->value);
-			return 1;
-		}
 		load_d_const(n->value >> 16);
-		printf("\tstaa @hireg\n");
-		printf("\tstab @hireg\n");
+		if (cpu_has_d)
+			puts("\tstd @hireg");
+		else
+			puts("\tstaa @hireg\n\tstab @hireg+1");
 		load_d_const(n->value);
 		return 1;
 	case T_LABEL:
@@ -1453,11 +1577,11 @@ unsigned gen_node(struct node *n)
 	case T_RREF:
 		if (d_holds_node(n))
 			return 1;
-		printf("\ttfr u,d\n");
+		puts("\ttfr u,d");
 		set_d_node(n);
 		return 1;
 	case T_RSTORE:
-		printf("\ttfr d,u\n");
+		puts("\ttfr d,u");
 		set_d_node(n);
 		return 1;
 	case T_ARGUMENT:
@@ -1467,15 +1591,30 @@ unsigned gen_node(struct node *n)
 	case T_LOCAL:
 		/* For v != 0 case it would be more efficient to load
 		   const then add @tmp/tmp+1 TODO */
-		printf(";T_LOCAL %x\n", v);
 		if (d_holds_node(n))
 			return 1;
-		move_s_d();
+		if (cpu_has_xgdx) {
+			make_local_ptr(v, 0);
+			/* X is now the value we need */
+			swap_d_x();
+			return 1;
+		}
 		/* The stack offsetting on the non 6809 processors is
 		   different. TSX/TXS add and subtract one but the actual
 		   S register points one byte off from a 6809 so compensate */
-		if (!cpu_is_09)
+		if (!cpu_is_09) {
 			v++;
+			if (optsize && !cpu_has_d) {
+				/* Try and optimise 6800 cases */
+				v += sp;
+				if (v < 256)
+					printf("\tjsr __local_b\n\t.byte %u\n", v);
+				else
+					printf("\tjsr __local_d\n\t.word %u\n", v);
+				return 1;
+			}
+		}
+		move_s_d();
 		v += sp;
 		add_d_const(v);
 		set_d_node(n);
@@ -1528,23 +1667,21 @@ unsigned gen_node(struct node *n)
 		invalidate_work();
 		return 1;
 	case T_RDEREF:
-		if (s == 4) {
-			printf("\tldy %u,u\n", n->val2);
-			printf("\tldd %u,u\n", n->val2 + 2);
-		} else if (s == 2)
+		if (s == 4)
+			printf("\tldy %u,u\n\tldd %u,u\n", n->val2, n->val2 + 2);
+		else if (s == 2)
 			printf("\tldd %u,u\n", n->val2);
 		else
 			printf("\tldb %u,u\n", n->val2);
 		invalidate_work();
 		return 1;
 	case T_RDEREFPLUS:
-		if (s == 4) {
-			printf("\tldy ,u++\n");
-			printf("\tldd ,u++\n");
-		} else if (s == 2)
-			printf("\tldd ,u++\n");
+		if (s == 4)
+			puts("\tldy ,u++\n\tldd ,u++");
+		else if (s == 2)
+			puts("\tldd ,u++");
 		else
-			printf("\tldb ,u+\n");
+			puts("\tldb ,u+");
 		invalidate_work();
 		return 1;
 	case T_LEQ:
@@ -1584,6 +1721,10 @@ unsigned gen_node(struct node *n)
 		else
 			printf("\tstd [T%u + %u]\n", n->val2, v);
 		return 1;
+	case T_LPLUS:	/* 6800 and -Os only */
+		gen_lplus(n, "");
+		invalidate_work();
+		return 1;
 	/* Type casting */
 	case T_CAST:
 		if (nr)
@@ -1594,26 +1735,24 @@ unsigned gen_node(struct node *n)
 		if (s == 4)
 			return 0;
 		if (s == 2) {
-			printf("\tcoma\n");
-			printf("\tcomb\n");
+			puts("\tcoma\n\tcomb");
 			modify_a(~a_val);
 			modify_b(~b_val);
 		} else {
-			printf("\tcomb\n");
+			puts("\tcomb");
 			modify_b(~b_val);
 		}
 		return 1;
 	case T_NEGATE:
 		if (s == 2) {
-			printf("\tcoma\n");
-			printf("\tcomb\n");
+			puts("\tcoma\n\tcomb");
 			modify_a(~a_val);
 			modify_b(~b_val);
 			add_d_const(1);
 			return 1;
 		}
 		if (s == 1) {
-			printf("\tnegb\n");
+			puts("\tnegb");
 			modify_b(-b_val);
 			return 1;
 		}
@@ -1680,12 +1819,9 @@ unsigned gen_node(struct node *n)
 	case T_FUNCCALL:
 		if (cpu_has_xgdx) {
 			make_x_d();
-			printf("\tjsr ,x\n");
-		} else {
-			printf("\tstaa @tmp\n");
-			printf("\tstab @tmp+1\n");
-			printf("\tjsr @tmp\n");
-		}
+			puts("\tjsr ,x");
+		} else
+			puts("\tstaa @tmp\n\tstab @tmp+1\n\tjsr @tmp\n");
 		invalidate_all();
 		return 1;
 	}

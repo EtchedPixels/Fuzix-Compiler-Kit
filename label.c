@@ -24,7 +24,7 @@ void init_labels(void)
 static void new_label(unsigned n)
 {
     if (labelp == &labels[MAXLABEL])
-        error("too many goto labels");
+        fatal("too many goto labels");
     labelp->name = n;
     labelp->line = line_num;
     labelp++;

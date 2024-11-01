@@ -54,7 +54,7 @@ __reginit:
 	ld	pargr2,#>__pargr2
 	ld	pargr2+1,#<__pargr2
 	ld	pushln,#>__pushln
-	ld	pushln,#<__pushln
+	ld	pushln+1,#<__pushln
 	ld	cceq,#>__cceq
 	ld	cceq+1,#<__cceq
 	ld	ccne,#>__ccne

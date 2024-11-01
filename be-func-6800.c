@@ -21,9 +21,6 @@ unsigned cpu_pic;		/* Position independent output (6809 only) */
 
 const char *jmp_op = "jmp";
 const char *jsr_op = "jsr";
-const char *or_op = "ora";
-const char *ld8_op = "lda";
-const char *st8_op = "sta";
 const char *pic_op = "";
 
 /*
@@ -44,16 +41,16 @@ void gen_segment(unsigned s)
 {
 	switch(s) {
 	case A_CODE:
-		printf("\t.code\n");
+		puts("\t.code");
 		break;
 	case A_DATA:
-		printf("\t.data\n");
+		puts("\t.data");
 		break;
 	case A_LITERAL:
-		printf("\t.literal\n");
+		puts("\t.literal");
 		break;
 	case A_BSS:
-		printf("\t.bss\n");
+		puts("\t.bss");
 		break;
 	default:
 		error("gseg");
@@ -73,7 +70,7 @@ void gen_frame(unsigned size, unsigned aframe)
 	argbase = ARGBASE;
 	/* Only occurs on 6809 */
 	if (func_flags & F_REG(1)) {
-		printf("\tpshs u\n");
+		puts("\tpshs u");
 		argbase += 2;
 	}
 	/* TODO: there is an optimization trick here for 09 where you
@@ -89,18 +86,17 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	adjust_s(size, (func_flags & F_VOIDRET) ? 0 : 1);
 	if (func_flags & F_REG(1))
 		/* 6809 only */
-		printf("\tpuls u,pc\n");
+		puts("\tpuls u,pc");
 	/* TODO: we are asssuming functions clean up their args if not
 	   vararg so this will have to change */
 	else if (argsize == 0 || cpu_has_d || (func_flags & F_VARARG))
-		printf("\trts\n");
+		puts("\trts");
 	else if (argsize <= 8)
 		printf("\t%s __cleanup%u\n", jmp_op, argsize);
 	else {
 		/* Icky - can we do better remembering AB is live for
 		   non void funcs */
-		printf("\t%s __cleanup\n", jmp_op);
-		printf("\t.word %u\n", argsize);
+		printf("\t%s __cleanupb\n\t.word %u\n", jsr_op, argsize);
 	}
 	unreachable = 1;
 }
@@ -143,16 +139,14 @@ void gen_jtrue(const char *tail, unsigned n)
 
 void gen_switch(unsigned n, unsigned type)
 {
-	printf("\tldx #Sw%u\n", n);
-	printf("\t%s __switch", jmp_op);
+	printf("\tldx #Sw%u\n\t%s __switch", n, jmp_op);
 	helper_type(type, 0);
-	printf("\n");
+	putchar('\n');
 }
 
 void gen_switchdata(unsigned n, unsigned size)
 {
-	printf("Sw%d:\n", n);
-	printf("\t.word %d\n", size);
+	printf("Sw%d:\n\t.word %d\n", n, size);
 }
 
 void gen_case_label(unsigned tag, unsigned entry)
@@ -211,12 +205,13 @@ void gen_helpclean(struct node *n)
 		}
 		s += get_size(n->right->type);
 		/* No helper uses varargs */
-		/* FIXME: 6800 expects called code to clean up */
 		sp -= s;
-		adjust_s(s, 1);
+		/* 6800 expects called code to clean up */
+		if (cpu != 6800)
+			adjust_s(s, 1);
 		/* C style ops that are ISBOOL didn't set the bool flags */
 		if (n->flags & ISBOOL)
-			printf("\ttstb\n");
+			puts("\ttstb");
 	}
 }
 
@@ -288,9 +283,6 @@ void gen_start(void)
 		cpu_has_lea = 1;
 		jmp_op = "bra";	/* Maybe a choice will be needed for jmp v bra/lbra ? */
 		jsr_op = "lbsr";
-		or_op = "or";
-		ld8_op = "ld";
-		st8_op = "st";
 		pic_op = ",pcr";
 		break;
 	case 6811:
@@ -308,7 +300,7 @@ void gen_start(void)
 	/* For the moment. Needs adding to assembler for 6809 v 6309 */
 	if (cpu != 6809 && cpu != 6811)
 		printf("\t.setcpu %u\n", cpu);
-	printf("\t.code\n");
+	puts("\t.code");
 }
 
 void gen_end(void)
@@ -318,6 +310,6 @@ void gen_end(void)
 void gen_tree(struct node *n)
 {
 	codegen_lr(n);
-	printf(";\n");
+	puts(";");
 }
 

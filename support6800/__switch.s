@@ -2,29 +2,27 @@
 
 __switch:
 	; X holds the switch table, D the value
-	staa @tmp
-	stab @tmp+1
-	ldaa ,x
+	pshb
 	ldab 1,x
-	staa @tmp1
+	inx
+	inx
 	stab @tmp1+1
-	inx
-	inx
+	pulb
 	beq gotit
 next:
-	ldaa ,x
-	ldab 1,x
-	cmpa @tmp
+	cmpa ,x
+	bne	nomatch
+	cmpb 1,x
 	bne nomatch
-	cmpb @tmp+1
+	ldx 2,x
+	jmp ,x
 nomatch:
 	inx
 	inx
-	beq gotit
 	inx
 	inx
-	dec @tmp1
-	bne next
+	dec @tmp1+1		; We know < 256 entries per switch
+	bne	next
 gotit:
 	ldx ,x
 	jmp ,x
