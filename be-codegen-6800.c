@@ -956,32 +956,61 @@ unsigned do_stkeqop(struct node *n, const char *op)
 /*
  *	Things we can try and do as a direct memory op for bytes
  */
-
-unsigned memop_const(struct node *n, const char *op)
+unsigned memop_const(struct node *n, const char *op, unsigned nr, unsigned pre)
 {
 	char buf[32];
-	unsigned v;
 	struct node *l = n->left;
+	unsigned v = l->value;
 	struct node *r = n->right;
-	v = l->value;
+	unsigned ct = r->value;
+
 	if (r->op != T_CONSTANT)
 		return 0;
+
 	/* The helper has to load x and a value and make a call
 	   so is quite expensive */
-	if (r->value > 5 && opt < 2)
+	if (ct > 4 + 2 * nr && opt < 2)
 		return 0;
+
+	if (nr)
+		pre = 0;
+
 	switch(l->op) {
 	case T_LABEL:
+		if (pre == 1)
+			printf("ldb T%u+%u\n", l->val2, v);
 		sprintf(buf, "%s T%u+%u", op, l->val2, v);
-		repeated_op(r->value, buf);
+		repeated_op(ct, buf);
 		invalidate_mem();
+		if (pre == 2)
+			printf("ldb T%u+%u\n", l->val2, v);
+		if (pre)
+			invalidate_b();
 		return 1;
 	case T_NAME:
+		if (pre == 1)
+			printf("ldb _%s+%u\n", namestr(l->snum), v);
 		sprintf(buf, "%s _%s+%u", op, namestr(l->snum), v);
-		repeated_op(r->value, buf);
+		repeated_op(ct, buf);
 		invalidate_mem();
+		if (pre == 2)
+			printf("ldb _%s+%u\n", namestr(l->snum), v);
+		if (pre)
+			invalidate_b();
 		return 1;
-	/* No ,x forms so cannot do locals */
+	case T_ARGUMENT:
+	case T_LOCAL:
+		v = load_x_with(l, 0);
+		if (pre == 1)
+			uniop_on_ptr("ldb", v, 1);
+		while(ct--)
+			uniop_on_ptr(op, v, 1);
+		invalidate_mem();
+		if (pre == 2)
+			uniop_on_ptr("ldb", v, 1);
+		if (pre)
+			invalidate_b();
+		return 1;
 	}
 	return 0;
 }
@@ -1019,6 +1048,7 @@ unsigned memop_shift(struct node *n, const char *op, const char *opu)
 		repeated_op(r->value, buf);
 		invalidate_mem();
 		return 1;
+	case T_ARGUMENT:
 	case T_LOCAL:
 		/* No ,x forms so cannot do locals */
 		if (!cpu_is_09)
@@ -1238,7 +1268,7 @@ unsigned gen_shortcut(struct node *n)
 	case T_EQPLUS:
 		v = n->value;
 		if (can_load_r_simple(l, 0)) {
-			if (r->op == T_CONSTANT && nr) {
+			if (r->op == T_CONSTANT && nr && s == 4) {
 				if (r->value == 0) {
 					/* We can optimize thing = 0 for the case
 					   we don't also need the value */
@@ -1300,25 +1330,25 @@ unsigned gen_shortcut(struct node *n)
 		}
 		return 0;
 	case T_PLUSEQ:
-		if (s == 1 && nr && memop_const(n, "inc"))
+		if (s == 1 && memop_const(n, "inc", nr, 2))
 			return 1;
 		if (s == 2 && add_to_node(n, 1, 1))
 			return 1;
 		return do_xeqop(n, "xpluseq");
 	case T_MINUSEQ:
-		if (s == 1 && nr && memop_const(n, "dec"))
+		if (s == 1 && memop_const(n, "dec", nr, 2))
 			return 1;
 		if (s == 2 && add_to_node(n, -1, 1))
 			return 1;
 		return do_xeqop(n, "xminuseq");
 	case T_PLUSPLUS:
-		if (s == 1 && nr && memop_const(n, "inc"))
+		if (s == 1 && memop_const(n, "inc", nr, 1))
 			return 1;
 		if (s == 2 && add_to_node(n, 1, nr))
 			return 1;
 		return do_xeqop(n, "xplusplus");
 	case T_MINUSMINUS:
-		if (s == 1 && nr && memop_const(n, "dec"))
+		if (s == 1 && memop_const(n, "dec", nr, 1))
 			return 1;
 		if (s == 2 && add_to_node(n, -1, nr))
 			return 1;
