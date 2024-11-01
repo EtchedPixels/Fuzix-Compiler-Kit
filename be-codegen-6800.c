@@ -1817,11 +1817,8 @@ unsigned gen_node(struct node *n)
 		return do_stkeqop(n, "xminuseq");
 	/* Function calls that were not to a constant name */
 	case T_FUNCCALL:
-		if (cpu_has_xgdx) {
-			make_x_d();
-			puts("\tjsr ,x");
-		} else
-			puts("\tstaa @tmp\n\tstab @tmp+1\n\tjsr @tmp\n");
+		make_x_d();
+		puts("\tjsr ,x");
 		invalidate_all();
 		return 1;
 	}
