@@ -20,12 +20,13 @@
  *	DONE: Add support for Mul/Div hardware
  *	DONE: Inline small left and unsigned right shifts
  *
- *	Inline shifts (including using ADDZL for double left shift)
+ *	DONE Inline shifts (including using ADDZL for double left shift)
  *	IP Inline easy mul forms (0-16 etc)
  *	Spot by 16+ shifts and move ?
  *	Optimized long and or xor const
  *
- *	Shift optimized and short helper mul/div constant
+ *	DONE Shift optimized mul/div constant
+ *	short helper mul/div constant
  *
  *	Compare optimizations. We can do better stuff
  *	for 0 based compares, for 1 and -1 compares which
@@ -40,7 +41,7 @@
  *
  *	Byte LREF/LSTORE etc
  *
- *	Floating point
+ *	Floating point (hardware)
  *
  *	Eclipse
  *	- Multiply/Divide/Halve/LEA/Immediate forms
@@ -1519,6 +1520,13 @@ unsigned gen_node(struct node *n)
 	case T_CALLNAME:
 		printf("\tjsr @1,1\n");
 		printf("\t.word _%s+%u\n", namestr(n->snum), v);
+		return 1;
+	case T_FUNCCALL:
+		printf("\tsta 1,__tmp,0\n");
+		printf("\tjsr @__tmp,0\n");
+		/* Calls expect to skip a word after the JSR for the called address so
+		   for the func call case just leave a one word gap */
+		printf("\t.word 0\n");
 		return 1;
 	case T_CONSTANT:
 		if (nr)
