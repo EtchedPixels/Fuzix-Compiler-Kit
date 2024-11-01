@@ -1383,14 +1383,10 @@ void gen_helptail(struct node *n)
 {
 }
 
+/* Force condition flags on C helpers. This will go away once
+   we redo the floats in optimized asm for 65C816 */
 void gen_helpclean(register struct node *n)
 {
-	register struct node *r = n->right;
-	if (n->flags & ISBOOL) {
-		if (n->type == FLOAT || (r && r->type == FLOAT)) {
-			printf("\tcmp #0\n");	/* force flags */
-		}
-	}
 }
 
 void gen_data_label(const char *name, unsigned align)
@@ -2310,40 +2306,15 @@ static unsigned argstack_helper(struct node *n, unsigned sz)
 
 /* Given a node see if we can generate a short form for it */
 
-static void argstack(struct node *n)
+static void argstack_top(unsigned sz)
 {
-	unsigned sz = get_stack_size(n->type);
 	if (optsize) {
-		/* See if we can be clever */
-		if (argstack_helper(n, sz)) {
-			sp += sz;
-			return;
-		}
-		codegen_lr(n);
 		if (sz == 4)
 			output("jsr __pushal");
 		else
 			output("jsr __pusha");
 		sp += sz;
-		return;
-	}
-	/* Don't send long pushes via hireg */
-	if (sz == 4 && n->op == T_CONSTANT) {
-		output("dey");
-		output("dey");
-		output("dey");
-		output("dey");
-		load_a(n->value >> 16);
-		outputnc("sta 2,y");
-		load_a(n->value);
-		outputnc("sta 0,y");
-		sp += sz;
-		return;
-	}
-	/* Generate the node */
-	codegen_lr(n);
-	/* And stack it */
-	if (sz == 2) {
+	} else if (sz == 2) {
 		output("dey");
 		output("dey");
 		outputnc("sta 0,y");
@@ -2358,8 +2329,37 @@ static void argstack(struct node *n)
 		output("lda @hireg");
 		output("sta 2,y");
 		sp += 4;
-	} else
+	} else {
+		fprintf(stderr, "astk %u\n", sz);
 		error("astk");
+	}
+}
+
+static void argstack(struct node *n)
+{
+	unsigned sz = get_stack_size(n->type);
+	if (optsize) {
+		/* See if we can be clever */
+		if (argstack_helper(n, sz)) {
+			sp += sz;
+			return;
+		}
+	} 
+	if (sz == 4 && n->op == T_CONSTANT) {
+		/* Don't send long pushes via hireg */
+		output("dey");
+		output("dey");
+		output("dey");
+		output("dey");
+		load_a(n->value >> 16);
+		outputnc("sta 2,y");
+		load_a(n->value);
+		outputnc("sta 0,y");
+		sp += sz;
+		return;
+	}
+	codegen_lr(n);
+	argstack_top(sz);
 }
 
 /* We handle function arguments specially as we both push them to a different
@@ -2391,38 +2391,44 @@ static void gen_fcall(struct node *n)
  *	Some internal helpers work best if we use the data stack for long
  *	values
  */
-const char *longfn(struct node *n)
+const char *longfn(register struct node *n)
 {
-	switch (n->op) {
-	case T_SLASH:
-		return "div";
-	case T_PERCENT:
-		return "rem";
-	case T_STAR:
-		return "mul";
-	case T_LT:
-		n->flags |= ISBOOL;
-		return "cclt";
-	case T_GT:
-		n->flags |= ISBOOL;
-		return "ccgt";
-	case T_LTEQ:
-		n->flags |= ISBOOL;
-		return "cclteq";
-	case T_GTEQ:
-		n->flags |= ISBOOL;
-		return "ccgteq";
-	case T_BANGEQ:
-		n->flags |= ISBOOL;
-		return "ccne";
-	case T_EQEQ:		/* Maybe - need to decide */
-		n->flags |= ISBOOL;
-		return "cceq";
-		/* Shifts etc TBD - might make more sense to generate l/r backwards
-		   and take the shift value via x */
+	register struct node *r = n->right;
+	register unsigned op = n->op;
+	unsigned s = get_size(n->type);
+
+	if (s == 4) {
+		switch (op) {
+		case T_SLASH:
+			return "div";
+		case T_PERCENT:
+			return "rem";
+		case T_STAR:
+			return "mul";
+		case T_LT:
+			n->flags |= ISBOOL;
+			return "cclt";
+		case T_GT:
+			n->flags |= ISBOOL;
+			return "ccgt";
+		case T_LTEQ:
+			n->flags |= ISBOOL;
+			return "cclteq";
+		case T_GTEQ:
+			n->flags |= ISBOOL;
+			return "ccgteq";
+		case T_BANGEQ:
+			n->flags |= ISBOOL;
+			return "ccne";
+		case T_EQEQ:		/* Maybe - need to decide */
+			n->flags |= ISBOOL;
+			return "cceq";
+			/* Shifts etc TBD - might make more sense to generate l/r backwards
+			   and take the shift value via x */
+		}
 	}
 	if (n->type == FLOAT) {
-		switch(n->op) {
+		switch(op) {
 		case T_PLUS:
 			return "plus";
 		case T_MINUS:
@@ -2435,8 +2441,18 @@ const char *longfn(struct node *n)
 			return "neg";
 		}
 	}
-	if (n->op == T_CAST && (n->type == T_FLOAT || n->right->type == T_FLOAT))
+	if (op == T_CAST && (n->type == T_FLOAT || r->type == T_FLOAT))
 		return "cast";
+	if (r && r->type == FLOAT) {
+		switch(op) {
+		case T_BOOL:
+			n->flags |= ISBOOL;
+			return "bool";
+		case T_BANG:
+			n->flags |= ISBOOL;
+			return "not";
+		}
+	}
 	return NULL;
 }
 
@@ -2508,25 +2524,30 @@ unsigned gen_shortcut(struct node *n)
 	 *      stack not the CPU one. We could even do fp in C this way
 	 *      if we needed to.
 	 */
-	if (size == 4 && (p = longfn(n)) != NULL) {
-		argstack(l);
+	if ((p = longfn(n)) != NULL) {
+		if (l)
+			argstack(l);
 		if (c_call(n)) {
-			argstack(r);
+			codegen_lr(r);	/* Generate the code */
+			/* Suppress any pending boolf that isn't needed as we made
+			   things bool */
+			if (n->op == T_BOOL && (r->flags & ISBOOL))
+				return 1;
+			argstack_top(get_size(r->type));
 			helper_s(n, p);
 			/* Clean up is all done by caller (no varargs helpers) */
-			if (n->left)
+			if (l)
 				sp -= 4;
-			if (n->right)
+			if (r)
 				sp -= 4;
 		} else {
 			codegen_lr(r);
 			helper_s(n, p);
 			sp -= 4;	/* The helper cleans up */
 		}
-		if (n->flags & CCONLY) {
+		if (n->flags & CCONLY)
 			/* Force a move of A to X to set the flags */
 			move_a_x_ccvalid();
-		}
 		return 1;
 	}
 	/* Shifts we evaluate the count last so we can go via x */
@@ -2859,8 +2880,6 @@ unsigned gen_node(struct node *n)
 		/* A cast to nowhere is no cast at all */
 		if (nr)
 			return 1;
-		if (r->type == FLOAT)
-			return 0;
 		size = get_size(r->type);
 		if (n->flags & CCONLY) {
 			/* Already happens to be correct */
@@ -2893,8 +2912,6 @@ unsigned gen_node(struct node *n)
 		/* Non condition code cases via helpers */
 		return 0;
 	case T_BANG:
-		if (r->type == FLOAT)
-			return 0;
 		if (n->flags & CCONLY) {
 			size = get_size(r->type);
 			if (ccvalid == CC_VALID);
