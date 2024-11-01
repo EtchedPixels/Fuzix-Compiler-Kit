@@ -79,7 +79,7 @@ uint8_t m6800_read(struct m6800 *cpu, uint16_t addr)
 	return m6800_read_op(cpu, addr, 0);
 }
 
-static unsigned char fefcval=0;
+static uint8_t fefcval=0;
 
 void m6800_write(struct m6800 *cpu, uint16_t addr, uint8_t val)
 {
@@ -102,7 +102,7 @@ void m6800_write(struct m6800 *cpu, uint16_t addr, uint8_t val)
 	    case 0xFEFD:
 		/* Make the value signed */
 		x=  (fefcval << 8) | val;
-		if (x > 0x8000)
+		if (x >= 0x8000)
 			x-= 0x10000;
 		printf("%d\n", x);
 		break;

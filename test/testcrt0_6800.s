@@ -46,8 +46,8 @@ _printint:
 	tsx
 	ldab 3,x
 	ldaa 2,x
-	stab $fefc+1
 	staa $fefc
+	stab $fefc+1
 	ldx 0,x
 	ins
 	ins
