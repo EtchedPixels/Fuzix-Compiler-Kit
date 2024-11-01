@@ -9,6 +9,7 @@
 static uint8_t ram[65536];
 
 struct m6800 cpu;
+unsigned long cycles;
 
 void m6800_sci_change(struct m6800 *cpu)
 {
@@ -100,13 +101,17 @@ void m6800_write(struct m6800 *cpu, uint16_t addr, uint8_t val)
 		break;
 	    case 0xFEFD:
 		/* Make the value signed */
-		x= (fefcval << 8) | val;
-		if (x>0x8000) x-= 0x10000;
+		x=  (fefcval << 8) | val;
+		if (x > 0x8000)
+			x-= 0x10000;
 		printf("%d\n", x);
 		break;
 	    case 0xFEFC:
 		fefcval= val;	/* Save high byte for now */
 		break;
+	    case 0xFEFB:
+	    	printf("CPU cycles = %lu\n", cycles);
+	    	break;
 	    default:
 		ram[addr & 0xFFFF] = val;
 	}
@@ -160,7 +165,7 @@ int main(int argc, char *argv[])
 		if (debug)
 			cpu.debug = 1;
 		while(1)
-			m68hc11_execute(&cpu);
+			cycles += m68hc11_execute(&cpu);
 		break;
 	default:
 		fprintf(stderr, "Unknown cpu type '%s'\n", argv[1]);
