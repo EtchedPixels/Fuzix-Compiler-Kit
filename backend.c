@@ -199,11 +199,11 @@ static struct node *rewrite_tree(register struct node *n)
 	/* Convert LVAL flag into pointer type */
 	if (n->flags & LVAL)
 		n->type++;
-	/* Turn any remaining object references (functions) into pointer type */
-	/* Need to review how we do this with name of function versus function vars etc */
-	/* FIXME */
+	/* Turn any remaining object references (functions) into pointer type
+	   and mark them specially so the backends can type them when needed
+	   (eg Nova) */
 	if (IS_FUNCTION(n->type))
-		n->type = PTRTO;
+		n->type = PTRTO|FUNC;
 	return gen_rewrite_node(n);
 }
 

@@ -18,6 +18,7 @@
 #define VOID		0xA0
 #define ELLIPSIS	0xB0
 
+#define FUNC		0xF0			/* Only used by the backend */
 #define UNKNOWN		0xFE
 #define ANY		0xFF
 
