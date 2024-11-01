@@ -1383,8 +1383,14 @@ void gen_helptail(struct node *n)
 {
 }
 
-void gen_helpclean(struct node *n)
+void gen_helpclean(register struct node *n)
 {
+	register struct node *r = n->right;
+	if (n->flags & ISBOOL) {
+		if (n->type == FLOAT || (r && r->type == FLOAT)) {
+			printf("\tcmp #0\n");	/* force flags */
+		}
+	}
 }
 
 void gen_data_label(const char *name, unsigned align)
@@ -1846,9 +1852,9 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		if (r->op == T_CONSTANT && r->value == 0) {
-			helper(n, "not");
+		if (r->type != FLOAT && r->op == T_CONSTANT && r->value == 0) {
 			n->flags |= ISBOOL;
+			helper(n, "not");
 			return 1;
 		}
 		return pri_help_bool(n, "eqeqx");
@@ -2853,6 +2859,8 @@ unsigned gen_node(struct node *n)
 		/* A cast to nowhere is no cast at all */
 		if (nr)
 			return 1;
+		if (r->type == FLOAT)
+			return 0;
 		size = get_size(r->type);
 		if (n->flags & CCONLY) {
 			/* Already happens to be correct */
@@ -2885,6 +2893,8 @@ unsigned gen_node(struct node *n)
 		/* Non condition code cases via helpers */
 		return 0;
 	case T_BANG:
+		if (r->type == FLOAT)
+			return 0;
 		if (n->flags & CCONLY) {
 			size = get_size(r->type);
 			if (ccvalid == CC_VALID);
