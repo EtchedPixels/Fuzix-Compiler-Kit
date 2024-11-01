@@ -1042,7 +1042,7 @@ static unsigned hexpair(void)
 		warning("invalid hexadecimal escape");
 		return T_INVALID;
 	}
-	return (unhex(c2) << 4) | unhex(c);
+	return (unhex(c) << 4) | unhex(c2);
 }
 
 static unsigned octalset(unsigned c)
