@@ -286,7 +286,7 @@ static struct name *new_symbol(const char *name, unsigned hash, unsigned id)
 }
 
 /*
- *	Find a symbol in a given has table
+ *	Find a symbol in a given has table	
  */
 static struct name *find_symbol(const char *name, unsigned hash)
 {
@@ -535,7 +535,7 @@ static void exp_overflow(void)
 #ifdef IBMFLOAT
 
 /* Older IBM style floating point
-   Numbers are encoded as
+   Numbers are encoded as 
    Sign.1 Exponent.8 Mantissa.24
 
    Unlike IEEE754 however the exponent is in nybbles and there may be
@@ -1010,7 +1010,7 @@ static unsigned tokenize_numeric(unsigned c, unsigned neg)
 		else
 			result = -result;
 	}
-	/* Order really doesn't matter here so stick to LE. We will worry about
+	/* Order really doesn't matter here so stick to LE. We will worry about 
 	   actual byte order in the code generation */
 	encode_byte(result);
 	encode_byte(result >> 8);
