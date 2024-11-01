@@ -1238,12 +1238,24 @@ unsigned gen_shortcut(struct node *n)
 	case T_EQPLUS:
 		v = n->value;
 		if (can_load_r_simple(l, 0)) {
-			if (r->op == T_CONSTANT && nr && r->value == 0) {
-				/* We can optimize thing = 0 for the case
-				   we don't also need the value */
-				v += load_x_with(l, 0);
-				uniop_on_ptr("clr", v, s);
-				return 1;
+			if (r->op == T_CONSTANT && nr) {
+				if (r->value == 0) {
+					/* We can optimize thing = 0 for the case
+					   we don't also need the value */
+					v += load_x_with(l, 0);
+					uniop_on_ptr("clr", v, s);
+					return 1;
+				}
+				/* For the processors without Y we can do better. Ideally
+				   we would move to allowign LREF/LSTORE of 32bit but for now */
+				if (!cpu_has_y) {
+					v += load_x_with(l, 0);
+					load_d_const(r->value);
+					op16d_on_ptr("st", "st", v + 2);
+					load_d_const(r->value >> 16);
+					op16d_on_ptr("st", "st", v);
+					return 1;
+				}
 			}
 			codegen_lr(r);
 			v += load_x_with(l, 0);
