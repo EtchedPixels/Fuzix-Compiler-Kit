@@ -443,10 +443,18 @@ void gen_frame(unsigned size, unsigned aframe)
 	frame_len = size;
 	sp = 0;
 
+	printf(";size %u\n", size);
+
 	if (size || func_flags & F_REG(1))
 		func_cleanup = 1;
 	else
 		func_cleanup = 0;
+
+	/* For ease of cleanup just leave a padding byte */
+	if (size & 1) {
+		size++;
+		sp = 1;
+	}
 
 	if (size > 10) {
 		printf("\tld ea,p1\n\tsub ea,=%d\n\tld p1,ea\n", size);
@@ -480,6 +488,11 @@ void gen_cleanup(unsigned size, unsigned save)
 void gen_epilogue(unsigned size, unsigned argsize)
 {
 	unsigned x = func_flags & F_VOIDRET;
+	/* Reverse effect of packing byte */
+	if (size & 1) {
+		size++;
+		sp--;
+	}
 	if (sp)
 		error("sp");
 	if (unreachable)
