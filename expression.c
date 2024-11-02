@@ -30,6 +30,9 @@ struct node *typeconv(register struct node *n, register unsigned type, unsigned 
 		   on them or dereference them */
 		n->type++;
 	}
+
+	type = target_type_remap(type);
+
 	/* Handle the various cases where we are working with complex types
 	   and they already match */
 	if (n->type == type) {
