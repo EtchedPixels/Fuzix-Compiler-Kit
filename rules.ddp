@@ -1,0 +1,11 @@
+	jmp %1
+%1:
+=
+%1:
+
+# We have no MMIO so this is fine as a rewrite
+	sta %1,1
+;
+	lda %1,1
+=
+	sta %1,1

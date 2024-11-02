@@ -2,11 +2,11 @@ all: cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.1802 cc1.6800 cc1.6809 \
      cc1.8070 cc1.8086 \
-     cc1.ee200 cc1.nova \
+     cc1.ee200 cc1.nova cc1.ddp \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.6809 \
      cc2.8070 cc2.8086 \
-     cc2.ee200 cc2.nova \
+     cc2.ee200 cc2.nova cc2.ddp \
      copt \
      support6303 support6502 support65c816 support6800 support6803 \
      support6809 support68hc11 support8080 support8085 supportz80 \
@@ -16,10 +16,10 @@ all: cc cc0 \
 bootstuff: cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.super8 cc1.1802 cc1.6800 cc1.6809 \
-     cc1.8070 cc1.8086 cc1.ee200 cc1.nova \
+     cc1.8070 cc1.8086 cc1.ee200 cc1.nova cc1.ddp \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.6809 \
-     cc2.8070 cc2.8086 cc2.ee200 cc2.nova \
+     cc2.8070 cc2.8086 cc2.ee200 cc2.nova cc2.ddp \
      copt
 
 .PHONY: support6303 support6502 support65c816 support6800 support6803 \
@@ -51,6 +51,7 @@ OBJS14 = backend.o backend-super8.o
 OBJS15 = backend.o backend-1802.o
 OBJS16 = backend.o be-codegen-6800.o be-track-6800.o be-code-6800.o be-func-6800.o
 OBJS17 = backend.o be-codegen-6800.o be-track-6800.o be-code-6809.o be-func-6800.o
+OBJS18 = backend.o backend-ddp.o
 
 CFLAGS = -Wall -pedantic -g3 -DLIBPATH="\"$(CCROOT)/lib\"" -DBINPATH="\"$(CCROOT)/bin\""
 
@@ -121,6 +122,9 @@ cc1.ee200:$(OBJS1) target-ee200.o
 cc1.nova:$(OBJS1) target-nova.o
 	gcc -g3 $(OBJS1) target-nova.o -o cc1.nova
 
+cc1.ddp:$(OBJS1) target-ddp.o
+	gcc -g3 $(OBJS1) target-ddp.o -o cc1.ddp
+
 cc2:	$(OBJS2)
 	gcc -g3 $(OBJS2) -o cc2
 
@@ -165,6 +169,9 @@ cc2.ee200:	$(OBJS7)
 
 cc2.nova:	$(OBJS10)
 	gcc -g3 $(OBJS10) -o cc2.nova
+
+cc2.ddp:	$(OBJS18)
+	gcc -g3 $(OBJS18) -o cc2.ddp
 
 support6303:
 	(cd support6303; make)
@@ -363,6 +370,13 @@ bootinst:
 	cp cc1.nova $(CCROOT)/lib
 	cp cc2.nova $(CCROOT)/lib
 	cp rules.nova $(CCROOT)/lib
+	# DDP
+	mkdir -p $(CCROOT)/lib/ddp
+	mkdir -p $(CCROOT)/lib/ddp/include/
+	cp lorderddp $(CCROOT)/bin/lorderddp
+	cp cc1.ddp $(CCROOT)/lib
+	cp cc2.ddp $(CCROOT)/lib
+	cp rules.ddp $(CCROOT)/lib
 
 #
 #	Install the support libraries
