@@ -512,7 +512,10 @@ void gen_literal(unsigned n)
 
 void gen_name(struct node *n)
 {
-	printf("\t.word _%s+%d\n", namestr(n->snum), WORD(n->value));
+	if (is_bytepointer(n->type))
+		printf("\t.byteptr _%s+%d\n", namestr(n->snum), WORD(n->value));
+	else
+		printf("\t.word _%s+%d\n", namestr(n->snum), WORD(n->value));
 }
 
 /* FIXME: we will need to add .byte and alignment padding to the
