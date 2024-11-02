@@ -163,6 +163,7 @@ const char *novafeat[] = {
 	"multiply",
 	NULL
 };
+const char *defddp[] = { "__ddp__", NULL };
 
 const char *ld6502[] = { "-b", "-C", "512", "-Z", "0x00", NULL };
 const char *ld6800[] = { "-b", "-C", "256", "-Z", "0x40", NULL };
@@ -172,8 +173,10 @@ const char *ld8080[] = { "-b", "-C", "256", NULL };
 const char *ld8086[] = { "-b", "-C", "256", NULL };
 const char *ldee200[] = { "-b", "-C", "256", NULL };
 const char *ldnova[] = { "-b", "-Z", "050", "-C", "512", NULL };
+const char *ldddp[] = { "-b", "-Z", "020", "-C", "256", NULL };
 const char *ldbyte[] =  { NULL };
 const char *ldthread[] = { NULL };
+
 const char *cpucode;
 
 struct cpu_table cpu_rules[] = {
@@ -210,6 +213,7 @@ struct cpu_table cpu_rules[] = {
 	{ "nova", "nova", ".nova", "libnova.a", "nova", defnova, ldnova, "0", 0, novafeat },
 	/* Nova with stack hardware (3+) */
 	{ "nova3", "nova", ".nova", "libnova3.a", "nova", defnova3, ldnova, "3", 0, novafeat },
+	{ "ddp", "ddp", ".ddp", "libddp.a", "ddp", defddp, ldddp, "0", 0, NULL },
 	{ NULL }
 };
 
