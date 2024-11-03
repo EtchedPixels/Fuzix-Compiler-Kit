@@ -163,7 +163,9 @@ const char *novafeat[] = {
 	"multiply",
 	NULL
 };
-const char *defddp[] = { "__ddp__", NULL };
+const char *defddp516[] = { "__ddp__", "__ddp516__", NULL };
+const char *defddp316[] = { "__ddp__", "__ddp316__", NULL };
+const char *defddp116[] = { "__ddp__", "__ddp116__", NULL };
 
 const char *ld6502[] = { "-b", "-C", "512", "-Z", "0x00", NULL };
 const char *ld6800[] = { "-b", "-C", "256", "-Z", "0x40", NULL };
@@ -213,7 +215,11 @@ struct cpu_table cpu_rules[] = {
 	{ "nova", "nova", ".nova", "libnova.a", "nova", defnova, ldnova, "0", 0, novafeat },
 	/* Nova with stack hardware (3+) */
 	{ "nova3", "nova", ".nova", "libnova3.a", "nova", defnova3, ldnova, "3", 0, novafeat },
-	{ "ddp", "ddp", ".ddp", "libddp.a", "ddp", defddp, ldddp, "0", 0, NULL },
+	/* FIXME: DDP116 will need a different library. We will also need to do the mul/div feature
+	   select stuff and maybe FP */
+	{ "ddp116", "ddp", ".ddp", "libddp.a", "ddp", defddp116, ldddp, "116", 0, NULL },
+	{ "ddp316", "ddp", ".ddp", "libddp.a", "ddp", defddp316, ldddp, "316", 0, NULL },
+	{ "ddp516", "ddp", ".ddp", "libddp.a", "ddp", defddp516, ldddp, "516", 0, NULL },
 	{ NULL }
 };
 
