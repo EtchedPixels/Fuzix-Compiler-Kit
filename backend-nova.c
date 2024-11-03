@@ -32,6 +32,9 @@
  *	for 0 based compares, for 1 and -1 compares which
  *	are all common, and for sign bit compares
  *
+ *	Inline some cases of deref/lref etc esp stuff like lref where
+ *	we know the offset so in turn can directly reference the right half
+ *
  *	Track contents of AC1 so we can avoid reloading constants
  *	(may be worth tracing AC0 too but less clear)
  *	Track whether AC0 holds __hireg and optimize load/saves of it
@@ -40,6 +43,8 @@
  *	lda 1,@n,3 to index through a local pointer
  *
  *	Byte LREF/LSTORE etc
+ *	- Optimisations from the DDP where we use the fact the base is
+ *	  word aligned to precompute any needed swaps
  *
  *	Floating point (hardware)
  *
@@ -1340,7 +1345,6 @@ unsigned gen_shortcut(struct node *n)
 				d++;
 			if (d < -128 || d >= 127 + s / 2)
 				return 0;
-			printf(";pluseq fast\n");
 			if (!nr && n->op == T_PLUSPLUS)
 				printf("\tlda 2,%d,3\n", d);
 			if (r->value > 0) {
@@ -1368,33 +1372,44 @@ unsigned gen_cast(struct node *n)
 	unsigned rt = n->right->type;
 	unsigned ls;
 	unsigned rs;
-	int scale = 0;
+
 
 	/* Pointer conversions: byte->word or word<-byte. Useless ones
 	   got eliminated earlier */
-	if (PTR(rt) && PTR(lt)) {
-		unsigned bt = BASE_TYPE(rt) & ~UNSIGNED;
-		if (bt == VOID || bt == CCHAR)
-			/* Convert byte pointer to word */
-			printf("\tmovzr 1,1\n");
-		else	/* Word pointer to byte */
-			printf("\tmovzl 1,1\n");
-		return 1;			
+	if (PTR(lt) && PTR(rt)) {
+		if (is_bytepointer(lt) && !is_bytepointer(rt)) {
+			puts("\tmovzl 1,1");
+			return 1;
+		}
+		if (is_bytepointer(rt) && !is_bytepointer(lt)) {
+			puts("\tmovzr 1,1");
+			return 1;
+		}
 	}
 	/* C mostly absolves itself of any responsibility for pointer
 	   cast to integer and then do maths */
-	if (PTR(rt)) {
-		scale = 1;
-		rt = USHORT;
-	}
-	if (PTR(lt)) {
-		scale = -1;
-		lt = USHORT;
-	}
+
+	/* We treat all pointers cast to non pointer types as byte pointers. We have a max
+	   32KW address space so there is no wrapping problem and this makes more bytedamaged
+	   code work properly out of the box */
+	if (PTR(rt) && !PTR(lt) && !is_bytepointer(rt))
+		puts("\tmovzl 1,1");
+
+	if (PTR(lt) && !PTR(rt) && !is_bytepointer(rt))
+		puts("\tmovzr 1,1");
+
+	if (PTR(lt))
+		lt = UINT;
+	if (PTR(rt))
+		rt = UINT;
+
+	if (lt == rt)
+		return 1;
 
 	/* Floats and stuff handled by helper */
 	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
 		return 0;
+
 
 	ls = get_size(lt);
 	rs = get_size(rt);
@@ -1404,14 +1419,7 @@ unsigned gen_cast(struct node *n)
 	   The standard basically says we can do what we like but this seems
 	   the most programmer friendly approach */
 
-	/* Cast from pointer to integer type.. make a byte pointer */
-	if (scale == 1 && !is_bytepointer(rt))
-		printf("\tmovzl 1,1\n");
-	/* Casts from integer to pointer type */
-	if (scale == -1 && !is_bytepointer(lt))
-		printf("\tmovzr 1,1\n");
-
-	printf(";cast to %x(%u) from %x(%u)\n", lt,ls, rt,rs);
+/*	printf(";cast to %x(%u) from %x(%u)\n", lt,ls, rt,rs); */
 	/* Size shrink is not always free as we work in words */
 	if (ls <= rs) {
 		if (ls == 1 && rs > 1) {	/* Need to mask */
@@ -1667,11 +1675,17 @@ unsigned gen_node(struct node *n)
 		}
 		return 1;
 	case T_DEREF:
-		printf(";T_DEREF %u\n", s);
 		if (nr)
 			return 1;
-		if (s == 1)
-			return 0;
+		if (s == 1 && !optsize) {
+			printf("\tmovzr 1,2\n");	/* bytepointer to word */
+			printf("\tlda 0,0,2\n");	/* Get the word into 0 */
+			printf("\tmov 0,0,snc\n");	/* Decide if we need to flip */
+			printf("\tmovs 0,0\n");		/* Flip if so */
+			printf("\tlda 1,N255,0\n");	/* Mask value */
+			printf("\tand 0,1\n");		/* Mask into 1 */
+			return 1;
+		}
 		printf("\tmov 1,2\n");
 		if (s == 4) {
 			printf("\tlda 0,0,2\n");
@@ -1925,7 +1939,6 @@ unsigned gen_node(struct node *n)
 		break;
 	/* We do the eq ops as a load/op/store pattern in general */
 	case T_PLUSEQ:
-		printf(";pluseq\n");
 		return do_eqop(n, T_PLUS, 2, 0);
 	case T_MINUSEQ:
 		return do_eqop(n, T_MINUS, 2, 0);
