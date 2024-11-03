@@ -42,11 +42,18 @@ void put_typed_data(struct node *n)
 	/* Collapse array types down to their underlying type so the backend
 	   can use the correct pointer types on a word/byteptr machine */
 	if (IS_ARRAY(t) && PTR(t) == 0)
-		n->type = PTRTO + array_type(t);
+		t = PTRTO + array_type(t);
+	/* Allow for implied casting in the declaration on word machines. For
+	   example  "int *x = (int *)charptr;" */
+	if (op == T_CAST && PTR(t) && PTR(n->right->type)) {
+		n = n->right;
+		op = n->op;
+	}
 	out_block("%[", 2);
 	if (op != T_CASELABEL && op != T_PAD && op != T_LABEL &&
 		op != T_NAME && op != T_CONSTANT)
 		notconst();
+	n->type = t;
 	out_block(n, sizeof(struct node));
 }
 

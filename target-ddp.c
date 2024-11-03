@@ -95,8 +95,18 @@ struct node *target_struct_ref(struct node *n, unsigned type, unsigned off)
 	return n;
 }
 
-/* Remap any base types for simplicity on the platform */
+/* Can we remove pointer/int casts for fixed objects */
+/* l might be constant or pointer, r is a name or label */
+unsigned target_remove_cast(struct node *l, struct node *r)
+{
+	if (PTR(l->type) && target_ptroff_to_byte(l->type) != target_ptroff_to_byte(r->type))
+		return 0;
+	if (!PTR(l->type) && target_ptroff_to_byte(r->type) != 1)
+		return 0;
+	return 1;
+}
 
+/* Remap any base types for simplicity on the platform */
 unsigned target_type_remap(unsigned type)
 {
 	/* Our double is float */

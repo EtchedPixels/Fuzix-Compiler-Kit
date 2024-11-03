@@ -73,8 +73,13 @@ struct node *target_struct_ref(register struct node *n, unsigned type, unsigned 
 	return n;
 }
 
-/* Remap any base types for simplicity on the platform */
+/* Can we remove pointer/int casts for fixed objects */
+unsigned target_remove_cast(struct node *l, struct node *r)
+{
+	return 1;
+}
 
+/* Remap any base types for simplicity on the platform */
 unsigned target_type_remap(unsigned type)
 {
 	/* Our double is float */

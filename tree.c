@@ -528,9 +528,12 @@ struct node *constify(register struct node *n)
 		if (r->op == T_CONSTANT && IS_INTORPTR(r->type))
 			return replace_constant(n, n->type, r->value);
 		if (IS_INTORPTR(n->type) && (r->op == T_NAME || r->op == T_LABEL)) {
-			r->type = n->type;
-			free_node(n);
-			return r;
+			/* Not a straight copy for byte pointer machines */
+			if (target_remove_cast(n, r)) {
+				r->type = n->type;
+				free_node(n);
+				return r;
+			}
 		}
 	}
         /* Deal with x + y + z where it's not all constant but we can
