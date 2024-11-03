@@ -12,9 +12,19 @@
  *	@SP		Page 0 variable holding the stack pointer
  *	@FP		Frame pointer (not useful except in call return)
  *
+ *	The machine has no true subtraction. The sub operator is actually
+ *	internally effectively an add of the 2s complement of the contents
+ *	of the EA. Flags thus act accordingly.
+ *
+ *	Various things are signed (DIV, MPY, CAS). The fact CAS is happens to
+ *	be signed is useful. We use SUB/CC for unsigned compares and CAS for
+ *	most signed ones
+ *
  *	TODO:
  *	-	All the += *= etc operations
  *	-	Sort out all the bytepointer bits for char type ops
+ *	-	div/rem is wrong - hardware is signed 32/16
+ *
  */
 
 #include <stdio.h>
@@ -34,6 +44,7 @@ static unsigned frame_len;	/* Number of words of stack frame */
 static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned argbase;	/* Argument offset */
 static unsigned unreachable;	/* Is code currently unreachable */
+static unsigned label;		/* Used for local labels */
 
 #define ARGBASE	2
 
@@ -250,18 +261,83 @@ static void repeated_op(unsigned n, char *op)
 void load_a(unsigned n)
 {
 	n = WORD(n);
-	if (n == 0)
+	/* Is it better to have a common const table too - 0xFF, 0xFF00 etc */
+	switch(n) {
+	case 0:
 		puts("\tcra");
-	else if (n == 1)
+		break;
+	case 1:
 		puts("\tld1");
-	else
-		printf("\tlda =%u\n", n);
+		break;
+	case 2:
+		puts("\tcra\n\ta2a");
+		break;
+	case 3:
+		puts("\tld1\n\ta2a");
+		break;
+	case 4:
+		puts("\tld1\n\tlgl 2");
+		break;
+	case 8:
+		puts("\tld1\n\tlgl 3");
+		break;
+	case 16:
+		puts("\tld1\n\tlgl 4");
+		break;
+	case 32:
+		puts("\tld1\n\tlgl 5");
+		break;
+	case 64:
+		puts("\tld1\n\tlgl 6");
+		break;
+	case 128:
+		puts("\tld1\n\tlgl 7");
+		break;
+	case 256:
+		puts("\tld1\n\tica");
+		break;
+	case 257:
+		puts("\tld1\n\tbtl");
+		break;
+	case 0xFFFE:
+		puts("\tld1\n\tcma");
+		break;
+	case 0xFFFF:
+		puts("\tcra\n\tcma");
+		break;
+	default:
+		/* This is ok for small stuff where we have enough pages only */
+		/* printf("\tlda =%u\n", n);*/
+		printf("\tjst @loadconst\n\t.const %u\n", n);
+	}
 }
 
-/* Load a word or dword via X */
+/* Load BA with a constant */
+void load_ba(unsigned long n)
+{
+	/* This is ok for small stuff where we have enough pages only */
+	/* printf("\tlda =%u\n", n);*/
+	printf("\tjst @loadconstl\n\t.const %u\n\t.const %u\n", WORD(n), WORD(n >> 16));
+}
+
+/* Load a byte, word or dword via X. Only some byte cases
+   are supported */
 void load_via_x(struct node *n, int off)
 {
 	unsigned s = get_size(n->type);
+	unsigned op = n->op;
+
+	if (s == 1) {
+		/* These are always word aligned bases */
+		if (op == T_LREF || op == T_NREF || op == T_LBREF) {
+			printf("\tlda @%d,1\n", off);
+			if (off & 1)
+				puts("\ticl");
+			return;
+		}
+		/* Arbitrary byte load via X is a no no */
+		error("lvx");
+	}
 	if (s == 4)
 		printf("\tlda @%d,1\n\tiab", off - 1);
 	printf("\tlda @%d,1\n", off);
@@ -271,6 +347,8 @@ void load_via_x(struct node *n, int off)
 void store_via_x(struct node *n, unsigned off)
 {
 	unsigned s = get_size(n->type);
+	if (s == 1)
+		error("stb");
 	printf("\tsta @%u,1\n", off);
 	/* TODO: when NR don't do final iab */
 	if (s == 4)
@@ -297,13 +375,21 @@ static unsigned xmatch(unsigned op, register struct node *n, unsigned *off)
 	return 1;
 }
 
-/* Try and generate the code for an operation. */
-/* TODO: teach range checks about long/float */
-/* Not valid for byte pointers */
+/* Try and generate the code for an operation to point X
+   at an object. In the case of a bytepointer we point X
+   at the object word and return a byte offset, otherwise
+   we point at the object and return the word offset. */
 static unsigned make_x_point(struct node *n, unsigned *off)
 {
 	unsigned v = n->value / 2;
+	unsigned s = get_size(n->type);
+	unsigned max = 255;
+
 	*off = 0;
+
+	/* As we need to access @n+1,1 for these */
+	if (s == 4)
+		max = 254;
 
 	switch(n->op) {
 	case T_LREF:
@@ -313,19 +399,23 @@ static unsigned make_x_point(struct node *n, unsigned *off)
 			return 0;
 		if (xstate == T_LOCAL) {
 			v += sp - xstate_sp;
-			if (v > 255)
+			if (v > max)
 				return 0;
 		} else {
 			puts("\tldx @sp");
 			xstate = T_LOCAL;
 			xstate_sp = sp;
 		}
-		*off = v;
+		/* Turn byte offsets back to the correct byte */
+		if (s == 1)
+			*off = v * 2+ (n->value & 1);
+		else
+			*off = v;
 		return 1;
 	case T_LBREF:
 	case T_LBSTORE:
 		if (!xmatch(T_LABEL, n, &v)) {
-			printf("\tldx =T%u+%u\n", n->val2, v);
+			printf("\tjst @loadx\n\t.addr T%u+%u\n", n->val2, v);
 			xstate = T_LABEL;
 			memcpy(&xnode, n, sizeof(struct node));
 		}
@@ -333,7 +423,7 @@ static unsigned make_x_point(struct node *n, unsigned *off)
 	case T_NREF:
 	case T_NSTORE:
 		if (!xmatch(T_NAME, n, &v)) {
-			printf("\tldx =_%s+%u\n", namestr(n->val2), v);
+			printf("\tjst @loadx\n\t.addr _%s+%u\n", namestr(n->snum), v);
 			xstate = T_NAME;
 			memcpy(&xnode, n, sizeof(struct node));
 		}
@@ -354,7 +444,7 @@ static unsigned can_make_x(struct node *n)
 
 	switch(n->op) {
 	case T_ARGUMENT:
-		v += frame_len;
+		v += frame_len + argbase;
 	case T_LOCAL:
 		v += sp;
 		if (v > s)		/* Out of range */
@@ -383,7 +473,7 @@ static unsigned make_x(struct node *n, unsigned *off)
 
 	switch(n->op) {
 	case T_ARGUMENT:
-		v += frame_len;
+		v += frame_len + argbase;
 	case T_LOCAL:
 		v += sp;
 		if (v > s)		/* Out of range */
@@ -401,14 +491,14 @@ static unsigned make_x(struct node *n, unsigned *off)
 		return 1;
 	case T_LABEL:
 		if (!xmatch(T_LABEL, n, &v)) {
-			printf("\tldx =T%u+%u\n", n->val2, v);
+			printf("\tjst @loadx\n\t.addr T%u+%u\n", n->val2, v);
 			xstate = T_LABEL;
 			memcpy(&xnode, n, sizeof(struct node));
 		}
 		return 1;
 	case T_NAME:
 		if (!xmatch(T_NAME, n, &v)) {
-			printf("\tldx =_%s+%u\n", namestr(n->val2), v);
+			printf("\tjst @loadx\n\t.addr _%s+%u\n", namestr(n->snum), v);
 			xstate = T_NAME;
 			memcpy(&xnode, n, sizeof(struct node));
 		}
@@ -445,6 +535,8 @@ static void pop_a(void)
 /* TODO: byte pointers */
 static unsigned can_make_a(struct node *n)
 {
+	if (get_size(n->type) == 1)
+		return 0;
 	/* Things we can get into A without using X */
 	switch(n->op) {
 	case T_CONSTANT:
@@ -460,12 +552,14 @@ static unsigned can_make_a(struct node *n)
 	return 0;
 }
 
-/* TODO: byte pointers */
+/* Must not harm @tmp */
 static unsigned make_a(struct node *n)
 {
 	unsigned s = get_size(n->type);
 	unsigned v = n->value / 2;
 
+	if (s == 1)
+		error("ma bp");
 	switch(n->op) {
 	case T_CONSTANT:
 		if (s == 4) {
@@ -475,26 +569,86 @@ static unsigned make_a(struct node *n)
 		load_a(n->value);
 		return 1;
 	case T_ARGUMENT:
-		v += frame_len;
+		v += frame_len + argbase;
 	case T_LOCAL:
 		v += sp;
 		load_a(v);
 		puts("\tadd @sp");
 		return 1;
 	case T_LABEL:
-		printf("\tlda =T%u+%u\n", n->val2, v);
+		printf("\tjst @loadconst\n\t.addr T%u+%u\n", n->val2, v);
 		return 1;
 	case T_NAME:
-		printf("\tlda =_%s+%u\n", namestr(n->val2), v);
+		printf("\tjst @loadconst\n\t.addr _%s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_LBREF:
-		printf("\tlda T%u+%u\n", n->val2, v);
+		printf("\tjst @loadconst\n\t.indirect T%u+%u\n", n->val2, v);
 		return 1;
 	case T_NREF:
-		printf("\tlda _%s+%u\n", namestr(n->val2), v);
+		printf("\tjst @loadconst\n\t.indirect _%s+%u\n", namestr(n->snum), v);
 		return 1;
 	}
 	return 0;
+}
+
+/* Make a point to something. If we are working on bytes generate a
+   byte pointer */
+static unsigned make_a_bp(struct node *n)
+{
+	unsigned v = n->value;
+	unsigned s = get_size(n->type);
+
+	switch(n->op) {
+	case T_LREF:
+	case T_LSTORE:
+		if (s > 1)
+			v /= 2;
+		v += sp;
+		load_a(v);
+		puts("\tadd @sp");
+		if (s == 1)	/* add sp twice as it's in words and
+				   we are in bytes */
+			puts("\tadd @sp");
+		return 1;
+	case T_LBREF:
+	case T_LBSTORE:
+		puts("\tjst @loadconst");
+		if (s == 1)
+			printf("\t.byteptr T%u+%u\n", n->val2, v);
+		else
+			printf("\t.addr T%u+%u\n", n->val2, v / 2);
+		return 1;
+	case T_NREF:
+	case T_NSTORE:
+		puts("\tjst @loadconst");
+		if (s == 1)
+			printf("\t.byteptr _%s+%u\n", namestr(n->snum), v);
+		else
+			printf("\t.addr _%s+%u\n", namestr(n->snum), v);
+		return 1;
+	}
+	return 0;
+}
+
+static void irs_via_x(struct node *l, unsigned v)
+{
+	unsigned lv = l->value;
+	unsigned off;
+
+	/* Don't be clever with offsets or we may run out of zp */
+	if (l->op == T_NAME && !l->value) {
+		while(v--)
+			printf("\tirs _%s+%u\n\tnop\n", namestr(l->snum), lv);
+		return;
+	}
+	if (l->op == T_LABEL && !l->value) {
+		while(v--)
+			printf("\tirs T%u+%u\n\tnop\n", l->val2, lv);
+		return;
+	}
+	make_x(l, &off);
+	while(v--)
+		printf("\tirs %u,x\n\tnop\n", off);
 }
 
 /* Try and generate the code for an operation. TODO X tracking */
@@ -516,13 +670,13 @@ static unsigned op_direct(const char *op, struct node *n)
 		printf("\t%s =T%u+%u\n", op, n->val2, v / 2);
 		return 1;
 	case T_NAME:
-		printf("\t%s =_%s+%u\n", op, namestr(n->val2), v / 2);
+		printf("\t%s =_%s+%u\n", op, namestr(n->snum), v / 2);
 		return 1;
 	case T_LBREF:
 		printf("\t%s T%u+%u\n", op, n->val2, v / 2);
 		return 1;
 	case T_NREF:
-		printf("\t%s _%s+%u\n", op, namestr(n->val2), v / 2);
+		printf("\t%s _%s+%u\n", op, namestr(n->snum), v / 2);
 		return 1;
 	}
 	if (make_x_point(n, &off)) {
@@ -574,11 +728,24 @@ void boolc(struct node *n)
 	n->flags |= ISBOOL;
 }
 
+void boolzc(struct node *n)
+{
+	puts("\tsnz\tscb\n\tcra\n\taca");
+	n->flags |= ISBOOL;
+}
+
 void boolnc(struct node *n)
 {
 	puts("\tcra\n\tssc\n\tld1");
 	n->flags |= ISBOOL;
 }
+
+void boolznc(struct node *n)
+{
+	puts("\tsnz\n\trcb\nssc\ncra\n\taca");
+	n->flags |= ISBOOL;
+}
+
 
 /* Subtract 16bit const */
 void subconst(unsigned v)
@@ -617,9 +784,12 @@ void gen_frame(unsigned size, unsigned aframe)
 {
 	size = (size + 1) / 2;
 	frame_len = size;
+	argbase = ARGBASE;
 	sp = 0;
-	if (size)
-		printf("\tlda @sp\n\tsub =%u\n\tsta @sp\n", size);
+	if (size) {
+		load_a(-size);
+		puts("\tadd @sp\n\tsta @sp");
+	}
 }
 
 void gen_epilogue(unsigned size, unsigned argsize)
@@ -666,17 +836,21 @@ void gen_jtrue(const char *tail, unsigned n)
 
 void gen_switch(unsigned n, unsigned type)
 {
-	gen_helpcall(NULL);
-	printf("switch");
-	helper_type(type, 0);
-	printf("\n\t.word Sw%d\n", n);
+	/* Byte switch data is in the upper half of the word. Flip the byte
+	   clear the rest and use the int helper */
+	if (type == CCHAR || type == UCHAR)
+		puts("\ticr");
+	puts("\tjst @switch");
+	if (type == CLONG || type == ULONG)
+		putchar('l');
+	printf("\n\t.addr Sw%d\n", n);
 	unreachable = 1;
 }
 
 void gen_switchdata(unsigned n, unsigned size)
 {
 	printf("Sw%d:\n", n);
-	printf("\t.word %d\n", size);
+	printf("\t.const %d\n", size);
 }
 
 void gen_case(unsigned tag, unsigned entry)
@@ -693,14 +867,14 @@ void gen_case_label(unsigned tag, unsigned entry)
 
 void gen_case_data(unsigned tag, unsigned entry)
 {
-	printf("\t.word Sw%d_%d\n", tag, entry);
+	printf("\t.addr Sw%d_%d\n", tag, entry);
 }
 
 /* We will need to distinguish fast helpers via @zp and slow
    helpers */
 void gen_helpcall(struct node *n)
 {
-	printf("\tjst *@pcall\n\t.word ");
+	printf("\tjst *@pcall\n\t.addr ");
 }
 
 void gen_helptail(struct node *n)
@@ -727,7 +901,7 @@ void gen_text_data(struct node *n)
 	if (is_bytepointer(n->type))
 		printf("\t.byteptr T%d\n", n->val2);
 	else
-		printf("\t.word T%d\n", n->val2);
+		printf("\t.addr T%d\n", n->val2);
 }
 
 void gen_literal(unsigned n)
@@ -741,7 +915,7 @@ void gen_name(struct node *n)
 	if (is_bytepointer(n->type))
 		printf("\t.byteptr _%s+%d\n", namestr(n->snum), WORD(n->value));
 	else
-		printf("\t.word _%s+%d\n", namestr(n->snum), WORD(n->value));
+		printf("\t.addr _%s+%d\n", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
@@ -751,7 +925,7 @@ void gen_value(unsigned type, unsigned long value)
 		if (is_bytepointer(type))
 			printf("\t.byteptr %u\n", v);
 		else
-			printf("\t.word %u\n", v);
+			printf("\t.const %u\n", v);
 		return;
 	}
 	switch (type) {
@@ -761,14 +935,14 @@ void gen_value(unsigned type, unsigned long value)
 		break;
 	case CSHORT:
 	case USHORT:
-		printf("\t.word %d\n", v & 0xFFFF);
+		printf("\t.const %d\n", v & 0xFFFF);
 		break;
 	case CLONG:
 	case ULONG:
 	case FLOAT:
 		/* We are little endian */
-		printf("\t.word %d\n", v);
-		printf("\t.word %d\n", (unsigned) ((value >> 16) & 0xFFFF));
+		printf("\t.const %d\n", v);
+		printf("\t.const %d\n", (unsigned) ((value >> 16) & 0xFFFF));
 		break;
 	default:
 		error("unsuported type");
@@ -783,7 +957,7 @@ void gen_wvalue(unsigned type, unsigned long value)
 		if (is_bytepointer(type))
 			printf("\t.byteptr %u\n", v);
 		else
-			printf("\t.word %u\n", v);
+			printf("\t.const %u\n", v);
 		return;
 	}
 	switch (type) {
@@ -792,14 +966,14 @@ void gen_wvalue(unsigned type, unsigned long value)
 	case UCHAR:
 	case CSHORT:
 	case USHORT:
-		printf("\t.word %u\n", v);
+		printf("\t.const %u\n", v);
 		break;
 	case CLONG:
 	case ULONG:
 	case FLOAT:
-		/* We are big endian - software choice */
-		printf("\t.word %u\n", (unsigned) ((value >> 16) & 0xFFFF));
-		printf("\t.word %u\n", v);
+		/* We are little endian */
+		printf("\t.const %u\n", v);
+		printf("\t.const %u\n", (unsigned) ((value >> 16) & 0xFFFF));
 		break;
 	default:
 		error("unsuported type");
@@ -816,7 +990,7 @@ static void node_word(struct node *n)
 	if (is_bytepointer(n->type))
 		printf("\t.byteptr ");
 	else
-		printf("\t.word ");
+		printf("\t.addr ");
 	if (n->op == T_NAME)
 		printf("_%s+%u\n", namestr(n->snum), v);
 	else if (n->op == T_LABEL)
@@ -832,6 +1006,7 @@ static unsigned gen_cast(struct node *n)
 	unsigned ls = get_size(lt);
 
 	if (PTR(lt) && PTR(rt)) {
+		printf(";%x %x  bp % bp %u\n", lt, rt, is_bytepointer(lt), is_bytepointer(rt));
 		if (is_bytepointer(lt) && !is_bytepointer(rt)) {
 			puts("\tlgl 1");
 			return 1;
@@ -943,6 +1118,15 @@ static unsigned gen_eqshortcut(struct node *n, const char *op, unsigned flip)
 	printf("\t%s @%u,1\n", op, off);	/* Do the operation */
 	store_via_x(n, off);
 	return 1;
+}
+
+static void gen_castmp(unsigned n)
+{
+	puts("\tsta @tmp");
+	pop_a();
+	/* Ensure the needed number of words are in the same page */
+	/* The assembler/linker should eventually sort this out for us */
+	printf("\t.need %u\n\tcas @tmp\n", n + 1);
 }
 
 void gen_start(void)
@@ -1271,6 +1455,7 @@ unsigned gen_shortcut(struct node *n)
 	/* assignment we try and re-arrange as our stack costs are so high */
 	case T_EQ:
 		/* If the pointer side is simple then get the value and store it */
+		/* TODO: pick the right of *@tmp and via X */
 		if (can_make_x(l)) {
 			codegen_lr(r);
 			make_x(l, &off);
@@ -1279,6 +1464,13 @@ unsigned gen_shortcut(struct node *n)
 		}
 		if (can_make_a(r)) {
 			codegen_lr(l);
+			/* Optimise the case where we do a word
+			   store without offsets */
+			if (s == 2) {
+				make_a(r);
+				puts("\tsta *@tmp");
+				return 1;
+			}
 			make_x_a();
 			make_a(r);
 			store_via_x(n, 0);
@@ -1292,6 +1484,18 @@ unsigned gen_shortcut(struct node *n)
 			load_via_x(n, off);
 			return 1;
 		}
+		/* Look for indirecting options */
+		if (s == 2) {
+			/* For now don't do offset ones */
+			if (r->op == T_LBREF && v == 0) {
+				printf("\tlda *T%u+%u\n", r->val2, v);
+				return 1;
+			}
+			if (r->op == T_NREF && v == 0) {
+				printf("\tlda *_%s+%u\n", namestr(r->snum), v);
+				return 1;
+			}
+		}
 		return 0;
 	case T_MINUSMINUS:
 		if (s != 2 || !can_make_x(l))
@@ -1303,9 +1507,9 @@ unsigned gen_shortcut(struct node *n)
 		make_x(l, &off);
 		/* X is now the pointer */
 		if (!nr)
-			printf("\tima %u,1\n\tsta @tmp\n", off);
-		printf("\tadd %u,1\n", off);
-		printf("\tsta %u,1\n", off);
+			printf("\tima @%u,1\n\tsta @tmp\n", off);
+		printf("\tadd @%u,1\n", off);
+		printf("\tsta @%u,1\n", off);
 		if (!nr)
 			puts("\tlda @tmp");
 		return 1;
@@ -1314,9 +1518,7 @@ unsigned gen_shortcut(struct node *n)
 			return 0;
 		/* We can make X our working value without mashing A */
 		if (nr && r->op == T_CONSTANT && v <= 4) {
-			make_x(l, &off);
-			while(v--)
-				printf("\tirs %u,x\n\tnop\n", off);
+			irs_via_x(l, v);
 			return 1;
 		}
 		codegen_lr(r);
@@ -1324,9 +1526,9 @@ unsigned gen_shortcut(struct node *n)
 		make_x(l, &off);
 		/* X is now the pointer */
 		if (!nr)
-			printf("\tima %u,1\n\tsta @tmp\n", off);
-		printf("\tadd %u,1\n", off);
-		printf("\tsta %u,1\n", off);
+			printf("\tima @%u,1\n\tsta @tmp\n", off);
+		printf("\tadd @%u,1\n", off);
+		printf("\tsta @%u,1\n", off);
 		if (!nr)
 			puts("\tlda @tmp");
 		return 1;
@@ -1339,25 +1541,23 @@ unsigned gen_shortcut(struct node *n)
 		/* A is now the value */
 		make_x(l, &off);
 		/* X is now the pointer */
-		printf("\tadd %u,1\n", off);
-		printf("\tsta %u,1\n", off);
+		printf("\tadd @%u,1\n", off);
+		printf("\tsta @%u,1\n", off);
 		return 1;
 	case T_PLUSEQ:
 		if (s != 2 || !can_make_x(l))
 			return 0;
 		/* We can make X our working value without mashing A */
 		if (nr && r->op == T_CONSTANT && v <= 4) {
-			make_x(l, &off);
-			while(v--)
-				printf("\tirs %u,x\n\tnop\n", off);
+			irs_via_x(l, v);
 			return 1;
 		}
 		codegen_lr(r);
 		/* A is now the value */
 		make_x(l, &off);
 		/* X is now the pointer */
-		printf("\tadd %u,1\n", off);
-		printf("\tsta %u,1\n", off);
+		printf("\tadd @%u,1\n", off);
+		printf("\tsta @%u,1\n", off);
 		return 1;
 	case T_STAREQ:
 		if (n->type & UNSIGNED)
@@ -1383,7 +1583,7 @@ unsigned gen_node(struct node *n)
 		sp -= get_stack_size(n->left->type) / 2;
 	switch(n->op) {
 	case T_CALLNAME:
-		printf("\tjst @pcall\n\t.word _%s+%u\n", namestr(n->snum), v);
+		printf("\tjst @pcall\n\t.addr _%s+%u\n", namestr(n->snum), v);
 		return 1;
 	/* TODO: T_FUNCCALL */
 	case T_CAST:
@@ -1394,19 +1594,69 @@ unsigned gen_node(struct node *n)
 	case T_NAME:
 		make_a(n);
 		return 1;
-	case T_LREF:
 	case T_NREF:
+		/* Only do this without offsets for now to try and keep the number
+		   of zero page indirections down. If we can teach the tool chain to
+		   pack pages itself then we can relax a lot of these hacks */
+		if (s == 2 && v == 0) {
+			printf("\tlda _%s+%u\n", namestr(n->snum), v);
+			return 1;
+		}
+		if (make_x_point(n, &off)) {
+			load_via_x(n, off);
+			return 1;
+		}
+		make_a_bp(n);
+		helper(n, "nref");
+		return 1;
 	case T_LBREF:
-		/* TODO: track X use and suppress reloads */
-		/* TODO: how to handle out of page range loads */
-		make_x_point(n, &off);
-		load_via_x(n, off);
+		if (s == 2 && v == 0) {
+			printf("\tlda T%u+%u\n", n->val2, v);
+			return 1;
+		}
+		if (make_x_point(n, &off)) {
+			load_via_x(n, off);
+			return 1;
+		}
+		make_a_bp(n);
+		helper(n, "lbref");
+		return 1;
+	case T_LREF:
+		if (make_x_point(n, &off)) {
+			load_via_x(n, off);
+			return 1;
+		}
+		make_a_bp(n);
+		helper(n, "lref");
 		return 1;
 	case T_LSTORE:
+		if (make_x_point(n, &off)) {
+			store_via_x(n, off);
+			return 1;
+		}
+		puts("\tsta @tmp");
+		make_a_bp(n);
+		helper(n, "lstore");
+		return 1;
 	case T_NSTORE:
+		if (make_x_point(n, &off)) {
+			store_via_x(n, off);
+			return 1;
+		}
+		/* TODO: bytepointer stuff needd - make_a_byte ? */
+		puts("\tsta @tmp");
+		make_a_bp(n);
+		helper(n, "nstore");
+		return 1;
 	case T_LBSTORE:
-		make_x_point(n, &off);
-		store_via_x(n, off);
+		if (s != 1 && make_x_point(n, &off)) {
+			store_via_x(n, off);
+			return 1;
+		}
+		/* TODO: bytepointer stuff needd - make_a_byte ? */
+		puts("\tsta @tmp");
+		make_a_bp(n);
+		helper(n, "lbstore");
 		return 1;
 	case T_EQ:
 		pop_x();
@@ -1420,6 +1670,11 @@ unsigned gen_node(struct node *n)
 		}
 		if (s == 2) {
 			puts("\tsta @tmp\n\tlda *@tmp");
+			return 1;
+		}
+		/* We can do byte reads quite nicely - writes not so much */
+		if (s == 1 && !optsize) {
+			puts("\tlgr 1\n\tsta @tmp\n\tlda *@tmp\n\tssc\n\ticl");
 			return 1;
 		}
 		break;
@@ -1477,6 +1732,79 @@ unsigned gen_node(struct node *n)
 		return gen_shift(n, "lgl", "lgl", "lll", "lll");
 	case T_GTGT:
 		return gen_shift(n, "ars", "lgr", "lrl", NULL);
+	/* Comparisons */
+	case T_GT:
+		if (s == 2) {
+			if (n->type & UNSIGNED) {
+				puts("\tsta @tmp");
+				pop_a();
+				/* A > @tmp */
+				puts("\tsub @tmp");
+				boolznc(n);
+				return 1;
+			} else {
+				/* does a CAS A @tmp - so backwards */
+				gen_castmp(5);
+				++label;
+				printf("\tnop\n\tjmp X%u\n\tcra\n\tskip\nX%u:\tld1\n", label, label);
+				return 1;
+			}
+		}
+		break;
+	case T_GTEQ:
+		if (s == 2) {
+			if (n->type & UNSIGNED) {
+				puts("\tsta @tmp");
+				pop_a();
+				/* A >= @tmp */
+				puts("\tsub @tmp");
+				boolnc(n);
+				return 1;
+			} else {
+				/* does a CAS A @tmp - so backwards */
+				gen_castmp(5);
+				++label;
+				printf("tjmp X%u\n\tnop\n\tcra\n\tskip\nX%u:\tld1\n", label, label);
+				return 1;
+			}
+		}
+		break;
+	case T_LT:
+		if (s == 2) {
+			if (n->type & UNSIGNED) {
+				puts("\tsta @tmp");
+				pop_a();
+				/* A < @tmp */
+				puts("\tsub @tmp");
+				boolc(n);
+				return 1;
+			} else {
+				/* does a CAS A @tmp - so backwards */
+				gen_castmp(5);
+				++label;
+				printf("tjmp X%u\n\tnop\n\tld1\n\tskip\nX%u:\tcra\n", label, label);
+				return 1;
+			}
+		}
+		break;
+	case T_LTEQ:
+		if (s == 2) {
+			if (n->type & UNSIGNED) {
+				puts("\tsta @tmp");
+				pop_a();
+				puts("\tsub @tmp");
+				/* A <= @tmp */
+				boolzc(n);
+				return 1;
+			} else {
+				/* does a CAS A @tmp - so backwards */
+				gen_castmp(5);
+				++label;
+				printf("\tnop\n\tjmp X%u\n\tld1\n\tskip\nX%u:\tcra\n", label, label);
+				return 1;
+			}
+		}
+		break;
 	/* We do the eq ops as a load/op/store pattern in general */
 	case T_PLUSEQ:
 		return gen_eqop(n, "add", 0);
