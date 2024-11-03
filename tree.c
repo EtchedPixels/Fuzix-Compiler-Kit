@@ -173,7 +173,7 @@ unsigned is_constname(register struct node *n)
 		return 1;
 	/* A label is also fixed by the linker so constant, thus we can fix
 	   up stuff like "hello" + 3 */
-	if (n->op == T_LABEL)
+	if (n->op == T_LABEL && (n->flags & LVAL))
 		return 1;
 	return is_constant(n);
 }
