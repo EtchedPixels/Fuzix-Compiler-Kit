@@ -1050,6 +1050,8 @@ static unsigned gen_cast(struct node *n)
 	   code work properly out of the box */
 	if (PTR(rt) && !PTR(lt) && !is_bytepointer(rt))
 		puts("\tlgl 1");
+	if (!PTR(rt) && PTR(lt) && !is_bytepointer(rt))
+		puts("\tlgr 1");
 
 	/* From this point on treat pointers as USHORT */
 	if (PTR(lt))
