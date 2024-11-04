@@ -34,6 +34,7 @@
 
 #define NMOS_6502	0
 #define CMOS_6502	1
+#define CMOS_65C816	2		/* 65802/816 in 8bit mode */
 
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
@@ -191,8 +192,9 @@ static void load_x(uint8_t n)
 			return;
 		}
 	}
-	/* TODO: tyx for later CPU ? */
-	if (reg[R_A].state == T_CONSTANT && reg[R_A].value == n)
+	if (cpu == CMOS_65C816 && reg[R_Y].state == T_CONSTANT && reg[R_Y].value == n)
+		output("tyx");
+	else if (reg[R_A].state == T_CONSTANT && reg[R_A].value == n)
 		output("tax");
 	else
 		output("ldx #%u", n);
@@ -218,8 +220,9 @@ static void load_y(uint8_t n)
 			return;
 		}
 	}
-	/* TODO: tyx for later CPU ? */
-	if (reg[R_A].state == T_CONSTANT && reg[R_A].value == n)
+	if (cpu == CMOS_65C816 && reg[R_X].state == T_CONSTANT && reg[R_X].value == n)
+		output("txy");
+	else if (reg[R_A].state == T_CONSTANT && reg[R_A].value == n)
 		output("tay");
 	else
 		output("ldy #%u", n);
@@ -272,12 +275,10 @@ static void set_xa_node(struct node *n)
 	return;
 }
 
-/* Can't deal with NREF until we propagate volatile info better */
-
 static unsigned xa_contains(struct node *n)
 {
 	printf(";xa contains? %x %ld\n", n->op, n->value);
-	if (n->op == T_NREF)	/* TODO: volatiles */
+	if (n->op == T_NREF && (n->flags & SIDEEFFECT))		/* Volatiles */
 		return 0;
 	if (reg[R_A].state != n->op || reg[R_X].state != n->op)
 		return 0;
@@ -408,12 +409,31 @@ static void repeated_op(unsigned n, const char *o)
 		output(o);
 }
 
+/* At some point instead pass flags into the helpers */
+static unsigned direct_za(const char *op)
+{
+	if (cpu == NMOS_6502)
+		return 0;
+	return 1;
+}
+
+static unsigned direct_z(const char *op)
+{
+	if (cpu == NMOS_6502)
+		return 0;
+	if (op[2] == 'x' || op[2] == 'y')
+		return 0;
+	return 1;
+}
+
+
 /* Construct a direct operation if possible for the primary op */
 static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n))
 {
 	struct node *r = n->right;
-	unsigned v = n->value; 
+	unsigned v = n->value;
 	const char *name;
+
 	switch(n->op) {
 	case T_LABEL:
 		pre(n);
@@ -453,9 +473,14 @@ static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n)
 	case T_LSTORE:
 		/* 255 is a fringe case we can do for 8bit but not split
 		   8 and 16, so for now just skip it */
-		if (r->value < 254) {
+		if (v == 0 && direct_z(op)) {
 			pre(n);
-			load_y(r->value);
+			output("%s (@sp)", op);
+			return 1;
+		}
+		if (v < 254) {
+			pre(n);
+			load_y(v);
 			output("%s (@sp),y", op);
 			return 1;
 		}
@@ -475,7 +500,7 @@ static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n)
 	/* If we add registers
 	case T_RREF:
 		output("%s __reg%d", op, r->val2);
-		return 1;*/ 
+		return 1;*/
 	}
 	return 0;
 }
@@ -547,7 +572,7 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 	/* If we add registers
 	case T_RREF:
 		output("%s __reg%d+1", op, r->val2);
-		return 1;*/ 
+		return 1;*/
 	}
 	return 0;
 }
@@ -596,13 +621,17 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 		return 1;
 	case T_LSTORE:
 	case T_LREF:
-		if (r->value < 255) {
+		if (v < 255) {
 			pre(n);
-			load_y(r->value + 1);
+			load_y(v + 1);
 			output("%sa (@sp),y", op);
 			output("tax");
-			load_y(r->value);
-			output("%sa (@sp),y", op);
+			if (v == 0 && direct_za(op))
+				output("%sa (@sp)", op);
+			else {
+				load_y(v);
+				output("%sa (@sp),y", op);
+			}
 			return 1;
 		}
 		/* For now punt */
@@ -625,7 +654,7 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 		pre(n);
 		output("%sa __reg%dd", op, r->val2);
 		output("%sx __reg%d + 1", op,  r->val2);
-		return 1;*/ 
+		return 1;*/
 	}
 	return 0;
 }
@@ -643,6 +672,11 @@ static void pre_store16(struct node *n)
 {
 	output("sta @tmp");
 	output("stx @tmp+1");
+}
+
+static void pre_pha(struct node *n)
+{
+	output("pha");
 }
 
 static int pri8(struct node *n, const char *op)
@@ -702,7 +736,6 @@ static int pri_cchelp(register struct node *n, unsigned s, char *helper)
 			return pri8_help(n, helper);
 	}
 	return pri_help(n, helper);
-	
 }
 
 static void pre_clc(struct node *n)
@@ -725,11 +758,10 @@ static void pre_stash(struct node *n)
  *	inc and dec are complicated but worth some effort as they
  *	are so commonly used for small constants. We could o with
  *	spotting and folding some stuff like *x++ perhaps to get a
- *	bit better codegen. 
+ *	bit better codegen.
  */
 
 /* Try to write inline inc and dec for simple forms */
-/* TODO: sort out flag tests for dec */
 static int leftop_memc(struct node *n, const char *op)
 {
 	struct node *l = n->left;
@@ -801,15 +833,16 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 	if (optsize)  {
 		struct node *r = n->right;
 		unsigned rop = r->op;
+		unsigned v = r->value;
 		if (rop == T_LREF) {
-			if (r->value == 0) { 
+			if (r->value == 0) {
 				output("jsr __%ssp0", op);
 				set_reg(R_Y, 1);
 				invalidate_x();
 				invalidate_a();
 				return 1;
-			} else if (r->value < 255) {
-				output("ldy #%d", r->value);
+			} else if (v < 255) {
+				output("ldy #%d", v);
 				output("jsr __%spy", op);
 				const_y_set(reg[R_Y].value + 1);
 				invalidate_x();
@@ -817,8 +850,8 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 				return 1;
 			}
 		}
-		if (rop == T_CONSTANT && r->value < 256) {
-			load_y(r->value);
+		if (rop == T_CONSTANT && v < 256) {
+			load_y(v);
 			output("jsr __%s8y", op);
 			invalidate_x();
 			invalidate_a();
@@ -826,7 +859,6 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 		}
 	}
 	/* Name and lbref are progably not worth it as have to go via tmp */
-		
 	if (do_pri8(n, op, pre) == 0)
 		return 0;
 	output("pha");
@@ -1023,6 +1055,7 @@ void gen_segment(unsigned s)
 void gen_prologue(const char *name)
 {
 	printf("_%s:\n", name);
+	unreachable = 0;
 	invalidate_regs();
 }
 
@@ -1037,13 +1070,14 @@ void gen_frame(unsigned size, unsigned aframe)
 	/* Maybe shortcut some common values ? */
 
 	if (size < 256) {
-		load_a(size);
-		gen_internal("enter8");
+		load_y(size);
+		output("jsr __subysp");
 		return;
 	}
+	size = -size;
 	load_a(size & 0xFF);
 	load_y(size >> 8);
-	gen_internal("enter16");
+	output("jsr __subyasp");
 }
 
 void gen_epilogue(unsigned size, unsigned argsize)
@@ -1282,6 +1316,9 @@ unsigned gen_direct(struct node *n)
 /*	unsigned nr = n->flags & NORETURN; */
 	unsigned v;
 
+	if (r)
+		v = r->value;
+
 	switch(n->op) {
 	/* Clean up is special and must be handled directly. It also has the
 	   type of the function return so don't use that for the cleanup value
@@ -1291,9 +1328,9 @@ unsigned gen_direct(struct node *n)
 			/* Only clean up vararg. stdarg is cleaned up by
 			   the called function */
 			gen_internal("cleanup");
-			gen_value(UINT, n->right->value);
+			gen_value(UINT, r->value);
 		}
-		sp -= n->right->value;
+		sp -= v;
 		return 1;
 	case T_EQ:	/* address in XA, can we build right ? */
 		/* We already rewrite simple left hand sides into LSTORE
@@ -1310,14 +1347,22 @@ unsigned gen_direct(struct node *n)
 				output("sta (@tmp)");
 				return 1;
 			}
-			load_y(0);
-			output("sta (@tmp),y");
+			if (cpu != NMOS_6502)
+				output("sta (@tmp)");
+			else {
+				load_y(0);
+				output("sta (@tmp),y");
+			}
 			return 1;
 		} else if (s == 2 && do_pri16(n, "ld", pre_stash)) {
 			invalidate_x();
 			invalidate_a();
-			load_y(0);
-			output("sta (@tmp),y");
+			if (cpu != NMOS_6502)
+				output("sta (@tmp)");
+			else {
+				load_y(0);
+				output("sta (@tmp),y");
+			}
 			load_y(1);
 			output("stx (@tmp),y");
 			return 1;
@@ -1331,16 +1376,16 @@ unsigned gen_direct(struct node *n)
 			return 0;
 		if (r->op == T_CONSTANT) {
 			if (s == 2) {
-				if ((r->value & 0xFF00) == 0x0000)
+				if ((v & 0xFF00) == 0x0000)
 					load_x(0);
-				else if ((r->value & 0xFF00) != 0xFF00)
+				else if ((v & 0xFF00) != 0xFF00)
 					return 0;
 			}
-			if ((r->value & 0xFF) == 0x00)
+			if ((v & 0xFF) == 0x00)
 				load_a(0);
-			else if ((r->value & 0xFF) != 0xFF) {
-				output("and #%d", ((unsigned)r->value) & 0xFF);
-				const_a_set(reg[R_A].value & r->value);
+			else if ((v & 0xFF) != 0xFF) {
+				output("and #%d", v & 0xFF);
+				const_a_set(reg[R_A].value & v);
 			}
 			return 1;
 		}
@@ -1354,16 +1399,16 @@ unsigned gen_direct(struct node *n)
 			return 0;
 		if (r->op == T_CONSTANT) {
 			if (s == 2) {
-				if ((r->value & 0xFF00) == 0xFF00)
+				if ((v & 0xFF00) == 0xFF00)
 					load_x(0xFF);
-				else if ((r->value & 0xFF00) != 0x0000)
+				else if ((v & 0xFF00) != 0x0000)
 					return 0;
 			}
-			if ((r->value & 0xFF) == 0xFF)
+			if ((v & 0xFF) == 0xFF)
 				load_a(0xFF);
-			else if ((r->value & 0xFF) != 0x00) { 
-				output("ora #%d", ((unsigned)r->value) & 0xFF);
-				const_a_set(reg[R_A].value | r->value);
+			else if ((v & 0xFF) != 0x00) {
+				output("ora #%d", v & 0xFF);
+				const_a_set(reg[R_A].value | v);
 			}
 			return 1;
 		}
@@ -1377,10 +1422,10 @@ unsigned gen_direct(struct node *n)
 			return 0;
 		if (r->op == T_CONSTANT) {
 			if (s == 2) {
-				if ((r->value & 0xFF00) != 0x0000)
+				if ((v & 0xFF00) != 0x0000)
 					return 0;
 			}
-			if ((r->value & 0xFF) != 0x00) {
+			if ((v & 0xFF) != 0x00) {
 				output("eor #%d", ((unsigned)r->value) & 0xFF);
 				const_a_set(reg[R_A].value ^ r->value);
 			}
@@ -1394,6 +1439,16 @@ unsigned gen_direct(struct node *n)
 	case T_PLUS:
 		if (s > 2)
 			return 0;
+		if (cpu != NMOS_6502 && s == 1 && r->op == T_CONSTANT && v == 1) {
+			output("inc a");
+			const_a_set(reg[R_A].value + 1);
+			return 1;
+		}
+		if (cpu != NMOS_6502 && s == 1 && r->op == T_CONSTANT && v == 0xFFFF) {
+			output("dec a");
+			const_a_set(reg[R_A].value - 1);
+			return 1;
+		}
 		if (s == 1 && do_pri8(n, "adc", pre_clc)) {
 			if (r->op == T_CONSTANT)
 				const_a_set(reg[R_A].value + r->value);
@@ -1404,11 +1459,11 @@ unsigned gen_direct(struct node *n)
 		if (s == 2 && r->op == T_CONSTANT) {
 			if (r->value <= 0xFF) {
 				output("clc");
-				output("adc #%d", (unsigned)(r->value & 0xFF));
+				output("adc #%d",v & 0xFF);
 				output("bcc X%d", ++xlabel);
 				output("inx");
 				label("X%d", xlabel);
-				const_a_set(reg[R_X].value + (r->value & 0xFF));
+				const_a_set(reg[R_A].value + (v & 0xFF));
 				/* TODO: set up X properly if known */
 				invalidate_x();
 				return 1;
@@ -1431,6 +1486,16 @@ unsigned gen_direct(struct node *n)
 	case T_MINUS:
 		if (s > 2)
 			return 0;
+		if (cpu != NMOS_6502 && s == 1 && r->op == T_CONSTANT && v == 1) {
+			output("dec a");
+			const_a_set(reg[R_A].value - 1);
+			return 1;
+		}
+		if (cpu != NMOS_6502 && s == 1 && r->op == T_CONSTANT && v == 0xFFFF) {
+			output("inc a");
+			const_a_set(reg[R_A].value + 1);
+			return 1;
+		}
 		if (s == 1 && do_pri8(n, "sbc", pre_sec)) {
 			if (r->op == T_CONSTANT)
 				const_a_set(reg[R_A].value - r->value);
@@ -1441,22 +1506,24 @@ unsigned gen_direct(struct node *n)
 		if (s == 2 && r->op == T_CONSTANT) {
 			if (r->value <= 0xFF) {
 				output("sec");
-				output("sbc #%d", (unsigned)(r->value & 0xFF));
+				output("sbc #%d", v & 0xFF);
 				output("bcs X%d", ++xlabel);
 				output("dex");
 				label("X%d", xlabel);
-				const_a_set(reg[R_A].value - (r->value & 0xFF));
-				/* TODO: we shguld probably set this up */
+				const_a_set(reg[R_A].value - (v & 0xFF));
+				/* TODO: we should probably set this up */
 				invalidate_x();
 				return 1;
 			}
 			if (r->value == 256) {
 				output("dex");
+				const_x_set(reg[R_X].value - 1);
 				return 1;
 			}
 			if (r->value == 512) {
 				output("dex");
 				output("dex");
+				const_x_set(reg[R_X].value - 2);
 				return 1;
 			}
 		}
@@ -1466,7 +1533,6 @@ unsigned gen_direct(struct node *n)
 	case T_STAR:
 		if (s > 2)
 			return 0;
-		v = r->value;
 		/* ? do we need to catch x 1 and x 0 - should always have been cleaned up but
 		   maybe not if byteop */
 		if (r->op == T_CONSTANT) {
@@ -1516,7 +1582,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return pri_help(n, "multmp");
 	case T_SLASH:
-		if (r->op == T_CONSTANT && r->value == 256 && (n->type & UNSIGNED)) {
+		if (r->op == T_CONSTANT && v == 256 && (n->type & UNSIGNED)) {
 			output("txa");
 			memcpy(&reg[R_A], &reg[R_X], sizeof(struct regtrack));
 			load_x(0);
@@ -1525,7 +1591,7 @@ unsigned gen_direct(struct node *n)
 		/* TODO - power of 2 const into >> */
 		return pri_help(n, "divtmp");
 	case T_PERCENT:
-		if (r->op == T_CONSTANT && r->value == 256 && (n->type & UNSIGNED)) {
+		if (r->op == T_CONSTANT && v == 256 && (n->type & UNSIGNED)) {
 			load_x(0);
 			return 1;
 		}
@@ -1536,7 +1602,7 @@ unsigned gen_direct(struct node *n)
 	 *	Need CCONLY to make this work really
 	 */
 	case T_EQEQ:
-		if (r->op == T_CONSTANT && r->value == 0) {
+		if (r->op == T_CONSTANT && v == 0) {
 			helper(n, "not");
 			return 1;
 		}
@@ -1550,32 +1616,32 @@ unsigned gen_direct(struct node *n)
 	case T_LT:
 		return pri_cchelp(n, s, "lttmp");
 	case T_BANGEQ:
-		if (r->op == T_CONSTANT && r->value == 0) {
+		if (r->op == T_CONSTANT && v == 0) {
 			helper(n, "bool");
 			return 1;
 		}
 		return pri_cchelp(n, s, "netmp");
 	/* TODO: qq optimisations for >= fieldwidth ? */
 	case T_LTLT:
-		if (s == 2 && r->op == T_CONSTANT && r->value == 8) {
+		if (s == 2 && r->op == T_CONSTANT && v == 8) {
 			output("tax");
 			load_a(0);
 			return 1;
 		}
 		/* Shifts: we can get 1 byte left shifts from the byteop convertor */
 		if (s == 1 && r->op == T_CONSTANT) {
-			v = r->value;
+			v = v;
 			if (v >= 8)
 				load_a(0);
 			else {
-				repeated_op(r->value, "lsla");
+				repeated_op(v, "lsla");
 				const_a_set(reg[R_A].value >> v);
 			}
 			return 1;
 		}
 		return pri_help(n, "lstmp");
 	case T_GTGT:
-		if (s == 2 && r->op == T_CONSTANT && r->value == 8) {
+		if (s == 2 && r->op == T_CONSTANT && v == 8) {
 			if (n->type & UNSIGNED) {
 				output("txa");
 				load_x(0);
@@ -1588,69 +1654,69 @@ unsigned gen_direct(struct node *n)
 	   addressible and fold them so we can generate inc _reg, bcc, inc _reg+1 etc */
 	/* TODO: look at push/pop for nr in leftop_tmp as option when need result - esp on C02 */
 	case T_PLUSPLUS:
-		if (r->op == T_CONSTANT) {
-			if (r->value == 1) {
+		if (s == 2 && r->op == T_CONSTANT) {
+			if (v == 1) {
 				gen_internal("plusplus1");
 				return 1;
 			}
-			if (r->value == 2) {
+			if (v == 2) {
 				gen_internal("plusplus2");
 				return 2;
 			}
-			if (r->value == 4) {
+			if (v == 4) {
 				gen_internal("plusplus4");
 				return 4;
 			}
 		}
 		return pri_help(n, "plusplustmp");
 	case T_MINUSMINUS:
-		if (r->op == T_CONSTANT) {
-			if (r->value == 1) {
+		if (s == 2 && r->op == T_CONSTANT) {
+			if (v == 1) {
 				gen_internal("minusminus1");
 				return 1;
 			}
-			if (r->value == 2) {
+			if (v == 2) {
 				gen_internal("minusminus2");
 				return 1;
 			}
-			if (r->value == 4) {
+			if (v == 4) {
 				gen_internal("minusminus4");
 				return 1;
 			}
 		}
 		return pri_help(n, "minusminustmp");
 	case T_PLUSEQ:
-		if (r->op == T_CONSTANT) {
-			if (r->value == 1) {
+		if (s == 2 && r->op == T_CONSTANT) {
+			if (v == 1) {
 				gen_internal("pluseq1");
 				return 1;
 			}
-			if (r->value == 2) {
+			if (v == 2) {
 				gen_internal("pluseq2");
 				return 1;
 			}
-			if (r->value == 4) {
+			if (v == 4) {
 				gen_internal("pluseq4");
 				return 1;
 			}
-			if (r->value < 256) {
-				load_y(r->value);
+			if (v < 256) {
+				load_y(v);
 				gen_internal("pluseqy");
 				return 1;
 			}
 		}
 		return pri_help(n, "pluseqtmp");
 	case T_MINUSEQ:
-		if (r->op == T_CONSTANT) {
-			if (r->value == 1) {
+		if (s == 2 && r->op == T_CONSTANT) {
+			if (v == 1) {
 				gen_internal("minuseq1");
 				return 1;
 			}
-			if (r->value == 2) {
+			if (v == 2) {
 				gen_internal("minuseq2");
 				return 1;
 			}
-			if (r->value == 4) {
+			if (v == 4) {
 				gen_internal("minuseq4");
 				return 1;
 			}
@@ -1675,7 +1741,7 @@ unsigned gen_direct(struct node *n)
 		set_reg(R_Y, 0);
 		sp += s;
 		return 1;
-	}	
+	}
 	return 0;
 }
 
@@ -1793,12 +1859,12 @@ static unsigned gen_cast(struct node *n)
 unsigned gen_node(struct node *n)
 {
 	unsigned size = get_size(n->type);
-/*	unsigned v;
-	char *name;
-	unsigned nr = n->flags & NORETURN; */
+	unsigned v;
+	unsigned nr = n->flags & NORETURN;
+	unsigned se = n->flags & SIDEEFFECT;
 	unsigned is_byte = (n->flags & (BYTETAIL | BYTEOP)) == (BYTETAIL | BYTEOP);
 
-/*	v = n->value; */
+	v = n->value;
 
 	/* Function call arguments are special - they are removed by the
 	   act of call/return and reported via T_CLEANUP */
@@ -1807,20 +1873,31 @@ unsigned gen_node(struct node *n)
 	switch(n->op) {
 	/* FIXME: need to do 4 byte forms */
 	case T_LREF:
+		if (nr && !se)
+			return 1;
+		if (is_byte && !se)
+			size = 1;
 		if (size == 1 && n->value == 0) {
 			if (a_contains(n))
 				return 1;
 			/* Same length as simple load via Y but
 			   sets X to 0 so avoids the casting cost */
-			load_x(0);
-			output("lda (@sp,x)");
+			if (cpu != NMOS_6502)
+				output("lda (@sp)");
+			else {
+				load_x(0);
+				output("lda (@sp,x)");
+			}
 			return 1;
 		}
 		/* Fall through */
 	case T_NREF:
 	case T_LBREF:
-		/* TODO: for volatiles we shouldn't play this game */
-		if (is_byte || size == 1) {
+		if (nr && !se)
+			return 1;
+		if (is_byte && !se)
+			size = 1;
+		if (size == 1) {
 			if (a_contains(n))
 				return 1;
 			if (pri8(n, "lda")) {
@@ -1841,11 +1918,19 @@ unsigned gen_node(struct node *n)
 	case T_LBSTORE:
 	case T_LSTORE:
 		if (size == 1 && pri8(n, "sta")) {
-			set_a_node(n); 
+			set_a_node(n);
 			return 1;
-		} else if (size == 2 && pri16(n, "st")) {
-			set_xa_node(n);
-			return 1;
+		} else if (size == 2) {
+			if (nr && pri16(n, "st")) {
+				set_xa_node(n);
+				return 1;
+			}
+			/* Stack and restore A if we need XA intact (rare) */
+			if (do_pri16(n, "st", pre_pha)) {
+				output("pla");
+				set_xa_node(n);
+				return 1;
+			}
 		}
 		/* FIXME: need to do 4byte forms **/
 		return 0;
@@ -1855,39 +1940,55 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_EQ:
 		/* store XA in top of stack addr  .. ugly */
-		if (size > 2) 
+		if (size > 2)
 			return 0;
 		/* Maybe make this whole lot a pair of helpers ? */
 		gen_internal("poptmpy0");
-		set_reg(R_Y, 0);
-		output("sta (@tmp),y");
+		if (cpu != NMOS_6502)
+			output("sta (@tmp)");
+		else {
+			set_reg(R_Y, 0);
+			output("sta (@tmp),y");
+		}
 		if (size == 2) {
 			load_y(1);
 			output("stx (@tmp),y");
 		}
 		invalidate_mem();
-		return 1;	
+		return 1;
 	case T_FUNCCALL:
 		/* For now just helper it */
 		return 0;
 	case T_DEREF:
-		/* TODO: If BYTEABLE is set then non volatiles can be done
+		if (nr && !se)
+			return 1;
+		/* If BYTEOP is set then non volatiles can be done
 		   byte sized */
+		if (!se && is_byte)
+			size = 1;
 		/* We could optimize the tracing a bit here. A deref
 		   of memory where we know XA is a name, local etc is
-		   one where we can udate the contents info TODO */
+		   one where we can update the contents info TODO */
 		if (size > 2)
 			return 0;
 		output("sta @tmp");
 		output("stx @tmp+1");
 		if (size == 1) {
-			load_x(0);
-			output ("lda (@tmp,x)");
+			if (cpu != NMOS_6502)
+				output("lda (@tmp)");
+			else {
+				load_x(0);
+				output ("lda (@tmp,x)");
+			}
 			invalidate_a();
 		} else {
-			load_y(0);
+			if (cpu != NMOS_6502)
+				output("lda (@tmp)");
+			else {
+				load_y(0);
+				output("lda (@tmp),y");
+			}
 			invalidate_a();
-			output("lda (@tmp),y");
 			load_y(1);
 			invalidate_x();
 			output("ldx (@tmp),y");
@@ -1917,11 +2018,24 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (size == 2 && pri16(n, "ld")) {
-			invalidate_x(); 
+			invalidate_x();
 			invalidate_a();
 			return 1;
 		}
 		return 0;
+	case T_ARGUMENT:
+		v += argbase + frame_len;
+	case T_LOCAL:
+		if (v < 256) {
+			load_a(v);
+			output("jsr @asp");
+		} else {
+			load_y(v >> 8);
+			load_a(v);
+			output("jsr @yasp");
+		}
+		set_xa_node(n);
+		return 1;
 	/* Local and argument are more complex so helper them */
 	case T_CAST:
 		return gen_cast(n);
