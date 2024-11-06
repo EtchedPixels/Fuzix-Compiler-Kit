@@ -110,7 +110,6 @@ static void invalidate_regs(void)
 	reg[R_A].state = INVALID;
 	reg[R_X].state = INVALID;
 	reg[R_Y].state = INVALID;
-	printf(";invalregs\n");
 }
 
 
@@ -121,7 +120,6 @@ static void invalidate_a(void)
 
 static void invalidate_x(void)
 {
-	printf(";invalidate x\n");
 	reg[R_X].state = INVALID;
 }
 
@@ -177,7 +175,6 @@ static void load_a(uint8_t n)
 /* Get a value into X, adjust and track */
 static void load_x(uint8_t n)
 {
-	printf(";load X %u currently %x %u\n", n, reg[R_X].state, reg[R_X].value);
 	if (reg[R_X].state == T_CONSTANT) {
 		if (reg[R_X].value == n)
 			return;
@@ -200,7 +197,6 @@ static void load_x(uint8_t n)
 		output("ldx #%u", n);
 	reg[R_X].state = T_CONSTANT;
 	reg[R_X].value = n;
-	printf(";X %u\n", n);
 }
 
 /* Get a value into Y, adjust and track */
@@ -262,10 +258,8 @@ static void set_xa_node(struct node *n)
 	default:
 		invalidate_a();
 		invalidate_x();
-		printf("; invalidate xa\n");
 		return;
 	}
-	printf("; set XA %x, %d\n", op, value);
 	reg[R_X].state = op;
 	reg[R_A].state = op;
 	reg[R_A].value = value;
@@ -277,7 +271,6 @@ static void set_xa_node(struct node *n)
 
 static unsigned xa_contains(struct node *n)
 {
-	printf(";xa contains? %x %ld\n", n->op, n->value);
 	if (n->op == T_NREF && (n->flags & SIDEEFFECT))		/* Volatiles */
 		return 0;
 	if (reg[R_A].state != n->op || reg[R_X].state != n->op)
@@ -434,6 +427,16 @@ static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n)
 	unsigned v = n->value;
 	const char *name;
 
+	/* We can fold in some simple casting */
+	if (n->type == T_CAST) {
+		if ((!PTR(n->type) && n->type != CINT && n->type != UINT) || r->type != UCHAR)
+			return 0;
+		/* Just do the right hand side */
+		n = n->right;
+		v = n->value;
+		r = n->right;
+	}
+
 	switch(n->op) {
 	case T_LABEL:
 		pre(n);
@@ -512,6 +515,16 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 	const char *name;
 	unsigned v = n->value;
 
+	/* We can fold in some simple casting */
+	if (n->type == T_CAST) {
+		if ((!PTR(n->type) && n->type != CINT && n->type != UINT) || r->type != UCHAR)
+			return 0;
+		/* We need to do it on 0 */
+		load_a(0);
+		n = n->right;
+		v = n->value;
+		r = n->right;
+	}
 	switch(n->op) {
 	case T_LABEL:
 		pre(n);
@@ -583,6 +596,18 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 	struct node *r = n->right;
 	const char *name;
 	unsigned v = n->value;
+
+	/* We can fold in some simple casting */
+	if (n->type == T_CAST) {
+		if ((!PTR(n->type) && n->type != CINT && n->type != UINT) || r->type != UCHAR)
+			return 0;
+		/* Just do the right hand side */
+		n = n->right;
+		v = n->value;
+		r = n->right;
+		load_x(0);
+	}
+
 	switch(n->op) {
 	case T_LABEL:
 		pre(n);
@@ -595,6 +620,7 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 		output("%sa #<_%s+%d", op,  n, v);
 		output("%sx #>_%s+%d", op,  n, v >> 8);
 		return 1;
+	case T_LOCAL:
 	case T_LREF:
 	case T_NREF:
 	case T_LBREF:
@@ -689,9 +715,28 @@ static int pri16(struct node *n, const char *op)
 	return do_pri16(n, op, pre_none);
 }
 
+static unsigned fast_castable(struct node *n)
+{
+	struct node *r = n->right;
+	/* Is this a case we can just flow into the code. Usually that's
+	   a uchar to int */
+	if (r->op == T_CAST && get_size(r->type) == 2 && r->right->type == UCHAR)
+		return 1;
+	return 0;
+}
+
 static int pri8_help(struct node *n, char *helper)
 {
-	if (do_pri8(n, "lda", pre_store8)) {
+	struct node *r = n->right;
+	/* Special case for cast first */
+	if (fast_castable(n)) {
+		if (do_pri8(r->right, "lda", pre_store8)) {
+			helper_s(n, helper);
+			set_reg(R_Y, 0);
+			return 1;
+		}
+	}
+	if (do_pri8(r, "lda", pre_store8)) {
 		/* Helper invalidates A itself */
 		helper_s(n, helper);
 		set_reg(R_Y, 0);
@@ -700,13 +745,51 @@ static int pri8_help(struct node *n, char *helper)
 	return 0;
 }
 
+static void pre_fastcast(struct node *n)
+{
+	printf("\tsta @tmp\n");
+	if (cpu >= NMOS_6502)
+		printf("\tstz @tmp+1\n");
+	else {
+		load_x(0);
+		printf("\tstx @tmp+1\n");
+	}
+}
+
 static int pri16_help(struct node *n, char *helper)
 {
+	struct node *r = n->right;
+	unsigned v = r->value;
+
+	/* Special case for cast first */
+	if (fast_castable(n)) {
+		if (do_pri16(r->right, "ld", pre_fastcast)) {
+			helper_s(n, helper);
+			set_reg(R_Y, 1);
+			return 1;
+		}
+	}
 	if (do_pri16(n, "ld", pre_store16)) {
 		/* Helper invalidates XA itself */
 		helper_s(n, helper);
 		set_reg(R_Y, 1);
 		return 1;
+	}
+	/* As we are saving via @tmp we can do these as well */
+	switch(r->op) {
+	case T_ARGUMENT:
+		v += frame_len + argbase;
+	case T_LOCAL:
+		v += sp;
+		if (v < 255) {
+			pre_store16(n);
+			load_a(v);
+			output("jsr __asp\n");
+			set_xa_node(r);
+			helper_s(n, helper);
+			return 1;
+		}
+		break;
 	}
 	return 0;
 }
@@ -735,6 +818,8 @@ static int pri_cchelp(register struct node *n, unsigned s, char *helper)
 		if (reg[R_X].state == T_CONSTANT && reg[R_X].value == (v >> 8))
 			return pri8_help(n, helper);
 	}
+	if (n->flags & BYTEABLE)
+		return pri8_help(n, helper);
 	return pri_help(n, helper);
 }
 
@@ -1001,6 +1086,7 @@ struct node *gen_rewrite_node(struct node *n)
 	if (op == T_CAST) {
 		if (nt == r->type || (nt ^ r->type) == UNSIGNED ||
 		 (PTR(nt) && PTR(r->type))) {
+			printf(";killed cast of %x %lu\n", r->op, r->value);
 			free_node(n);
 			return r;
 		}
@@ -1250,6 +1336,14 @@ void gen_value(unsigned type, unsigned long value)
 
 void gen_start(void)
 {
+	switch(cpu) {
+	case CMOS_6502:
+		puts("\t.65c02\n");
+		break;
+	case CMOS_65C816:
+		puts("\t.65c816\n");
+		break;
+	}
 	output(".code");
 }
 
@@ -1603,7 +1697,9 @@ unsigned gen_direct(struct node *n)
 	 */
 	case T_EQEQ:
 		if (r->op == T_CONSTANT && v == 0) {
+			/* TODO: not via helper */
 			helper(n, "not");
+			n->flags |= ISBOOL;
 			return 1;
 		}
 		return pri_cchelp(n, s, "eqeqtmp");
@@ -1617,7 +1713,9 @@ unsigned gen_direct(struct node *n)
 		return pri_cchelp(n, s, "lttmp");
 	case T_BANGEQ:
 		if (r->op == T_CONSTANT && v == 0) {
+			/* TODO: not via helper */
 			helper(n, "bool");
+			n->flags |= ISBOOL;
 			return 1;
 		}
 		return pri_cchelp(n, s, "netmp");
@@ -1630,7 +1728,6 @@ unsigned gen_direct(struct node *n)
 		}
 		/* Shifts: we can get 1 byte left shifts from the byteop convertor */
 		if (s == 1 && r->op == T_CONSTANT) {
-			v = v;
 			if (v >= 8)
 				load_a(0);
 			else {
@@ -1648,7 +1745,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		return pri_help(n, "gttmp");
+		return pri_help(n, "rstmp");
 	/* TODO: special case by 1,2,4, maybe inline byte cases ? */
 	/* We want to spot trees where the object on the left is directly
 	   addressible and fold them so we can generate inc _reg, bcc, inc _reg+1 etc */
@@ -1728,6 +1825,8 @@ unsigned gen_direct(struct node *n)
 		return pri_help(n, "oreqtmp");
 	case T_HATEQ:
 		return pri_help(n, "oreqtmp");
+#if 0
+	/* still to do - more complex see 65C816 */
 	case T_ARGCOMMA:
 		/* We generate these directly when we can to optimize the
 		   call return overhead a bit but it has to be done by
@@ -1741,6 +1840,7 @@ unsigned gen_direct(struct node *n)
 		set_reg(R_Y, 0);
 		sp += s;
 		return 1;
+#endif
 	}
 	return 0;
 }
@@ -1763,10 +1863,12 @@ unsigned gen_shortcut(struct node *n)
 	struct node *l = n->left;
 	struct node *r = n->right;
 	unsigned nr = n->flags & NORETURN;
+	unsigned v;
 
 	/* Unreachable code we can shortcut into nothing whee.be.. */
 	if (unreachable)
 		return 1;
+
 	/* The comma operator discards the result of the left side, then
 	   evaluates the right. Avoid pushing/popping and generating stuff
 	   that is surplus */
@@ -1778,16 +1880,48 @@ unsigned gen_shortcut(struct node *n)
 		codegen_lr(r);
 		return 1;
 	}
-	/* The left nay be a complex expression but also may be soemthing
-	   we can directly reference. The right is the amount */
-	if (n->op == T_PLUSPLUS && leftop_memc(n, "inc"))
-		return 1;
-	if (n->op == T_MINUSMINUS && leftop_memc(n, "dec"))
-		return 1;
-	if (n->op == T_PLUSEQ && leftop_memc(n, "inc"))
-		return 1;
-	if (n->op == T_MINUSEQ && leftop_memc(n, "dec"))
-		return 1;
+	switch(n->op) {
+	case T_PLUSPLUS:
+		/* The left nay be a complex expression but also may be soemthing
+		   we can directly reference. The right is the amount */
+		if (leftop_memc(n, "inc"))
+			return 1;
+		break;
+	case T_MINUSMINUS:
+		if (leftop_memc(n, "dec"))
+			return 1;
+		break;
+	case T_PLUSEQ:
+		if (leftop_memc(n, "inc"))
+			return 1;
+		break;
+	case T_MINUSEQ:
+		if (leftop_memc(n, "dec"))
+			return 1;
+		break;
+	/* TODO: look at rewriting LSTORE (CONSTANT 0) here as a pair of byte ops ? */
+	case T_LSTORE:
+		v = r->value;
+		/* TODO works for any pair of identical bytes */
+		if (nr && r->op == T_CONSTANT && get_size(n->type) == 2 && v == 0 && n->value < 256) {
+			v &= 0xFF;
+			load_a(v);
+			if (reg[R_Y].state == T_CONSTANT) {
+				if (reg[R_Y].value == n->value || reg[R_Y].value == v) {
+					load_y(n->value);
+					output("sta (@sp),y");
+					load_y(n->value + 1);
+				} else {
+					load_y(n->value + 1);
+					output("sta (@sp),y");
+					load_y(n->value);
+				}
+				output("sta (@sp),y");
+				return 1;
+			}
+		}
+		break;
+	}
 	return 0;
 }
 
@@ -1816,6 +1950,10 @@ static unsigned gen_cast(struct node *n)
 	/* Floats and stuff handled by helper */
 	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
 		return 0;
+
+	/* No type casting needed as computing byte sized */
+	if (n->flags & BYTEABLE)
+		return 1;
 
 	ls = get_size(lt);
 
@@ -2006,8 +2144,8 @@ unsigned gen_node(struct node *n)
 		}
 		/* We have to special case this to get the value setting right */
 		if (size == 2)
-			load_x(n->value >> 8);
-		load_a(n->value & 0xFF);
+			load_x(v >> 8);
+		load_a(v & 0xFF);
 		return 1;
 	case T_NAME:
 	case T_LABEL:
@@ -2039,6 +2177,28 @@ unsigned gen_node(struct node *n)
 	/* Local and argument are more complex so helper them */
 	case T_CAST:
 		return gen_cast(n);
+	/* TODO: CCONLY */
+	case T_BANG:
+		if (n->right->flags & (ISBOOL|BYTEABLE)) {
+			output("eor #1");
+			invalidate_a();
+		} else
+			helper(n, "not");
+		n->flags |= ISBOOL;
+		return 1;
+	case T_BOOL:
+		if (n->right->flags & ISBOOL)
+			return 1;
+		if (n->flags & BYTEABLE) {
+			output("tax");	/* Set the Z flag */
+			output("beq X%u", ++xlabel);
+			output("lda #1");
+			output("X%u", xlabel);
+		} else {
+			helper(n, "bool");
+		}
+		n->flags |= ISBOOL;
+		return 1;
 	}
 	return 0;
 }
