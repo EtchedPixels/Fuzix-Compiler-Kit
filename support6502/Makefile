@@ -1,11 +1,13 @@
 all: lib6502.a crt0.o
 
-OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o \
+OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o __lxa0sptmp.o \
        __minuseqtmp.o __minus.o \
        __plusplus1.o __plusplus2.o __plusplus.o __plusplusy.o __plus.o \
        __poptmp.o __pushc.o __pushl.o __push.o \
        zeropage.o \
-       __bool.o __not.o __eqeqtmp.o
+       __bool.o __not.o __eqeqtmp.o \
+       __lttmp.o __lttmpu.o __gteqtmp.o  __gteqtmpu.o \
+       __lstmp.o __rstmp.o
 
 GEN =  __adcspy.o __adctmpy.o __sbcspy.o __sbctmpy.o __andspy.o __andtmpy.o __eorspy.o __eortmpy.o \
        __ldaspy.o __ldatmpy.o __oraspy.o __oratmpy.o __staspy.o __statmpy.o \

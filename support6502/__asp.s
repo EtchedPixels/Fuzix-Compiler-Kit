@@ -1,6 +1,8 @@
 ;
 ;	Return XA = A + SP
 ;
+;	Must preserve Y and @tmp
+;
 	.export __asp
 
 	.code
