@@ -783,8 +783,13 @@ static int pri16_help(struct node *n, char *helper)
 		v += sp;
 		if (v < 255) {
 			pre_store16(n);
-			load_a(v);
-			output("jsr __asp\n");
+			if (v) {
+				load_a(v);
+				output("jsr __asp\n");
+			} else {
+				output("lda @sp\n");
+				output("ldx @sp+1\n");
+			}
 			set_xa_node(r);
 			helper_s(n, helper);
 			return 1;
@@ -927,7 +932,7 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 				invalidate_a();
 				return 1;
 			} else if (v < 255) {
-				output("ldy #%d", v);
+				load_y(v);
 				output("jsr __%spy", op);
 				const_y_set(reg[R_Y].value + 1);
 				invalidate_x();
@@ -1421,8 +1426,17 @@ unsigned gen_direct(struct node *n)
 		if (n->val2) {
 			/* Only clean up vararg. stdarg is cleaned up by
 			   the called function */
-			gen_internal("cleanup");
-			gen_value(UINT, r->value);
+			if (v < 256) {
+				load_y(v);
+				output("jsr __addysp");
+			} else {
+				/* TODO: void varargs ? */
+				output("pha");
+				load_y(v >> 8);
+				load_a(v);
+				output("jsr __addyasp");
+				output("pla");
+			}
 		}
 		sp -= v;
 		return 1;
@@ -1473,7 +1487,7 @@ unsigned gen_direct(struct node *n)
 				if ((v & 0xFF00) == 0x0000)
 					load_x(0);
 				else if ((v & 0xFF00) != 0xFF00)
-					return 0;
+					return try_via_x(n, "and", pre_none);
 			}
 			if ((v & 0xFF) == 0x00)
 				load_a(0);
@@ -1496,7 +1510,7 @@ unsigned gen_direct(struct node *n)
 				if ((v & 0xFF00) == 0xFF00)
 					load_x(0xFF);
 				else if ((v & 0xFF00) != 0x0000)
-					return 0;
+					return try_via_x(n, "ora", pre_none);
 			}
 			if ((v & 0xFF) == 0xFF)
 				load_a(0xFF);
@@ -1517,7 +1531,7 @@ unsigned gen_direct(struct node *n)
 		if (r->op == T_CONSTANT) {
 			if (s == 2) {
 				if ((v & 0xFF00) != 0x0000)
-					return 0;
+					return try_via_x(n, "eor", pre_none);
 			}
 			if ((v & 0xFF) != 0x00) {
 				output("eor #%d", ((unsigned)r->value) & 0xFF);
@@ -2166,11 +2180,11 @@ unsigned gen_node(struct node *n)
 	case T_LOCAL:
 		if (v < 256) {
 			load_a(v);
-			output("jsr @asp");
+			output("jsr __asp");
 		} else {
 			load_y(v >> 8);
 			load_a(v);
-			output("jsr @yasp");
+			output("jsr __yasp");
 		}
 		set_xa_node(n);
 		return 1;

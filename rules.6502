@@ -1,0 +1,79 @@
+	jmp %1
+%1:
+=
+%1:
+
+	jsr %1
+;:
+	rts
+=
+	jmp %1
+
+#
+#	Peephole the common load local via tmp
+#
+
+	lda (@sp),y
+	tax
+	lda (@sp)
+	sta @tmp
+	stx @tmp+1
+=
+	jsr __lxa0tmp
+
+	lda (@sp),y
+	tax
+	dey
+	lda (@sp),y
+	sta @tmp
+	stx @tmp+1
+=
+	jsr __lxaysptmp
+
+	jsr __asp
+	sta @tmp
+	stx @tmp+1
+=
+	jsr __asptmp
+
+	lda #0
+	jsr __asptmp
+=
+	jsr __sptmp
+
+
+	ldy #%1
+	lda (@sp),y
+	tax
+	dey
+	lda (@sp),y
+=
+	ldy #%1
+	jsr __gloy
+
+	jsr __gloy
+	jsr __push
+=
+	jsr __pushly
+
+	ldy #1
+	jsr __gloy
+=
+	jsr __gloy0
+
+	jsr __gloy0
+	jsr __push
+=
+	jsr __pushly0
+
+	ldy #1
+	lda (@sp),y
+	tax
+	lda (@sp)
+=
+	jsr __gloyc0
+
+	jsr __gloyc0
+	jsr __push
+=
+	jsr __pushylyc0

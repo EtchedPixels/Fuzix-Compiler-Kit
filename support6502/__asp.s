@@ -8,11 +8,9 @@
 	.code
 
 __asp:
+	ldx @sp+1
 	clc
 	adc @sp
-	pha
 	bcc l1	
-	inc @sp+1
-l1:	tax
-	pla
-	rts
+	inx
+l1:	rts
