@@ -175,5 +175,5 @@ int main(int argc, char *argv[])
 		cpu.debug = 1;
 
 	while (1)
-		m6800_execute(&cpu);
+		cycles += m6800_execute(&cpu);
 }
