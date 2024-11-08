@@ -77,7 +77,7 @@ booluge:
 boolule:
 	beq	ret1
 boolult:			; use C flag
-	bcc	ret0
+	bcs	ret1
 	clra
 	clrb
 	rts
