@@ -725,6 +725,12 @@ struct node *constify(register struct node *n)
 				else
 					value = ((signed long)value) >> r->value;
 				break;
+			case T_EQEQ:
+				value = value == r->value;
+				break;
+			case T_BANGEQ:
+				value = value != r->value;
+				break;
 			case T_LT:
 				if (l->type & UNSIGNED)
 					value = value < r->value;
