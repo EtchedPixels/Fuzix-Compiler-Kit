@@ -19,8 +19,32 @@
  *
  *	Elements of this design like the separate stack with ZP pointer are
  *	heavily influenced by CC65 and one goal is to use many of the same
- *	support functions. Our pproach to code generation is however quite
+ *	support functions. Our approach to code generation is however quite
  *	different and constrained by wanting to run on an 8bit micro.
+ *
+ *	Register usage
+ *	A: lower half of working value or pointer
+ *	X: upper half of working value or pointer
+ *	Y: used for indexing locals off @sp and various parameters
+ *	   to helpers on XA
+ *	@sp: stack pointer base word in ZP
+ *	@tmp: scratch value used extensively
+ *	@tmp2: temporary word following @tmp
+ *	@hireg: upper 16bits of 32bit workinf values
+ *
+ *	CPU specifics
+ *	6502		classic CPU. We don't use undoc stuff
+ *	65C02		6502 + base CMOS instructions
+ *	M740		6502 + some of base CMOS (not STZ) and some other
+ *			differences (TST, LDM)
+ *	TODO:
+ *	W65C02		Has bit ops (bbr/bbs/seb/clb) which we can use for
+ *			some logic ops.
+ *	HUC6820		Has CLA/CLX/CY (clear reg), and W65C02 bitops
+ *			SAX/SAY/SXY (swap A and X/Y),
+ *
+ *	2A03 is a 6502 with no decimal mode. We don't use it so for us
+ *	it's just another 6502.
  */
 
 #include <stdio.h>
@@ -34,7 +58,8 @@
 
 #define NMOS_6502	0
 #define CMOS_6502	1
-#define CMOS_65C816	2		/* 65802/816 in 8bit mode */
+#define CMOS_M740	2
+#define CMOS_65C816	3		/* 65802/816 in 8bit mode */
 
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
@@ -645,8 +670,20 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 			output("%sx #%u", op, v >> 8);
 		}
 		return 1;
-	case T_LSTORE:
 	case T_LREF:
+		if (optsize && v < 255 && strcmp(op, "ld") == 0) {
+			pre(n);
+			if (v) {
+				load_y(v + 1);
+				output("jsr __gloy");
+			} else {
+				load_y(0);
+				output("jsr __gloy0");
+			}
+			const_y_set(v);
+			return 1;
+		}
+	case T_LSTORE:
 		if (v < 255) {
 			pre(n);
 			load_y(v + 1);
@@ -748,11 +785,14 @@ static int pri8_help(struct node *n, char *helper)
 static void pre_fastcast(struct node *n)
 {
 	printf("\tsta @tmp\n");
-	if (cpu >= NMOS_6502)
-		printf("\tstz @tmp+1\n");
+	/* The M740 is a fairly complete subset of the 65C02 but lacks STZ */
+	if (cpu == CMOS_M740)
+		output("stm #0");
+	else if (cpu >= NMOS_6502)
+		output("stz @tmp+1");
 	else {
 		load_x(0);
-		printf("\tstx @tmp+1\n");
+		output("stx @tmp+1");
 	}
 }
 
@@ -986,6 +1026,14 @@ static void squash_right(struct node *n, unsigned op)
 	n->right = NULL;
 }
 
+static void swap_op(struct node *n, unsigned op)
+{
+	struct node *l = n->left;
+	n->left = n->right;
+	n->right = l;
+	n->op = op;
+}
+
 static unsigned is_simple(struct node *n)
 {
 	unsigned op = n->op;
@@ -1114,6 +1162,13 @@ struct node *gen_rewrite_node(struct node *n)
 			n->left = r;
 		}
 	}
+	/* Reverse the order of comparisons to make them easier. C sequence points says this
+	   is fine. Arguably we should implement T_LT and T_GTEQ and only do this if at that
+	   point on code gen XA is holding the value we want for the left TODO */
+	if (op == T_GT)
+		swap_op(n, T_LT);
+	if (op == T_LTEQ)
+		swap_op(n, T_GTEQ);
 	return n;
 }
 
@@ -2029,7 +2084,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		if (is_byte && !se)
 			size = 1;
-		if (size == 1 && n->value == 0) {
+		if (size == 1 && v) {
 			if (a_contains(n))
 				return 1;
 			/* Same length as simple load via Y but
@@ -2041,6 +2096,32 @@ unsigned gen_node(struct node *n)
 				output("lda (@sp,x)");
 			}
 			return 1;
+		}
+		if (optsize) {
+			if (size == 2 && v < 255) {
+				if (n == 0)
+					output("jsr __gloy0");
+				else {
+					load_y(v + 1);
+					output("jsr __gloy");
+				}
+				const_y_set(v);
+				invalidate_a();
+				invalidate_x();
+				return 1;
+			}
+			if (size == 4 && v < 253) {
+				if (n == 0)
+					output("jsr __gloy0l");
+				else {
+					load_y(v + 3);
+					output("jsr __gloyl");
+				}
+				const_y_set(v);
+				invalidate_a();
+				invalidate_x();
+				return 1;
+			}
 		}
 		/* Fall through */
 	case T_NREF:
@@ -2179,8 +2260,13 @@ unsigned gen_node(struct node *n)
 		v += argbase + frame_len;
 	case T_LOCAL:
 		if (v < 256) {
-			load_a(v);
-			output("jsr __asp");
+			if (v == 0) {
+				output("lda @sp");
+				output("ldx @sp+1");
+			} else {
+				load_a(v);
+				output("jsr __asp");
+			}
 		} else {
 			load_y(v >> 8);
 			load_a(v);
@@ -2207,7 +2293,7 @@ unsigned gen_node(struct node *n)
 			output("tax");	/* Set the Z flag */
 			output("beq X%u", ++xlabel);
 			output("lda #1");
-			output("X%u", xlabel);
+			label("X%u:", xlabel);
 		} else {
 			helper(n, "bool");
 		}
