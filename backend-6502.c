@@ -40,11 +40,14 @@
  *	TODO:
  *	W65C02		Has bit ops (bbr/bbs/seb/clb) which we can use for
  *			some logic ops.
- *	HUC6820		Has CLA/CLX/CY (clear reg), and W65C02 bitops
+ *	HUC6820		Has CLA/CLX/CLY (clear reg), and W65C02 bitops
  *			SAX/SAY/SXY (swap A and X/Y),
  *
  *	2A03 is a 6502 with no decimal mode. We don't use it so for us
  *	it's just another 6502.
+ *
+ *	Next to fix comparisons are reverse side due to **tmp effect
+ *	need gttmp lteqtmp and flip side flipper
  */
 
 #include <stdio.h>
@@ -788,7 +791,7 @@ static void pre_fastcast(struct node *n)
 	/* The M740 is a fairly complete subset of the 65C02 but lacks STZ */
 	if (cpu == CMOS_M740)
 		output("stm #0");
-	else if (cpu >= NMOS_6502)
+	else if (cpu > NMOS_6502)
 		output("stz @tmp+1");
 	else {
 		load_x(0);
