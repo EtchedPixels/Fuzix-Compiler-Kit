@@ -42,38 +42,34 @@
 	jsr __sptmp
 
 
-	ldy #%1
-	lda (@sp),y
-	tax
-	dey
-	lda (@sp),y
-=
-	ldy #%1
-	jsr __gloy
-
 	jsr __gloy
 	jsr __push
 =
 	jsr __pushly
-
-	ldy #1
-	jsr __gloy
-=
-	jsr __gloy0
 
 	jsr __gloy0
 	jsr __push
 =
 	jsr __pushly0
 
-	ldy #1
-	lda (@sp),y
-	tax
-	lda (@sp)
+	jsr __gloy
+	sta @tmp
+	stx @tmp+1
 =
-	jsr __gloyc0
+	jsr __gloytmp
 
-	jsr __gloyc0
-	jsr __push
+	jsr __gloy0
+	sta @tmp
+	stx @tmp+1
 =
-	jsr __pushylyc0
+	jsr __gloytmp0
+
+	jsr __gloyl
+	jsr __pushl
+=
+	jsr __pushlyl
+
+	jsr __gloyl0
+	jsr __pushl
+=
+	jsr __pushly0l
