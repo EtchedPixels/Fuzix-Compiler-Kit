@@ -1017,28 +1017,87 @@ unsigned cmp_direct(struct node *n, const char *uop, const char *op)
 
 /*
  *	Do fast multiplies were we can
- *
- *	TODO: do the other powers of two at least for -O2 and higher
  */
 
-unsigned can_fast_mul(unsigned s, unsigned n)
+static unsigned do_fast_mul(unsigned s, unsigned n)
 {
-	/* For now */
-	/* TODO: at least do powers of 2.. might be worth doing
-	   jsr to a helper for 3-15 too */
-	if (n <= 2 || n == 4)
+	if (s > 2)
+		return 0;
+
+	switch(n) {
+		case 0:
+			load_d_const(0);
+		case 1:
+			return 1;
+		case 2:
+			puts("\tlslb\n\trola");
+			return 1;
+		case 3:
+			if (cpu_has_d) { 
+				puts("\tstd @tmp\n\tlslb\n\trola\n\taddd @tmp");
+				return 1;
+			}
+			break;
+		case 4:
+			puts("\tlslb\n\trola\n\tlslb\n\trola");
+			return 1;
+		case 256:
+		case 512:
+		case 1024:
+		case 2048:
+		case 4096:
+		case 8192:
+			puts("\ttba");
+			while(n > 256) {
+				puts("\tasla");
+				n >>= 1;
+			}
+			puts("\tclrb");
+			return 1;
+	}
+	if (optsize)
+		return 0;
+	switch(n) {
+	case 3:		/* 18cyc, 10bytes */
+		puts("\tstaa @tmp\n\tstab @tmp+1\n\tlslb\n\trola\n\taddb @tmp+1\n\tadca @tmp");
 		return 1;
+	case 5:		/* 22cyc, 12bytes */
+		if (cpu_has_d)
+			puts("\tstd @tmp\n");
+		else
+			puts("\tstaa @tmp\n\tstab @tmp+1\n");
+		puts("\tlslb\n\trola\n\tlslb\n\trola\n");
+		if (cpu_has_d)
+			puts("\taddd @tmp\n");
+		else
+			puts("\taddb @tmp+1\n\tadca @tmp");
+		return 1;
+	case 8:
+	case 16:
+	case 32:
+		while(n >= 2) {
+			puts("\tlsb\n\trora\n");
+			n >>= 1;
+		}
+		return 1;
+	case 64:
+		/* Can it be smaller? 20 cycles, 10 bytes */
+		puts("\tpsha\n\ttba\t\n\tpulb\n\tlsrb\n\trora\n\trorb\n\trora\n\trorb\n\tand #$C0");
+		return 1;
+	case 128:
+		puts("\tlsra\n\ttba\n\trora\n\trorb\n\tandb #$80\n");
+		return 1;
+	}
 	return 0;
 }
 
-void gen_fast_mul(unsigned s, unsigned n)
+unsigned gen_fast_mul(unsigned s, unsigned n)
 {
-	if (n == 0)
-		load_d_const(0);
-	else if (n == 2)
-		puts("\tlslb\n\trola");
-	else if (n == 4)
-		puts("\tlslb\n\trola\n\tlslb\n\trola");
+	if (do_fast_mul(s, n)) {
+		invalidate_work();
+		return 1;
+	}
+	return 0;
 }
 
 unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)

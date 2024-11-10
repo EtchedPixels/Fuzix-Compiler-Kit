@@ -794,34 +794,26 @@ void write_mul(unsigned n)
 	}
 }
 
-unsigned can_fast_mul(unsigned s, unsigned n)
+unsigned gen_fast_mul(unsigned s, unsigned n)
 {
 	/* Pulled out of my hat 8) */
 	unsigned cost = 15 + 3 * opt;
 	if (s > 2)
 		return 0;
 
-	/* For the moment */
-	if (!cpu_is_09)
-		return 0;
-
+	if (n == 0) {
+		load_d_const(0);
+		return 1;
+	}
 	/* The base cost of a helper is 8 */
 	if (optsize)
 		cost = 8;
-	if (n == 0 || count_mul_cost(n) <= cost)
-		return 1;
-	return 0;
-}
-
-void gen_fast_mul(unsigned s, unsigned n)
-{
-
-	if (n == 0)
-		load_d_const(0);
-	else {
+	if (count_mul_cost(n) <= cost) {
 		write_mul(n);
 		invalidate_work();
+		return 1;
 	}
+	return 0;
 }
 
 unsigned gen_fast_div(unsigned n, unsigned s, unsigned u)
