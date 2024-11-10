@@ -21,6 +21,7 @@
  *	- Adds a Y register
  *	- Has XGDX and XGDY
  *
+ * TODO; swap sub around for non direct cases ?
  */
 
 #include <stdio.h>
@@ -667,10 +668,8 @@ unsigned gen_direct(struct node *n)
 	case T_STAR:
 		if (r->op == T_CONSTANT) {
 			v = r->value;
-			if (s <= 2 && can_fast_mul(s, v)) {
-				gen_fast_mul(s, v);
-				return 1;
-			}
+			if (s <= 2)
+				return gen_fast_mul(s, v);
 		}
 		break;
 	}
