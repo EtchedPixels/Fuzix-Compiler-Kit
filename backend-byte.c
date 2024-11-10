@@ -37,6 +37,32 @@
 #include "backend.h"
 #include "backend-byte.h"
 
+/*
+ *	Check if both sides of an operation are 8->16bit casts of the same
+ *	type. Used to eliminate 16bit comparisons of two 8bit numbers
+ */
+
+static unsigned byte_cast(struct node *n)
+{
+	if (n->op == T_CAST && (n->right->type & ~UNSIGNED) == CCHAR)
+		return 1;
+	/* Bools are integer types but can be byteified */
+	if (n->flags & ISBOOL)
+		return 1;
+	return 0;
+}
+
+static unsigned cast_lr(struct node *n)
+{
+	unsigned lt = byte_cast(n->left);
+	unsigned rt = byte_cast(n->right);
+	if (lt == 0 || rt == 0)
+		return 0;
+	if (lt == rt)
+		return 1;
+	return 0;
+}
+
 /* Returns true if this operation produces a valid lower byte if done on
    a larger sized value. That is if it's subtree can also be done in byte
    mode
@@ -91,12 +117,22 @@ static unsigned op_can_byte(register struct node *n)
 	/* TODO: in theory for some cases we can also treat these as BYTEABLE
 	   providing the left and right sides are genuinely casts from byte types
 	   or byte types, but not if they are trimmed ones */
-	if (op == T_LT || op == T_GT || op == T_LTEQ || op == T_GTEQ)
+
+	if (op == T_LT || op == T_GT || op == T_LTEQ || op == T_GTEQ) {
+		if (cast_lr(n))
+			return BYTEABLE | BYTETAIL;
 		return BYTETAIL;
-	if (op == T_EQ || op == T_BANGEQ)
+	}
+	if (op == T_EQ || op == T_BANGEQ) {
+		if (cast_lr(n))
+			return BYTEABLE | BYTETAIL;
 		return BYTETAIL;
-	if (op == T_BOOL || op == T_BANG)
+	}
+	if (op == T_BOOL || op == T_BANG) {
+		if (byte_cast(n->right))
+			return BYTEABLE | BYTETAIL;
 		return BYTETAIL;
+	}
 	return 0;
 }
 
