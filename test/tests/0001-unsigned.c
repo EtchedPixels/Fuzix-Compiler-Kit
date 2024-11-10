@@ -1,4 +1,4 @@
-#/*
+/*
  *	unsigned integer comparisons
  */
 int test_ult(unsigned int a, unsigned int b)
