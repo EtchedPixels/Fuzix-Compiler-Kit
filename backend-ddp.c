@@ -80,6 +80,28 @@ static unsigned pointer_match(unsigned t1, unsigned t2)
 	return 0;
 }
 
+/*
+ *	Byte sizes although we are a word machine
+ */
+
+static unsigned get_size(unsigned t)
+{
+	if (PTR(t))
+		return 2;
+	if (t == CSHORT || t == USHORT)
+		return 2;
+	if (t == CCHAR || t == UCHAR)
+		return 1;
+	if (t == CLONG || t == ULONG || t == FLOAT)
+		return 4;
+	if (t == CLONGLONG || t == ULONGLONG || t == DOUBLE)
+		return 8;
+	if (t == VOID)
+		return 0;
+	error("gs");
+	return 0;
+}
+
 #define T_NREF		(T_USER)		/* Load of C global/static */
 #define T_CALLNAME	(T_USER+1)		/* Function call by name */
 #define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
@@ -87,6 +109,7 @@ static unsigned pointer_match(unsigned t1, unsigned t2)
 #define T_LSTORE	(T_USER+4)
 #define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
 #define T_LBSTORE	(T_USER+6)
+#define T_LDEREF	(T_USER+7)		/* *local */
 
 static void squash_node(struct node *n, struct node *o)
 {
@@ -132,9 +155,14 @@ struct node *gen_rewrite_node(register struct node *n)
 	register struct node *r = n->right;
 	register unsigned op = n->op;
 	register unsigned nt = n->type;
+	unsigned s= get_size(nt);
 
-	/* TODO: implement derefplus as we can fold small values into
-	   a deref pattern */
+	/* Turn *local into  single node we can use indirection */
+	if (op == T_DEREF && r->op == T_LREF && s == 2) {
+		r->val2 = n->value;
+		squash_right(n, T_LDEREF);
+		return n;
+	}
 
 	/* Rewrite references into a load operation. Q: is this all types ?? */
 	if (nt == CCHAR || nt == UCHAR || nt == CSHORT || nt == USHORT || PTR(nt) || nt == CLONG || nt == ULONG || nt == FLOAT) {
@@ -219,27 +247,6 @@ void gen_segment(unsigned s)
 	}
 }
 
-/*
- *	Byte sizes although we are a word machine
- */
-
-static unsigned get_size(unsigned t)
-{
-	if (PTR(t))
-		return 2;
-	if (t == CSHORT || t == USHORT)
-		return 2;
-	if (t == CCHAR || t == UCHAR)
-		return 1;
-	if (t == CLONG || t == ULONG || t == FLOAT)
-		return 4;
-	if (t == CLONGLONG || t == ULONGLONG || t == DOUBLE)
-		return 8;
-	if (t == VOID)
-		return 0;
-	error("gs");
-	return 0;
-}
 
 static unsigned get_stack_size(unsigned t)
 {
@@ -413,6 +420,7 @@ static unsigned make_x_point(struct node *n, unsigned *off, unsigned keep_a)
 		max = 254;
 
 	switch(n->op) {
+	case T_LDEREF:
 	case T_LREF:
 	case T_LSTORE:
 		v += sp;
@@ -1172,7 +1180,7 @@ static void gen_castmp(unsigned n)
 
 void gen_start(void)
 {
-	printf("\t.setcpu %u\n\t.code", cpu);
+	printf("\t.setcpu %u\n\t.code\n", cpu);
 }
 
 void gen_end(void)
@@ -1743,6 +1751,13 @@ unsigned gen_node(struct node *n)
 		/* We can do byte reads quite nicely - writes not so much */
 		if (s == 1 && !optsize) {
 			puts("\tlgr 1\n\tsta @tmp\n\tlda *@tmp\n\tssc\n\ticl");
+			return 1;
+		}
+		break;
+	case T_LDEREF:
+		/* only generated for 0 offset from pointer */
+		if (make_x_point(n, &off, 1)) {
+			printf("\tlda *@%d,1\n", off);
 			return 1;
 		}
 		break;
