@@ -27,7 +27,7 @@ __push:
 	sec
 	sbc	#2
 	sta	@sp
-	bcc	l1
+	bcs	l1
 	dec	@sp+1
 l1:	ldy	#1
 	txa

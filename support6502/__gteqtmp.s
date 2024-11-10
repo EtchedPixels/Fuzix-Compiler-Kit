@@ -1,7 +1,7 @@
 ;
 ;	xa >= @tmp signed
 ;
-	.export	_gteqtmp
+	.export	__gteqtmp
 
 	.code
 

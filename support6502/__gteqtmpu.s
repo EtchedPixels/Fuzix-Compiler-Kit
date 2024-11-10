@@ -1,7 +1,7 @@
 ;
 ;	xa >= @tmp unsigned
 ;
-	.export	_gteqtmpu
+	.export	__gteqtmpu
 
 	.code
 

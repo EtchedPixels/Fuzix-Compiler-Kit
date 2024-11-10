@@ -1,7 +1,7 @@
 ;
 ;	xa < @tmp signed
 ;
-	.export	_lttmp
+	.export	__lttmp
 
 	.code
 

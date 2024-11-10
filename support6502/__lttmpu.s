@@ -1,7 +1,7 @@
 ;
 ;	xa < @tmp unsigned
 ;
-	.export	_lttmpu
+	.export	__lttmpu
 
 	.code
 
