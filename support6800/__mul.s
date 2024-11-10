@@ -10,7 +10,7 @@ __mul:
 	psha
 	tsx
 	; ,x and 1,x are D
-	; 3,x and 4,x are the top of stack value
+	; 4,x and 5,x are the top of stack value
 	ldab #16
 	stab @tmp		; iteration count
 
@@ -19,16 +19,17 @@ __mul:
 
 	; Rotate through the number
 nextbit:
-	lsr ,x
-	ror 1,x
+	aslb
+	rola
+	rol	5,x
+	rol	4,x
 	bcc noadd
-	addb 5,x
-	adca 4,x
-noadd:	lsl  5,x
-	rol  4,x
+	addb 1,x
+	adca 0,x
+noadd:
 	dec @tmp
 	bne nextbit
-	; For a 16x16 to 32bit just store 3-4,x into sreg
+	; For a 16x16 to 32bit just store 4-5,x into sreg
 	ins
 	ins
 	jmp __pop2
