@@ -217,9 +217,9 @@ struct cpu_table cpu_rules[] = {
 	{ "nova3", "nova", ".nova", "libnova3.a", "nova", defnova3, ldnova, "3", 0, novafeat },
 	/* FIXME: DDP116 will need a different library. We will also need to do the mul/div feature
 	   select stuff and maybe FP */
-	{ "ddp116", "ddp", ".ddp", "libddp.a", "ddp", defddp116, ldddp, "116", 0, NULL },
-	{ "ddp316", "ddp", ".ddp", "libddp.a", "ddp", defddp316, ldddp, "316", 0, NULL },
-	{ "ddp516", "ddp", ".ddp", "libddp.a", "ddp", defddp516, ldddp, "516", 0, NULL },
+	{ "ddp116", "316", ".ddp", "libddp.a", "ddp116", defddp116, ldddp, "116", 0, NULL },
+	{ "ddp316", "316", ".ddp", "libddp.a", "ddp", defddp316, ldddp, "316", 0, NULL },
+	{ "ddp516", "316", ".ddp", "libddp.a", "ddp", defddp516, ldddp, "516", 0, NULL },
 	{ NULL }
 };
 
