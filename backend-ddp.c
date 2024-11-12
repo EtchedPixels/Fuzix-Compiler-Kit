@@ -231,7 +231,7 @@ void gen_segment(unsigned s)
 {
 	switch(s) {
 	case A_CODE:
-		printf("\t.text\n");
+		printf("\t.code\n");
 		break;
 	case A_DATA:
 		printf("\t.data\n");
