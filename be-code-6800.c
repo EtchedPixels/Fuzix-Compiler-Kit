@@ -1076,13 +1076,13 @@ static unsigned do_fast_mul(unsigned s, unsigned n)
 	case 16:
 	case 32:
 		while(n >= 2) {
-			puts("\tlsb\n\trora\n");
+			puts("\tlslb\n\trola");
 			n >>= 1;
 		}
 		return 1;
 	case 64:
 		/* Can it be smaller? 20 cycles, 10 bytes */
-		puts("\tpsha\n\ttba\t\n\tpulb\n\tlsrb\n\trora\n\trorb\n\trora\n\trorb\n\tand #$C0");
+		puts("\tpsha\n\ttba\t\n\tpulb\n\tlsrb\n\trora\n\trorb\n\trora\n\trorb\n\tandb #$C0");
 		return 1;
 	case 128:
 		puts("\tlsra\n\ttba\n\trora\n\trorb\n\tandb #$80\n");
