@@ -21,12 +21,12 @@ do if [ ! -f "out.$i" -a ! -f "err.$i" ]
 	  b=$(basename $i .c)
           echo -n $i
 	  fcc -m6800 -O -c $b.c
-	  echo $b*
+#	  echo $b*
 
 	  # Link the output, run it
 	  # and get the output in trial.$i
 
-	  ld6800 -v -b -C256 -Z0 -m $b.map -o $b ../testcrt0_6800.o cprintf.o $b.o /opt/fcc/lib/6800/lib6800.a  /opt/fcc/lib/6800/libc.a
+	  ld6800 -b -C256 -Z0 -m $b.map -o $b ../testcrt0_6800.o cprintf.o $b.o /opt/fcc/lib/6800/lib6800.a  /opt/fcc/lib/6800/libc.a
 #	  ld6800 -v -b -C256 -Z0 -m \
 #		../testcrt0_6800.o cprintf.o \
 #		$b.o -o $b  \
