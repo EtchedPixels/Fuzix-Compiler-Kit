@@ -503,6 +503,18 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
+		if (s == 2 && r->op == T_LOCAL) {
+			v = r->value;
+			if (!cpu_is_09)
+				v++;
+			if (cpu_has_d)
+				puts("\tsts @tmp\n\taddd @tmp");
+			else
+				puts("\tsts @tmp\n\taddb @tmp+1\n\tadca @tmp");
+			invalidate_d();
+			add_d_const(v);
+			return 1;
+		}
 		return write_opd(r, "add", "adc", 0);
 	case T_MINUS:
 		if (r->op == T_CONSTANT && r->type != FLOAT) {
