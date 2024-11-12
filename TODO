@@ -1,3 +1,4 @@
+
 General
 DONE -	Pass cpu sub opts to cc1 (65c816 registers depend on subtype
 	for example)
@@ -24,6 +25,8 @@ DONE -	Fix comparisons of longs returning long type!
 	optimizes trees.
 -	In the backends support reversible ops (eg >= <= > <) with a rewrite
 	to put const on the right as we do with the directly switchable ops
+-	Can we generically rewrite T_PLUS(T_LOCAL, n) to fold in the add -
+	and do we need to
 
 1802:
 -	Optimizations
@@ -142,6 +145,9 @@ X1:
 680x
 -	Size of code!
 -	Inline simple 8/16/24 style const shifts
+-	++/-- for 1/2 bytes optimize to use inc/dec in place if
+	not needing result. Allow for offset of X so we can do
+	locals (usual case) fast.
 DONE -	Turn on LREF etc for 32bit types (and check float safe)
 	(done for those with Y not clear worth it otherwise)
 DONE -	Add floats (showing a test fail ?)
@@ -155,6 +161,10 @@ PART -	Don't go via X for ,S style += forms on 6809
 -	CC flags
 MOST -	Fix linker for ,PCREL stuff. Add options on -m6809 for lbra/pcrel v jmp etc
 -	Arg helpers - maybe arg0 in D, but certainly take const args via X
+-	6809 - figure out how to turn assignments of T_PLUS(T_LOCAL, n)) into
+        leax, stx ?
+-	6303 - use X/S tracking to optimise cleanup on function end
+-	lplus2xb peephole (https://github.com/EtchedPixels/Fuzix-Compiler-Kit/issues/144#issuecomment-2448679156)
 
 65C816
 
