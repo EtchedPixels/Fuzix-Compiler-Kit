@@ -905,6 +905,11 @@ unsigned do_xeqop(struct node *n, const char *op)
 	unsigned off;
 	struct node *l = n->left;
 	struct node *r = n->right;
+
+	/* Float always goes via the helper */
+	if (n->type == FLOAT)
+		return 0;
+
 	/* Handle simpler cases of -= the other way around */
 	if (is_simple(r) && get_size(n->type) <= 2) {
 		if (is_simple(l)) {
@@ -942,6 +947,8 @@ unsigned do_xeqop(struct node *n, const char *op)
 
 unsigned do_stkeqop(struct node *n, const char *op)
 {
+	if (n->type == FLOAT)
+		return 0;
 	if (cpu_is_09)
 		puts("\tpuls x");
 	else if (cpu_has_pshx)
