@@ -1143,6 +1143,8 @@ static void gen_lplus(struct node *n, const char *post)
 {
 	/* Expression on the right plus sp plus stack ptr plus n->value */
 	unsigned v = n->value + sp;
+	if (!cpu_is_09)
+		++v;
 	if (v < 256)
 		printf("\tjsr __lplus%sb\n\t.byte %u\n", post, v);
 	else
