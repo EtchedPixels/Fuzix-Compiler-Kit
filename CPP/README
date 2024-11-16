@@ -1,0 +1,5 @@
+This cpp is taken from dev86 and modified somewhat to swap out things to
+disk in order to allow it to run in a memory constrained system whilst
+still allowing for the fairly large number of macro definitions found in
+more modern C headers.
+
