@@ -61,14 +61,14 @@ static int isoctal(unsigned char c)
 
 static int iscsymbol(unsigned char c)
 {
-	if (c == '_' || isalnum(c))
+	if (c == '_' || isalnum(c) || c >= 0x80)
 		return 1;
 	return 0;
 }
 
 static int iscsymstart(unsigned char c)
 {
-	if (c == '_' || isalpha(c))
+	if (c == '_' || isalpha(c) || c >= 0x80)
 		return 1;
 	return 0;
 }
