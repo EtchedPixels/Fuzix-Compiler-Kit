@@ -987,7 +987,7 @@ unsigned memop_const(struct node *n, const char *op, unsigned nr, unsigned pre)
 
 	/* The helper has to load x and a value and make a call
 	   so is quite expensive */
-	if (ct > 4 + 2 * nr && opt < 2)
+	if (ct > 2 + nr)
 		return 0;
 
 	if (nr)
