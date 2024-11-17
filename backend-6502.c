@@ -48,6 +48,10 @@
  *
  *	Next to fix comparisons are reverse side due to **tmp effect
  *	need gttmp lteqtmp and flip side flipper
+ *
+ *	TODO: should we be working on the basis of helpers clear Y or set
+ *	1 as we do for pri8 etc at the moment. Need to audit helpers but
+ *	probably worth it
  */
 
 #include <stdio.h>
@@ -662,6 +666,8 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 
 	v = r->value;
 
+	if (get_size(r->type) != 2)
+		error("pri16bt");
 	switch(r->op) {
 	case T_CONSTANT:
 		pre(n);
@@ -740,6 +746,13 @@ static void pre_store16(struct node *n)
 	output("stx @tmp+1");
 }
 
+static void pre_store16clx(struct node *n)
+{
+	output("sta @tmp");
+	output("stx @tmp+1");
+	load_x(0);
+}
+
 static void pre_pha(struct node *n)
 {
 	output("pha");
@@ -787,7 +800,7 @@ static int pri8_help(struct node *n, char *helper)
 
 static void pre_fastcast(struct node *n)
 {
-	printf("\tsta @tmp\n");
+	output("sta @tmp");
 	/* The M740 is a fairly complete subset of the 65C02 but lacks STZ */
 	if (cpu == CMOS_M740)
 		output("stm #0");
@@ -799,24 +812,48 @@ static void pre_fastcast(struct node *n)
 	}
 }
 
+static void pre_fastcastx0(struct node *n)
+{
+	load_x(0);
+	output("sta @tmp");
+	output("stx @tmp+1");
+}
+
 static int pri16_help(struct node *n, char *helper)
 {
 	struct node *r = n->right;
 	unsigned v = r->value;
+	unsigned s = get_size(r->type);
 
 	/* Special case for cast first */
 	if (fast_castable(n)) {
-		if (do_pri16(r->right, "ld", pre_fastcast)) {
+		if (get_size(r->right->type) == 2) {
+			if (do_pri16(r->right, "ld", pre_fastcast)) {
+				helper_s(n, helper);
+				set_reg(R_Y, 1);
+				return 1;
+			}
+		} else {
+			if (do_pri8(r->right, "ld", pre_fastcastx0)) {
+				helper_s(n, helper);
+				set_reg(R_Y, 1);
+				return 1;
+			}
+		}
+	}
+	if (s == 1) {
+		if (do_pri8(n, "ld", pre_store16clx)) {
 			helper_s(n, helper);
 			set_reg(R_Y, 1);
 			return 1;
 		}
-	}
-	if (do_pri16(n, "ld", pre_store16)) {
-		/* Helper invalidates XA itself */
-		helper_s(n, helper);
-		set_reg(R_Y, 1);
-		return 1;
+	} else if (s == 2) {
+		if (do_pri16(n, "ld", pre_store16)) {
+			/* Helper invalidates XA itself */
+			helper_s(n, helper);
+			set_reg(R_Y, 1);
+			return 1;
+		}
 	}
 	/* As we are saving via @tmp we can do these as well */
 	switch(r->op) {
@@ -863,11 +900,17 @@ static int pri_cchelp(register struct node *n, unsigned s, char *helper)
 	/* In the case where we know the upper half of the value. Need to sort
 	   the signed version out eventually */
 	if (r->op == T_CONSTANT && s == 2 && (n->type & UNSIGNED)) {
-		if (reg[R_X].state == T_CONSTANT && reg[R_X].value == (v >> 8))
+		if (reg[R_X].state == T_CONSTANT && reg[R_X].value == (v >> 8)) {
+			n->type &= UNSIGNED;
+			n->type |= CCHAR;
 			return pri8_help(n, helper);
+		}
 	}
-	if (n->flags & BYTEABLE)
+	if (n->flags & BYTEABLE) {
+		n->type &= UNSIGNED;
+		n->type |= CCHAR;
 		return pri8_help(n, helper);
+	}
 	return pri_help(n, helper);
 }
 
@@ -1142,7 +1185,6 @@ struct node *gen_rewrite_node(struct node *n)
 	if (op == T_CAST) {
 		if (nt == r->type || (nt ^ r->type) == UNSIGNED ||
 		 (PTR(nt) && PTR(r->type))) {
-			printf(";killed cast of %x %lu\n", r->op, r->value);
 			free_node(n);
 			return r;
 		}
@@ -1740,7 +1782,9 @@ unsigned gen_direct(struct node *n)
 				}
 			}
 			if (v < 16) {
-				printf("\tjsr __mulc%u\n", v);
+				if (s == 1)
+					load_x(0);
+				output("jsr __mulc%u", v);
 				invalidate_x();
 				invalidate_a();
 				return 1;
@@ -2024,7 +2068,7 @@ static unsigned gen_cast(struct node *n)
 		return 0;
 
 	/* No type casting needed as computing byte sized */
-	if (n->flags & BYTEABLE)
+	if (n->flags & BYTEOP)
 		return 1;
 
 	ls = get_size(lt);
