@@ -840,7 +840,7 @@ unsigned left_shift(register struct node *n)
 			v -= 8;
 			if (v) {
 				invalidate_work();
-				repeated_op(v, "lsl");
+				repeated_op(v, "lsla");
 			}
 			return 1;
 		}
