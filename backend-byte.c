@@ -26,6 +26,8 @@
  *
  *	If BYTE_REMAP is defined it will also rewrite the types for
  *	most operations to simplify logic in the CPU specific backend
+ *
+ *	Note: We assume 8bit bytes
  */
 
 #include <stdio.h>
@@ -52,10 +54,45 @@ static unsigned byte_cast(struct node *n)
 	return 0;
 }
 
+/*
+ *	As well as casts look for constants. Constants that will match
+ *	in the low 8bits and expand correctly in the upper are ok.
+ */
+static unsigned byte_fold(struct node *n, struct node *c)
+{
+	unsigned t = n->type;
+	unsigned v = c->value;
+
+	if (c->op != T_CONSTANT)
+		return 0;
+	if ((t & UNSIGNED) || PTR(t)) {
+		if (v & 0xFF00)
+			return 0;
+		c->flags |= BYTEABLE;
+		return 1;
+	}
+	if (IS_INTARITH(t) == 0)
+		return 0;
+
+	v &= 0xFF80;
+	if (v == 0 || v == 0xFF80) {
+		c->flags |= BYTEABLE;
+		return 1;
+	}
+	return 0;
+}
+
 static unsigned cast_lr(struct node *n)
 {
 	unsigned lt = byte_cast(n->left);
 	unsigned rt = byte_cast(n->right);
+
+	/* If we can't cast are the constants within our range */
+	if (lt == 0)
+		lt = byte_fold(n, n->left);
+	if (rt == 0)
+		rt = byte_fold(n, n->right);
+
 	if (lt == 0 || rt == 0)
 		return 0;
 	if (lt == rt)
@@ -109,28 +146,24 @@ static unsigned op_can_byte(register struct node *n)
 	if (op == T_CONSTANT)
 		return BYTEABLE | BYTETAIL;
 	/* References must be done (logically at least) for the full width because
-	   there might be side effets. Backends can be smarter with the BYTETAIL
+	   there might be side effects. Backends can be smarter with the BYTETAIL
 	   info */
 	if (op == T_NAME || op == T_LABEL || op == T_LOCAL || op == T_DEREF)
 		return BYTETAIL;
 	/* Boolean results : can produce byte results but subtrees unchanged */
-	/* TODO: in theory for some cases we can also treat these as BYTEABLE
-	   providing the left and right sides are genuinely casts from byte types
-	   or byte types, but not if they are trimmed ones */
-
 	if (op == T_LT || op == T_GT || op == T_LTEQ || op == T_GTEQ) {
 		if (cast_lr(n))
-			return BYTEABLE | BYTETAIL;
+			return BYTEABLE | BYTEROOT | BYTETAIL;
 		return BYTETAIL;
 	}
 	if (op == T_EQ || op == T_BANGEQ) {
 		if (cast_lr(n))
-			return BYTEABLE | BYTETAIL;
+			return BYTEABLE | BYTEROOT | BYTETAIL;
 		return BYTETAIL;
 	}
 	if (op == T_BOOL || op == T_BANG) {
 		if (byte_cast(n->right))
-			return BYTEABLE | BYTETAIL;
+			return BYTEABLE | BYTEROOT | BYTETAIL;
 		return BYTETAIL;
 	}
 	return 0;
@@ -173,7 +206,7 @@ static unsigned byte_convert(register struct node *n)
 	   subnodes down to the point the bottom of the tree, or to
 	   a point it doesn't matter can */
 	if (n->flags & (BYTEABLE | BYTEROOT)) {
-		if (!(n->flags & BYTETAIL)) {
+		if (!(n->flags & BYTETAIL) || (n->flags & BYTEROOT)) {
 			depth++;
 			if (!byte_convert(n->left) || !byte_convert(n->right)) {
 				depth--;
