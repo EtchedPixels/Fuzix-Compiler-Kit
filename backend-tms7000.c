@@ -2,8 +2,11 @@
  *	TMS7000 code generator. Based on the Z8 tree
  *
  *	TODO: needs assembler to optimize jp/jmp
- *	TODO: needs assembler to optimize mov to a/b etc into short form
  *	TODO: stuff like btjz usage ?
+ *	TODO: clean up some of the smart const finding - it's not a win
+ *	      for us in many cases unlike the Z8
+ *	TODO: cconly cases we can avoid loading out of A after a read
+ *	      - will need some infrastructure changes in this backend ?
  */
 
 #include <stdio.h>
@@ -60,8 +63,6 @@ static struct node ac_node;	/* What is in AC 0 type = unknown */
 
 static void invalidate_ac(void)
 {
-	if (ac_node.op)
-		printf(";invalidate ac\n");
 	ac_node.op = 0;
 }
 
@@ -279,8 +280,6 @@ static void load_r_r(unsigned r1, unsigned r2)
 	if (r1 < 4)
 		invalidate_ac();
 	r_modify(r1, 1);
-	/* FIXME: ensure either we or asm optimizes
-		mov r0,r1 into mov a,b etc */
 	printf("\tmov r%u,r%u\n", r2, r1);
 }
 
@@ -679,12 +678,14 @@ static void rshift_r(unsigned r, unsigned size, unsigned l, unsigned uns)
 		load_r_constb(R_INDEX, l);
 		x = label();
 	}
+	/* Now do the rotates */
 	if (uns)
-		printf("\trcf\n\trrc r%u\n", r++);
-	else
-		printf("\tsra r%u\n", r++);
-	while(--size)
-		printf("\trrc r%u\n", r++);
+		printf("\tclrc\n");
+	else {
+		load_r_r(0, r);
+		mono_r(0, 1, "rl");
+	}
+	mono_r(r, size, "rrc");
 	if (l > 1)
 		djnz_r(R_INDEX, x);
 }
@@ -764,15 +765,15 @@ static void logic_r_r(unsigned r1, unsigned r2, unsigned size, unsigned op)
 
 static void load_l_sprel(unsigned r, unsigned off)
 {
-#ifdef SUPER8
-	load_rr_RR(r, R_SPH);
-	add_r_const(r, off, 2);
-#else
-	/* On Z8 we have no ldw #const but we have a good chance
+	/* On the TMS7000 we have no movw %const,r but we have a good chance
 	   that this will turn into a clr somewhere or a transfer */
-	load_r_const(r, off, 2);
-	add_rr_rr(r, R_SPH);
-#endif
+	if (off) {
+		load_r_const(r, off, 2);
+		add_rr_rr(r, R_SPH);
+	} else {
+		load_r_r(r, R_SPL);
+		load_r_r(r + 1, R_SPH);
+	}
 
 	if (r == R_INDEX) {
 		r12_valid = 1;
@@ -806,6 +807,7 @@ static void load_l_mod(unsigned r, unsigned rs, unsigned diff, unsigned off)
 	}
 }
 
+/* FIXME: correct costs for TMS7000 not Z8 */
 static unsigned load_l_cost(int diff)
 {
 	unsigned n = abs(diff);
@@ -826,7 +828,6 @@ static void load_r_local(unsigned r, unsigned off)
 	diff12 = r12_sp - (off - sp);
 	diff4 = r4_sp - (off - sp);
 
-	/* FIXME: corret costs for TMS7000 not Z8 */
 	printf("; load r local %d\n", off);
 	if (r12_valid)
 		printf(";14: local %d (cache %d) diff %d\n", off - sp, r12_sp, diff12);
@@ -883,11 +884,11 @@ static void load_work_helper(unsigned v, unsigned size)
 	v += sp;
 	if (v < 254) {
 		load_r_const(R_INDEX + 1, v, 1);
-		printf("\tcall @__garg12r%u\n", size);
+		printf("\tcall @__garg10r%u\n", size);
 		r_modify(12,2);
 	} else {
 		load_r_const(R_INDEX, v, 2);
-		printf("\tcall @__garg12rr%u\n", size);
+		printf("\tcall @__garg10rr%u\n", size);
 		r_modify(12,2);
 	}
 	r_modify(10, 2);
@@ -1232,6 +1233,11 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 			load_work_helper(v, size);
 			return r;
 		}
+		/* We have a weird case where SP points at a char */
+		if (v == 0 && size == 1) {
+			load_r_memr(r + 1, R_SPL, 1);
+			return r;
+		}
 		load_r_local(R_INDEX, v);
 		if (size == 1)
 			r++;
@@ -1385,7 +1391,7 @@ struct node *gen_rewrite_node(struct node *n)
 		- rewrite some reg ops
 	*/
 
-	/* Structure field references from locals. These end up big on the Z8 so use
+	/* Structure field references from locals. These end up big on the TMS7000 so use
 	   a helper for the lot */
 	if (optsize && op == T_DEREF && r->op == T_PLUS && r->right->op == T_CONSTANT) {
 		/* For now just do lrefs of offsets within 256 bytes */
@@ -1600,7 +1606,7 @@ void gen_frame(unsigned size, unsigned aframe)
 
 	argbase = ARGBASE;
 
-	for (r = 1; r <= 4; r++) {
+	for (r = 1; r <= 2; r++) {
 		if (func_flags & F_REG(r)) {
 			push_rr(R_REG(r));
 			argbase += 2;
@@ -1653,7 +1659,7 @@ void gen_epilogue(unsigned size, unsigned argsize)
 		return;
 
 	add_r_const(R_SPH, size, 2);
-	for (r = 4; r >= 1; r--) {
+	for (r = 2; r >= 1; r--) {
 		if (func_flags & F_REG(r)) {
 			pop_rr(R_REG(r));
 		}
@@ -2657,7 +2663,7 @@ unsigned gen_shortcut(struct node *n)
 		codegen_lr(r);
 		invalidate_all();
 		/* Rather than mess with indirection use a helper */
-		printf("\tcall @__jmpr2\n");
+		printf("\tcall @__jmpr4\n");
 		return 1;
 	}
 	if (n->op == T_CALLNAME) {
@@ -2687,7 +2693,7 @@ unsigned gen_shortcut(struct node *n)
 		helper(n, "bool");
 		return 1;
 	}
-	/* A common pattern is a ++ or -- on a local. That gets really convoluted on the Z8, so
+	/* A common pattern is a ++ or -- on a local. That gets really convoluted on the TMS7000, so
 	   handle it specially */
 	if (optsize && n->op == T_PLUSPLUS && l->op == T_LREF && l->value + sp + size - 1 < 254) {
 		/* Set the pointer to the last byte */
