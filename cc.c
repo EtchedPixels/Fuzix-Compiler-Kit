@@ -167,6 +167,8 @@ const char *defddp516[] = { "__ddp__", "__ddp516__", NULL };
 const char *defddp316[] = { "__ddp__", "__ddp316__", NULL };
 const char *defddp116[] = { "__ddp__", "__ddp116__", NULL };
 
+const char *deftms7000[] = { "__tms7000__", NULL };
+
 const char *ld6502[] = { "-b", "-C", "512", "-Z", "0x00", NULL };
 const char *ld6800[] = { "-b", "-C", "256", "-Z", "0x40", NULL };
 const char *ld6809[] = { "-b", "-C", "256", NULL };
@@ -176,6 +178,7 @@ const char *ld8086[] = { "-b", "-C", "256", NULL };
 const char *ldee200[] = { "-b", "-C", "256", NULL };
 const char *ldnova[] = { "-b", "-Z", "050", "-C", "512", NULL };
 const char *ldddp[] = { "-b", "-Z", "020", "-C", "256", NULL };
+const char *ldtms7000[] = { "-b", "-C", "512", NULL };
 const char *ldbyte[] =  { NULL };
 const char *ldthread[] = { NULL };
 
@@ -220,6 +223,7 @@ struct cpu_table cpu_rules[] = {
 	{ "ddp116", "316", ".ddp", "libddp.a", "ddp116", defddp116, ldddp, "116", 0, NULL },
 	{ "ddp316", "316", ".ddp", "libddp.a", "ddp", defddp316, ldddp, "316", 0, NULL },
 	{ "ddp516", "316", ".ddp", "libddp.a", "ddp", defddp516, ldddp, "516", 0, NULL },
+	{ "tms7000", "7000", ".7000", "lib7000.a", "ddp", deftms7000, ldtms7000, "7000", 0, NULL },
 	{ NULL }
 };
 
