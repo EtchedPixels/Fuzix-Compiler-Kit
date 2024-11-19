@@ -6,17 +6,24 @@
 	.export __ccltequl
 	.code
 
-__ccltequl:
-	movd r15,r13
-	lda *r13
-	cmp r2,a
-	jc false
-	jmp nbyte
+
 __cclteql:
 	movd r15,r13
 	lda *r13
+	xor r2,a
+	jp samesign
+	xor r2,a
+	; Get the sign back
+	jn true
+	jmp false
+
+__ccltequl:
+	movd r15,r13
+	lda *r13
+samesign:
+	xor r2,a
 	cmp r2,a
-	;jr lt,false	FIfalseME
+	jc false
 nbyte:
 	jnz true
 	add %1,r13

@@ -15,8 +15,16 @@ __ccltul:
 __ccltl:
 	movd r15,r13
 	lda *r13
+	xor r2,a
+	jp samesign
+	xor r2,a
+	jn true
+	jmp false
+
+samesign:
+	xor r2,a
 	cmp r2,a
-;	jr lt,true	; FIXME
+	jnc true
 nbyte:
 	jnz false
 	add %1,r13

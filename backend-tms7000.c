@@ -1055,7 +1055,7 @@ static void pop_r(unsigned r)
 		r = r & 0x0F;
 	}
 	/* Always via the small helper */
-	printf("\ttrap 0\n");
+	printf("\tcall @__pop\n");
 	r_modify(0, 1);
 	load_r_r(r, 0);
 }
@@ -1074,14 +1074,27 @@ static void pop_rr(unsigned rr)
 		rr = rr & 0x0F;
 	r_modify(rr, 2);
 	load_r_constb(1, rr);
-	printf("\ttrap 1\n");
+	printf("\tcall @__popw\n");
+}
+
+static void pop_rl(unsigned rr)
+{
+	if (R_ISAC(rr))
+		rr = rr & 0x0F;
+	r_modify(rr, 4);
+	load_r_constb(1, rr);
+	printf("\tcall @__popl\n");
 }
 
 static void pop_ac(unsigned size)
 {
 	unsigned r = 4 - size;
-	while(size--)
-		pop_r(r++);
+	if (size == 1)
+		pop_r(r);
+	else if (size == 2)
+		pop_rr(r);
+	else
+		pop_rl(r);
 }
 
 static void push_ac(unsigned size)

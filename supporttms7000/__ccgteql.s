@@ -10,13 +10,21 @@ __ccgtequl:
 	movd r15,r13
 	lda *r13
 	cmp r2,a
-	jnc true
+	jnc false
 	jmp nbyte
 __ccgteql:
 	movd r15,r13
 	lda *r13
+	xor r2,a
+	jp samesign
+	xor r2,a
+	jp false
+	jmp true
+
+samesign:
+	xor r2,a
 	cmp r2,a
-;	jr lt,false	; FIXME
+	jnc false
 nbyte:
 	jnz true
 	add %1,r13

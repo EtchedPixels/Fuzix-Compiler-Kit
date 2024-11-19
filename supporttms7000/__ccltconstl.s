@@ -32,8 +32,15 @@ __ccltconstbl:
 	clr r11
 	clr r10
 __ccltconstl:
+	xor r10,r2
+	jp samesign
+	xor r10,r2
+	jp true
+	jmp false
+samesign:
+	xor r10,r2
 	cmp r10,r2
-;FIXME	jr lt,true
+	jc true
 	jnz false
 	jmp next
 

@@ -15,8 +15,17 @@ __ccgtul:
 __ccgtl:
 	movd r15,r13
 	lda *r13
+	xor r2,a
+	jp samesign
+	xor r2,a
+	; Get the sign back
+	jp true
+	jmp false
+
+samesign:
+	xor r2,a
 	cmp r2,a
-	;jr lt,true	FIXME
+	jc true
 nbyte:
 	jnz false
 	add %1,r13
