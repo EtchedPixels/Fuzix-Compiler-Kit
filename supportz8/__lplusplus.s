@@ -10,7 +10,7 @@
 	.code
 
 __lplusplus1:
-	ld  r3,#1
+	ld r3,#1
 __lplusplusb:
 	clr r2
 __lplusplus:
@@ -31,6 +31,7 @@ __lplusplus:
 	ret
 
 __lplusplus1c:
+	ld r3,#1
 __lplusplusbc:
 __lplusplusc:
 	clr r14
