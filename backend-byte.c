@@ -156,7 +156,7 @@ static unsigned op_can_byte(register struct node *n)
 			return BYTEABLE | BYTEROOT | BYTETAIL;
 		return BYTETAIL;
 	}
-	if (op == T_EQ || op == T_BANGEQ) {
+	if (op == T_EQEQ || op == T_BANGEQ) {
 		if (cast_lr(n))
 			return BYTEABLE | BYTEROOT | BYTETAIL;
 		return BYTETAIL;
