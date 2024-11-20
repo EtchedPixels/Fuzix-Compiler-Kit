@@ -1482,7 +1482,7 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 				/* Until we track r14 objects other than local */
 				r_modify(R_WORK + size - 1, size);
 				gen_symref(n);
-				return 1;
+				return r;
 			}
 		}
 		load_r_name(R_INDEX, n, v);
@@ -1495,7 +1495,7 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 		/* Load using lde _foo+n */
 		if (size <= 2 - optsize) {
 			load_da(r, n);
-			return 1;
+			return r;
 		}
 #endif
 		if (optsize) {
@@ -2029,6 +2029,7 @@ void gen_helpclean(struct node *n)
 		/* C style ops that are ISBOOL didn't set the bool flags */
 		if (n->flags & ISBOOL)
 			printf("\tor r3,r2\n");
+		/* TODO: can we also assume r2 = 0 ? */
 		r_modify(2, 2);
 	}
 }
