@@ -87,18 +87,6 @@ static void flush_all(unsigned f)
 {
 }
 
-static void gen_symref(struct node *n, unsigned off)
-{
-	register unsigned op = n->op;
-	register unsigned v = n->value + off;
-	if (op == T_NREF || op == T_NSTORE || op == T_NAME)
-		printf("\t.word _%s+%u\n",  namestr(n->snum), v);
-	else if (op == T_LBREF || op == T_LBSTORE || op == T_LABEL)
-		printf("\t.word T%u+%u\n", n->val2, v);
-	else
-		error("gsr");
-}
-
 #define R_SPL		15
 #define R_SPH		14
 
@@ -111,7 +99,7 @@ static void gen_symref(struct node *n, unsigned off)
 #define R_ISAC(x)	(((x) & 0xF0) == 0xE0)
 #define R_AC		0xE2
 
-#define REGBASE		8		/* Reg vars 8 and 10 */
+#define REGBASE		4		/* Reg vars 6 and 8 (reg 1 and 2) */
 
 #define R_REG(x)	(((x) * 2) + REGBASE)
 #define R_REG_S(x,s)	(((x) * 2) + REGBASE + (2 - (s)))
@@ -888,13 +876,12 @@ static void load_work_helper(unsigned v, unsigned size)
 	if (v < 254) {
 		load_r_const(R_INDEX + 1, v, 1);
 		printf("\tcall @__garg10r%u\n", size);
-		r_modify(12,2);
 	} else {
 		load_r_const(R_INDEX, v, 2);
 		printf("\tcall @__garg10rr%u\n", size);
-		r_modify(12,2);
 	}
-	r_modify(10, 2);
+	r_modify(12,2);
+	r_modify(10,2);
 	r12_valid = 1;
 	r12_sp = v - sp + size - 1;
 }
@@ -1256,8 +1243,8 @@ static unsigned get_size(unsigned t)
 	return 0;
 }
 
-/* Load helpers. Try and get a value into r (usually 12/13) without messing up ac. May
-   trash r14/r15. Set mm if returned reg must match requested */
+/* Load helpers. Try and get a value into r (usually 10/11) without messing up ac. May
+   trash r12/r13. Set mm if returned reg must match requested */
 static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 {
 	unsigned size = get_size(n->type);
@@ -1298,7 +1285,7 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 				printf("\tcall @__nref10_%d\n", size);
 				/* Until we track r12 objects other than local */
 				r_modify(R_WORK + size - 1, size);
-				return 1;
+				return r;
 			}
 		}
 		if (size == 1)
@@ -1312,7 +1299,7 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 				printf("\tcall @__nref10_%d\n", size);
 				/* Until we track r12 objects other than local */
 				r_modify(R_WORK + size - 1, size);
-				return 1;
+				return r;
 			}
 		}
 		if (size == 1)
@@ -1646,17 +1633,17 @@ void gen_prologue(const char *name)
 /* TODO: defer this to statements so we can ld/push initializers */
 void gen_frame(unsigned size, unsigned aframe)
 {
-	unsigned r;
 	frame_len = size;
 	sp = 0;
 
 	argbase = ARGBASE;
 
-	for (r = 1; r <= 2; r++) {
-		if (func_flags & F_REG(r)) {
-			push_rr(R_REG(r));
-			argbase += 2;
-		}
+	if (func_flags & F_REG(2)) {
+		printf("\tcall @__rpush2\n");
+		argbase += 4;
+	} else if (func_flags & F_REG(1)) {
+		printf("\tcall @__rpush1\n");
+		argbase += 2;
 	}
 
 	r12_valid = 0;
@@ -3057,7 +3044,6 @@ unsigned gen_node(struct node *n)
 			load_local_helper(v, size);
 			return 1;
 		}
-		/* effectively SPL/SPH + n */
 		load_r_local(R_INDEX, v + sp + size - 1);
 		revload_r_memr(R_AC, R_INDEX, size);
 		set_ac_node(n);
