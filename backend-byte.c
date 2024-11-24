@@ -136,9 +136,6 @@ static unsigned op_can_byte(register struct node *n)
 	/* Logic operations */
 	if (op == T_AND || op == T_OR || op == T_HAT)
 		return BYTEABLE;
-	/* Assignment to byte size : check return val rule TODO */
-	if (op == T_EQ && b)
-		return BYTEROOT | BYTEABLE;
 	/* Left shift (but not right) */
 	if (op == T_LTLT)
 		return BYTEABLE;
@@ -169,10 +166,17 @@ static unsigned op_can_byte(register struct node *n)
 	return 0;
 }
 
-static unsigned op_is_shift(struct node *n)
+static unsigned op_is_byteright(struct node *n)
 {
 	register unsigned op = n->op;
+	register unsigned b = 0;
+
+	if (n->type == CCHAR || n->type == UCHAR)
+		b = 1;
+
 	if (op == T_LTLT || op == T_GTGT)
+		return 1;
+	if (b && op == T_EQ)
 		return 1;
 	return 0;
 }
@@ -188,7 +192,9 @@ static void label_byteable(register struct node *n)
 	n->flags |= r;
 	label_byteable(n->left);
 	if (n->right) {
-		if (op_is_shift(n))
+		/* A few operations the one child node can be done in byte
+		   form in some cases */
+		if (op_is_byteright(n))
 			n->right->flags |= BYTEROOT;
 		label_byteable(n->right);
 	}
