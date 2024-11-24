@@ -649,8 +649,8 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 	case T_NAME:
 		pre(n);
 		name = namestr(n->snum);
-		output("%sa #<_%s+%d", op,  n, v);
-		output("%sx #>_%s+%d", op,  n, v >> 8);
+		output("%sa #<_%s+%d", op,  name, v);
+		output("%sx #>_%s+%d", op,  name, v >> 8);
 		return 1;
 	case T_LOCAL:
 	case T_LREF:
