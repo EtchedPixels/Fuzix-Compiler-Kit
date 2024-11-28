@@ -2,11 +2,11 @@ all: CPP cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.1802 cc1.6800 cc1.6809 \
      cc1.8070 cc1.8086 \
-     cc1.ee200 cc1.nova cc1.ddp cc1.7000 \
+     cc1.ee200 cc1.nova cc1.ddp cc1.7000 cc1.hc08 \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.6809 \
      cc2.8070 cc2.8086 \
-     cc2.ee200 cc2.nova cc2.ddp cc2.7000 \
+     cc2.ee200 cc2.nova cc2.ddp cc2.7000 cc2.hc08 \
      copt \
      support6303 support6502 support65c816 support6800 support6803 \
      support6809 support68hc11 support8080 support8085 supportz80 \
@@ -17,9 +17,11 @@ bootstuff: CPP cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.super8 cc1.1802 cc1.6800 cc1.6809 \
      cc1.8070 cc1.8086 cc1.ee200 cc1.nova cc1.ddp cc1.7000 \
+     cc1.hc08 \
      cc2 cc2.8080 cc2.z80 cc2.65c816 cc2.thread \
      cc2.6502 cc2.z8 cc2.super8 cc2.1802 cc2.6800 cc2.6809 \
      cc2.8070 cc2.8086 cc2.ee200 cc2.nova cc2.ddp cc2.7000 \
+     cc2.hc08 \
      copt
 
 .PHONY: support6303 support6502 support65c816 support6800 support6803 \
@@ -53,6 +55,7 @@ OBJS16 = backend.o be-codegen-6800.o be-track-6800.o be-code-6800.o be-func-6800
 OBJS17 = backend.o be-codegen-6800.o be-track-6800.o be-code-6809.o be-func-6800.o
 OBJS18 = backend.o backend-ddp.o
 OBJS19 = backend.o backend-tms7000.o
+OBJS20 = backend.o backend-hc08.o backend-byte.o
 
 CFLAGS = -Wall -pedantic -g3 -DLIBPATH="\"$(CCROOT)/lib\"" -DBINPATH="\"$(CCROOT)/bin\""
 
@@ -132,6 +135,9 @@ cc1.ddp:$(OBJS1) target-ddp.o
 cc1.7000:$(OBJS1) target-tms7000.o
 	gcc -g3 $(OBJS1) target-tms7000.o -o cc1.7000
 
+cc1.hc08:$(OBJS1) target-hc08.o
+	gcc -g3 $(OBJS1) target-hc08.o -o cc1.hc08
+
 cc2:	$(OBJS2)
 	gcc -g3 $(OBJS2) -o cc2
 
@@ -182,6 +188,9 @@ cc2.ddp:	$(OBJS18)
 
 cc2.7000:	$(OBJS19)
 	gcc -g3 $(OBJS19) -o cc2.7000
+
+cc2.hc08:	$(OBJS20)
+	gcc -g3 $(OBJS20) -o cc2.hc08
 
 support6303:
 	(cd support6303; make)
@@ -249,6 +258,7 @@ clean:
 	rm -f cc1.ee200 cc2.ee200
 	rm -f cc1.ddp cc2.ddp
 	rm -f cc1.7000 cc2.7000
+	rm -f cc1.hc08 cc2.hc08
 	rm -f *~ *.o
 	(cd support6303; make clean)
 	(cd support6502; make clean)
@@ -397,6 +407,13 @@ bootinst:
 	cp cc1.7000 $(CCROOT)/lib
 	cp cc2.7000 $(CCROOT)/lib
 	cp rules.7000 $(CCROOT)/lib
+	# 68HC08
+	mkdir -p $(CCROOT)/lib/hc08
+	mkdir -p $(CCROOT)/lib/hc08/include/
+	cp lorderhc08 $(CCROOT)/bin/lorderhc08
+	cp cc1.hc08 $(CCROOT)/lib
+	cp cc2.hc08 $(CCROOT)/lib
+	cp rules.hc08 $(CCROOT)/lib
 
 #
 #	Install the support libraries
