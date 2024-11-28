@@ -295,7 +295,7 @@ static void set_xa_node(struct node *n)
 	reg[R_X].state = op;
 	reg[R_A].state = op;
 	reg[R_A].value = value;
-	reg[R_X].value = value;
+	reg[R_X].value = value >> 8;
 	reg[R_A].snum = n->snum;
 	reg[R_X].snum = n->snum;
 	return;
@@ -307,7 +307,7 @@ static unsigned xa_contains(struct node *n)
 		return 0;
 	if (reg[R_A].state != n->op || reg[R_X].state != n->op)
 		return 0;
-	if (reg[R_A].value != n->value || reg[R_X].value != n->value)
+	if (reg[R_A].value != (n->value & 0xFF) || reg[R_X].value != (n->value >> 8))
 		return 0;
 	if (reg[R_A].snum != n->snum || reg[R_X].snum != n->snum)
 		return 0;
@@ -680,13 +680,13 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 		}
 		return 1;
 	case T_LREF:
+		v += sp;
 		if (optsize && v < 255 && strcmp(op, "ld") == 0) {
 			pre(n);
 			if (v) {
 				load_y(v + 1);
 				output("jsr __gloy");
 			} else {
-				load_y(0);
 				output("jsr __gloy0");
 			}
 			const_y_set(v);
@@ -996,6 +996,7 @@ static int leftop_memc(struct node *n, const char *op)
 	case T_ARGUMENT:
 		v += argbase + frame_len;
 	case T_LOCAL:
+		v += sp;
 		return 0;
 		/* Don't seem to have a suitable addressing mode */
 	}
@@ -1038,10 +1039,12 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 	if (do_pri8(n, op, pre) == 0)
 		return 0;
 	output("pha");
+	sp++;
 	output("txa");
 	memcpy(&reg[R_A], &reg[R_X], sizeof(struct regtrack));
 	do_pri8hi(n, op, pre_none);
 	output("tax");
+	sp--;
 	output("pla");
 	invalidate_a();
 	invalidate_x();
@@ -1108,10 +1111,6 @@ struct node *gen_rewrite(struct node *n)
 }
 
 /*
- *	Our chance to do tree rewriting. We don't do much for the 8080
- *	at this point, but we do rewrite name references and function calls
- *	to make them easier to process.
- *
  *	We need to look at rewriting deref and assign with plus offset
  *	as if we've stuffed the ptr into tmp we can use ,y for deref
  */
@@ -1257,7 +1256,7 @@ void gen_frame(unsigned size, unsigned aframe)
 	if (size == 0)
 		return;
 
-	sp += size;
+	sp = 0;
 	/* Maybe shortcut some common values ? */
 
 	if (size < 256) {
@@ -1273,10 +1272,8 @@ void gen_frame(unsigned size, unsigned aframe)
 
 void gen_epilogue(unsigned size, unsigned argsize)
 {
-	if (sp != size) {
+	if (sp)
 		error("sp");
-	}
-	sp -= size;
 
 	if (unreachable)
 		return;
@@ -1981,7 +1978,7 @@ unsigned gen_shortcut(struct node *n)
 	unsigned nr = n->flags & NORETURN;
 	unsigned v;
 
-	/* Unreachable code we can shortcut into nothing whee.be.. */
+	/* Unreachable code we can shortcut into nothing whee.bye.. */
 	if (unreachable)
 		return 1;
 
@@ -2131,6 +2128,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		if (is_byte && !se)
 			size = 1;
+		/* FIXME: stack offsetting and check is wrong*/
 		if (size == 1 && v) {
 			if (a_contains(n))
 				return 1;
@@ -2306,6 +2304,7 @@ unsigned gen_node(struct node *n)
 	case T_ARGUMENT:
 		v += argbase + frame_len;
 	case T_LOCAL:
+		v += sp;
 		if (v < 256) {
 			if (v == 0) {
 				output("lda @sp");
