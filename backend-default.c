@@ -124,11 +124,6 @@ void gen_switchdata(unsigned n, unsigned size)
 	printf("\t.word %d\n", size);
 }
 
-void gen_case(unsigned tag, unsigned entry)
-{
-	printf("Sw%d_%d:\n", tag, entry);
-}
-
 void gen_case_label(unsigned tag, unsigned entry)
 {
 	printf("Sw%d_%d:\n", tag, entry);
