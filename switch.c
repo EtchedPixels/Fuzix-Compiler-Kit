@@ -6,7 +6,7 @@ unsigned long *switch_next = switch_table;
 
 /*
  *	When we finish a switch block off we write the table out. We could
- *	do things here like enble binary search but for now we don't and
+ *	do things here like enable binary search but for now we don't and
  *	for some types it's tricky
  *	TODO;
  */
