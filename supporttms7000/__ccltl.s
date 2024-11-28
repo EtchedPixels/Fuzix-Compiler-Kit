@@ -16,7 +16,7 @@ __ccltl:
 	movd r15,r13
 	lda *r13
 	xor r2,a
-	jp samesign
+	jpz samesign
 	xor r2,a
 	jn true
 	jmp false

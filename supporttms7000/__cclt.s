@@ -17,7 +17,7 @@ __cclt:
 __ccltconst:
 	; No direct signed comparisons so..
 	xor r10,r4
-	jp same_sign
+	jpz same_sign
 	xor r10,r4
 	jn true
 false:

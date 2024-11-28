@@ -99,7 +99,7 @@ __div32x32:
 				; one for divide.
 
 	or r2,r2
-	jp uns1
+	jpz uns1
 	or a,a		; Check if divide or mod
 	jz is_mod
 	inc b		; Remember sign change for divides
@@ -115,7 +115,7 @@ is_mod:
 	adc %0,r2
 uns1:
 	or r6,r6
-	jp is_unsigned
+	jpz is_unsigned
 	inc b
 	inv r6		; invert the dividend
 	inv r7

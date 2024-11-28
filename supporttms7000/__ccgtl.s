@@ -16,10 +16,10 @@ __ccgtl:
 	movd r15,r13
 	lda *r13
 	xor r2,a
-	jp samesign
+	jpz samesign
 	xor r2,a
 	; Get the sign back
-	jp true
+	jpz true
 	jmp false
 
 samesign:

@@ -33,9 +33,9 @@ __ccltconstbl:
 	clr r10
 __ccltconstl:
 	xor r10,r2
-	jp samesign
+	jpz samesign
 	xor r10,r2
-	jp true
+	jpz true
 	jmp false
 samesign:
 	xor r10,r2

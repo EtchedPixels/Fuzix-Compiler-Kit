@@ -12,14 +12,14 @@ __div:
 __dodivs:
 	clr r10			; sign info
 	or r2,r2		; negative ?
-	jp uns1
+	jpz uns1
 	inc r10
 	inv r2
 	inv r3
 	add %1,r3
 	adc %0,r2		; negate
 uns1:	or r4,r4
-	jp uns2
+	jpz uns2
 	inc r10			; sign memory
 	inv r4
 	inv r5	
@@ -45,14 +45,14 @@ __rem:
 __dorems:
 	clr r10			; sign info
 	or r2,r2		; negative ?
-	jp uns3
+	jpz uns3
 	inc r10
 	inv r2
 	inv r3
 	add %1,r3
 	adc %0,r2		; negate
 uns3:	or r4,r4
-	jp uns4
+	jpz uns4
 	inv r4
 	inv r5
 	add %1,r5

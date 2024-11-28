@@ -19,7 +19,7 @@ __ccltconstu:
 	jnz c1
 	cmp r11,r5
 c1:
-	; Annoyingly C is affectred by mov or clr
+	; Annoyingly C is affected by mov or clr
 	; if C set then <
 	jnc c2
 	clr r4

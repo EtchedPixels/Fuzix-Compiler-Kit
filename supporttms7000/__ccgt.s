@@ -17,9 +17,9 @@ __ccgt:
 __ccgtconst:
 	; No direct signed comparisons so..
 	xor r10,r4
-	jp same_sign
+	jpz same_sign
 	xor r10,r4
-	jp true
+	jpz true
 false:
 	clr r4
 	clr r5
