@@ -121,9 +121,9 @@ code will run only on the 6303, and 68HC11 code only on the 68HC11.
 
 ### 6502
 
-Early development code for a 6502/65C02 backend. Before this can be
-effective there will need to be some work on rewriting subtrees to use byte
-operations when possible.
+Early development code for a 6502/65C02 backend. The main work at this point
+has been adding compiler support for reducing operations down to byte size
+where possible.
 
 ### 65C816
 
@@ -137,8 +137,13 @@ code/data is supported but not multiple data or code banks in one application
 
 ### 6800
 
-The 6800 backend passes the basic tests. For size reasons the 6800 ABI
+The 6800 backend passes the full tests. For size reasons the 6800 ABI
 is not the same as the 6803/6303.
+
+### 68HC08
+
+Intial sketches to help debug the byte reduction code on a big endian
+machine.
 
 ### 8070
 
@@ -164,6 +169,16 @@ easy way to do it the BC register pair is not used for other pointer sizes.
 Signed comparison and sign extension are significantly slower than unsigned.
 This is an instruction set limitation.
 
+### 8086
+
+Initial code only. This is waiting some further work on the assembler end
+of the toolchain for debug.
+
+### DDP16
+
+Initial work only. This is primarily being used to experiment with some
+word machine optimisations and behaviour improvements.
+
 ### EE200
 
 Electrodata EE200 / Warrex CPU4 backend. Early work only with a view to
@@ -179,6 +194,11 @@ autoinc/autodec memory locations are present
 
 An initial port to the DG Nova 3 and Nova 4. Autoinc/dec memory is not
 required. The Nova 4 byte operations are not currently supported or used.
+Currently adding Nova 4 byte operations and the related DG Eclipse.
+
+### Super8
+
+Early code only for the Zilog Super8 variant of the Z8 processor.
 
 ### ThreadCode
 
@@ -186,6 +206,12 @@ An initial backend that turns the C input into a series of helper references
 and data. This can easily be tweaked to make them calls, and peephole rules
 used to clean up or re-arrange them a bit to suit any need or turn it into
 bytecode etc.
+
+### TMS7000
+
+A slightly modified Z8 target for the TMS7000 as the two are remarkably
+similar in terms of their compiler requirements. Working on an emulator
+integration to begin proper testing.
 
 ### Z8
 
