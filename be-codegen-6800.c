@@ -377,6 +377,19 @@ struct node *gen_rewrite_node(struct node *n)
 	return n;
 }
 
+/* Negate the 16bit working value */
+static void negate_d(void)
+{
+	unsigned v;
+	puts("\tnega\n\tnegb\n\tsbca #0\n");
+	if (d_valid) {
+		v = (a_val << 8) + b_val;
+		v = WORD(-v);
+		modify_a(v >> 8);
+		modify_b(v);
+	}
+}
+
 /*
  *	Perform an optimized 32bit constant add
  *
@@ -788,10 +801,7 @@ unsigned do_xptrop(struct node *n, const char *op, unsigned off)
 			break;
 		}
 		if (size == 2) {
-			puts("\tcoma\n\tcomb");
-			modify_a(~a_val);
-			modify_b(~b_val);
-			add_d_const(1);
+			negate_d();
 			opd_on_ptr(n, "add", "adc", off);
 			break;
 		}
@@ -1806,11 +1816,8 @@ unsigned gen_node(struct node *n)
 		}
 		return 1;
 	case T_NEGATE:
-		if (s == 2) {
-			puts("\tcoma\n\tcomb");
-			modify_a(~a_val);
-			modify_b(~b_val);
-			add_d_const(1);
+		if (s == 2) { 
+			negate_d();
 			return 1;
 		}
 		if (s == 1) {
