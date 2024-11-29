@@ -7,10 +7,9 @@
 __minus:
 	; Subtract D from TOS
 	tsx
-	coma
-	comb
-	addb #1
-	adca #0
+	nega
+	negb
+	sbca #0
 	addb 3,x
 	adca 2,x
 	jmp __pop2
