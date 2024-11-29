@@ -396,7 +396,7 @@ void op32d_on_ptr(const char *op, const char *op2, unsigned off)
 		printf("\t%sb %u,x\n\t%sa %u,x\n", op2, off + 1, op2, off);
 		swap_d_y();
 	} else {
-		puts("\tpshb\n\tpsha\n\tldd @hireg\n");
+		puts("\tpshb\n\tpsha\n\tldd @hireg");
 		printf("\t%sb %u,x\n\t%sa %u,x\n", op2, off + 1, op2, off);
 		puts("\tstd @hireg\n\tpula\n\tpulb");
 	}
@@ -1067,12 +1067,12 @@ static unsigned do_fast_mul(unsigned s, unsigned n)
 		return 1;
 	case 5:		/* 22cyc, 12bytes */
 		if (cpu_has_d)
-			puts("\tstd @tmp\n");
+			puts("\tstd @tmp");
 		else
-			puts("\tstaa @tmp\n\tstab @tmp+1\n");
-		puts("\tlslb\n\trola\n\tlslb\n\trola\n");
+			puts("\tstaa @tmp\n\tstab @tmp+1");
+		puts("\tlslb\n\trola\n\tlslb\n\trola");
 		if (cpu_has_d)
-			puts("\taddd @tmp\n");
+			puts("\taddd @tmp");
 		else
 			puts("\taddb @tmp+1\n\tadca @tmp");
 		return 1;
