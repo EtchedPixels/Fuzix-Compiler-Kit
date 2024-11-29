@@ -69,9 +69,9 @@ absd:
 	beq ispos
 	iny			; count sign changes in Y
 negd:
-	subd @one		; negate d
-	coma
-	comb
+	nega
+	negb
+	sbca #0
 ispos:
 	rts
 

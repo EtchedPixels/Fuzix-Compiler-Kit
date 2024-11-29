@@ -9,9 +9,9 @@
 __minus:
 	; Subtract D from TOS
 	tsx
-	coma
-	comb
-	addd @one
+	nega
+	negb
+	sbca #0
 	addd 2,x
 	pulx
 	ins

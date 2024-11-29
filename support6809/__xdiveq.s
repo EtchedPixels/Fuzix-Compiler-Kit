@@ -63,8 +63,8 @@ absd:
 	beq ispos
 	leay 1,y		; count sign changes in Y
 negd:
-	subd @one		; negate d
-	coma
-	comb
+	nega
+	negb
+	sbca #0			; negate d
 ispos:
 	rts

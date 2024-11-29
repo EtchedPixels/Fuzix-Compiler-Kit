@@ -6,11 +6,11 @@
 
 __minus:
 	; Subtract D from TOS
-	tsy
-	coma
-	comb
-	addd @one
-	addd 2,y
-	puly
+	tsx
+	nega
+	negb
+	sbca #0
+	addd 2,x
 	pulx
-	jmp ,y
+	puly
+	jmp ,x

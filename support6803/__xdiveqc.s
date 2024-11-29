@@ -75,9 +75,9 @@ absd:
 	beq ispos
 	inc @tmp2		; count sign changes in tmp2
 negd:
-	subd @one		; negate d
-	coma
-	comb
+	nega
+	negb
+	sbca #0
 ispos:
 	rts
 

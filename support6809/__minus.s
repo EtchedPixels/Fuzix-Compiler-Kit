@@ -6,9 +6,9 @@
 
 __minus:
 	; Subtract D from TOS
-	coma
-	comb
-	addd @one
+	nega
+	negb
+	sbca #0
 	addd 2,s
 	ldx ,s
 	leas 4,s
