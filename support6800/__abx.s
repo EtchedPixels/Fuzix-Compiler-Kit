@@ -3,12 +3,10 @@
 ;	messing up D
 ;
 	.export __abx
-	.export __adx
 	.code
 
 __abx:
 	clra
-__adx:
 	stx @tmp	; X where we can manipulate it
 	addb @tmp+1
 	adca @tmp

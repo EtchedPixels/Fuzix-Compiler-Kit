@@ -480,15 +480,11 @@ unsigned make_local_ptr(unsigned off, unsigned rlim)
 			puts("\tjsr __abx");
 		puts("\tpulb");
 		x_fpoff -= off - rlim;
-		invalidate_work();
 		return rlim;
 	} else {
 		/* This case is (thankfully) fairly rare */
-		puts("\tpshb\n\tpsha");
-		load_d_const(off);
-		puts("\tjsr __adx\n\tpula\n\tpulb");
+		printf("\tjsr __addxconst\n\t.word %u\n", off);
 		x_fpoff -= off;
-		invalidate_work();
 		return 0;
 	}
 }
