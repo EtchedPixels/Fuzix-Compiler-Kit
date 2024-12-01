@@ -683,6 +683,7 @@ void helper_type(register unsigned t, unsigned s)
  */
 void do_helper(register struct node *n, const char *h, unsigned t, unsigned s)
 {
+	register unsigned op = n->op;
 	/* A function call has a type that depends upon the call, but the
 	   type we want is a pointer */
 	if (n->op == T_FUNCCALL)
@@ -691,11 +692,13 @@ void do_helper(register struct node *n, const char *h, unsigned t, unsigned s)
 	fputs(h, stdout);
 	/* Bool and cast are special as they type convert. In the case of
 	   bool we care about the type below the bool, and the result is
-	   always integer. In the case of a cast we care about everything */
-	if (n->op == T_BOOL || n->op == T_BANG)
-		helper_type(n->right->type, 0);
+	   always integer. In the case of a cast we care about everything. The
+	   comparisons also size off the child node for helper calls */
+	if (op == T_BOOL || op == T_BANG || op == T_GT || op == T_LT || \
+		op == T_GTEQ || op == T_LTEQ || op == T_EQEQ || op == T_BANGEQ)
+		helper_type(n->right->type, s);
 	else {
-		if (n->op == T_CAST) {
+		if (op == T_CAST) {
 			helper_type(n->right->type, 1);
 			putchar('_');
 		}
