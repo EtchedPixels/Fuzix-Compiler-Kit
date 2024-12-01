@@ -16,7 +16,41 @@
 
 #define ARGBASE	2	/* Bytes between arguments and locals if no reg saves */
 
-#define LWDIRECT 24	/* Number of __ldword1 __ldword2 etc forms for fastest access */
+/* Check if a single bit is set or clear */
+int bitcheckb1(uint8_t n)
+{
+	unsigned m = 1;
+	unsigned i;
+
+	for (i = 0; i < 8; i++) {
+		if (n == m)
+			return i;
+		m <<= 1;
+	}
+	return -1;
+}
+
+int bitcheck1(unsigned n, unsigned s)
+{
+	register unsigned i;
+	unsigned m = 1;
+
+	if (s == 1)
+		return bitcheckb1(n);
+	for (i = 0; i < 16; i++) {
+		if (n == m)
+			return i;
+		m <<= 1;
+	}
+	return -1;
+}
+
+int bitcheck0(unsigned n, unsigned s)
+{
+	if (s == 1)
+		return bitcheckb1((~n) & 0xFF);
+	return bitcheck1((~n) & 0xFFFF, 2);
+}
 
 /*
  *	State for the current function
@@ -26,7 +60,26 @@ static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned argbase;	/* Argument offset in current function */
 static unsigned unreachable;	/* Code following an unconditional jump */
 static unsigned func_cleanup;	/* Zero if we can just ret out */
+static unsigned label;		/* Used to hand out local labels in the form X%u */
+static unsigned ccvalid;	/* State of condition codes */
+#define CC_UNDEF	0	/* Who knows */
+#define CC_VALID	1	/* Matches (Z/NZ) */
+#define CC_INVERSE	2	/* Matches the inverse (Z NZ) */
 
+/* Set CC correctly */
+static void outputcc(const char *p, ...)
+{
+	va_list v;
+	if (strchr(p, ':') == NULL)
+		putchar('\t');
+	va_start(v, p);
+	vprintf(p, v);
+	putchar('\n');
+	va_end(v);
+	ccvalid = CC_VALID;
+}
+
+/* CC other */
 static void output(const char *p, ...)
 {
 	va_list v;
@@ -36,6 +89,32 @@ static void output(const char *p, ...)
 	vprintf(p, v);
 	putchar('\n');
 	va_end(v);
+	ccvalid = CC_UNDEF;
+}
+
+/* CC no effect */
+static void outputne(const char *p, ...)
+{
+	va_list v;
+	if (strchr(p, ':') == NULL)
+		putchar('\t');
+	va_start(v, p);
+	vprintf(p, v);
+	putchar('\n');
+	va_end(v);
+}
+
+/* CC inverted but valid */
+static void outputinv(const char *p, ...)
+{
+	va_list v;
+	if (strchr(p, ':') == NULL)
+		putchar('\t');
+	va_start(v, p);
+	vprintf(p, v);
+	putchar('\n');
+	va_end(v);
+	ccvalid = CC_INVERSE;
 }
 
 /*
@@ -81,6 +160,7 @@ static unsigned get_stack_size(unsigned t)
 #define T_RSTORE	(T_USER+8)
 #define T_RDEREF	(T_USER+9)		/* *regptr */
 #define T_REQ		(T_USER+10)		/* *regptr */
+#define T_BTST		(T_USER+11)		/* single bit testing */
 
 static void squash_node(struct node *n, struct node *o)
 {
@@ -108,9 +188,7 @@ static void squash_right(struct node *n, unsigned op)
 
 /*
  *	Heuristic for guessing what to put on the right. This is very
- *	processor dependent. For 8080 we are quite limited especially
- *	with locals. In theory we could extend some things to 8bit
- *	locals on 8085 (ldsi, ldax d, mov e,a)
+ *	processor dependent.
  */
 
 static unsigned is_simple(struct node *n)
@@ -122,7 +200,7 @@ static unsigned is_simple(struct node *n)
 		return 0;
 
 	/* We can load these directly into a register */
-	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME)
+	if (op == T_CONSTANT || op == T_LABEL || op == T_NAME || op == T_RREF)
 		return 10;
 	/* We can load this directly into a register but may need xchg pairs */
 	if (op == T_NREF || op == T_LBREF)
@@ -242,6 +320,11 @@ struct node *gen_rewrite_node(struct node *n)
 			n->left = r;
 		}
 	}
+	/* Turn ++ and -- into easier forms when possible */
+	if (op == T_PLUSPLUS && (n->flags & NORETURN))
+		n->op = T_PLUSEQ;
+	if (op == T_MINUSMINUS && (n->flags & NORETURN))
+		n->op = T_MINUSEQ;
 	return n;
 }
 
@@ -275,7 +358,7 @@ void gen_segment(unsigned segment)
    gen_frame for the most part */
 void gen_prologue(const char *name)
 {
-	output("_%s", name);
+	output("_%s:", name);
 	unreachable = 0;
 }
 
@@ -292,15 +375,15 @@ void gen_frame(unsigned size, unsigned aframe)
 
 	argbase = ARGBASE;
 	if (func_flags & F_REG(1)) {
-		output("push bc");
+		outputne("push bc");
 		argbase += 2;
 	}
 	while(size >= 128) {
-		output("add sp,#-128");
+		outputne("add sp,#-128");
 		size -= 128;
 	}
 	if (size)
-		output("add sp,-%u", size);
+		outputne("add sp,-%u", size);
 }
 
 void gen_epilogue(unsigned size, unsigned argsize)
@@ -311,12 +394,12 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	if (unreachable)
 		return;
 	while(size >= 127) {
-		output("add sp,#127");
+		outputne("add sp,#127");
 		size -= 127;
 	}
 	if (size)
-		output("add sp,#%u", size);
-	output("ret");
+		outputne("add sp,#%u", size);
+	outputne("ret");
 }
 
 void gen_label(const char *tail, unsigned n)
@@ -336,7 +419,7 @@ unsigned gen_exit(const char *tail, unsigned n)
 		unreachable = 1;
 		return 0;
 	} else {
-		output("ret");
+		outputne("ret");
 		unreachable = 1;
 		return 1;
 	}
@@ -345,18 +428,36 @@ unsigned gen_exit(const char *tail, unsigned n)
 void gen_jump(const char *tail, unsigned n)
 {
 	/* Force anything deferred to complete before the jump */
-	output("jp L%u%s", n, tail);
+	outputne("jr L%u%s", n, tail);
 	unreachable = 1;
 }
 
 void gen_jfalse(const char *tail, unsigned n)
 {
-	output("jr nz, L%u%s", n, tail);
+	switch(ccvalid) {
+	case CC_VALID:
+		outputne("jr nz, L%u%s", n, tail);
+		break;
+	case CC_INVERSE:
+		outputne("jr z, L%u%s", n, tail);
+		break;
+	default:
+		error("jfu");
+	}
 }
 
 void gen_jtrue(const char *tail, unsigned n)
 {
-	output("jr z, L%u%s", n, tail);
+	switch(ccvalid) {
+	case CC_VALID:
+		outputne("jr z, L%u%s", n, tail);
+		break;
+	case CC_INVERSE:
+		outputne("jr nz, L%u%s", n, tail);
+		break;
+	default:
+		error("jtu");
+	}
 }
 
 static void gen_cleanup(unsigned v)
@@ -364,11 +465,11 @@ static void gen_cleanup(unsigned v)
 	/* CLEANUP is special and needs to be handled directly */
 	sp -= v;
 	while(v >= 127) {
-		output("add sp,#%u", v);
+		outputne("add sp,#%u", v);
 		v -= 127;
 	}
 	if (v)
-		output("add sp,#%u", v);
+		outputne("add sp,#%u", v);
 }
 
 /*
@@ -424,11 +525,13 @@ void gen_helpclean(struct node *n)
 		if (n->flags & ISBOOL)
 			printf("\txor a\n\tcp l\n");
 	}
+	if (n->flags & ISBOOL)
+		ccvalid = CC_VALID;
 }
 
 void gen_switch(unsigned n, unsigned type)
 {
-	output("ld de,Sw%u", n);
+	outputne("ld de,Sw%u", n);
 	printf("\tjp __switch");
 	helper_type(type, 0);
 	putchar('\n');
@@ -436,8 +539,8 @@ void gen_switch(unsigned n, unsigned type)
 
 void gen_switchdata(unsigned n, unsigned size)
 {
-	output("Sw%u:", n);
-	output(".word %u", size);
+	outputne("Sw%u:", n);
+	outputne(".word %u", size);
 }
 
 void gen_case_label(unsigned tag, unsigned entry)
@@ -448,58 +551,58 @@ void gen_case_label(unsigned tag, unsigned entry)
 
 void gen_case_data(unsigned tag, unsigned entry)
 {
-	output(".word Sw%u_%u", tag, entry);
+	outputne(".word Sw%u_%u", tag, entry);
 }
 
 void gen_data_label(const char *name, unsigned align)
 {
-	output("_%s:", name);
+	outputne("_%s:", name);
 }
 
 void gen_space(unsigned value)
 {
-	output(".ds %u", value);
+	outputne(".ds %u", value);
 }
 
 void gen_text_data(struct node *n)
 {
-	output(".word T%u", n->val2);
+	outputne(".word T%u", n->val2);
 }
 
 /* The label for a literal (currently only strings) */
 void gen_literal(unsigned n)
 {
 	if (n)
-		output("T%u:", n);
+		outputne("T%u:", n);
 }
 
 void gen_name(struct node *n)
 {
-	output(".word _%s+%u", namestr(n->snum), WORD(n->value));
+	outputne(".word _%s+%u", namestr(n->snum), WORD(n->value));
 }
 
 void gen_value(unsigned type, unsigned long value)
 {
 	unsigned w = WORD(value);
 	if (PTR(type)) {
-		output(".word %u", w);
+		outputne(".word %u", w);
 		return;
 	}
 	switch (type) {
 	case CCHAR:
 	case UCHAR:
-		output(".byte %u", BYTE(w));
+		outputne(".byte %u", BYTE(w));
 		break;
 	case CSHORT:
 	case USHORT:
-		output(".word %u", w);
+		outputne(".word %u", w);
 		break;
 	case CLONG:
 	case ULONG:
 	case FLOAT:
 		/* We are little endian */
-		output(".word %u\n", w);
-		output(".word %u\n", (unsigned) ((value >> 16) & 0xFFFF));
+		outputne(".word %u\n", w);
+		outputne(".word %u\n", (unsigned) ((value >> 16) & 0xFFFF));
 		break;
 	default:
 		error("unsuported type");
@@ -517,7 +620,7 @@ void gen_end(void)
 void gen_tree(struct node *n)
 {
 	codegen_lr(n);
-	output(";:");
+	outputne(";:");
 /*	printf(";SP=%d\n", sp); */
 }
 
@@ -525,9 +628,9 @@ void gen_tree(struct node *n)
 static void hl_from_sp(unsigned off)
 {
 	if (off < 128)
-		output("ldhl sp,%u", off);
+		outputne("ldhl sp,%u", off);
 	else {
-		output("ld hl,%u", off);
+		outputne("ld hl,%u", off);
 		output("add hl,sp");
 	}
 }
@@ -569,7 +672,7 @@ unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 	 */
 	if (size <= 2) {
 		if (to_de)
-			output("ex de,hl");
+			outputne("ex de,hl");
 		hl_from_sp(v);
 		if (size == 2) {
 			output("ldi a,(hl)");
@@ -582,7 +685,7 @@ unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 				output("ld a,(hl)");
 		}
 		if (to_de)
-			output("ex de,hl");
+			outputne("ex de,hl");
 		return 1;
 	}
 	return 0;	/* Can't happen currently but trap it */
@@ -677,15 +780,15 @@ static void store_via_hl(unsigned r, unsigned s)
 {
 	if (s == 1) {
 		if (r == 'h' || r == 'a')
-			output("ld (hl),a");
+			outputne("ld (hl),a");
 		else if (r == 'd')
-			output("(hl),e");
+			outputne("(hl),e");
 		else error("shlr1");
 	} else if (s == 2) {
 		if (r == 'd') {
-			output("ld (hl),d");
-			output("inc hl");
-			output("ld (hl),d");
+			outputne("ld (hl),d");
+			outputne("inc hl");
+			outputne("ld (hl),d");
 		} else error("shlr2");
 	} else
 		error("shlrs");
@@ -717,27 +820,27 @@ static unsigned load_r_with(const char *r, struct node *n)
 		if (*r == 'b')
 			return 0;
 		if (*r == 'd')
-			output("ex de,hl");
+			outputne("ex de,hl");
 		output("ld hl, _%s+%u", name, v);
 		load_via_hl(*r, 2);
 		if (*r == 'd')
-			output("ex de,hl");
+			outputne("ex de,hl");
 		return 1;
 	/* TODO: fold together cleanly with NREF */
 	case T_LBREF:
 		if (*r == 'b')
 			return 0;
 		if (*r == 'd')
-			output("ex de,hl");
+			outputne("ex de,hl");
 		output("ld hl, T%u+%u", n->val2, v);
 		load_via_hl(*r, 2);
 		if (*r == 'd')
-			output("ex de,hl");
+			outputne("ex de,hl");
 		return 1;
 	case T_RREF:
 		if (*r == 'd') {
-			output("ld d,b");
-			output("ld e,c");
+			outputne("ld d,b");
+			outputne("ld e,c");
 		} else if (*r == 'h') {
 			output("ld h,b");
 			output("ld l,c");
@@ -792,7 +895,7 @@ static unsigned load_a_with(struct node *n)
 		break;
 	case T_LREF:
 		/* We don't want to trash HL as we may be doing an HL:A op */
-		output("ex de,hl");
+		outputne("ex de,hl");
 		hl_from_sp(v);
 		output("ld a,(hl)");
 		break;
@@ -824,15 +927,16 @@ static void loadhl(struct node *n, unsigned s)
 static void loadbc(unsigned s)
 {
 	if (s == 1)
-		output("ld c,a");
+		outputne("ld c,a");
 	else if (s == 2) {
-		output("ld c,l");
-		output("ld b,h");
+		outputne("ld c,l");
+		outputne("ld b,h");
 	} else
 		error("ldbc");
 }
 
 /* We use "DE" as a name but A as register for 8bit ops... probably ought to rework one day */
+/* TODO: fix me for byte size deops where A already holds the value */
 static unsigned gen_deop(const char *op, struct node *n, struct node *r, unsigned sign)
 {
 	unsigned s = get_size(n->type);
@@ -863,10 +967,12 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 		else
 			helper(n, buf);
 		n->flags |= ISBOOL;
+		ccvalid = CC_VALID;
 		return 1;
 	}
 	if (gen_deop(op, n, r, sign)) {
 		n->flags |= ISBOOL;
+		ccvalid = CC_VALID;
 		return 1;
 	}
 	return 0;
@@ -901,13 +1007,13 @@ static void write_mul(unsigned n)
 	while(n > 1) {
 		if (n & 1) {
 			pops++;
-			output("push hl");
+			outputne("push hl");
 		}
 		output("add hl,hl");
 		n >>= 1;
 	}
 	while(pops--) {
-		output("pop de");
+		outputne("pop de");
 		output("add hl,de");
 	}
 }
@@ -955,7 +1061,6 @@ static unsigned gen_fast_udiv(unsigned n, unsigned s)
 	return 0;
 }
 
-/* TODO: byte size using A */
 static unsigned gen_logicc(struct node *n, unsigned s, const char *op, unsigned v, unsigned code)
 {
 	unsigned h = (v >> 8) & 0xFF;
@@ -964,11 +1069,11 @@ static unsigned gen_logicc(struct node *n, unsigned s, const char *op, unsigned 
 	if (s > 2 || (n && n->op != T_CONSTANT))
 		return 0;
 
-	/* If we are trying to be compact only inline the short ones */
-	if (optsize && ((h != 0 && h != 255) || (l != 0 && l != 255)))
-		return 0;
 
 	if (s == 2) {
+		/* If we are trying to be compact only inline the short ones */
+		if (optsize && ((h != 0 && h != 255) || (l != 0 && l != 255)))
+			return 0;
 		if (h == 0) {
 			if (code == 1)
 				output("ld h,0");
@@ -979,25 +1084,27 @@ static unsigned gen_logicc(struct node *n, unsigned s, const char *op, unsigned 
 		} else {
 			output("ld a,h");
 			if (code == 3 && h == 255)
-				printf("\tcpl\n");
+				output("cpl");
 			else
-				printf("\t%s %u", op, h);
+				output("%s %u", op, h);
 			output("ld a,h");
 		}
-	}
-	if (l == 0) {
-		if (code == 1)
-			output("ld l,0");
-	} else if (l == 255 && code != 3) {
-		if (code == 2)
-			output("ld l,255");
+		if (l == 0) {
+			if (code == 1)
+				output("ld l,0");
+		} else if (l == 255 && code != 3) {
+			if (code == 2)
+				output("ld l,255");
+		} else {
+			output("ld a,l");
+			if (code == 3 && l == 255)
+				output("cpl");
+			else
+				output("%s %u", op, l);
+			output("ld l,a");
+		}
 	} else {
-		output("ld a,l");
-		if (code == 3&& l == 255)
-			output("cpl");
-		else
-			output("%s %u\n", op, l);
-		output("ld l,a");
+		outputcc("%s %u", op, l);
 	}
 	return 1;
 }
@@ -1044,6 +1151,8 @@ unsigned gen_direct(struct node *n)
 	struct node *r = n->right;
 	unsigned v;
 	unsigned nr = n->flags & NORETURN;
+	int b;
+	unsigned is_byte = (n->flags & (BYTETAIL | BYTEOP)) == (BYTETAIL | BYTEOP);
 
 	/* We only deal with simple cases for now */
 	if (r) {
@@ -1060,22 +1169,22 @@ unsigned gen_direct(struct node *n)
 		if (s > 2)
 			return 0;
 		if (s == 2)
-			output("ex de,hl");
+			outputne("ex de,hl");
 		output("ld hl,_%s+%u", namestr(n->snum), v);
 		store_via_hl('d', s);
 		if (s == 2)
-			output("ex de,hl");
+			outputne("ex de,hl");
 		/* TODO 4/8 for long etc */
 		return 0;
 	case T_LBSTORE:
 		if (s > 2)
 			return 0;
 		if (s == 2)
-			output("ex de,hl");
+			outputne("ex de,hl");
 		output("ld hl,T%u+%u", n->val2, v);
 		store_via_hl('d', s);
 		if (s == 2)
-			output("ex de,hl");
+			outputne("ex de,hl");
 		return 1;
 	case T_RSTORE:
 		loadbc(s);
@@ -1083,10 +1192,10 @@ unsigned gen_direct(struct node *n)
 	case T_EQ:
 		/* The address is in HL at this point */
 		if (r->op == T_CONSTANT && nr) {
-			output("ld (hl),%u", v & 0xFF);
+			outputne("ld (hl),%u", v & 0xFF);
 			if (s == 2) {
-				output("inc hl");
-				output("ld (hl),%u", v >> 8);
+				outputne("inc hl");
+				outputne("ld (hl),%u", v >> 8);
 			}
 			return 1;
 		}
@@ -1094,14 +1203,14 @@ unsigned gen_direct(struct node *n)
 		if (s == 1) {
 			if (load_a_with(r) == 0)
 				return 0;
-			output("ld (h),a");
+			outputne("ld (hl),a");
 			return 1;
 		}
 		return 0;
 	case T_PLUS:
 		if (r->op == T_CONSTANT) {
 			if (s == 1) {
-				output("add %u", BYTE(v));
+				outputcc("add %u", BYTE(v));
 				return 1;
 			} else  if (v < 4 && s == 2) {
 				repeated_op("inc hl", v);
@@ -1114,17 +1223,17 @@ unsigned gen_direct(struct node *n)
 			if (s == 1) {
 				if (point_hl_at(r) == 0)
 					return 0;
-				output("add a,(hl)");
+				outputcc("add a,(hl)");
 				return 1;
 			}
 			/* Short cut register case */
-			if (r->op == T_REG) {
-				output("add hl,bc");
+			if (r->op == T_RREF) {
+				outputcc("add hl,bc");
 				return 1;
 			}
 			if (s > 2 || load_de_with(r) == 0)
 				return 0;
-			output("add hl,de");
+			outputcc("add hl,de");
 			return 1;
 		}
 		return 0;
@@ -1133,15 +1242,15 @@ unsigned gen_direct(struct node *n)
 			if (v == 0)
 				return 1;
 			if (s == 1) {
-				output("sub %u", BYTE(v));
+				outputcc("sub %u", BYTE(v));
 				return 1;
 			}
 			if (v < 6 && s == 2) {
 				repeated_op("dec hl", v);
 				return 1;
 			}
-			output("ld de,%u", 65536 - v);
-			output("add hl,de");
+			outputne("ld de,%u", 65536 - v);
+			outputcc("add hl,de");
 			return 1;
 		}
 		return 0;
@@ -1171,19 +1280,52 @@ unsigned gen_direct(struct node *n)
 		}
 		return gen_deop("remde", n, r, 1);
 	case T_AND:
-		if (gen_logicc(r, s, "ani", r->value, 1))
+		/* Better to use bit for single bit set on word */
+		/* TODO: we could do similar for register targeted |= ? */
+		if (s == 2 && r->op == T_CONSTANT && (n->flags & CCONLY)) {
+			b = bitcheck0(v, s);
+			if (b >= 0) {
+				/* Single set bit */
+				if (b < 8)
+					printf("\tres %u,l\n", b);
+				else
+					printf("\tres %u,h\n", b - 8);
+				return 1;
+			}
+		}
+		if (gen_logicc(r, s, "and", r->value, 1))
 			return 1;
 		return gen_deop("bandde", n, r, 0);
 	case T_OR:
-		if (gen_logicc(r, s, "ori", r->value, 2))
+		/* Better to use bit for single bit set on word */
+		/* TODO: we could do similar for register targeted |= ? */
+		if (s == 2 && r->op == T_CONSTANT && (n->flags & CCONLY)) {
+			b = bitcheck1(v, s);
+			if (b >= 0) {
+				/* Single set bit */
+				if (b < 8)
+					printf("\tset %u,l\n", b);
+				else
+					printf("\tset %u,h\n", b - 8);
+				return 1;
+			}
+		}
+		if (gen_logicc(r, s, "or", r->value, 2))
 			return 1;
 		return gen_deop("borde", n, r, 0);
 	case T_HAT:
-		if (gen_logicc(r, s, "xri", r->value, 3))
+		if (gen_logicc(r, s, "xor", r->value, 3))
 			return 1;
 		return gen_deop("bxorde", n, r, 0);
 	case T_EQEQ:
+		if (is_byte && r->op == T_CONSTANT && (n->flags & CCONLY)) {
+			outputinv("cp %u", BYTE(v));
+			n->flags |= ISBOOL;
+			return 1;
+		}
 		return gen_compc("cmpeq", n, r, 0);
+	/* TODO: byte forms of these - need more ccvalid states for branch
+		 type flipping (jr nc/c etc) */
 	case T_GTEQ:
 		return gen_compc("cmpgteq", n, r, 1);
 	case T_GT:
@@ -1193,6 +1335,11 @@ unsigned gen_direct(struct node *n)
 	case T_LT:
 		return gen_compc("cmplt", n, r, 1);
 	case T_BANGEQ:
+		if (s == 1 && r->op == T_CONSTANT && (n->flags & CCONLY)) {
+			outputcc("cp %u", BYTE(v));
+			n->flags |= ISBOOL;
+			return 1;
+		}
 		return gen_compc("cmpne", n, r, 0);
 	case T_LTLT:
 		if (s == 1 && r->op == T_CONSTANT) { 
@@ -1222,8 +1369,8 @@ unsigned gen_direct(struct node *n)
 			if (s == 1) {
 				v &= 7;
 				while(v--) {
-					output("or a,a");
-					output("rra");
+					outputcc("or a,a");
+					outputcc("rra");
 				}
 				return 1;
 			}
@@ -1241,21 +1388,31 @@ unsigned gen_direct(struct node *n)
 			else {
 				if (load_a_with(r) == 0)
 					return 0;
-				output("add a,(hl)");
-				output("ld (hl),a");
+				outputcc("add a,(hl)");
+				outputne("ld (hl),a");
 			}
 			return 1;
 		}
-		if (s == 2 && nr && r->op == T_CONSTANT && (r->value & 0x00FF) == 0) {
-			output("inc hl");
-			if ((r->value >> 8) < 4) {
-				repeated_op("inc (hl)", r->value >> 8);
+		if (s == 2 && nr && r->op == T_CONSTANT) {
+			if ((r->value & 0x00FF) == 0) {
+				outputne("inc hl");
+				if ((r->value >> 8) < 4) {
+					repeated_op("inc (hl)", r->value >> 8);
+					return 1;
+				}
+				output("ld a,%u", r->value >> 8);
+				output("add (hl)");
+				output("ld (hl),a");
 				return 1;
 			}
-			output("ld a,%u", r->value >> 8);
-			output("add (hl)");
-			output("ld (hl),a");
-			return 1;
+			if (r->value == 1) {
+				output("inc (hl)");
+				output("jr nz, X%u", ++label);
+				output("inc hl");
+				output("inc (hl)");
+				output("X%u:", label);
+				return 1;
+			}
 		}
 		return gen_deop("pluseqde", n, r, 0);
 	case T_MINUSMINUS:
@@ -1289,13 +1446,34 @@ unsigned gen_direct(struct node *n)
 			}
 			return 1;
 		}
+		if (s == 2 && nr && r->op == T_CONSTANT) {
+			if ((r->value & 0x00FF) == 0) {
+				output("inc hl");
+				if ((r->value >> 8) < 4) {
+					repeated_op("dec (hl)", r->value >> 8);
+					return 1;
+				}
+				output("ld a,(hl)");
+				output("sub %u", r->value >> 8);
+				output("ld (hl),a");
+				return 1;
+			}
+			if (r->value == 1) {
+				output("dec (hl)");
+				output("jr nc, X%u", ++label);
+				output("inc hl");
+				output("dec (hl)");
+				output("X%u:", label);
+				return 1;
+			}
+		}
 		return gen_deop("minuseqde", n, r, 0);
 	case T_ANDEQ:
 		if (s == 1) {
 			if (load_a_with(r) == 0)
 				return 0;
-			output("and (hl)");
-			output("ld (hl),a");
+			outputcc("and (hl)");
+			outputne("ld (hl),a");
 			return 1;
 		}
 		return gen_deop("andeqde", n, r, 0);
@@ -1303,8 +1481,8 @@ unsigned gen_direct(struct node *n)
 		if (s == 1) {
 			if (load_a_with(r) == 0)
 				return 0;
-			output("or (hl)");
-			output("ld (hl),a");
+			outputcc("or (hl)");
+			outputne("ld (hl),a");
 			return 1;
 		}
 		return gen_deop("oreqde", n, r, 0);
@@ -1312,8 +1490,8 @@ unsigned gen_direct(struct node *n)
 		if (s == 1) {
 			if (load_a_with(r) == 0)
 				return 0;
-			output("xor (hl)");
-			output("ld (hl),a");
+			outputcc("xor (hl)");
+			outputne("ld (hl),a");
 			return 1;
 		}
 		return gen_deop("xoreqde", n, r, 0);
@@ -1328,6 +1506,20 @@ unsigned gen_direct(struct node *n)
  */
 unsigned gen_uni_direct(struct node *n)
 {
+	register struct node *r = n->right;
+	unsigned v;
+	/* There are some uni operations on registers we can do
+	   non destructively but directly on BC */
+	if (r && r->op == T_RREF && r->value == 1) {
+		if (n->op == T_BTST) {
+			/* Bit test on BC - always CCONLY */
+			v = n->value;
+			if (v < 8)
+				printf("\tbit %u,c\n", v);
+			else
+				printf("\tbit %u,b\n", v - 8);
+		}
+	}
 	return 0;
 }
 
@@ -1374,14 +1566,104 @@ static void reg_logic(struct node *n, unsigned s, unsigned op, const char *i)
 			output("ld l,a");
 		}
 		if (s == 1) {
-			output("%s c", i + 2);
-			output("ld c,a");
+			outputcc("%s c", i + 2);
+			outputne("ld c,a");
 		}
 	} else {
 		helper(n, i);
 		loadhl(n, s);
 	}
 }
+
+/* Operators where we can push CCONLY downwards */
+static unsigned is_ccdown(struct node *n)
+{
+	register unsigned op = n->op;
+	if (op == T_ANDAND || op == T_OROR)
+		return 1;
+	if (op == T_BOOL)
+		return 1;
+	if (op == T_BANG && !(n->flags & CCFIXED))
+		return 1;
+	return 0;
+}
+
+/* Operators that we known to handle as CCONLY if possible
+   TODO: add logic ops as we can BIT many of them */
+static unsigned is_cconly(struct node *n)
+{
+	register unsigned op = n->op;
+	if (op == T_EQEQ || op == T_BANGEQ ||
+		op == T_ANDAND || op == T_OROR ||
+		op == T_BOOL || op == T_BTST)
+		return 1;
+	if (op == T_BANG && !(n->flags & CCFIXED))
+		return 1;
+	return 0;
+}
+
+/*
+ *	Try and push CCONLY down through the tree
+ */
+static void propogate_cconly(register struct node *n)
+{
+	register struct node *l, *r;
+	unsigned sz = get_size(n->type);
+	unsigned val;
+
+	l = n->left;
+	r = n->right;
+
+
+/*	printf("; considering %x %x\n", n->op, n->flags); */
+	/* Only do this for nodes that are CCONLY. For example if we hit
+	   an EQ (assign) then whilst the result of the assign may be
+	   CC only, the subtree of the assignment is most definitely not */
+	if (n->op != T_AND && !is_cconly(n) && !(n->flags & CCONLY))
+		return;
+
+	/* We have to special case BIT unfortunately, and this is ugly */
+
+	/* A common C idiom is if (a & bit) which we can rewrite into
+	   bit n,h or bit n,l */
+
+	if (n->op == T_AND) {
+/*		printf(";AND %x %x %x\n", n->op, r->op, n->flags); */
+		if (r->op == T_CONSTANT && sz == 2) {
+			val = bitcheck1(r->value, sz);
+			if (val != -1) {
+				n->op = T_BTST;
+				n->value = val;
+				free_node(r);
+				n->right = l;
+				n->left = NULL;
+				r = l;
+				l = NULL;
+			}
+		} else
+			return;
+	}
+	n->flags |= CCONLY;
+	/* Deal with the CCFIXED limitations for now */
+	if (n->flags & CCFIXED) {
+		if (l)
+			l->flags |= CCFIXED;
+		if (r)
+			r->flags |= CCFIXED;
+	}
+/*	printf(";made cconly %x\n", n->op); */
+	/* Are we a node that can CCONLY downwards */
+	if (is_ccdown(n)) {
+/*		printf(";ccdown of %x L\n", n->op); */
+		if (l)
+			propogate_cconly(l);
+/*		printf(";ccdown cont %x R\n", n->op); */
+		if (r)
+			propogate_cconly(r);
+/*		printf(";ccdown done %x\n", n->op); */
+	}
+}
+
 /*
  *	Allow the code generator to short cut any subtrees it can directly
  *	generate.
@@ -1397,6 +1679,10 @@ unsigned gen_shortcut(struct node *n)
 	/* Unreachable code we can shortcut into nothing whee.be.. */
 	if (unreachable)
 		return 1;
+
+	/* Try and rewrite this node subtree for CC only */
+	if (n->flags & CCONLY)
+		propogate_cconly(n);
 
 	/* The comma operator discards the result of the left side, then
 	   evaluates the right. Avoid pushing/popping and generating stuff
@@ -1418,16 +1704,44 @@ unsigned gen_shortcut(struct node *n)
 			return 1;
 		s = get_size(r->type);
 		if (s <= 2 && (n->flags & CCONLY)) {
-			if (s == 2) {
-				output("ld a,h");
-				output("or l\n");
-			} else
-				output("or a");
+			if (ccvalid == CC_UNDEF) {
+				if (s == 2 && !(n->flags & BYTEOP)) {
+					outputne("ld a,h");
+					outputcc("or l");
+				} else
+					outputcc("or a");
+			}
 			return 1;
 		}
+		/* TODO: Can we get the case where we have a bool of a cc */
+		/* If we will need to turn a CC into a value */
 		/* Too big or value needed */
 		helper(n, "bool");
 		n->flags |= ISBOOL;
+		ccvalid = CC_VALID;
+		return 1;
+	}
+	if (n->op == T_BANG) {
+		codegen_lr(r);
+		if (r->flags & ISBOOL)
+			return 1;
+		s = get_size(r->type);
+		if (s <= 2 && (n->flags & CCONLY)) {
+			if (ccvalid == CC_INVERSE)
+				ccvalid = CC_VALID;
+			else if (ccvalid == CC_UNDEF) {
+				if (s == 2 && !(n->flags & BYTEOP)) {
+					outputne("ld a,h");
+					outputinv("or l");
+				} else
+					outputinv("or a");
+			}
+			return 1;
+		}
+		/* Too big or value needed */
+		helper(n, "not");
+		n->flags |= ISBOOL;
+		ccvalid = CC_VALID;
 		return 1;
 	}
 	/* Re-order assignments we can do the simple way */
@@ -1439,7 +1753,7 @@ unsigned gen_shortcut(struct node *n)
 			printf("\tshld");
 			/* TODO */
 		} else
-			output("ld (_%s+%u),a", namestr(n->snum), WORD(n->value));
+			outputne("ld (_%s+%u),a", namestr(n->snum), WORD(n->value));
 		return 1;
 	}
 #if 0	
@@ -1464,8 +1778,33 @@ unsigned gen_shortcut(struct node *n)
 		}
 	}
 #endif	
+	if (s == 2 && n->op == T_PLUSEQ && l->op == T_LOCAL && l->value == 0 &&
+		r->op == T_CONSTANT && r->value <= 4) {
+		outputne("pop hl");
+		repeated_op("inc hl", r->value);
+		outputne("push hl");
+		return 1;
+	}
+	if (s == 2 && n->op == T_MINUSEQ && l->op == T_LOCAL && l->value == 0 &&
+		r->op == T_CONSTANT && r->value <= 4) {
+		outputne("pop hl");
+		repeated_op("dec hl", r->value);
+		outputne("push hl");
+		return 1;
+	}
+		
 	/* Shortcut any initialization of BC we can do directly */
 	if (n->op == T_RSTORE && nr) {
+		/* We can do LREF in this case but not some others */
+		if (r->op == T_LREF) {
+			point_hl_at(r);
+			output("ld c,(hl)");
+			if (s == 2) {
+				output("inc hl");
+				output("ld b,(hl)");
+			}
+			return 1;
+		}
 		if (load_bc_with(r))
 			return 1;
 		return 0;
@@ -1479,7 +1818,7 @@ unsigned gen_shortcut(struct node *n)
 			in_l = 1;
 			output("ld a,l");
 		}
-		printf("\tld (bc),a\n");	/* Do in case volatile */
+		outputne("ld (bc),a");	/* Do in case volatile */
 		if (!nr && !in_l && s == 2)
 			output("ld l,a");
 		return 1;
@@ -1488,7 +1827,7 @@ unsigned gen_shortcut(struct node *n)
 		if (s == 1) {
 			if (!load_a_with(r))
 				return 0;
-			output("and c");
+			outputcc("and c");
 			return 1;
 		}
 		/* And of register and constant */
@@ -1519,7 +1858,7 @@ unsigned gen_shortcut(struct node *n)
 		if (s == 1) {
 			if (!load_a_with(r))
 				return 0;
-			output("or c");
+			outputcc("or c");
 			return 1;
 		}
 		/* or of register and constant */
@@ -1578,8 +1917,8 @@ unsigned gen_shortcut(struct node *n)
 				/* Amount to add into HL */
 				codegen_lr(r);
 				if (s == 1) {
-					output("add c");
-					output("ld c,a");
+					outputcc("add c");
+					outputne("ld c,a");
 				}
 				else if (s == 2) {
 					output("add hl,bc");
@@ -1626,10 +1965,10 @@ unsigned gen_shortcut(struct node *n)
 			if (r->op == T_CONSTANT) {
 				if (s == 1) {
 					output("ld a,%u", WORD(-v));
-					output("add a,c");
+					outputcc("add a,c");
 				} else {
 					output("ld hl,%u", WORD(-v));
-					output("add hl,bc");
+					outputcc("add hl,bc");
 				}
 				loadbc(s);
 				return 1;
@@ -1710,7 +2049,7 @@ unsigned gen_shortcut(struct node *n)
 		case T_SHREQ:
 			if (r->op == T_CONSTANT) {
 				if (v >= 8 && s == 1) {
-					output("xor a");
+					outputcc("xor a");
 					loadbc(s);
 					return 1;
 				}
@@ -1756,13 +2095,13 @@ unsigned gen_push(struct node *n)
 
 	switch(size) {
 	case 1:
-		output("push af");	/* TODO check */
+		outputne("push af");	/* TODO check */
 		return 1;
 	case 2:
-		output("push hl");
+		outputne("push hl");
 		return 1;
 	case 4:
-		output("call __pushl");
+		outputne("call __pushl");
 		return 1;
 	default:
 		return 0;
@@ -1785,13 +2124,17 @@ static unsigned gen_cast(struct node *n)
 	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
 		return 0;
 
+	/* No type casting needed as computing byte sized */
+	if (n->flags & BYTEOP)
+		return 1;
+
 	ls = get_size(lt);
 	rs = get_size(rt);
 
-	/* Size shrink is not alwayus free for us as it's a reg change */
+	/* Size shrink is not always free for us as it's a reg change */
 	if (ls < rs) {
 		if (ls > 1 && rs == 1)
-			output("ld a,l");
+			outputne("ld a,l");
 		return 1;
 	}
 	/* Don't do the harder ones */
@@ -1857,53 +2200,53 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_NSTORE:
 		if (size == 1)
-			output("ld (_%s+%u),a", namestr(n->snum), v);
+			outputne("ld (_%s+%u),a", namestr(n->snum), v);
 		else {
-			output("ex de,hl");
+			outputne("ex de,hl");
 			point_hl_at(n);
 			store_via_hl('d', size);
 			if (!nr)
-				output("ex de,hl");
+				outputne("ex de,hl");
 		}
 		return 1;
 	case T_LBSTORE:
 		if (size == 1) {
-			output("ld (T%u+%u),a", n->val2, v);
+			outputne("ld (T%u+%u),a", n->val2, v);
 		} else {
-			output("ex de,hl");
+			outputne("ex de,hl");
 			point_hl_at(n);
 			store_via_hl('d', size);
 			if (!nr)
-				output("ex de,hl");
+				outputne("ex de,hl");
 		}
 		return 1;
 	case T_LSTORE:
 		/* Store A or HL at TOS */
 		if (size == 1) {
 			hl_from_sp(v);
-			output("ld (hl),a");
+			outputne("ld (hl),a");
 			return 1;
 		}
 		/* Word is tricker */
 		if (v == 0 && size == 2 ) {
-			output("pop hl");
-			output("push hl");
+			output("pop af");
+			outputne("push hl");
 			return 1;
 		}
 		if (v == 2 && size == 2) {
-			output("pop de");
-			output("pop hl");
-			output("push hl");
-			output("push de");
+			outputne("pop de");
+			output("pop af");
+			outputne("push hl");
+			outputne("push de");
 			return 1;
 		}
-		output("ex de,hl");
+		outputne("ex de,hl");
 		hl_from_sp(v);
-		output("ld (hl),e");
-		output("inc hl");
-		output("ld (hl),d");
+		outputne("ld (hl),e");
+		outputne("inc hl");
+		outputne("ld (hl),d");
 		if (!nr)
-			output("ex de,hl");
+			outputne("ex de,hl");
 		return 1;
 	case T_RSTORE:
 		loadbc(size);
@@ -1915,18 +2258,18 @@ unsigned gen_node(struct node *n)
 	case T_EQ:
 		/* (TOS) = hl and (TOS) = a */
 		if (size == 1) {
-			output("pop hl");
-			output("ld (hl),a");
+			outputne("pop hl");
+			outputne("ld (hl),a");
 			return 1;
 		}
 		if (size == 2) {
-			output("ex de,hl");
-			output("pop hl");
-			output("ld (hl),e");
-			output("inc hl");
-			output("ld (hl),d");
+			outputne("ex de,hl");
+			outputne("pop hl");
+			outputne("ld (hl),e");
+			outputne("inc hl");
+			outputne("ld (hl),d");
 			if (!nr)
-				output("ex de,hl");
+				outputne("ex de,hl");
 			return 1;
 		}
 		break;
@@ -2000,15 +2343,41 @@ unsigned gen_node(struct node *n)
 		return gen_cast(n);
 	case T_PLUS:
 		if (size == 1) {
-			output("pop de");
-			output("add a,e");	/* Check where push af put it */
+			outputne("pop de");
+			outputcc("add a,e");	/* Check where push af put it */
 			return 1;
 		} else if (size <= 2) {
-			output("pop de");
-			output("add hl,de");
+			outputne("pop de");
+			outputcc("add hl,de");
 			return 1;
 		}
 		break;
+	case T_BANG:
+		if (n->flags & CCONLY) {
+			n->flags |= ISBOOL;
+			if (ccvalid) {
+				/* Just remember flags are reversed */
+				ccvalid = 3 - ccvalid;
+				return 1;
+			}
+			if (size == 1) {
+				outputinv("or a");
+				return 1;
+			}
+			if (size == 2) {
+				output("ld a,h");
+				outputinv("or l");
+				return 1;
+			}
+		}
+		printf(";not cconly - %x\n", n->flags);
+	case T_BTST:
+		/* Always CCONLY */
+		if (v < 8)
+			printf("\tbit %u, l\n", v);
+		else
+			printf("\tbit %u, h\n", v - 8);
+		return 1;
 	}
 	return 0;
 }
