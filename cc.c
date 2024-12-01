@@ -138,6 +138,7 @@ const char *def68hc11[] = { "__68hc11__", "__6803__", NULL };
 const char *def6809[] = { "__6809__", NULL };
 const char *def8080[] = { "__8080__", NULL };
 const char *def8085[] = { "__8085__", NULL };
+const char *defgb[] = { "__gb__", NULL };
 const char *defz80[] = { "__z80__", NULL };
 const char *z80feat[] = {
 	"banked",
@@ -175,6 +176,7 @@ const char *ld6800[] = { "-b", "-C", "256", "-Z", "0x40", NULL };
 const char *ld6809[] = { "-b", "-C", "256", NULL };
 const char *ld8070[] = { "-b", "-C", "1", NULL };
 const char *ld8080[] = { "-b", "-C", "256", NULL };
+const char *ldgb[] = { "-b", "-C", "256", NULL };
 const char *ld8086[] = { "-b", "-C", "256", NULL };
 const char *ldee200[] = { "-b", "-C", "256", NULL };
 const char *ldnova[] = { "-b", "-Z", "050", "-C", "512", NULL };
@@ -199,6 +201,7 @@ struct cpu_table cpu_rules[] = {
 	{ "68hc11", "hc11", ".6800", "lib68hc11.a", "68hc11", def68hc11, ld6800, "6811" , 1, NULL},
 	{ "8080", "8080", ".8080", "lib8080.a", "8080", def8080, ld8080, "8080" , 0, NULL},
 	{ "8085", "8080", ".8080", "lib8085.a", "8085", def8085, ld8080, "8085" , 0, NULL},
+	{ "gb", "gb", ".gb", "libgb.a", "gb", defgb, ldgb, "gb" , 0, NULL},
 	{ "z80", "z80", ".z80", "libz80.a", "z80", defz80, ld8080, "80" , 1, z80feat},
 	{ "z180", "z80", ".z80", "libz180.a", "z80", defz180, ld8080, "180" , 1, z80feat},
 	/* Other Z80 variants TODO */

@@ -1,0 +1,43 @@
+# Branches
+	jmp %1
+%1:
+=
+%1:
+
+	jmp %2
+%1:
+%2:
+=
+%1:
+%2:
+
+	jmp %1
+	jmp %2
+=
+	jmp %1
+
+# Trivial
+	ex de,hl
+	ex de,hl
+=
+
+	ex de,hl
+;
+	ex de,hl
+=
+
+	push hl
+	pop hl
+=
+
+	push hl
+;
+	pop hl
+=
+
+	ex de,hl
+	pop de
+	ex de,hl
+=
+	pop hl
+
