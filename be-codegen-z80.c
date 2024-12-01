@@ -764,6 +764,7 @@ unsigned gen_direct(register struct node *n)
 	register struct node *r = n->right;
 	unsigned v;
 	unsigned nr = n->flags & NORETURN;
+	int b;
 
 	/* We only deal with simple cases for now */
 	if (r) {
@@ -935,10 +936,8 @@ unsigned gen_direct(register struct node *n)
 		}
 		return gen_deop("remde", n, r, 1);
 	case T_AND:
-		if (gen_logicc(r, s, "and", v, 1))
-			return 1;
 		if (r->op == T_CONSTANT && s <= 2) {
-			int b = bitcheck0(v, s);
+			b = bitcheck0(v, s);
 			if (b >= 0) {
 				/* Single clear bit */
 				if (b < 8)
@@ -948,12 +947,14 @@ unsigned gen_direct(register struct node *n)
 				return 1;
 			}
 		}
+		if (gen_logicc(r, s, "and", v, 1))
+			return 1;
 		return gen_deop("bandde", n, r, 0);
 	case T_OR:
 		if (r->op == T_CONSTANT && v == 0)
 			return 1;
 		if (r->op == T_CONSTANT && s <= 2) {
-			int b = bitcheck1(v, s);
+			b = bitcheck1(v, s);
 			if (b >= 0) {
 				/* Single set bit */
 				if (b < 8)
