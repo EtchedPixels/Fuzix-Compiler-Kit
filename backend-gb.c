@@ -1,6 +1,11 @@
 /*
  *	The gameboy is an 8080 missing a few bits (some useful) and with
  *	Z80isms and some random other stuff thrown in.
+ *
+ *	TODO: Track HL pointing versus SP to reduce LDHL usage and use inc/dec
+ *	TODO: Can we do better logic for stuff we move into DE so we load into DE
+ *	      in the first place ?
+ *	TODO: import volatile handling into this, Z80 and 8080
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -138,15 +143,6 @@ static unsigned get_size(unsigned t)
 	fprintf(stderr, "type %x\n", t);
 	error("gs");
 	return 0;
-}
-
-/* We only have PUSH AF not 8bit push */
-static unsigned get_stack_size(unsigned t)
-{
-	unsigned n = get_size(t);
-	if (n == 1)
-		return 2;
-	return n;
 }
 
 #define T_NREF		(T_USER)		/* Load of C global/static */
@@ -398,7 +394,7 @@ void gen_epilogue(unsigned size, unsigned argsize)
 		size -= 127;
 	}
 	if (size)
-		outputne("add sp,#%u", size);
+		outputne("add sp,%u", size);
 	outputne("ret");
 }
 
@@ -465,11 +461,11 @@ static void gen_cleanup(unsigned v)
 	/* CLEANUP is special and needs to be handled directly */
 	sp -= v;
 	while(v >= 127) {
-		outputne("add sp,#%u", v);
+		outputne("add sp,%u", v);
 		v -= 127;
 	}
 	if (v)
-		outputne("add sp,#%u", v);
+		outputne("add sp,%u", v);
 }
 
 /*
@@ -671,8 +667,8 @@ unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 	 *	Shortest forms use ldhl sp,#n for range up to 127
 	 */
 	if (size <= 2) {
-		if (to_de)
-			outputne("ex de,hl");
+		if (to_de && size > 1)
+			outputne("push hl");
 		hl_from_sp(v);
 		if (size == 2) {
 			output("ldi a,(hl)");
@@ -684,8 +680,8 @@ unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 			else
 				output("ld a,(hl)");
 		}
-		if (to_de)
-			outputne("ex de,hl");
+		if (to_de && size > 1)
+			outputne("pop de");
 		return 1;
 	}
 	return 0;	/* Can't happen currently but trap it */
@@ -725,6 +721,24 @@ static unsigned access_direct_b(struct node *n)
 	return 1;
 }
 #endif
+
+static unsigned can_point_hl_at(struct node *n)
+{
+	switch(n->op) {
+	case T_NREF:
+	case T_NSTORE:
+	case T_NAME:
+	case T_LBREF:
+	case T_LBSTORE:
+	case T_LABEL:
+	case T_ARGUMENT:
+	case T_LOCAL:
+	case T_LREF:
+	case T_LSTORE:
+		return 1;
+	}
+	return 0;
+}
 
 static unsigned point_hl_at(struct node *n)
 {
@@ -816,26 +830,22 @@ static unsigned load_r_with(const char *r, struct node *n)
 		output("ld %s,%u", r, v);
 		return 1;
 	case T_NREF:
-		name = namestr(n->snum);
 		if (*r == 'b')
 			return 0;
+		/* no ex de,hl so for now no name into DE */
 		if (*r == 'd')
-			outputne("ex de,hl");
-		output("ld hl, _%s+%u", name, v);
+			return 0;
+		point_hl_at(n);
 		load_via_hl(*r, 2);
-		if (*r == 'd')
-			outputne("ex de,hl");
 		return 1;
 	/* TODO: fold together cleanly with NREF */
 	case T_LBREF:
 		if (*r == 'b')
 			return 0;
 		if (*r == 'd')
-			outputne("ex de,hl");
-		output("ld hl, T%u+%u", n->val2, v);
+			return 0;
+		point_hl_at(n);
 		load_via_hl(*r, 2);
-		if (*r == 'd')
-			outputne("ex de,hl");
 		return 1;
 	case T_RREF:
 		if (*r == 'd') {
@@ -876,6 +886,7 @@ static unsigned load_hl_with(struct node *n)
 }
 #endif
 
+/* TODO: needs a 'save HL' indicator */
 static unsigned load_a_with(struct node *n)
 {
 	unsigned v = WORD(n->value);
@@ -895,9 +906,10 @@ static unsigned load_a_with(struct node *n)
 		break;
 	case T_LREF:
 		/* We don't want to trash HL as we may be doing an HL:A op */
-		outputne("ex de,hl");
+		outputne("push hl");
 		hl_from_sp(v);
 		output("ld a,(hl)");
+		outputne("pop hl");
 		break;
 	default:
 		return 0;
@@ -935,19 +947,36 @@ static void loadbc(unsigned s)
 		error("ldbc");
 }
 
-/* We use "DE" as a name but A as register for 8bit ops... probably ought to rework one day */
-/* TODO: fix me for byte size deops where A already holds the value */
-static unsigned gen_deop(const char *op, struct node *n, struct node *r, unsigned sign)
+/*
+ *	We split the direct two operand stuff into two forms
+ *	- Stuff with HL or A  and constants (in E or DE) 
+ *	- Anything else with HL or A and (HL)
+ */
+static unsigned gen_twoop(const char *op, struct node *n, struct node *r, unsigned sign, unsigned s)
 {
-	unsigned s = get_size(n->type);
+	char opc[16];
 	if (s > 2)
 		return 0;
+	if (r->op == T_CONSTANT) {
+		sprintf(opc, "%scon", op);
+		op = opc;
+	}
 	if (s == 2) {
-		if (load_de_with(r) == 0)
+		if (r->op == T_CONSTANT)
+			output("ld de,%u", WORD(r->value));
+		else if (can_point_hl_at(r)) {
+			output("ld d,h");
+			output("ld e,l");
+			if (point_hl_at(r) == 0)
+				error("cpha");
+		} else
 			return 0;
-	} else {
-		if (load_a_with(r) == 0)
+	} else if (s == 1) {
+		if (r->op == T_CONSTANT)
+			output("ld e,%u", WORD(r->value));
+		else if (point_hl_at(r) == 0)
 			return 0;
+		/* For now byte ops are done A,(HL) which works nicely */
 	}
 	if (sign)
 		helper_s(n, op);
@@ -958,6 +987,8 @@ static unsigned gen_deop(const char *op, struct node *n, struct node *r, unsigne
 
 static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsigned sign)
 {
+	/* Comparison sizing comes from the children */
+	unsigned s = get_size(r->type);
 	if (r->op == T_CONSTANT && r->value == 0 && r->type != FLOAT) {
 		char buf[10];
 		strcpy(buf, op);
@@ -970,7 +1001,7 @@ static unsigned gen_compc(const char *op, struct node *n, struct node *r, unsign
 		ccvalid = CC_VALID;
 		return 1;
 	}
-	if (gen_deop(op, n, r, sign)) {
+	if (gen_twoop(op, n, r, sign, s)) {
 		n->flags |= ISBOOL;
 		ccvalid = CC_VALID;
 		return 1;
@@ -1132,6 +1163,19 @@ static unsigned gen_fast_remainder(unsigned n, unsigned s)
 	return 0;
 }
 
+static void carry_to_bool(struct node *n)
+{
+	unsigned is_byte = (n->flags & (BYTETAIL | BYTEOP)) == (BYTETAIL | BYTEOP);
+	outputne("ld a,0");
+	outputcc("rla");
+	/* Now 0 or 1 if C was set */
+	if (!(n->flags & CCONLY)) {
+		outputne("ld l,a");
+		outputne("ld h,0");
+		n->flags |= ISBOOL;
+	}
+}
+
 /*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
@@ -1168,23 +1212,31 @@ unsigned gen_direct(struct node *n)
 	case T_NSTORE:
 		if (s > 2)
 			return 0;
-		if (s == 2)
-			outputne("ex de,hl");
+		if (s == 2) {
+			if (!nr)
+				outputne("push hl");
+			outputne("ld e,l");
+			outputne("ld d,h");
+		}
 		output("ld hl,_%s+%u", namestr(n->snum), v);
 		store_via_hl('d', s);
-		if (s == 2)
-			outputne("ex de,hl");
+		if (s == 2 && !nr)
+			output("pop hl");
 		/* TODO 4/8 for long etc */
 		return 0;
 	case T_LBSTORE:
 		if (s > 2)
 			return 0;
-		if (s == 2)
-			outputne("ex de,hl");
+		if (s == 2) {
+			if (!nr)
+				outputne("push hl");
+			outputne("ld e,l");
+			outputne("ld h,d");
+		}
 		output("ld hl,T%u+%u", n->val2, v);
 		store_via_hl('d', s);
-		if (s == 2)
-			outputne("ex de,hl");
+		if (s == 2 && !nr)
+			output("pop hl");
 		return 1;
 	case T_RSTORE:
 		loadbc(s);
@@ -1217,6 +1269,10 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
+		if (s == 1 && point_hl_at(r)) {
+			output("add a,(hl)");
+			return 1;
+		}
 		if (s <= 2) {
 			/* TODO: need instead I think to point HL at target
 			   and add hl */
@@ -1238,7 +1294,17 @@ unsigned gen_direct(struct node *n)
 		}
 		return 0;
 	case T_MINUS:
-		if (r->op == T_CONSTANT) {
+		if (s == 1) {
+			if (point_hl_at(r)) {
+				output("sub a,(hl)");
+				return 1;
+			}
+			if (r->op == T_CONSTANT) {
+				output("sub a,%u", BYTE(v));
+				return 1;
+			}
+		}
+		if (s == 2 && r->op == T_CONSTANT) {
 			if (v == 0)
 				return 1;
 			if (s == 1) {
@@ -1261,7 +1327,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		return gen_deop("mulde", n, r, 0);
+		return gen_twoop("mul2op", n, r, 0, s);
 	case T_SLASH:
 		if (r->op == T_CONSTANT && s <= 2) {
 			if (n->type & UNSIGNED) {
@@ -1272,13 +1338,13 @@ unsigned gen_direct(struct node *n)
 					return 1;
 			}
 		}
-		return gen_deop("divde", n, r, 1);
+		return gen_twoop("div2op", n, r, 1, s);
 	case T_PERCENT:
 		if (r->op == T_CONSTANT && (n->type & UNSIGNED)) {
 			if (s <= 2 && gen_fast_remainder(s, r->value))
 				return 1;
 		}
-		return gen_deop("remde", n, r, 1);
+		return gen_twoop("rem2op", n, r, 1, s);
 	case T_AND:
 		/* Better to use bit for single bit set on word */
 		/* TODO: we could do similar for register targeted |= ? */
@@ -1295,7 +1361,7 @@ unsigned gen_direct(struct node *n)
 		}
 		if (gen_logicc(r, s, "and", r->value, 1))
 			return 1;
-		return gen_deop("bandde", n, r, 0);
+		return gen_twoop("band2op", n, r, 0, s);
 	case T_OR:
 		/* Better to use bit for single bit set on word */
 		/* TODO: we could do similar for register targeted |= ? */
@@ -1312,11 +1378,11 @@ unsigned gen_direct(struct node *n)
 		}
 		if (gen_logicc(r, s, "or", r->value, 2))
 			return 1;
-		return gen_deop("borde", n, r, 0);
+		return gen_twoop("bor2op", n, r, 0, s);
 	case T_HAT:
 		if (gen_logicc(r, s, "xor", r->value, 3))
 			return 1;
-		return gen_deop("bxorde", n, r, 0);
+		return gen_twoop("bxor2op", n, r, 0, s);
 	case T_EQEQ:
 		if (is_byte && r->op == T_CONSTANT && (n->flags & CCONLY)) {
 			outputinv("cp %u", BYTE(v));
@@ -1333,6 +1399,18 @@ unsigned gen_direct(struct node *n)
 	case T_LTEQ:
 		return gen_compc("cmplteq", n, r, 1);
 	case T_LT:
+		/* We can do some nice tricks with these for 8bit */
+		if (r->type == UCHAR) {
+			if (point_hl_at(r)) {
+				outputcc("cp (hl)");
+				carry_to_bool(n);
+				return 1;
+			} else if (r->op == T_CONSTANT) {
+				outputcc("cp %u", BYTE(r->value));
+				carry_to_bool(n);
+				return 1;
+			}
+		}
 		return gen_compc("cmplt", n, r, 1);
 	case T_BANGEQ:
 		if (s == 1 && r->op == T_CONSTANT && (n->flags & CCONLY)) {
@@ -1356,7 +1434,7 @@ unsigned gen_direct(struct node *n)
 			repeated_op("add h,hl", v);
 			return 1;
 		}
-		return gen_deop("shlde", n, r, 0);
+		return gen_twoop("shl2op", n, r, 0, s);
 	case T_GTGT:
 		/* >> by 8 unsigned */
 		if ((n->type & UNSIGNED) && r->op == T_CONSTANT) {
@@ -1375,12 +1453,19 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		return gen_deop("shrde", n, r, 1);
-	/* Shorten post inc/dec if result not needed - in which case it's the same as
-	   pre inc/dec */
+		return gen_twoop("shr2op", n, r, 1, s);
 	case T_PLUSPLUS:
-		if (!(n->flags & NORETURN))
-			return 0;
+		/* HL points at object */
+		if (s == 1) {
+			outputne("ld e,(hl)");
+			/* Right is always a constant for n++ forms */
+			output("ld a,%u", BYTE(r->value));
+			outputcc("add e");
+			outputne("ld (hl),a");
+			outputne("ld a,e");
+			return 1;
+		}
+		break;
 	case T_PLUSEQ:
 		if (s == 1) {
 			if (r->op == T_CONSTANT && r->value < 4 && nr)
@@ -1414,10 +1499,18 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		return gen_deop("pluseqde", n, r, 0);
+		return gen_twoop("pluseq2op", n, r, 0, s);
 	case T_MINUSMINUS:
-		if (!(n->flags & NORETURN))
-			return 0;
+		/* Again only for constant case where value is needed */
+		if (s == 1) {
+			outputne("ld e,(hl)");
+			output("ld a,e");
+			outputcc("sub %u", BYTE(r->value));
+			outputne("ld (hl),a");
+			output("ld a,e");
+			return 1;
+		}
+		break;
 	case T_MINUSEQ:
 		if (s == 1) {
 			/* Shortcut for small 8bit values */
@@ -1467,7 +1560,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		return gen_deop("minuseqde", n, r, 0);
+		return gen_twoop("minuseq2op", n, r, 0, s);
 	case T_ANDEQ:
 		if (s == 1) {
 			if (load_a_with(r) == 0)
@@ -1476,7 +1569,7 @@ unsigned gen_direct(struct node *n)
 			outputne("ld (hl),a");
 			return 1;
 		}
-		return gen_deop("andeqde", n, r, 0);
+		return gen_twoop("andeq2op", n, r, 0, s);
 	case T_OREQ:
 		if (s == 1) {
 			if (load_a_with(r) == 0)
@@ -1485,7 +1578,7 @@ unsigned gen_direct(struct node *n)
 			outputne("ld (hl),a");
 			return 1;
 		}
-		return gen_deop("oreqde", n, r, 0);
+		return gen_twoop("oreq2op", n, r, 0, s);
 	case T_HATEQ:
 		if (s == 1) {
 			if (load_a_with(r) == 0)
@@ -1494,7 +1587,7 @@ unsigned gen_direct(struct node *n)
 			outputne("ld (hl),a");
 			return 1;
 		}
-		return gen_deop("xoreqde", n, r, 0);
+		return gen_twoop("xoreq2op", n, r, 0, s);
 	}
 	return 0;
 }
@@ -2088,14 +2181,15 @@ unsigned gen_shortcut(struct node *n)
 /* Stack the node which is currently in the working register */
 unsigned gen_push(struct node *n)
 {
-	unsigned size = get_stack_size(n->type);
+	unsigned size = get_size(n->type);
 
 	/* Our push will put the object on the stack, so account for it */
 	sp += size;
 
 	switch(size) {
 	case 1:
-		outputne("push af");	/* TODO check */
+		outputne("push af");
+		outputne("inc sp");
 		return 1;
 	case 2:
 		outputne("push hl");
@@ -2161,7 +2255,7 @@ unsigned gen_node(struct node *n)
 	   as we leave the arguments pushed for the function call */
 
 	if (n->left && n->op != T_ARGCOMMA && n->op != T_CALLNAME && n->op != T_FUNCCALL)
-		sp -= get_stack_size(n->left->type);
+		sp -= get_size(n->left->type);
 
 	switch (n->op) {
 		/* Load from a name */
@@ -2202,22 +2296,28 @@ unsigned gen_node(struct node *n)
 		if (size == 1)
 			outputne("ld (_%s+%u),a", namestr(n->snum), v);
 		else {
-			outputne("ex de,hl");
+			if (!nr)
+				outputne("push hl");
+			outputne("ld e,l");
+			outputne("ld d,h");
 			point_hl_at(n);
 			store_via_hl('d', size);
 			if (!nr)
-				outputne("ex de,hl");
+				output("pop hl");
 		}
 		return 1;
 	case T_LBSTORE:
 		if (size == 1) {
 			outputne("ld (T%u+%u),a", n->val2, v);
 		} else {
-			outputne("ex de,hl");
+			if (!nr)
+				outputne("push hl");
+			outputne("ld e,l");
+			outputne("ld d,h");
 			point_hl_at(n);
 			store_via_hl('d', size);
 			if (!nr)
-				outputne("ex de,hl");
+				output("pop hl");
 		}
 		return 1;
 	case T_LSTORE:
@@ -2240,13 +2340,16 @@ unsigned gen_node(struct node *n)
 			outputne("push de");
 			return 1;
 		}
-		outputne("ex de,hl");
+		if (!nr)
+			outputne("push hl");
+		outputne("ld e,l");
+		outputne("ld d,h");
 		hl_from_sp(v);
 		outputne("ld (hl),e");
 		outputne("inc hl");
 		outputne("ld (hl),d");
 		if (!nr)
-			outputne("ex de,hl");
+			output("pop hl");
 		return 1;
 	case T_RSTORE:
 		loadbc(size);
@@ -2263,13 +2366,16 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (size == 2) {
-			outputne("ex de,hl");
+			outputne("ld e,l");
+			outputne("ld d,h");
 			outputne("pop hl");
 			outputne("ld (hl),e");
 			outputne("inc hl");
 			outputne("ld (hl),d");
-			if (!nr)
-				outputne("ex de,hl");
+			if (!nr) {
+				output("ld l,e");
+				output("ld h,d");
+			}
 			return 1;
 		}
 		break;
