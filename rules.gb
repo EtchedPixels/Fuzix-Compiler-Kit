@@ -17,21 +17,13 @@
 	jmp %1
 
 # Trivial
-	ex de,hl
-	ex de,hl
-=
-
-	ex de,hl
-;
-	ex de,hl
-=
 
 	push hl
 	pop hl
 =
 
 	push hl
-;
+;:
 	pop hl
 =
 
@@ -41,3 +33,13 @@
 =
 	pop hl
 
+# Load and expand
+
+	ld a,(hl)
+	ld l,a
+	ld h,0
+;:
+=
+	ld l,(hl)
+	ld h,0
+;:
