@@ -1437,7 +1437,7 @@ unsigned gen_direct(struct node *n)
 					if (load_a_with(r) == 0)
 						return 0;
 					printf("\tcma\n\tinr a\n\n");
-					printf("\tsub m\n\tmov m,a\n");
+					printf("\tadd m\n\tmov m,a\n");
 				}
 				if (!(n->flags & NORETURN))
 					printf("\tmov l,a\n");
@@ -1682,12 +1682,13 @@ unsigned gen_shortcut(struct node *n)
 				opcode(OP_MVI, 0, R_L, "mvi l,0xff");
 			else if (v & 0xFF) {
 				opcode(OP_MVI, 0, R_A, "mvi a, %u", v & 0xFF);
-				opcode(OP_ORA, R_C, R_A, "ana c");
+				opcode(OP_ORA, R_C, R_A, "ora c");
 				opcode(OP_MOV, R_A, R_L, "mov l,a");
 			}
 			return 1;
 		}
 	}
+	/* TODO XOR */
 	/* ?? LBSTORE */
 	/* Register targetted ops. These are totally different to the normal EQ ops because
 	   we don't have an address we can push and then do a memory op */
