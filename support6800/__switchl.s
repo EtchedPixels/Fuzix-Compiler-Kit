@@ -26,8 +26,8 @@ __switchl:
 	inx
 	tstb
 	beq gotit
-	stx @tmp2
 next:
+	stx @tmp2
 	ldx 0,x
 	cpx @hireg
 	bne nomat
@@ -46,7 +46,6 @@ nomat:
 	inx
 	inx
 	inx
-	stx @tmp2
 	decb			; We know < 256 entries per switch
 	bne next
 gotit:
