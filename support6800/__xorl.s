@@ -11,21 +11,16 @@ __xorl:
 	eorb 5,x
 	eora 4,x
 	stab @tmp+1
-	staa @tmp
-	ldab @hireg+1
-	ldaa @hireg
-	eorb 3,x
-	eora 2,x
+	ldx 0,x
+	ins
+	ins
+	pulb
+	eorb @hireg
+	stab @hireg
+	pulb
+	eorb @hireg+1
 	stab @hireg+1
-	staa @hireg
 	ldab @tmp+1
-	ldaa @tmp
-	tsx
-	ldx	0,x
-	ins
-	ins
-	ins
-	ins
 	ins
 	ins
 	jmp ,x

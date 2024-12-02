@@ -11,21 +11,16 @@ __bandl:
 	andb 5,x
 	anda 4,x
 	stab @tmp+1
-	staa @tmp
-	ldab @hireg+1
-	ldaa @hireg
-	andb 3,x
-	anda 2,x
+	ldx 0,x
+	ins
+	ins
+	pulb
+	andb @hireg
+	stab @hireg
+	pulb
+	andb @hireg+1
 	stab @hireg+1
-	staa @hireg
 	ldab @tmp+1
-	ldaa @tmp
-	tsx
-	ldx	0,x
-	ins
-	ins
-	ins
-	ins
 	ins
 	ins
 	jmp ,x

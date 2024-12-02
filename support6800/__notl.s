@@ -6,11 +6,12 @@ __notl:
 	orab	@hireg+1
 	bne	false
 	tsta
-	bne	false
-	clra
-	ldab	#1
+	bne	false1
+;	clra			; now AccA,B=0
+	incb
 	rts
 false:
-	clra
 	clrb
+false1:
+	clra
 	rts
