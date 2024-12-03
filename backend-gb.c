@@ -182,6 +182,14 @@ static void squash_right(struct node *n, unsigned op)
 	n->right = NULL;
 }
 
+static void swap_op(struct node *n, unsigned op)
+{
+	struct node *l = n->left;
+	n->left = n->right;
+	n->right = l;
+	n->op = op;
+}
+
 /*
  *	Heuristic for guessing what to put on the right. This is very
  *	processor dependent.
@@ -321,6 +329,11 @@ struct node *gen_rewrite_node(struct node *n)
 		n->op = T_PLUSEQ;
 	if (op == T_MINUSMINUS && (n->flags & NORETURN))
 		n->op = T_MINUSEQ;
+	/* Sequence points rock - flip the more akward compares */
+	if (op == T_GT)
+		swap_op(n, T_LT);
+	if (op == T_LTEQ)
+		swap_op(n, T_GTEQ);
 	return n;
 }
 
@@ -816,7 +829,6 @@ static void store_via_hl(unsigned r, unsigned s)
 static unsigned load_r_with(const char *r, struct node *n)
 {
 	unsigned v = WORD(n->value);
-	const char *name;
 
 	switch(n->op) {
 	case T_NAME:
@@ -887,7 +899,7 @@ static unsigned load_hl_with(struct node *n)
 #endif
 
 /* TODO: needs a 'save HL' indicator */
-static unsigned load_a_with(struct node *n)
+static unsigned load_a_with(struct node *n, unsigned keep_hl)
 {
 	unsigned v = WORD(n->value);
 	switch(n->op) {
@@ -906,10 +918,12 @@ static unsigned load_a_with(struct node *n)
 		break;
 	case T_LREF:
 		/* We don't want to trash HL as we may be doing an HL:A op */
-		outputne("push hl");
+		if (keep_hl)
+			outputne("push hl");
 		hl_from_sp(v);
 		output("ld a,(hl)");
-		outputne("pop hl");
+		if (keep_hl)
+			outputne("pop hl");
 		break;
 	default:
 		return 0;
@@ -1253,7 +1267,7 @@ unsigned gen_direct(struct node *n)
 		}
 		/* We can do this via HL and A */
 		if (s == 1) {
-			if (load_a_with(r) == 0)
+			if (load_a_with(r, 1) == 0)
 				return 0;
 			outputne("ld (hl),a");
 			return 1;
@@ -1384,35 +1398,47 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		return gen_twoop("bxor2op", n, r, 0, s);
 	case T_EQEQ:
+		/* TODO: We can do word this way at least for non -Os by
+		   doing cp jr z, cp, ditto for BANGEQ */
 		if (is_byte && r->op == T_CONSTANT && (n->flags & CCONLY)) {
 			outputinv("cp %u", BYTE(v));
 			n->flags |= ISBOOL;
 			return 1;
 		}
 		return gen_compc("cmpeq", n, r, 0);
-	/* TODO: byte forms of these - need more ccvalid states for branch
-		 type flipping (jr nc/c etc) */
 	case T_GTEQ:
-		return gen_compc("cmpgteq", n, r, 1);
-	case T_GT:
-		return gen_compc("cmpgt", n, r, 1);
-	case T_LTEQ:
-		return gen_compc("cmplteq", n, r, 1);
-	case T_LT:
 		/* We can do some nice tricks with these for 8bit */
+		/* TODO: Expand 16bit versions of these when not -Os ? */
 		if (r->type == UCHAR) {
 			if (point_hl_at(r)) {
 				outputcc("cp (hl)");
 				carry_to_bool(n);
 				return 1;
 			} else if (r->op == T_CONSTANT) {
-				outputcc("cp %u", BYTE(r->value));
+				output("cp %u", BYTE(r->value));
+				output("ccf");
+				carry_to_bool(n);
+				return 1;
+			}
+		}
+		return gen_compc("cmpgteq", n, r, 1);
+	case T_LT:
+		/* We can do some nice tricks with these for 8bit */
+		/* TODO: Expand 16bit versions of these when not -Os ? */
+		if (r->type == UCHAR) {
+			if (point_hl_at(r)) {
+				outputcc("cp (hl)");
+				carry_to_bool(n);
+				return 1;
+			} else if (r->op == T_CONSTANT) {
+				output("cp %u", BYTE(r->value));
 				carry_to_bool(n);
 				return 1;
 			}
 		}
 		return gen_compc("cmplt", n, r, 1);
 	case T_BANGEQ:
+		/* TODO: Expand 16bit versions of these when not -Os ? */
 		if (s == 1 && r->op == T_CONSTANT && (n->flags & CCONLY)) {
 			outputcc("cp %u", BYTE(v));
 			n->flags |= ISBOOL;
@@ -1431,7 +1457,7 @@ unsigned gen_direct(struct node *n)
 				output("ld l,0");
 				v = v & 7;
 			}
-			repeated_op("add h,hl", v);
+			repeated_op("add hl,hl", v);
 			return 1;
 		}
 		return gen_twoop("shl2op", n, r, 0, s);
@@ -1471,7 +1497,7 @@ unsigned gen_direct(struct node *n)
 			if (r->op == T_CONSTANT && r->value < 4 && nr)
 				repeated_op("inc (hl)", r->value);
 			else {
-				if (load_a_with(r) == 0)
+				if (load_a_with(r, 1) == 0)
 					return 0;
 				outputcc("add a,(hl)");
 				outputne("ld (hl),a");
@@ -1529,7 +1555,7 @@ unsigned gen_direct(struct node *n)
 						output("ld (hl),a");
 					}
 				} else {
-					if (load_a_with(r) == 0)
+					if (load_a_with(r, 1) == 0)
 						return 0;
 					output("cpl");
 					output("inc a");
@@ -1563,7 +1589,7 @@ unsigned gen_direct(struct node *n)
 		return gen_twoop("minuseq2op", n, r, 0, s);
 	case T_ANDEQ:
 		if (s == 1) {
-			if (load_a_with(r) == 0)
+			if (load_a_with(r, 1) == 0)
 				return 0;
 			outputcc("and (hl)");
 			outputne("ld (hl),a");
@@ -1572,7 +1598,7 @@ unsigned gen_direct(struct node *n)
 		return gen_twoop("andeq2op", n, r, 0, s);
 	case T_OREQ:
 		if (s == 1) {
-			if (load_a_with(r) == 0)
+			if (load_a_with(r, 1) == 0)
 				return 0;
 			outputcc("or (hl)");
 			outputne("ld (hl),a");
@@ -1581,7 +1607,7 @@ unsigned gen_direct(struct node *n)
 		return gen_twoop("oreq2op", n, r, 0, s);
 	case T_HATEQ:
 		if (s == 1) {
-			if (load_a_with(r) == 0)
+			if (load_a_with(r, 1) == 0)
 				return 0;
 			outputcc("xor (hl)");
 			outputne("ld (hl),a");
@@ -1904,21 +1930,16 @@ unsigned gen_shortcut(struct node *n)
 	}
 	/* Assignment to *BC, byte pointer always */
 	if (n->op == T_REQ) {
-		unsigned in_l = 0;
 		/* Try and get the value into A */
-		if (!load_a_with(r)) {
-			codegen_lr(r);		/* If not then into HL */
-			in_l = 1;
-			output("ld a,l");
+		if (!load_a_with(r, 0)) {
+			codegen_lr(r);
 		}
 		outputne("ld (bc),a");	/* Do in case volatile */
-		if (!nr && !in_l && s == 2)
-			output("ld l,a");
 		return 1;
 	}
 	if (n->op == T_AND && l->op == T_RREF) {
 		if (s == 1) {
-			if (!load_a_with(r))
+			if (!load_a_with(r, 0))
 				return 0;
 			outputcc("and c");
 			return 1;
@@ -1949,7 +1970,7 @@ unsigned gen_shortcut(struct node *n)
 	}
 	if (n->op == T_OR && l->op == T_RREF) {
 		if (s == 1) {
-			if (!load_a_with(r))
+			if (!load_a_with(r, 0))
 				return 0;
 			outputcc("or c");
 			return 1;
