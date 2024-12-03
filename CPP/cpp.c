@@ -42,7 +42,7 @@
 
 char curword[WORDSIZE];
 int alltok = 0;
-int dialect = 0;
+int dialect = DI_ANSI;
 
 FILE *curfile;
 char *c_fname;
@@ -1517,7 +1517,7 @@ static char *insert_substrings(char *data_str, struct arg_store *arg_list, int a
 
 		if (p == curword) {
 			/* Ansi Stringize and concat */
-			if (*data_str == '#' && dialect != DI_KNR) {
+			if (!in_quote && *data_str == '#' && dialect != DI_KNR) {
 				if (data_str[1] == '#') {
 					while (cc > 0 && (rv[cc - 1] == ' ' || rv[cc - 1] == '\t'))
 						cc--;

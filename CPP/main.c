@@ -1,11 +1,6 @@
-
 #include <stdio.h>
-#if __STDC__
 #include <stdlib.h>
 #include <locale.h>
-#else
-#include <malloc.h>
-#endif
 #include <ctype.h>
 #include <string.h>
 #include <time.h>
@@ -13,7 +8,7 @@
 #include <stdint.h>
 #include "cc.h"
 
-#define MAXINCPATH	5
+#define MAXINCPATH	6
 
 int main(int argc, char *argv[]);
 void undefine_macro(char *name);
@@ -36,7 +31,7 @@ char *_ltoa(long v)
 }
 #endif
 
-char *include_paths[MAXINCPATH] = { ".", };
+char *include_paths[MAXINCPATH] = { };
 
 char last_name[256] = "";
 int last_line = -1;
@@ -250,7 +245,7 @@ FILE *open_include(char *fname, char *mode, int checkrel)
 			*++p = 0;
 		else
 			*(p = buf) = 0;
-		strlcpy(p, fname, p - buf);
+		strlcpy(p, fname, buf + 256 - p);
 
 		fd = fopen(buf, mode);
 	}
@@ -264,7 +259,7 @@ FILE *open_include(char *fname, char *mode, int checkrel)
 				fd = fopen(buf, mode);
 				if (fd)
 					break;
-				if (errno != ENOENT) {
+				if (errno != ENOENT && errno != ENOTDIR) {
 					perror(buf);
 					exit(1);
 				}
