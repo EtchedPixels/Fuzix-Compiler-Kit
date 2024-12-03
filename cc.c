@@ -1103,6 +1103,7 @@ int main(int argc, char *argv[]) {
 
 	while(*cpudef)
 		append_obj(&deflist, (char *)*cpudef++, 0);
+	append_obj(&deflist, "__STDC__", 0);
 
 	if (!standalone)
 		add_system_include();
