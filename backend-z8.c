@@ -1777,6 +1777,7 @@ struct node *gen_rewrite_node(struct node *n)
 		if (nt == r->type || (nt ^ r->type) == UNSIGNED ||
 		 (PTR(nt) && PTR(r->type))) {
 			free_node(n);
+			r->type = nt;
 			return r;
 		}
 	}
