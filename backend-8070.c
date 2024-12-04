@@ -1564,13 +1564,14 @@ unsigned gen_shortcut(struct node *n)
 	   evaluates the right. Avoid pushing/popping and generating stuff
 	   that is surplus */
 	if (n->op == T_COMMA) {
-		n->left->flags |= NORETURN;
-		codegen_lr(n->left);
-		codegen_lr(n->right);
+		l->flags |= NORETURN;
+		codegen_lr(l);
+		r->flags |= (n->flags & NORETURN);
+		codegen_lr(r);
 		return 1;
 	}
 	if ((n->op == T_NSTORE || n->op == T_LSTORE) && s < 2) {
-		codegen_lr(n->right);
+		codegen_lr(r);
 		/* Result is now in EA */
 		ptr = gen_ref(n, &off);
 		if (ptr == 0)

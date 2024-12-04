@@ -1272,8 +1272,8 @@ unsigned gen_shortcut(struct node *n)
 		l->flags |= NORETURN;
 		codegen_lr(l);
 		/* Parent determines child node requirements */
-		codegen_lr(r);
 		r->flags |= nr;
+		codegen_lr(r);
 		return 1;
 	case T_DEREF:
 	case T_DEREFPLUS:

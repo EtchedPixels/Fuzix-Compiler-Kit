@@ -1393,8 +1393,8 @@ unsigned gen_shortcut(register struct node *n)
 		l->flags |= NORETURN;
 		codegen_lr(l);
  		/* Parent determines child node requirements */
-		codegen_lr(r);
 		r->flags |= nr;
+		codegen_lr(r);
 		return 1;
 	}
 	if (n->op == T_BOOL) {
