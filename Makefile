@@ -332,6 +332,7 @@ bootinst:
 	cp rules.6809 $(CCROOT)/lib
 	cp rules.hc11 $(CCROOT)/lib
 	cp lorder6809 $(CCROOT)/bin/lorder6809
+	cp lorder6809 $(CCROOT)/bin/lorder6800
 	# 8070 (WIP)
 	mkdir -p $(CCROOT)/lib/8070
 	mkdir -p $(CCROOT)/lib/8070/include
