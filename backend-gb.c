@@ -2506,6 +2506,18 @@ unsigned gen_node(struct node *n)
 		else
 			printf("\tbit %u, h\n", v - 8);
 		return 1;
+	case T_TILDE:
+		if (size == 1) {
+			outputcc("cpl");
+			return 1;
+		}
+		break;
+	case T_NEGATE:
+		if (size == 1) {
+			output("cpl");
+			outputcc("inc a");
+			return 1;
+		}
 	}
 	return 0;
 }

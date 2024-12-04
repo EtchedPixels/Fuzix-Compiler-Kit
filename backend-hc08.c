@@ -2473,6 +2473,20 @@ unsigned do_gen_node(struct node *n)
 		}
 		n->flags |= ISBOOL;
 		return 1;
+	case T_TILDE:
+		if (size < 4) {
+			output("coma");
+			if (size == 2)
+				output("comx");
+			return 1;
+		}
+		break;
+	case T_NEGATE:
+		if (size == 1) {
+			output("nega");
+			return 1;
+		}
+		break;
 	/* Helpers that want the value in HX */
 	case T_PLUSEQ:
 	case T_MINUSEQ:
