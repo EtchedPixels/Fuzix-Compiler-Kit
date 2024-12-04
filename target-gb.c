@@ -7,9 +7,6 @@
 
 unsigned target_alignof(unsigned t, unsigned storage)
 {
-    /* Arguments are stacked as words on 8080 */
-    if (storage == S_ARGUMENT)
-	return 2;
     return 1;
 }
 
@@ -38,10 +35,7 @@ unsigned target_sizeof(unsigned t)
 
 unsigned target_argsize(unsigned t)
 {
-	unsigned s = target_sizeof(t);
-	if (s == 1)
-		return 2;
-	return s;
+	return target_sizeof(t);
 }
 
 /* integer type for a pointer of type t. For most platforms this is trivial
