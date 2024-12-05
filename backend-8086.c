@@ -234,7 +234,7 @@ void gen_segment(unsigned s)
 {
 	switch(s) {
 	case A_CODE:
-		printf("\t.text\n");
+		printf("\t.code\n");
 		break;
 	case A_DATA:
 		printf("\t.data\n");
@@ -991,7 +991,7 @@ unsigned gen_node(struct node *n)
 
 	switch(n->op) {
 	case T_CALLNAME:
-		printf("\tcall_%s+%u\n", namestr(n->snum), v);
+		printf("\tcall _%s+%u\n", namestr(n->snum), v);
 		return 1;
 	case T_FUNCCALL:
 		printf("\tmov bx,ax\n");
