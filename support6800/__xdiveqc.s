@@ -19,7 +19,7 @@ __xremeqc:
 	bsr sex
 	bsr absd
 	staa @tmp
-	stab @tmp1+1
+	stab @tmp+1
 	ldab ,x
 	bsr sex
 	bita #0x80
