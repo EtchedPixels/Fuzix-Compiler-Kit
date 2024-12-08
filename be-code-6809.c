@@ -190,29 +190,9 @@ void op16d_on_ptr(const char *op, const char *op2, unsigned off)
 	printf("\t%sd %u,x\n", op, off);
 }
 
-static void op8_on_s(const char *op, unsigned off)
-{
-	printf("\t%sb %u,s\n", op, off);
-}
-
 static void op8_on_tos(const char *op)
 {
 	printf("\t%sb ,s+\n", op);
-}
-
-/* Do the low byte first in case it's add adc etc */
-static void op16_on_s(const char *op, const char *op2, unsigned off)
-{
-	/* Big endian */
-	printf("\t%sb %u,s\n", op, off + 1);
-	printf("\t%sa %u,s\n", op2, off);
-}
-
-
-static void op16d_on_s(const char *op, const char *op2, unsigned off)
-{
-	/* Big endian */
-	printf("\t%sd %u,s\n", op, off);
 }
 
 static void op32_on_ptr(const char *op, const char *op2, unsigned off)
@@ -328,7 +308,12 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:
-		op8_on_s(op, v + off + sp);
+		printf("\t%sb %u,s\n", op, off + v + sp);
+		break;
+	case T_LDEREF:
+		if (r->val2)
+			return 0;
+		printf("\t%sb [%u,s]\n", op, off + v + sp);
 		break;
 	case T_CONSTANT:
 	case T_LBSTORE:
@@ -355,7 +340,10 @@ unsigned op16_on_node(struct node *r, const char *op, const char *op2, unsigned 
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:
-		op16_on_s(op, op2, v + off + sp);
+		/* Big endian */
+		off += v + sp;
+		printf("\t%sb %u,s\n", op, off + 1);
+		printf("\t%sa %u,s\n", op2, off);
 		break;
 	case T_CONSTANT:
 		printf("\t%sa #>%u\n", op, (v + off) & 0xFFFF);
@@ -384,7 +372,14 @@ unsigned op16d_on_node(struct node *r, const char *op, const char *op2, unsigned
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:
-		op16d_on_s(op, op2, v + off + sp);
+		/* Big endian */
+		printf("\t%sd %u,s\n", op, off + v + sp);
+		break;
+	case T_LDEREF:
+		/* Big endian */
+		if (r->val2)
+			return 0;
+		printf("\t%sd [%u,s]\n", op, off + v + sp);
 		break;
 	case T_CONSTANT:
 	case T_LBSTORE:
