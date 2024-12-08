@@ -1,4 +1,5 @@
-all: emu6502 emu65c816 emu6800 emu85 emuz8 emuz80 byte1802 emu6809 ee200 nova \
+all: emu6502 emu65c816 emu6800 emu85 emuz8 emuz80 byte1802 emu6809 \
+     emu7k ee200 nova \
      testcrt0.o testcrtz80.o testcrt0_6502.o testcrt0_65c816.o \
      testcrt0_6303.o testcrt0_6803.o testcrt0_6809.o testcrt0_z8.o \
      testcrt0_byte1802.o testcrt0_ee200.o testcrt0_nova.o testcrt0_nova3.o \
@@ -63,6 +64,9 @@ ee200: ee200.o ee200_dis.o
 
 nova: nova.o
 	$(CC) $(CFLAGS) -o nova nova.o
+
+emu7k: tms7k.o emu7k.o
+	$(CC) $(CFLAGS) -o emu7k emu7k.o tms7k.o
 
 z80dis.o: z80dis.h
 
