@@ -566,7 +566,6 @@ unsigned op8_on_node(struct node *r, const char *op, unsigned off)
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:
-	case T_LDEREF:
 		off = make_local_ptr(v + off, 255);
 		op8_on_ptr(op, off);
 		break;
@@ -595,7 +594,6 @@ unsigned op16_on_node(register struct node *r, const char *op, const char *op2, 
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:
-	case T_LDEREF:
 		off = make_local_ptr(v + off, 254);
 		op16_on_ptr(op, op2, off);
 		break;
@@ -629,7 +627,6 @@ unsigned op16d_on_node(register struct node *r, const char *op, const char *op2,
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:
-	case T_LDEREF:
 		off = make_local_ptr(v + off, 254);
 		op16d_on_ptr(op, op2, off);
 		break;
@@ -654,7 +651,6 @@ unsigned op16y_on_node(register struct node *r, const char *op, unsigned off)
 	switch(r->op) {
 	case T_LSTORE:
 	case T_LREF:
-	case T_LDEREF:
 		off = make_local_ptr(v + off, 254);
 		printf("\t%sy %u,x\n", op, off);
 		break;
