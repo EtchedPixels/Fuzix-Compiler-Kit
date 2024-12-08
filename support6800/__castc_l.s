@@ -4,10 +4,9 @@
 __castc_l:
 __castc_ul:
 	clra
-	bitb #$80
-	beq ispve
-	deca
-ispve:
+	asrb
+	rolb
+	sbca #$00
 	sta @hireg
 	sta @hireg+1
 	rts

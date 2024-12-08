@@ -4,8 +4,7 @@
 __castc_:
 __castc_u:
 	clra
-	bitb #$80
-	beq ispve
-	deca
-ispve:
+	asrb
+	rolb
+	sbca #$00
 	rts
