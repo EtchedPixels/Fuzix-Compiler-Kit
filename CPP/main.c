@@ -31,7 +31,7 @@ char *_ltoa(long v)
 }
 #endif
 
-char *include_paths[MAXINCPATH] = { };
+char *include_paths[MAXINCPATH];
 
 char last_name[256] = "";
 int last_line = -1;
