@@ -7,7 +7,10 @@ all: cpp
 .c.o:
 	$(CC) $(CFLAGS) $(CCOPTS) -c $<
 
+# Older Linux platform users may need libbsd-deevel / libbsd-dev
+# and to uncomment -lbsd if they do not have glibc 2.38 or higher
 cpp: $(OBJ)
+        $(CC) $(CFLAGS) $(CCOPTS) $(OBJ) -o cpp #-lbsd
 
 clean:
 	rm -f *.o cpp *~

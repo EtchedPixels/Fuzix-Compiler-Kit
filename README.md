@@ -49,6 +49,12 @@ make install
 ```
 
 This will build a bootstrap then build the full tools and install them.
+
+## Requirements
+
+The compiler kit makes use of strlcpy/strlcat. Glibc users will need glibc
+2.38 or later to catch up with this interface.
+
 ## Intended C Subset
 
 The goal is to support the following
