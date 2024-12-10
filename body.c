@@ -16,6 +16,7 @@ static unsigned func_type;
 
 unsigned func_flags;
 unsigned arg_flags;
+unsigned func_argframe;
 
 /* C keyword statements */
 
@@ -401,6 +402,7 @@ void function_body(unsigned st, unsigned name, unsigned type)
 	header(H_FUNCTION, func_tag, name);
 	hrw = mark_header();
 	header(H_FRAME, 0, 0);
+	header(H_ARGFRAME, func_argframe, 0);
 
 	/* Register arguments need loading into registers */
 	if (arg_flags)

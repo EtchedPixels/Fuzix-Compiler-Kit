@@ -287,7 +287,11 @@ void type_parse_function(unsigned ptr)
 
 	mark_storage(&argsave, &locsave);
 	parse_function_arguments(tplt);
-	header(H_ARGFRAME, arg_size(), 0);
+	/* We work outwards so this will end up with the frame size of
+	   the outer function in the cases of function expressions
+	   with function arguments. This is what we want as we'll need
+	   the outer one as that is what applies to the body if present */
+	func_argframe = arg_size();
 	pop_storage(&argsave, &locsave);
 
 	idx = sym_find_idx(S_FUNCDEF, tplt, *tplt + 1);

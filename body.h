@@ -3,6 +3,7 @@ extern void function_body(unsigned st, unsigned name, unsigned type);
 
 extern unsigned func_flags;
 extern unsigned arg_flags;
+extern unsigned func_argframe;
 
 #define F_VOIDRET		1
 #define F_VOID			2
