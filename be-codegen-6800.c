@@ -102,8 +102,8 @@ static void squash_right(struct node *n, unsigned op)
 }
 
 /*
- *	There isn't a lot we can do the easy way except constants, so stick
- *	constants on the right when we can.
+ *	Stick simple things on the right. Elsewhere the code assumes that
+ *	9 or higher score means we can do it without eating X
  */
 static unsigned is_simple(struct node *n)
 {
@@ -118,8 +118,15 @@ static unsigned is_simple(struct node *n)
 		return 9;
 	if (op == T_LBREF || op == T_NREF)
 		return 9;
-	if (op == T_LOCAL || op == T_ARGUMENT || op == T_LREF)
+	if (op == T_ARGUMENT || op == T_LOCAL)
 		return 9;
+	/* Harder as uses X */
+	if (op == T_LREF) {
+		/* 6809 has ,S ops */
+		if (cpu == 6809)
+			return 9;
+		return 5;
+	}
 	return 0;
 }
 
@@ -934,12 +941,12 @@ unsigned do_xeqop(struct node *n, const char *op)
 		return 0;
 
 	/* Handle simpler cases of -= the other way around */
-	if (is_simple(r) && get_size(n->type) <= 2) {
+	/* Avoid cases that also need X */
+	if (is_simple(r) > 8 && get_size(n->type) <= 2) {
 		if (is_simple(l)) {
 			if (write_xsimple(n, 0))
 				return 1;
-		}
-		else if (can_load_r_with(l, 0)) {
+		} else if (can_load_r_with(l, 0)) {
 			if (write_xsimple(n, 1))
 				return 1;
 		}
@@ -956,6 +963,7 @@ unsigned do_xeqop(struct node *n, const char *op)
 		off = 0;
 		/* and drop into he helper */
 	} else {
+		printf("; right into D path\n");
 		/* Get the value part into AB */
 		codegen_lr(n->right);
 		/* Load X (lval of the eq op) up (doesn't disturb AB) */
