@@ -22,6 +22,11 @@
  *	- Has XGDX and XGDY
  *
  * TODO; swap sub around for non direct cases ?
+ *	 cleanup x++ and ++x style ops for 6800 in particular
+ *		use ldx _foo inx stx _foo for 1-4 byte 16bit
+ *		spot the common *x++=   and  blah *x++ cases
+ *		and do these for small values directly as
+ *		ldx _foo inx stx _foo [dex] stb ,x  etc
  */
 
 #include <stdio.h>
@@ -1146,7 +1151,8 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 		}
 		invalidate_work();
 		invalidate_mem();
-		set_d_node(l);
+		if (retres)
+			set_d_node(l);
 		return 1;
 	}
 	op16d_on_ptr("ld", "ld", off);
@@ -1166,7 +1172,8 @@ unsigned add_to_node(struct node *n, int sign, int retres)
 	}
 	invalidate_work();
 	invalidate_mem();
-	set_d_node_ptr(l);
+	if (retres)
+		set_d_node_ptr(l);
 	return 1;
 }
 
