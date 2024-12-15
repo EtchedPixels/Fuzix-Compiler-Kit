@@ -43,7 +43,7 @@ OBJ = workspace.o __true.o __switchc.o __switch.o __switchl.o __pushl.o __sex.o 
       __bcand.o __bcdiv.o __bcdivu.o __bcmul.o __bcor.o __bcshl.o __bcshr.o __bcsub.o __bcxor.o \
       _memcpy.o _memset.o _strlen.o \
       __boolf.o __cast2f.o __castf.o __cceqf.o __ccgteqf.o __ccgtf.o __cclteqf.o \
-      __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o
+      __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o __eqopf.o
 
 .s.o:
 	fcc -m8085 -c $<
