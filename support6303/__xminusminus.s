@@ -10,8 +10,8 @@
 __xmminus:
 __xmminusu:
 	std @tmp
-	ldd 2,x
+	ldd ,x
 	subd @tmp
-	std 2,x
+	std ,x
 	addd @tmp
 	rts

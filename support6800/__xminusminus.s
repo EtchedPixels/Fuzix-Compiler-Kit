@@ -9,12 +9,12 @@ __xmminus:
 __xmminusu:
 	staa @tmp
 	stab @tmp+1
-	ldaa 2,x
-	ldab 3,x
+	ldaa ,x
+	ldab 1,x
 	subb @tmp+1
 	sbca @tmp
-	staa 2,x
-	stab 3,x
+	staa ,x
+	stab 1,x
 	addb @tmp+1
 	adca @tmp
 	rts
