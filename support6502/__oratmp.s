@@ -1,14 +1,14 @@
 	.code
 
 	.export __ora
-	.export __oras
+	.export __orau
 	.export __oratmp
-	.export __oratmps
+	.export __oratmpu
 __ora:
-__oras:
+__orau:
 	jsr __poptmp
 __oratmp:
-__oratmps:
+__oratmpu:
 	ora @tmp
 	pha
 	txa

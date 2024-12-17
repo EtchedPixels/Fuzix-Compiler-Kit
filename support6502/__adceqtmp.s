@@ -1,9 +1,9 @@
 	.code
 
-	.export __adctmp
-	.export __adctmps
-__adctmp:
-__adctmps:
+	.export __adceqtmp
+	.export __adceqtmpu
+__adceqtmp:
+__adceqtmpu:
 	ldy #0
 	clc
 	adc (@tmp),y

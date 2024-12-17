@@ -1,14 +1,14 @@
 	.code
 
 	.export __adc
-	.export __adcs
+	.export __adcu
 	.export __adctmp
-	.export __adctmps
+	.export __adctmpu
 __adc:
-__adcs:
+__adcu:
 	jsr __poptmp
 __adctmp:
-__adctmps:
+__adctmpu:
 	clc
 	adc @tmp
 	pha

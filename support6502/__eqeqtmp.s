@@ -2,8 +2,10 @@
 ;	Compare XA with __tmp
 ;
 	.export __eqeqtmp
+	.export __eqeqtmpu
 
 __eqeqtmp:
+__eqeqtmpu:
 	cmp @tmp
 	bne false
 	txa

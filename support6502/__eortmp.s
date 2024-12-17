@@ -1,14 +1,14 @@
 	.code
 
 	.export __eor
-	.export __eors
+	.export __eoru
 	.export __eortmp
-	.export __eortmps
+	.export __eortmpu
 __eor:
-__eors:
+__eoru:
 	jsr __poptmp
 __eortmp:
-__eortmps:
+__eortmpu:
 	eor @tmp
 	pha
 	txa

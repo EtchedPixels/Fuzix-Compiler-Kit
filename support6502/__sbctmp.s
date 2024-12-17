@@ -1,14 +1,14 @@
 	.code
 
 	.export __sbc
-	.export __sbcs
+	.export __sbcu
 	.export __sbctmp
-	.export __sbctmps
+	.export __sbctmpu
 __sbc:
-__sbcs:
+__sbcu:
 	jsr __poptmp
 __sbctmp:
-__sbctmps:
+__sbctmpu:
 	sec
 	sbc @tmp
 	pha

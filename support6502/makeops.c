@@ -80,13 +80,13 @@ void write_tmpop(const char *op, const char *pre)
     }
     
     fprintf(f, "\t.code\n\n");
-    fprintf(f, "\t.export __%s\n\t.export __%ss\n", op, op);
-    fprintf(f, "\t.export __%stmp\n\t.export __%stmps\n", op, op);
+    fprintf(f, "\t.export __%s\n\t.export __%su\n", op, op);
+    fprintf(f, "\t.export __%stmp\n\t.export __%stmpu\n", op, op);
     fprintf(f, "__%s:\n", op);
-    fprintf(f, "__%ss:\n", op);
+    fprintf(f, "__%su:\n", op);
     fprintf(f, "\tjsr __poptmp\n");
     fprintf(f, "__%stmp:\n", op);
-    fprintf(f, "__%stmps:\n", op);
+    fprintf(f, "__%stmpu:\n", op);
     if (pre)
         fprintf(f, "\t%s\n", pre);
     fprintf(f, "\t%s @tmp\n", op);
@@ -118,9 +118,9 @@ void write_eqtmpop(const char *op, const char *pre)
     }
     
     fprintf(f, "\t.code\n\n");
-    fprintf(f, "\t.export __%stmp\n\t.export __%stmps\n", op, op);
-    fprintf(f, "__%stmp:\n", op);
-    fprintf(f, "__%stmps:\n", op);
+    fprintf(f, "\t.export __%seqtmp\n\t.export __%seqtmpu\n", op, op);
+    fprintf(f, "__%seqtmp:\n", op);
+    fprintf(f, "__%seqtmpu:\n", op);
     fprintf(f, "\tldy #0\n");
     if (pre)
         fprintf(f, "\t%s\n", pre);

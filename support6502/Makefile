@@ -6,9 +6,11 @@ OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o __lxa0sp
        __plusplus1.o __plusplus2.o __plusplus.o __plusplusy.o __plus.o \
        __poptmp.o __pushc.o __pushl.o __push.o \
        zeropage.o \
-       __bool.o __not.o __eqeqtmp.o \
+       __bool.o __boolc.o __not.o __notc.o __eqeqtmp.o __netmp.o \
        __lttmp.o __lttmpu.o __gteqtmp.o  __gteqtmpu.o \
-       __lstmp.o __rstmp.o
+       __lttmpc.o __lttmpuc.o __gteqtmpc.o __gteqtmpuc.o \
+       __lstmp.o __rstmp.o \
+       __cpl.o
 
 GEN =  __adcspy.o __adctmpy.o __sbcspy.o __sbctmpy.o __andspy.o __andtmpy.o __eorspy.o __eortmpy.o \
        __ldaspy.o __ldatmpy.o __oraspy.o __oratmpy.o __staspy.o __statmpy.o \

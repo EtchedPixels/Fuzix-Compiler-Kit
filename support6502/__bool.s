@@ -8,7 +8,6 @@ __bool:
 	ldx #0
 	ora @tmp
 	bne setit
-	txa
 	rts
 setit:
 	lda #1

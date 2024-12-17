@@ -1,9 +1,9 @@
 	.code
 
-	.export __eortmp
-	.export __eortmps
-__eortmp:
-__eortmps:
+	.export __eoreqtmp
+	.export __eoreqtmpu
+__eoreqtmp:
+__eoreqtmpu:
 	ldy #0
 	eor (@tmp),y
 	sta (@tmp),y

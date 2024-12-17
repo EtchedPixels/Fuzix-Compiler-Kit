@@ -1,9 +1,9 @@
 	.code
 
-	.export __andtmp
-	.export __andtmps
-__andtmp:
-__andtmps:
+	.export __andeqtmp
+	.export __andeqtmpu
+__andeqtmp:
+__andeqtmpu:
 	ldy #0
 	and (@tmp),y
 	sta (@tmp),y

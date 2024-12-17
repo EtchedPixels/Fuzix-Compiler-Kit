@@ -1,9 +1,9 @@
 	.code
 
-	.export __oratmp
-	.export __oratmps
-__oratmp:
-__oratmps:
+	.export __oraeqtmp
+	.export __oraeqtmpu
+__oraeqtmp:
+__oraeqtmpu:
 	ldy #0
 	ora (@tmp),y
 	sta (@tmp),y
