@@ -1936,9 +1936,9 @@ unsigned gen_direct(struct node *n)
 	case T_ANDEQ:
 		return pri_help(n, "andeqtmp");
 	case T_OREQ:
-		return pri_help(n, "oreqtmp");
+		return pri_help(n, "oraeqtmp");
 	case T_HATEQ:
-		return pri_help(n, "oreqtmp");
+		return pri_help(n, "eoreqtmp");
 #if 0
 	/* still to do - more complex see 65C816 */
 	case T_ARGCOMMA:
@@ -2261,16 +2261,13 @@ unsigned gen_node(struct node *n)
 			}
 			invalidate_a();
 		} else {
-			if (cpu != NMOS_6502)
-				output("lda (@tmp)");
-			else {
-				load_y(0);
-				output("lda (@tmp),y");
-			}
-			invalidate_a();
 			load_y(1);
 			invalidate_x();
-			output("ldx (@tmp),y");
+			output("lda (@tmp),y");
+			output("tax");
+			load_y(0);
+			output("lda (@tmp),y");
+			invalidate_a();
 		}
 		return 1;
 	case T_CONSTANT:
