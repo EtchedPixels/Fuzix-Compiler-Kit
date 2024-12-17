@@ -545,7 +545,7 @@ void gen_switch(unsigned n, unsigned type)
 {
 	flush_writeback();
 	invalidate_all();
-	printf("\tld p3, Sw%d\n", n);
+	printf("\tld p3,=Sw%d\n", n);
 	printf("\tjmp __switch");
 	helper_type(type, 0);
 	putchar('\n');
@@ -970,7 +970,24 @@ static unsigned gen_t_op(unsigned sz, struct node *n, const char *fn)
    	
 static unsigned gen_fast_mul(unsigned sz, unsigned value)
 {
-	// TODO shifts
+	if (value < 2) {
+		if (value == 0)
+			puts("\tld ea,=0");
+		return 1;
+	}
+	if (!(value & ~(value - 1))) {
+		/* Do 8bits of shift by swapping the register about */
+		if (value >= 256) {
+			puts("xch a,e\n\tld a,=0");
+			value >>= 8;
+		}
+		/* For each power of two just shift left */
+		while(value) {
+			value >>= 1;
+			puts("sl ea");
+		}
+		return 1;
+	}
 
 	invalidate_ea();
 	if (sz == 1) {
@@ -992,7 +1009,7 @@ static unsigned gen_fast_mul(unsigned sz, unsigned value)
 	if (value & 1)
 		return 0;
 	/* Shift to keep right side positive */
-	puts("\tsl ea\n");
+	puts("\tsl ea");
 	load_t(value >> 1);
 	puts("\tmpy");
 	invalidate_t();
@@ -1310,16 +1327,25 @@ unsigned gen_direct(struct node *n)
 		puts("\tmpy\n");	/* Valid for 16bit as we use it */
 		puts("\tld ea,t");
 		invalidate_ea();
-		break;
+		return 1;
 	case T_SLASH:
 		if (s > 2)
 			return 0;
-#if 0			
 		if (r->op == T_CONSTANT) {
+			if (s == 2 && (r->type & UNSIGNED) && r->op == T_CONSTANT && v == 256) {
+				puts("\tld a,=0\nxch a,e");
+				return 1;
+			}
+#if 0			
 			if (gen_fast_div(s, r))
 				return 1;
-		}
 #endif		
+			/* Can we use the div instruction ? */
+			if (!(v & 0x8000)) {
+				printf("\tld t,=%u\n\tdiv ea,t\n", v);
+				return 1;
+			}
+		}
 		invalidate_ea();
 		invalidate_t();
 		puts("\tld t,ea");
@@ -1328,8 +1354,14 @@ unsigned gen_direct(struct node *n)
 			puts("\tjsr __udiv1616");
 		else
 			puts("\tjsr __div1616");
+		return 1;
+	case T_PERCENT:
+		/* Mod 256 we can do easily */
+		if (s == 2 && (r->type & UNSIGNED) && r->op == T_CONSTANT && v == 256) {
+			puts("\txch a,e\n\tld a,=0\n\txch a,e");
+			return 1;
+		}
 		break;
-	/* Should do T_PERCENT fast remainder cases */
 	case T_AND:
 		if (r->op == T_CONSTANT && s <= 2) {
 			if (s == 2) {
@@ -1978,7 +2010,6 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		break;
-	/* Needs to change to be TOS - EA */
 	case T_MINUS:
 		invalidate_ea();
 		if (sz == 1) {
@@ -1989,10 +2020,9 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (sz == 2) {
-			printf("\tpush ea\n");
-			printf("\tld ea,1,p1\n");
-			printf("\tsub ea,0,p1\n");
-			discard_word();
+			printf("\tst ea,:__tmp\n");
+			printf("\tpop ea\n");
+			printf("\tsub ea,:__tmp\n");
 			return 1;
 		}
 		return pop_t_op(n, "sub_t", sz);		
