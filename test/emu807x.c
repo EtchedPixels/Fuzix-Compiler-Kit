@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
 	int fd;
 	unsigned debug = 0;
 
-	if (argc == 5 && strcmp(argv[1], "-d") == 0) {
+	if (argc == 4 && strcmp(argv[1], "-d") == 0) {
 		debug = 1;
 		argv++;
 		argc--;
