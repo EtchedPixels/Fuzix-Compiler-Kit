@@ -708,8 +708,6 @@ void load_ea(unsigned sz, unsigned long v)
 	else if (sz == 2) {
 		if (ea_is(vw))
 			return;
-		if (a_valid && a_value == (vw & 0xFF))
-			printf("\tld e,=%u\n", vw >> 8);
 		else if (e_valid && e_value == (vw >> 8))
 			printf("\tld a,=%u\n", vw & 0xFF);
 		else
@@ -729,7 +727,7 @@ void load_e(unsigned v)
 	if (a_valid && a_value == v)
 		puts("\tld e,a");
 	else
-		printf("\tld e,=%u\n", v);
+		printf("\txch a,e\n\tld a,=%u\n\txch a,e\n", v);
 	set_e(v);
 }
 
@@ -1336,7 +1334,6 @@ unsigned gen_direct(struct node *n)
 			if (s == 2) {
 				if ((v & 0xFF00) == 0x0000) {
 					load_e(0);
-					printf("\tld e,=0\n");
 				} else if ((v & 0xFF00) != 0xFF00) {
 					printf("\txch e,a\n\tand a,=%u\n\txch e,a\n", v >> 8);
 					invalidate_ea();
@@ -1578,9 +1575,9 @@ unsigned gen_shortcut(struct node *n)
 			return 0;
 		/* Ptr loaded */
 		if (s == 2)
-			printf("\tst ea,%d,p%d\n", off, ptr);
+			printf("\tst ea,%d,p%u\n", off, ptr);
 		else
-			printf("\tst a,%d,p%da\n", off, ptr);
+			printf("\tst a,%d,p%u\n", off, ptr);
 		set_ea_node(n);
 		return 1;
 	}
@@ -1823,7 +1820,7 @@ unsigned gen_node(struct node *n)
 	case T_CALLNAME:
 		flush_writeback();
 		invalidate_all();
-		printf("\tcall _%s+%d\n", namestr(n->snum), v);
+		printf("\tjsr _%s+%d\n", namestr(n->snum), v);
 		return 1;
 	case T_EQ:
 		/* *EAX = TOS */
@@ -2022,7 +2019,7 @@ unsigned gen_node(struct node *n)
 			ptr = pop_ptr();
 			printf("\tld ea,p%u\n", ptr);
 			puts("\tsub ea,@__tmp");
-			printf("\tst ea,0,p%d\n", ptr);
+			printf("\tst ea,0,p%u\n", ptr);
 		}
 		return 1;
 	/* TOS is the pointer, EA is the value */

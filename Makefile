@@ -220,6 +220,9 @@ support6809:
 support68hc11:
 	(cd support68hc11; make)
 
+support8070:
+	(cd support8070; make)
+
 support8080:
 	(cd support8080; make)
 
