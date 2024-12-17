@@ -939,8 +939,10 @@ static unsigned gen_op8(unsigned sz, const char *op, struct node *r)
 		return 0;
 	if (sz == 1)
 		printf("\t%s a,%d,p%d\n", op, off, ptr);
-	else
-		printf("\t%s ea,%d,p%d\n", op, off, ptr);
+	else {
+		printf("\t%s a,%d,p%d\n", op, off, ptr);
+		printf("\txch a,e\n\t%s a,%d,p%d\n\txch a,e\n", op, off + 1, ptr);
+	}
 	return 1;
 }
 
@@ -1097,7 +1099,7 @@ static unsigned op_direct8(struct node *n, const char *op, unsigned s)
 		printf("\t%s a,=<T%u+%u\n", op, n->val2, v);
 		if (s == 2) {
 			printf("\txch a,e\n");
-			printf("\t%s ea,=>T%u+%u\n", op, n->val2, v);
+			printf("\t%s a,=>T%u+%u\n", op, n->val2, v);
 			printf("\txch a,e\n");
 		}
 		return 1;
@@ -1111,7 +1113,7 @@ static unsigned op_direct8(struct node *n, const char *op, unsigned s)
 		printf("\t%s a,%u,p1\n", op, v + sp);
 		if (s == 2) {
 			printf("\txch a,e\n");
-			printf("\t%s ea,%u,p1\n", op, v + sp + 1);
+			printf("\t%s a,%u,p1\n", op, v + sp + 1);
 			printf("\txch a,e\n");
 		}
 		return 1;
@@ -1500,7 +1502,7 @@ unsigned gen_direct(struct node *n)
 				ptr2 = gen_ref_nw(r, ptr, 0, &off);
 				if (ptr2 == 0)
 					return 0;
-				printf("\tld ea,%u,%u\n", off, ptr2);
+				printf("\tld ea,%u,p%u\n", off, ptr2);
 				invalidate_ea();
 				/* TODO: need a set_ea_node with offset */
 			}
@@ -1511,21 +1513,21 @@ unsigned gen_direct(struct node *n)
 				ptr2 = gen_ref_nw(r, ptr, 0, &off);
 				if (ptr2 == 0)
 					return 0;
-				printf("\tld a,%u,%u\n", off, ptr2);
+				printf("\tld a,%u,p%u\n", off, ptr2);
 				invalidate_a();
 				/* TODO: need a set_ea_node with offset */
 			}
 		}
-		printf("\t%s a,0,%u\n", op, ptr);
+		printf("\t%s a,0,p%u\n", op, ptr);
 		if (s == 2) {
 			printf("\txch a,e\n");
-			printf("\t%s a,1,%u\n", op, ptr);
+			printf("\t%s a,1,p%u\n", op, ptr);
 			printf("\txch a,e\n");
 			invalidate_ea();
-			printf("\tst ea,0,%u\an", ptr);
+			printf("\tst ea,0,p%u\n", ptr);
 		} else  {
 			invalidate_a();
-			printf("\tst a,0,%u\an", ptr);
+			printf("\tst a,0,%u\n", ptr);
 		}
 		return 1;
 	}
@@ -1939,6 +1941,29 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_CAST:
 		return gen_cast(n);
+	case T_TILDE:
+		/* Need tidier ways to do this */
+		if (sz == 1) {
+			if (a_valid)
+				set_a(~a_value);
+			puts("\txor a,=255");
+			return 1;
+		} else if (sz == 2) {
+			if (a_valid && e_valid)
+				set_ea(~((e_value << 8) | a_value));
+			puts("\txor a,=255\n\txch a,e\n\txor a,=255\n\txch a,e");
+			return 1;
+		}
+		return 0;
+	case T_NEGATE:
+		if (sz == 1) {	
+			if (a_valid)
+				set_a(-a_value);
+			puts("\txor a,=255\n\tadd a,=1");  
+			return 1;
+		}
+		/* TODO word negate should probably be inline */
+		return 0;
 	case T_PLUS:
 		invalidate_ea();
 		if (sz == 1) {
