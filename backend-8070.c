@@ -1179,9 +1179,8 @@ unsigned do_preincdec(unsigned sz, struct node *n, unsigned save)
 		set_ea_node(r);
 	}
 	if (save) {
-		printf("\txch ea,t\n");
+		printf("\tld ea,t\n");
 		invalidate_ea();
-		invalidate_t();
 	}
 	return 1;
 }
@@ -1868,7 +1867,9 @@ unsigned gen_node(struct node *n)
 	case T_LDEREF:
 		/* val2 offset of variable, val offset of ptr */
 		ptr = free_pointer();
-		printf("\tld p%u,%u,p1\n", ptr, n->val2);
+		/* We cannot alas do a straight ptr of ptr load, but must
+		   go via EA. No problem here as we will trash EA anyway */
+		printf("\tld ea,%u,p1\n\tld p%u,ea", n->val2, ptr);
 		invalidate_p(ptr);
 		if (sz == 1)
 			printf("\tld a,%u,p%u\n", v, ptr);
