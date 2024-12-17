@@ -9,7 +9,7 @@ all: CPP cc cc0 \
      cc2.ee200 cc2.nova cc2.ddp cc2.7000 cc2.hc08 cc2.gb \
      copt \
      support6303 support6502 support65c816 support6800 support6803 \
-     support6809 support68hc11 support8080 support8085 supportz80 \
+     support6809 support68hc11 support8070 support8080 support8085 supportz80 \
      supportz8 supportsuper8 supportee200 supportnova supportnova3 \
      test
 
@@ -25,9 +25,9 @@ bootstuff: CPP cc cc0 \
      copt
 
 .PHONY: support6303 support6502 support65c816 support6800 support6803 \
-	support6809 support68hc11 support8080 support8085 supportsuper8 \
-	supportz8 supportz80 supportee200 supportnova supportnova3 \
-	test CPP
+	support6809 support68hc11 support8070 support8080 support8085 \
+	supportsuper8 supportz8 supportz80 supportee200 supportnova \
+	supportnova3 test CPP
 
 CCROOT ?=/opt/fcc/
 
@@ -457,6 +457,9 @@ libinst:
 	cp support68hc11/crt0.o $(CCROOT)/lib/hc11/
 	cp support68hc11/lib68hc11.a $(CCROOT)/lib/hc11/libhc11.a
 	ar cq $(CCROOT)/lib/hc11/libc.a
+	cp support8070/crt0.o $(CCROOT)/lib/8070/
+	cp support8070/include/*.h $(CCROOT)/lib/8070/include/
+	cp support8070/lib8070.a $(CCROOT)/lib/8070/lib8070.a
 	cp support8080/crt0.o $(CCROOT)/lib/8080/
 	cp support8085/crt0.o $(CCROOT)/lib/8085/
 	cp support8080/include/*.h $(CCROOT)/lib/8080/include/
