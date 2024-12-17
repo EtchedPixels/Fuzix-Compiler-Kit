@@ -1,9 +1,9 @@
-
 	.export __switchc
 ;
 ;	P3 points to our table
 ;
-	ld ea,2,@p3
+__switchc:
+	ld ea,@2,p3
 	st a,:__tmp		; count
 	bz match
 ;
@@ -13,11 +13,11 @@
 
 loop:
 	ld ea,t
-	sub a,1,@p3		; check if matches
+	sub a,@1,p3		; check if matches
 	bz match
-	ld ea,2,@p3		; skip address
+	ld ea,@2,p3		; skip address
 	dld a,:__tmp
 	bnz loop
 match:
-	ld p0,2,@p3		; get the function address into PC
-
+	ld ea,@2,p3		; get the function address into PC
+	ld p0,ea
