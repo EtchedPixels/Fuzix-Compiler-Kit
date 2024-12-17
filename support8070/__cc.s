@@ -28,26 +28,26 @@ false:
 	ret
 
 __cbangeqw:
-__cbagngeqwu:
+__cbangeqwu:
 	or	a,e
 	bz	false
 true:
 	ld	ea,=1
 	ret
 
-__ccgteqwu:
+__cgteqwu:
 	ld	a,s
 	bp	true
 	ld	ea,=0
 	ret
 
-__ccltwu:
+__cltwu:
 	ld	a,s
 	bp	false
 	ld	ea,=1
 	ret
 
-__ccgtwu:
+__cgtwu:
 	or	a,e
 	bz	false
 	ld	a,s
@@ -55,7 +55,7 @@ __ccgtwu:
 	ld	ea,=0
 	ret
 
-__cclteqwu:
+__clteqwu:
 	or	a,e
 	bz	true
 	ld	a,s
@@ -65,21 +65,21 @@ __cclteqwu:
 
 ; These test OV
 
-__ccgteqw:
+__cgteqw:
 	and	s,=0x40
 	ld	a,s
 	bz	true
 	ld	ea,=0
 	ret
 
-__ccltw:
+__cltw:
 	and	s,=0x40
 	ld	a,s
 	bz	false
 	ld	ea,=1
 	ret
 
-__ccgtw:
+__cgtw:
 	or	a,e
 	bz	false
 	and	s,=0x40
@@ -88,7 +88,7 @@ __ccgtw:
 	ld	ea,=0
 	ret
 
-__cclteqw:
+__clteqw:
 	or	a,e
 	bz	true
 	and	s,=0x40

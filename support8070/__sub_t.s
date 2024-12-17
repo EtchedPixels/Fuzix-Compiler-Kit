@@ -5,10 +5,10 @@
 
 __sub_tw:
 __sub_twu:
-	; EA - T
-	xch ea,t
-	st ea,@__tmp
-	xch ea,t
-	sub ea,@__tmp
+	push ea
+	ld ea,t			; no useful way to store T
+	st ea,:__tmp
+	pop ea
+	sub ea,:__tmp
 	ret
 
