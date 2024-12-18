@@ -1918,7 +1918,9 @@ unsigned gen_node(struct node *n)
 	case T_LEQ:
 		/* Same idea for writing */
 		ptr = free_pointer();
-		printf("\tld p%u,%u,p1\n", ptr, n->val2);
+		/* Must go via EA which is messier because of course
+		   we have a value in EA right now */
+		printf("\tld t,ea\nld ea,%u,p1\n\tld p%u,ea\n\tld ea,t\n", n->val2, ptr);
 		invalidate_p(ptr);
 		if (sz == 1)
 			printf("\tst a,%u,p%u\n", v, ptr);
