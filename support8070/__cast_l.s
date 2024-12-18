@@ -2,8 +2,10 @@
 ;	Integer to long cast
 ;
 	.export __cast_l
+	.export __cast_ul
 
 __cast_l:
+__cast_ul:
 	xch a,e
 	bp nowork
 	ld t,ea
