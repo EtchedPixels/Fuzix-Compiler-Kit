@@ -784,7 +784,7 @@ unsigned gen_ref_nw(struct node *n, unsigned nw, unsigned offset, int *off)
 		ptr = free_pointer_nw(nw);
 		printf("\txch ea,p%d\n", ptr);
 		puts("\tld ea,p1");
-		printf("\tadd ea,%d\n", r);
+		printf("\tadd ea,=%d\n", r);
 		printf("\txch ea,p%d\n", ptr);
 		/* FIXME: need to be able to generate a ref of "this node and
 		   offset more but this is not a usual case */
@@ -1995,7 +1995,12 @@ unsigned gen_node(struct node *n)
 			puts("\txor a,=255\n\tadd a,=1");  
 			return 1;
 		}
-		/* TODO word negate should probably be inline */
+		if (sz == 2) {
+			if (a_valid && e_valid)
+				set_ea(-((e_value << 8) | a_value));
+			puts("\txor a,=255\n\txch a,e\n\txor a,=255\n\txch a,e\n\tadd ea,=1");
+			return 1;
+		}
 		return 0;
 	case T_PLUS:
 		invalidate_ea();
