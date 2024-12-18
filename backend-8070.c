@@ -666,7 +666,7 @@ unsigned gen_push(struct node *n)
 		break;
 	case 4:
 		invalidate_t();
-		puts("\tld t,ea\n\tld ea,@__high\n\tpush ea\n\tld ea,t\n\tpush ea");
+		puts("\tld t,ea\n\tld ea,:__hireg\n\tpush ea\n\tld ea,t\n\tpush ea");
 		break;
 	default:
 		return 0;
@@ -715,7 +715,7 @@ void load_ea(unsigned sz, unsigned long v)
 		set_ea(vw);
 	} else {
 		load_ea(2, v >> 16);
-		puts("\tst ea,@__high");
+		puts("\tst ea,:__hireg");
 		load_ea(2, v);
 	}
 }
@@ -846,7 +846,7 @@ unsigned gen_load_nw(struct node *n, unsigned nw, int offset)
 		printf("\tld ea,%d,p%d\n", off, ptr);
 	else {
 		printf("\tld ea,%d,p%d\n", off + 2, ptr);
-		puts("\tst ea,@__high");
+		puts("\tst ea,:__hireg");
 		printf("\tld ea,%d,p%d\n", off, ptr);
 	}
 	set_ea_node(n);
@@ -992,7 +992,7 @@ static unsigned gen_fast_mul(unsigned sz, unsigned value)
 	invalidate_ea();
 	if (sz == 1) {
 		load_t(value);
-		puts("\tmpy");
+		puts("\tmpy eat,t");
 		return 1;
 	}
 	if (sz > 2)
@@ -1000,7 +1000,7 @@ static unsigned gen_fast_mul(unsigned sz, unsigned value)
 	/* Constant on right is positive - can use mpy */
 	if (!(value & 0x8000)) {
 		load_t(value);
-		puts("\tmpy");
+		puts("\tmpy ea,t");
 		invalidate_t();
 		invalidate_ea();
 		return 1;
@@ -1011,7 +1011,7 @@ static unsigned gen_fast_mul(unsigned sz, unsigned value)
 	/* Shift to keep right side positive */
 	puts("\tsl ea");
 	load_t(value >> 1);
-	puts("\tmpy");
+	puts("\tmpy ea,t");
 	invalidate_t();
 	invalidate_ea();
 	return 1;
@@ -1262,7 +1262,7 @@ unsigned gen_direct(struct node *n)
 			if (!(n->flags & NORETURN))
 				printf("\tld t,ea");
 			printf("\tst ea,%u,p%d\n", v, ptr);
-			printf("\tld ea,@__high\n\tst ea,%u,p%d\n", v + 2, ptr);
+			printf("\tld ea,:__hireg\n\tst ea,%u,p%d\n", v + 2, ptr);
 			if (!(n->flags & NORETURN)) {
 				printf("\tld ea,t\n");
 				invalidate_t();
@@ -1324,7 +1324,7 @@ unsigned gen_direct(struct node *n)
 		invalidate_t();
 		puts("\tld t,ea");
 		gen_load(r);
-		puts("\tmpy\n");	/* Valid for 16bit as we use it */
+		puts("\tmpy ea,t\n");	/* Valid for 16bit as we use it */
 		puts("\tld ea,t");
 		invalidate_ea();
 		return 1;
@@ -1826,7 +1826,7 @@ unsigned gen_node(struct node *n)
 			printf("\tld ea,%d,p%d\n", off, ptr);
 		if (sz == 4) {
 			printf("\tld ea,%d+2,p%d\n",off, ptr);
-			puts("\tst ea,@__high");
+			puts("\tst ea,:__hireg");
 			printf("\tld ea,%d,p%d\n", off, ptr);
 		}
 		set_ea_node(n);
@@ -1843,7 +1843,7 @@ unsigned gen_node(struct node *n)
 			printf("\tst ea,%d,p%d\n", off, ptr);
 		if (sz == 4) {
 			puts("\tld t,ea");
-			puts("\tld ea,@__high");
+			puts("\tld ea,:__hireg");
 			printf("\tst ea,%d+2,p%d\n",off, ptr);
 			puts("\tld ea,t");
 			printf("\tst ea,%d,p%d\n", off, ptr);
@@ -1871,7 +1871,7 @@ unsigned gen_node(struct node *n)
 				puts("\tpop ea\n");
 				printf("\tst ea,2,p%d\n", ptr);
 				if (!noret) {
-					puts("\tst ea,@__high");
+					puts("\tst ea,:__hireg");
 					puts("\tld ea,t\n");
 				}
 			}
@@ -1890,7 +1890,7 @@ unsigned gen_node(struct node *n)
 			printf("\tld ea,%u,p%d\n", v, ptr);
 		else {
 			printf("\tld ea,%u,p%d\n", v + 2, ptr);
-			puts("\tst ea,@__high");
+			puts("\tst ea,:__hireg");
 			printf("\tld ea,%u,p%d\n", v, ptr);
 		}
 		/* TODO node track */
@@ -1909,7 +1909,7 @@ unsigned gen_node(struct node *n)
 			printf("\tld ea,%u,p%u\n", v, ptr);
 		else {
 			printf("\tld ea,%u,p%u\n", v + 2, ptr);
-			printf("\tst ea,@__high\n");
+			printf("\tst ea,:__hireg\n");
 			printf("\tld ea,%u,p%u\n", v, ptr);
 		}
 		/* TODO node track */
@@ -1928,7 +1928,7 @@ unsigned gen_node(struct node *n)
 			if (!noret)
 				printf("\tld t,ea\n");
 			printf("\tst ea,%u,p%u\n", v, ptr);
-			printf("\tld ea,@__high\n");
+			printf("\tld ea,:__hireg\n");
 			printf("\tst ea,%u,p%u\n", v + 2, ptr);
 			if (!noret)
 				printf("\tld ea,t\n");
@@ -1949,7 +1949,7 @@ unsigned gen_node(struct node *n)
 	case T_CONSTANT:
 		if (sz == 4) {
 			printf("\tld ea,=%d\n", v >> 16);
-			puts("\tst ea,@__high");
+			puts("\tst ea,:__hireg");
 		}
 		if (sz > 1) {
 			printf("\tld ea,=%d\n", v & 0xFFFF);
