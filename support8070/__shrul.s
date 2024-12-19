@@ -27,18 +27,18 @@ final:
 
 loop:
 	add a,=0		; clear carry
-	ld a,2,p1
-	rrl a
-	st a,2,p1
-	ld a,3,p1
-	rrl a
-	st a,3,p1
-	ld a,4,p1
-	rrl a
-	st a,4,p1
 	ld a,5,p1
 	rrl a
 	st a,5,p1
+	ld a,4,p1
+	rrl a
+	st a,4,p1
+	ld a,3,p1
+	rrl a
+	st a,3,p1
+	ld a,2,p1
+	rrl a
+	st a,2,p1
 	dld a,:__tmp
 	bnz loop
 nowork:
@@ -54,7 +54,7 @@ slide16:
 	ld ea,4,p1
 	st ea,2,p1
 	ld ea,=0
-	st ea,2,p1
+	st ea,4,p1
 	ld ea,t
 	and a,=15
 	ld t,ea
@@ -72,6 +72,7 @@ __shrl:
 	ld t,ea
 	ld a,5,p1
 	bp use_shrul
+	ld ea,t
 ;
 ;	Negative forms
 ;
@@ -92,19 +93,19 @@ final_m:
 ; Right shifting 32bit
 
 loop_m:
-	ld a,2,p1
+	ld a,5,p1
 	rrl a
 	or a,=0x80
-	st a,2,p1
-	ld a,3,p1
-	rrl a
-	st a,3,p1
+	st a,5,p1
 	ld a,4,p1
 	rrl a
 	st a,4,p1
-	ld a,5,p1
+	ld a,3,p1
 	rrl a
-	st a,5,p1
+	st a,3,p1
+	ld a,2,p1
+	rrl a
+	st a,2,p1
 	dld a,:__tmp
 	bnz loop_m
 	bra nowork
@@ -112,7 +113,7 @@ slide16_m:
 	ld ea,4,p1
 	st ea,2,p1
 	ld ea,=0xFFFF
-	st ea,2,p1
+	st ea,4,p1
 	ld ea,t
 	and a,=15
 	ld t,ea

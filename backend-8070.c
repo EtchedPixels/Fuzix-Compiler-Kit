@@ -1234,11 +1234,11 @@ unsigned gen_direct(struct node *n)
 		/* TODO: can do 4 sanely */
 		break;
 	case T_EQ:
+		n->value = 0;
+	case T_EQPLUS:
 		/* A bit more complex than this but prob needs rewrite rules */
 		if (!access_direct(r))
 			return 0;
-		n->value = 0;
-	case T_EQPLUS:
 		/* EQPLUS rewrite rule is responsible for making sure this is always possible */
 		/* Nothing to do with writing back yet but this is a write
 		   to an unknown object so we must kill any possible aliases */
@@ -1711,15 +1711,18 @@ static unsigned logic_sp_op(struct node *n, const char *op)
 	return 0;
 }
 
-static unsigned logic_ptr_op(unsigned ptr, const char *op, unsigned sz)
+static unsigned logic_ptr_op(const char *op, unsigned sz)
 {
+	unsigned ptr;
 	/* *ptr op EA */
 	if (sz == 1) {
+		ptr = pop_ptr();
 		printf("\txch a,e\n\tld a,0,p%u\n\t%s a,e\n", ptr, op);
 		invalidate_ea();
 		return 1;
 	}
 	if (sz == 2) {
+		ptr = pop_ptr();
 		printf("\tst ea,@__tmp\n\tld ea,0,p%u\n", ptr);
 		printf("\t%s a,@__tmp\n", op);
 		printf("\txch a,e\n\t%s a,@__tmp+1\n\txch a,e\n", op);
@@ -1801,22 +1804,23 @@ unsigned gen_node(struct node *n)
 		printf("\tjsr _%s+%d\n", namestr(n->snum), v);
 		return 1;
 	case T_EQ:
-		/* *EAX = TOS */
-		ptr = load_ptr_ea();
-		puts("\tpop ea\n");
-		invalidate_ea();
+		n->value = 0;
+	case T_EQPLUS:
+		/* *TOS = (hireg:)EA */
+		off = n->value;
+		printf(";node eqplus %u\n", off);
+		ptr = pop_ptr();
 		flush_writeback();
 		if (sz == 1)
-			printf("\tst a,0,p%d\n", ptr);
+			printf("\tst a,%u,p%d\n", off,ptr);
 		else {
-			printf("\tst ea,0,p%d\n", ptr);
+			printf("\tst ea,%u,p%d\n", off, ptr);
 			if (sz == 4) {
 				if (!noret)
 					puts("\tld t,ea\n");
-				puts("\tpop ea\n");
-				printf("\tst ea,2,p%d\n", ptr);
+				puts("\tld ea,:__hireg");
+				printf("\tst ea,%u,p%d\n", off + 2, ptr);
 				if (!noret) {
-					puts("\tst ea,:__hireg");
 					puts("\tld ea,t\n");
 				}
 			}
@@ -1846,37 +1850,38 @@ unsigned gen_node(struct node *n)
 		ptr = free_pointer();
 		/* We cannot alas do a straight ptr of ptr load, but must
 		   go via EA. No problem here as we will trash EA anyway */
-		printf("\tld ea,%u,p1\n\tld p%u,ea", n->val2, ptr);
+		printf("\tld ea,%u,p1\n\tld p%u,ea\n", v + sp, ptr);
 		invalidate_p(ptr);
 		if (sz == 1)
-			printf("\tld a,%u,p%u\n", v, ptr);
+			printf("\tld a,%u,p%u\n", n->val2, ptr);
 		else if (sz == 2)
-			printf("\tld ea,%u,p%u\n", v, ptr);
+			printf("\tld ea,%u,p%u\n", n->val2, ptr);
 		else {
-			printf("\tld ea,%u,p%u\n", v + 2, ptr);
+			printf("\tld ea,%u,p%u\n", n->val2 + 2, ptr);
 			printf("\tst ea,:__hireg\n");
-			printf("\tld ea,%u,p%u\n", v, ptr);
+			printf("\tld ea,%u,p%u\n", n->val2, ptr);
 		}
 		/* TODO node track */
 		invalidate_ea();
 		return 1;
 	case T_LEQ:
+		printf(";leq\n");
 		/* Same idea for writing */
 		ptr = free_pointer();
 		/* Must go via EA which is messier because of course
 		   we have a value in EA right now */
-		printf("\tld t,ea\nld ea,%u,p1\n\tld p%u,ea\n\tld ea,t\n", n->val2, ptr);
+		printf("\tld t,ea\n\tld ea,%u,p1\n\tld p%u,ea\n\tld ea,t\n", v + sp, ptr);
 		invalidate_p(ptr);
 		if (sz == 1)
-			printf("\tst a,%u,p%u\n", v, ptr);
+			printf("\tst a,%u,p%u\n", n->val2, ptr);
 		else if (sz == 2)
-			printf("\tst ea,%u,p%u\n", v, ptr);
+			printf("\tst ea,%u,p%u\n", n->val2, ptr);
 		else {
 			if (!noret)
 				printf("\tld t,ea\n");
-			printf("\tst ea,%u,p%u\n", v, ptr);
+			printf("\tst ea,%u,p%u\n", n->val2, ptr);
 			printf("\tld ea,:__hireg\n");
-			printf("\tst ea,%u,p%u\n", v + 2, ptr);
+			printf("\tst ea,%u,p%u\n", n->val2 + 2, ptr);
 			if (!noret)
 				printf("\tld ea,t\n");
 		}
@@ -1890,7 +1895,7 @@ unsigned gen_node(struct node *n)
 		puts("\tjsr __callea\n");
 		return 1;
 	case T_LABEL:
-		printf("\tld ea,T%d+%d\n", n->val2, v);
+		printf("\tld ea,=T%d+%d\n", n->val2, v);
 		set_ea_node(n);
 		return 1;
 	case T_CONSTANT:
@@ -2034,14 +2039,11 @@ unsigned gen_node(struct node *n)
 		return 0;
 	/* TOS is the pointer, EA is the value */
 	case T_ANDEQ:
-		ptr = pop_ptr();
-		return logic_ptr_op(ptr, "and", sz);
+		return logic_ptr_op("and", sz);
 	case T_OREQ:
-		ptr = pop_ptr();
-		return logic_ptr_op(ptr, "or", sz);
+		return logic_ptr_op("or", sz);
 	case T_HATEQ:
-		ptr = pop_ptr();
-		return logic_ptr_op(ptr, "xor", sz);
+		return logic_ptr_op("xor", sz);
 	}
 	return 0;
 }

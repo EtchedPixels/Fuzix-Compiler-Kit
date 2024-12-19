@@ -6,12 +6,14 @@
 
 __cast_l:
 __cast_ul:
-	xch a,e
-	bp nowork
 	ld t,ea
+	xch a,e
+	bp clhigh
 	ld ea,=0xFFFF
+out:
 	st ea,:__hireg
 	ld ea,t
-nowork:
-	xch a,e
 	ret
+clhigh:
+	ld ea,=0
+	bra out

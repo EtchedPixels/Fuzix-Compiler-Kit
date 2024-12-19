@@ -21,6 +21,7 @@ __postincl:
 	bra next
 noinc:
 	ld ea,2,p3
+	push ea
 next:
 	add ea,:__hireg	; add the upper words
 	st ea,2,p3	; write the upper word back

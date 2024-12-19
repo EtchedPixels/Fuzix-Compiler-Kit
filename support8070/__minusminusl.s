@@ -20,6 +20,7 @@ __postdecl:
 	bra next
 dodec:
 	ld ea,2,p3
+	push ea
 	sub ea,=1
 next:
 	sub ea,:__hireg	; add the upper words

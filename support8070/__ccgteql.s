@@ -8,20 +8,21 @@ __ccgteql:
 	ld ea,4,p1	; high word
 	sub ea,:__hireg
 	ld t,ea
-	bp borrow_hi
+	xch a,e		; so we can check sign
+	bp positive
 	; Result cannot be 0 on this path
 	ld a,s
 	and a,=0x40
-	bz true
-	bra false
-borrow_hi:
+	bz false	; S = 1 O = 0
+	bra true
+positive:
 	; Firstly check if our result was 0 ?
 	or a,e
 	bz check_low
 	; Now we need to check OV and borrow
 	ld a,s
 	and a,=0x40	; Get the OV flag
-	bz false
+	bnz false	; S = 0 O = 1
 true:
 	ld ea,=1
 out:

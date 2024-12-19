@@ -4,10 +4,10 @@
 	.export __pluseql
 
 __pluseql:
+	; Extract pointer from stack
 	pop p2
 	pop p3
 	push p2
-	; Extract pointer from stack
 	add ea,0,p3
 	st ea,0,p3
 	ld t,ea
