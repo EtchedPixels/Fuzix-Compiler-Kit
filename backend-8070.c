@@ -661,7 +661,7 @@ unsigned gen_push(struct node *n)
 	case 1:
 		puts("\tpush a");
 		break;
- 	case 2:
+	case 2:
 		puts("\tpush ea");
 		break;
 	case 4:
@@ -946,18 +946,6 @@ static unsigned gen_op8(unsigned sz, const char *op, struct node *r)
 	return 1;
 }
 
-/* Generate a JSR to one of the ,T helpers */
-static unsigned gen_t_op(unsigned sz, struct node *n, const char *fn)
-{
-	flush_writeback();
-	invalidate_all();
-	printf("\tjsr __%s%c", fn, "XbwXl"[sz]);
-	if (n->type & UNSIGNED)
-		putchar('u');
-	putchar('\n');
-	return 1;
-}
-
 /* TODO:
    For 8bit:
    	shifts if fastest, MPY if not
@@ -1149,6 +1137,9 @@ unsigned do_preincdec(unsigned sz, struct node *n, unsigned save)
 	int nv;
 
 	flush_writeback();
+
+	if (r->op != T_CONSTANT)
+		return 0;
 
 	/* For now at least */
 	if (sz > 2)
@@ -1346,15 +1337,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
-		invalidate_ea();
-		invalidate_t();
-		puts("\tld t,ea");
-		gen_load(r);
-		if (n->type & UNSIGNED)
-			puts("\tjsr __udiv1616");
-		else
-			puts("\tjsr __div1616");
-		return 1;
+		break;
 	case T_PERCENT:
 		/* Mod 256 we can do easily */
 		if (s == 2 && (r->type & UNSIGNED) && r->op == T_CONSTANT && v == 256) {
@@ -1422,41 +1405,17 @@ unsigned gen_direct(struct node *n)
 			return gen_op8(s, "xor", r);
 		return 1;
 	case T_EQEQ:
-		if (!op_direct(r, "sub", s))
-			return 0;
-		/* Usual cases we can just call out to sort out the logic
-		   checks, and eventually USECC this target */
-		return gen_t_op(s, n, "ceqeq");
+		return 0;
 	case T_GTEQ:
-		if (!op_direct(r, "sub", s))
-			return 0;
-		/* Usual cases we can just call out to sort out the logic
-		   checks, and eventually USECC this target */
-		return gen_t_op(s, n, "cgteq");
+		return 0;
 	case T_GT:
-		if (!op_direct(r, "sub", s))
-			return 0;
-		/* Usual cases we can just call out to sort out the logic
-		   checks, and eventually USECC this target */
-		return gen_t_op(s, n, "cgt");
+		return 0;
 	case T_LTEQ:
-		if (!op_direct(r, "sub", s))
-			return 0;
-		/* Usual cases we can just call out to sort out the logic
-		   checks, and eventually USECC this target */
-		return gen_t_op(s, n, "clteq");
+		return 0;
 	case T_LT:
-		if (!op_direct(r, "sub", s))
-			return 0;
-		/* Usual cases we can just call out to sort out the logic
-		   checks, and eventually USECC this target */
-		return gen_t_op(s, n, "clt");
+		return 0;
 	case T_BANGEQ:
-		if (!op_direct(r, "sub", s))
-			return 0;
-		/* Usual cases we can just call out to sort out the logic
-		   checks, and eventually USECC this target */
-		return gen_t_op(s, n, "cbangeq");
+		return 0;
 	case T_LTLT:
 		if (s > 2)
 			return 0;
@@ -1477,9 +1436,6 @@ unsigned gen_direct(struct node *n)
 			invalidate_ea();
 			return 1;
 		}
-		/* Helper time */
-		if (gen_load_t(r))
-			return gen_t_op(s, n, "shl_t");
 		break;
 	case T_GTGT:
 		if (s > 2)
@@ -1501,8 +1457,6 @@ unsigned gen_direct(struct node *n)
 			invalidate_ea();
 			return 1;
 		}
-		if (gen_load_t(r))
-			return gen_t_op(s, n, "shr_t");
 		break;
 	case T_PLUSPLUS:
 	case T_MINUSMINUS:
@@ -1558,7 +1512,7 @@ unsigned gen_direct(struct node *n)
 			printf("\tst ea,0,p%u\n", ptr);
 		} else  {
 			invalidate_a();
-			printf("\tst a,0,%u\n", ptr);
+			printf("\tst a,0,p%u\n", ptr);
 		}
 		return 1;
 	}
@@ -1624,6 +1578,7 @@ unsigned gen_shortcut(struct node *n)
 			return 0;
 		/* Ok we can construct a pointer to the left */
 		if (s == 2) {
+			printf(";plusplus short\n");
 			printf("\tld ea,%d,p%u\n", off, ptr);
 			if (!noret)
 				printf("\tld t,ea\n");
@@ -1727,21 +1682,11 @@ static unsigned gen_cast(struct node *n)
 	return 1;
 }
 
-static unsigned pop_t_op(struct node *n, const char *op, unsigned sz)
-{
-	if (sz > 2)
-		return 0;
-	puts("\txch ea,t\n\tpop ea");
-	sp -= sz;
-	return gen_t_op(sz, n, op);
-}
-
 static unsigned pop_ptr(void)
 {
 	unsigned ptr = free_pointer();
 	printf("\tpop p%d\n", ptr);
 	invalidate_p(ptr);
-	sp -= 2;
 	return ptr;
 }
 
@@ -2032,11 +1977,11 @@ unsigned gen_node(struct node *n)
 			printf("\tsub ea,:__tmp\n");
 			return 1;
 		}
-		return pop_t_op(n, "sub_t", sz);		
+		return 0;
 	case T_STAR:
-		return pop_t_op(n, "mul_t", sz);
+		return 0;
 	case T_SLASH:
-		return pop_t_op(n, "div_t", sz);
+		return 0;
 	case T_AND:
 		/* EA &= TOS */
 		return logic_sp_op(n, "and");
@@ -2046,9 +1991,9 @@ unsigned gen_node(struct node *n)
 		return logic_sp_op(n, "xor");
 	/* Shift TOS by EA */
 	case T_LTLT:
- 		return pop_t_op(n, "sl_t", sz);
+		return 0;
 	case T_GTGT:
- 		return pop_t_op(n, "sr_t", sz);
+		return 0;
 	/* TODO Comparisons, EQ ops */
 	case T_PLUSEQ:
 		flush_writeback();
@@ -2063,8 +2008,9 @@ unsigned gen_node(struct node *n)
 		} else if (sz == 2) {
 			printf("\tadd ea,0,p%d\n", ptr);
 			printf("\tst ea,0,p%d\n", ptr);
+			return 1;
 		}
-		return 1;
+		return 0;
 	case T_MINUSEQ:
 		flush_writeback();
 		invalidate_ea();
@@ -2083,8 +2029,9 @@ unsigned gen_node(struct node *n)
 			printf("\tld ea,p%u\n", ptr);
 			puts("\tsub ea,@__tmp");
 			printf("\tst ea,0,p%u\n", ptr);
+			return 1;
 		}
-		return 1;
+		return 0;
 	/* TOS is the pointer, EA is the value */
 	case T_ANDEQ:
 		ptr = pop_ptr();
