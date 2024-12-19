@@ -13,19 +13,29 @@
 __div:
 	st ea,:__tmp
 
-	ld ea,0
+	ld ea,=0
 	push ea
-
-	ld ea,4,p1
-	jsr negate
-	ld t,ea
 
 	ld ea,:__tmp
 	jsr negate
+	ld t,ea
+
+	ld ea,4,p1
+	jsr negate
 
 	div ea,t
-	add ea,0,p1
 
+	ld t,ea
+	ld a,1,p1
+	bp nonegb
+
+	ld ea,t
+	xch a,e		; donegate needs it reversed
+	jsr donegate
+	bra out
+nonegb:
+	ld ea,t
+out:
 	pop p3		; sign track
 	pop p3		; return
 	pop p2		; argument
@@ -35,15 +45,17 @@ __div:
 negate:
 	xch a,e
 	bp noneg
+donegate:
 	xor a,=0xFF
 	xch a,e
 	xor a,=0xFF
 	add ea,=1
 	push ea
 	ld a,=0x80
-	or a,3,p1	; The upper byte of the sign track
-	st a,3,p1
+	xor a,5,p1	; The upper byte of the sign track
+	st a,5,p1
 	pop ea
+	ret
 noneg:
 	xch a,e
 	ret
