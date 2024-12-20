@@ -6,6 +6,7 @@
  *	      for us in many cases unlike the Z8
  *	TODO: cconly cases we can avoid loading out of A after a read
  *	      - will need some infrastructure changes in this backend ?
+ *	TODO: use byteify stuff
  */
 
 #include <stdio.h>
