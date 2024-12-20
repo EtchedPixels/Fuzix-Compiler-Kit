@@ -47,7 +47,7 @@ static const char *itab[256] = {
     "MOV R#,A",
     "AND R#,A",
     "OR R#,A",
-    "XOR R#,A"
+    "XOR R#,A",
     "BTJO R#,A,#",
     "BTJZ R#,A,#",
     "ADD R#,A",
@@ -64,7 +64,7 @@ static const char *itab[256] = {
     "MOV %#,A",
     "AND %#,A",
     "OR %#,A",
-    "XOR %#,A"
+    "XOR %#,A",
     "BTJO %#,A,#",
     "BTJZ %#,A,#",
     "ADD %#,A",
@@ -81,7 +81,7 @@ static const char *itab[256] = {
     "MOV R#,B",
     "AND R#,B",
     "OR R#,B",
-    "XOR R#,B"
+    "XOR R#,B",
     "BTJO R#,B,#",
     "BTJZ R#,B,#",
     "ADD R#,B",
@@ -98,7 +98,7 @@ static const char *itab[256] = {
     "MOV R#,R#",
     "AND R#,R#",
     "OR R#,R#",
-    "XOR R#,R#"
+    "XOR R#,R#",
     "BTJO R#,R#,#",
     "BTJZ R#,R#,#",
     "ADD R#,R#",
@@ -115,7 +115,7 @@ static const char *itab[256] = {
     "MOV %#,B",
     "AND %#,B",
     "OR %#,B",
-    "XOR %#,B"
+    "XOR %#,B",
     "BTJO %#,B,#",
     "BTJZ %#,B,#",
     "ADD %#,B",
@@ -132,7 +132,7 @@ static const char *itab[256] = {
     "MOV B,A",
     "AND B,A",
     "OR B,A",
-    "XOR B,A"
+    "XOR B,A",
     "BTJO B,A,#",
     "BTJZ B,A,#",
     "ADD B,A",
@@ -149,7 +149,7 @@ static const char *itab[256] = {
     "MOV %#,R#",
     "AND %#,R#",
     "OR %#,R#",
-    "XOR %#,R#"
+    "XOR %#,R#",
     "BTJO %#,R#,#",
     "BTJZ %#,R#,#",
     "ADD %#,R#",
@@ -316,12 +316,12 @@ static const char *tms7k_status(void)
 static const char *tms7k_decode(uint16_t addr)
 {
     static char buf[256];
-    uint8_t op = mem_read8_debug(addr++);
+    uint8_t op = mem_read8_debug(addr);
     const char *p = itab[op];
     char *bp;
     unsigned i;
 
-    bp = buf + sprintf(buf, "%04X: | ", addr);
+    bp = buf + sprintf(buf, "%04X: | ", addr++);
     for (i = 0; i < 16; i++)
         bp += sprintf(bp, "%02X ",reg[i]);
     bp += sprintf(bp, " | %s %02X | ", tms7k_status(), sp);
@@ -402,6 +402,7 @@ static uint8_t dev_read8(uint16_t addr)
 
 static void dev_write8(uint16_t addr, uint8_t val)
 {
+    fprintf(stderr, "W8 %04X %02X\n", addr, val);
     if (addr < 256)
         reg[addr] = val;
     else switch(addr) {
@@ -620,6 +621,7 @@ static unsigned opx8(unsigned op, uint16_t addr)
     case 0x06:	/* CALL */
         reg[++sp] = pc >> 8;
         reg[++sp] = pc;
+        pc = addr;
         return 13;
     default:	/* Invalid */
         invalid(op);
@@ -630,7 +632,6 @@ static unsigned opx8(unsigned op, uint16_t addr)
 static void opx0(unsigned op, unsigned data, unsigned port)
 {
     unsigned res;
-    port += 0x0100;
 
     switch(op & 0x07) {
     case 0x00:	/* Invalid */
@@ -917,7 +918,7 @@ static unsigned execute_op(unsigned op)
     case 0x88:
         if (op == 0x88) {
             addr = get_addr();
-            r = get_reg();
+            r = get_byte();
             if (r == 0)
                 invalid(op);
             reg[r - 1] = addr & 0xFF;
@@ -936,8 +937,8 @@ static unsigned execute_op(unsigned op)
         return 9;
     case 0x98:
         if (op == 0x98) {	/* MOVD r,r is a bit odd so handle here */
-            r = get_reg();
-            r2 = get_reg();
+            r = get_byte();
+            r2 = get_byte();
             if (r == 0 || r2 == 0)
                 invalid(op);
             reg[r2 - 1] = reg[r - 1];
@@ -953,7 +954,7 @@ static unsigned execute_op(unsigned op)
     case 0xA8:
         if (op == 0xA8) {
             addr = get_addr() + reg[1];
-            r = get_reg();
+            r = get_byte();
             if (r == 0)
                 invalid(op);
             reg[r - 1] = addr & 0xFF;
@@ -986,18 +987,18 @@ static unsigned execute_op(unsigned op)
     case 0xD0:
         /* D0 and D1 are special */
         if (op == 0xD0) {	/* MOV Rn,A */
-            r = get_reg();
+            r = get_byte();
             reg[r] = reg[0];
             setflags(reg[r]);
             return 8;
         }
         if (op == 0xD1) {	/* MOV B,Rn */
-            reg[get_reg()] = reg[1];
+            reg[get_byte()] = reg[1];
             setflags(reg[1]);
             return 7;
         }
     case 0xD8:
-        single_op(op, get_reg());
+        single_op(op, get_byte());
         return 7;
     case 0xE0:
         return branch(op);

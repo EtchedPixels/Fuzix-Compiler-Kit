@@ -15,6 +15,7 @@ static uint8_t ram[65536];
 
 uint8_t mem_read8(uint16_t addr)
 {
+    fprintf(stderr, "|R %04X = %02X\n", addr, ram[addr]);
     return ram[addr];
 }
 
@@ -52,7 +53,7 @@ int main(int argc, char *argv[])
         perror(argv[1]);
         exit(1);
     }
-    if (read(fd, ram + 0x0200, sizeof(ram) - 0x0200) < 8) {
+    if (read(fd, ram, sizeof(ram)) < 8) {
         fprintf(stderr, "emu7k: bad test.\n");
         perror(argv[1]);
         exit(1);
