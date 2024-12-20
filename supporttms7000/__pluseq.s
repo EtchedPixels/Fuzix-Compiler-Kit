@@ -11,15 +11,15 @@ __pluseq:
 	add %1,r13
 	adc %0,r12
 
-	lda @r13
+	lda *r13
 	add a,r5
 	mov r5,a
-	sta @r13
+	sta *r13
 	decd r13
 
-	lda @r13
+	lda *r13
 	adc a,r4
 	mov r4,a
-	sta @r13
+	sta *r13
 
 	rets

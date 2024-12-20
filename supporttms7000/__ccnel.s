@@ -11,19 +11,19 @@ __ccnel:
 	adc %0,r12
 	mov r13,r11
 	decd r13
-	lda @r13
+	lda *r13
 	cmp a, r5
 	jnz true
 	decd r13
-	lda @r13
+	lda *r13
 	cmp a, r4
 	jnz true
 	decd r13
-	lda @r13
+	lda *r13
 	cmp a, r3
 	jnz true
 	decd r13
-	lda @r13
+	lda *r13
 	cmp a, r2
 	jnz true
 	clr r5

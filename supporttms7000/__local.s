@@ -38,7 +38,7 @@ __gargr1:
 __gargrr1:
 	add	r15,r13
 	adc	r14,r12
-	lda	@r13
+	lda	*r13
 	mov	a,r3
 	rets
 
@@ -186,24 +186,24 @@ __store4:
 
 __revstore4:
 	mov	r5,a
-	sta	@r13
+	sta	*r13
 	decd	r13
 	mov	r4,a
-	sta	@r13
+	sta	*r13
 	decd	r13
 	mov	r3,a
-	sta	@r13
+	sta	*r13
 	decd	r13
 	mov	r2,a
-	sta	@r13
+	sta	*r13
 	rets
 
 __revstore2:
 	mov	r5,a
-	sta	@r13
+	sta	*r13
 	decd	r13
 	mov	r4,a
-	sta	@r13
+	sta	*r13
 	rets
 
 ; Order matters here. Adjust the high byte first so our worst case is

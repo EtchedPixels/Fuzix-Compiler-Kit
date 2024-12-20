@@ -15,6 +15,6 @@ __divequc:
 	clr r2
 	mov r3,r5
 	mov r3,a
-	sta @r13
+	sta *r13
 	rets
 

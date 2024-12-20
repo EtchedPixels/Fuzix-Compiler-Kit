@@ -11,19 +11,19 @@ __cceql:
 	adc %0,r12
 	mov r13,r11
 	decd r13
-	lda @r13
+	lda *r13
 	cmp a, r5
 	jnz false
 	decd r13
-	lda @r13
+	lda *r13
 	cmp a, r4
 	jnz false
 	decd r13
-	lda @r13
+	lda *r13
 	cmp a, r3
 	jnz false
 	decd r13
-	lda @r13
+	lda *r13
 	cmp a, r2
 	jnz false
 	mov %1,r5

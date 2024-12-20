@@ -76,7 +76,7 @@ __lststore0c:
 __lststorec:
 	call @dolst
 	mov r5,a
-	sta @r13
+	sta *r13
 	rets
 
 __lststore0l:

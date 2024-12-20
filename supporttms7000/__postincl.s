@@ -11,31 +11,31 @@ __postincl:
 	add %3,r13
 	adc %0,r12
 
-	lda @r13
+	lda *r13
 	mov a,b
 	add r5,a
-	sta @r13
+	sta *r13
 	mov b,r5
 	decd r13
 
-	lda @r13
+	lda *r13
 	mov a,b
 	add r4,a
-	sta @r13
+	sta *r13
 	mov b,r4
 	decd r13
 
-	lda @r13
+	lda *r13
 	mov a,b
 	add r3,a
-	sta @r13
+	sta *r13
 	mov b,r3
 	decd r13
 
-	lda @r13
+	lda *r13
 	mov a,b
 	add r2,a
-	sta @r13
+	sta *r13
 	mov b,r2
 
 	rets
