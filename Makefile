@@ -10,7 +10,7 @@ all: CPP cc cc0 \
      copt \
      support6303 support6502 support65c816 support6800 support6803 \
      support6809 support68hc11 support8070 support8080 support8085 supportz80 \
-     supportz8 supportsuper8 supportee200 supportnova supportnova3 \
+     supportz8 supportsuper8 supportee200 supportnova supportnova3 supporttms7000 \
      test
 
 bootstuff: CPP cc cc0 \
@@ -27,7 +27,7 @@ bootstuff: CPP cc cc0 \
 .PHONY: support6303 support6502 support65c816 support6800 support6803 \
 	support6809 support68hc11 support8070 support8080 support8085 \
 	supportsuper8 supportz8 supportz80 supportee200 supportnova \
-	supportnova3 test CPP
+	supportnova3 supporttms7000 test CPP
 
 CCROOT ?=/opt/fcc/
 
@@ -241,6 +241,9 @@ supportnova3:
 supportsuper8:
 	(cd supportsuper8; make)
 
+supporttms7000:
+	(cd supporttms7000; make)
+
 supportz8:
 	(cd supportz8; make)
 
@@ -284,6 +287,7 @@ clean:
 	(cd supportnova3; make clean)
 	(cd supportsuper8; make clean)
 	(cd support8085; make clean)
+	(cd supporttms7000; make clean)
 	(cd supportz80; make clean)
 	(cd supportz8; make clean)
 	(cd test; make clean)
@@ -488,6 +492,10 @@ libinst:
 	cp supportsuper8/include/*.h $(CCROOT)/lib/super8/include/
 	cp supportsuper8/libsuper8.a $(CCROOT)/lib/super8/libsuper8.a
 	ar cq $(CCROOT)/lib/super8/libc.a
+	cp supporttms7000/crt0.o $(CCROOT)/lib/tms7000/
+	cp supporttms7000/include/*.h $(CCROOT)/lib/tms7000/include/
+	cp supporttms7000/libtms7000.a $(CCROOT)/lib/tms7000/libtms7000.a
+	cp support8080/crt0.o $(CCROOT)/lib/8080/
 	cp supportz80/crt0.o $(CCROOT)/lib/z80/
 	cp supportz80/include/*.h $(CCROOT)/lib/z80/include/
 	cp supportz80/libz80.a $(CCROOT)/lib/z80/libz80.a
