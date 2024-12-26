@@ -315,6 +315,11 @@ static void op_r_r(unsigned r1, unsigned r2, const char *op)
 	printf("\t%s r%u,r%u\n", op, r2, r1);
 }
 
+static void opnoeff_r(unsigned r, const char *op)
+{
+	printf("\t%s r%u\n", op, r);
+}
+
 static void opnoeff_r_r(unsigned r1, unsigned r2, const char *op)
 {
 	printf("\t%s r%u,r%u\n", op, r2, r1);
@@ -763,8 +768,8 @@ static void load_l_sprel(unsigned r, unsigned off)
 		load_r_const(r, off, 2);
 		add_rr_rr(r, R_SPH);
 	} else {
-		load_r_r(r, R_SPL);
-		load_r_r(r + 1, R_SPH);
+		load_r_r(r + 1, R_SPL);
+		load_r_r(r, R_SPH);
 	}
 
 	if (r == R_INDEX) {
@@ -949,13 +954,17 @@ static void load_r_memr(unsigned val, unsigned rr, unsigned size)
 
 static void revload_r_memr(unsigned val, unsigned rr, unsigned size)
 {
+	printf(";revload_r_memr %u (%u) %u\n", val, rr, size);
 	if (R_ISAC(val))
 		val = 5;
+	else
+		val += size - 1;
 	if (R_ISAC(rr))
 		rr = 4;
 	/* Check this on its own as we sometimes play games with AC
 	   registers */
-	if (val == 5 - size) {
+
+	if (val == 6) {
 		invalidate_ac();
 		/* We use helpers for the usual case when building for
 		   small */
@@ -966,9 +975,10 @@ static void revload_r_memr(unsigned val, unsigned rr, unsigned size)
 			return;
 		}
 	}
+
+	r_modify(val, size);
 	printf("\tlda *r%u\n", rr + 1);
 	load_r_r(val, 0);
-	r_modify(val, size);
 	while(--size) {
 		val--;
 		r_decw(rr);
@@ -1275,8 +1285,6 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 			return r;
 		}
 		load_r_local(R_INDEX, v + size - 1);
-		if (size == 1)
-			r++;
 		revload_r_memr(r, R_INDEX, size);
 		return r;
 	case T_NREF:
@@ -1289,8 +1297,6 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 				return r;
 			}
 		}
-		if (size == 1)
-			r++;
 		revload_r_memr(r, R_INDEX, size);
 		return r;
 	case T_LBREF:
@@ -1303,8 +1309,6 @@ static unsigned load_direct(unsigned r, struct node *n, unsigned mm)
 				return r;
 			}
 		}
-		if (size == 1)
-			r++;
 		revload_r_memr(r, R_INDEX, size);
 		return r;
 	case T_CONSTANT:
@@ -1986,7 +1990,7 @@ static unsigned gen_fast_div(unsigned r, unsigned s, unsigned long n)
 	if (R_ISAC(r))
 		hr = 6 - s;
 	load_r_constb(0, hr);
-	opnoeff_r_r(0, 0, "rl a");
+	opnoeff_r(0, "rl");
 	printf("\tjnc X%u\n", ++label_count);
 	/* Need to round towards zero */
 	add_r_const(r, n - 1, s);
