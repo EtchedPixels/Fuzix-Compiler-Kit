@@ -523,12 +523,12 @@ void outsym(struct node *n)
 		gen_name(n);
 		break;
 	case T_ARGUMENT:
-		printf("\t/word T%u+%u\n", n->val2, (unsigned)n->value + frame_len);
+		printf("\t.word T%u+%u\n", n->val2, (unsigned)n->value + frame_len);
 		break;
 	case T_LREF:
 	case T_LSTORE:
 	case T_LOCAL:
-		printf("\t/word T%u+%u\n", n->val2, (unsigned)n->value);
+		printf("\t.word T%u+%u\n", n->val2, (unsigned)n->value);
 		break;
 	case T_LBREF:
 	case T_LBSTORE:
