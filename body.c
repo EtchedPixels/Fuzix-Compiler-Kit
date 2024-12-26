@@ -400,9 +400,9 @@ void function_body(unsigned st, unsigned name, unsigned type)
 		error("invalid storage class");
 	func_tag = next_tag++;
 	header(H_FUNCTION, func_tag, name);
+	header(H_ARGFRAME, func_argframe, 0);
 	hrw = mark_header();
 	header(H_FRAME, 0, 0);
-	header(H_ARGFRAME, func_argframe, 0);
 
 	/* Register arguments need loading into registers */
 	if (arg_flags)
