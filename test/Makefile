@@ -3,7 +3,7 @@ all: emu6502 emu65c816 emu6800 emu85 emuz8 emuz80 byte1802 emu6809 \
      testcrt0.o testcrtz80.o testcrt0_6502.o testcrt0_65c816.o \
      testcrt0_6303.o testcrt0_6803.o testcrt0_6809.o testcrt0_z8.o \
      testcrt0_byte1802.o testcrt0_ee200.o testcrt0_nova.o testcrt0_nova3.o \
-     testcrt0_6800.o testcrt0_8070.o
+     testcrt0_6800.o testcrt0_8070.o testcrt0_tms7000.o
 
 emu85: emu85.o intel_8085_emulator.o
 	$(CC) emu85.o intel_8085_emulator.o -o emu85
@@ -115,6 +115,9 @@ testcrt0_nova.o: testcrt0_nova3.s
 
 testcrt0_nova3.o: testcrt0_nova3.s
 	fcc -mnova3 -c testcrt0_nova3.s
+
+testcrt0_tms7000.o: testcrt0_tms7000.s
+	fcc -mtms7000 -c testcrt0_tms7000.s
 
 testcrt0_z8.o: testcrt0_z8.s
 	fcc -mz8 -c testcrt0_z8.s
