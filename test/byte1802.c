@@ -434,8 +434,7 @@ unsigned execute(unsigned initpc, unsigned initsp)
 			pc = mr(pc);
 			break;
 		case op_callfunc:
-			/* Q: check 1802 and compiler side. is AC or pop the addr */
-			push(pc + 2);
+			push(pc);
 			push(fp);
 			pc = ac;
 			break;
