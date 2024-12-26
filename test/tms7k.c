@@ -402,7 +402,6 @@ static uint8_t dev_read8(uint16_t addr)
 
 static void dev_write8(uint16_t addr, uint8_t val)
 {
-    fprintf(stderr, "W8 %04X %02X\n", addr, val);
     if (addr < 256)
         reg[addr] = val;
     else switch(addr) {
@@ -570,8 +569,10 @@ static void twoop(unsigned op, uint8_t src, uint8_t *dst)
         return;
     case 0x0D:	/* CMP */
         res = *dst - src;
-        res ^= 0x0100;	/* Borrow */
-        break;
+        /* N/Z from the result, C is set if d is > s (unsigned) */
+        res ^= 0x0100;
+        setflags(res);
+        return;
     case 0x0E:	/* DAC */
         /* TODO: review decimal ops */
         res = *dst + src + carry();
@@ -732,7 +733,7 @@ static void single_op(unsigned op, uint8_t r)
         setflags(res);
         reg[r - 1] = res;
         clocks += 4;
-        break;
+        return;
     case 0x0C:	/* RR */
         res = reg[r] >> 1;
         if (reg[r] & 0x01)
@@ -794,11 +795,11 @@ static unsigned immed0(unsigned op)
     case 0x0A:	/* RETS */
         pc = reg[sp--];
         pc |= reg[sp--] << 8;
-        st = reg[sp--];
         return 7;
     case 0x0B:	/* RETI */
         pc = reg[sp--];
         pc |= reg[sp--] << 8;
+        st = reg[sp--];
         return 9;
     case 0x0C:	/* Illegal */
         invalid(op);
@@ -916,13 +917,13 @@ static unsigned execute_op(unsigned op)
         opx0(op, reg[0], get_port());
         return 10;
     case 0x88:
-        if (op == 0x88) {
+        if (op == 0x88) {	/* MOVD const16,rr */
             addr = get_addr();
             r = get_byte();
             if (r == 0)
                 invalid(op);
-            reg[r - 1] = addr & 0xFF;
-            reg[r] = addr >> 8;
+            reg[r - 1] = addr >> 8;
+            reg[r] = addr & 0xFF;
             setflags(reg[r]);
             return 15;
         }
@@ -969,7 +970,7 @@ static unsigned execute_op(unsigned op)
             return 6;
         }
     case 0xB8:
-        single_op(op, reg[0]);
+        single_op(op, 0);
         return 5;
     case 0xC0:
         if (op == 0xC0) {	/* MOV A,B */
@@ -982,7 +983,7 @@ static unsigned execute_op(unsigned op)
             return 6;
         }
     case 0xC8: 
-        single_op(op, reg[1]);
+        single_op(op, 1);
         return 5;
     case 0xD0:
         /* D0 and D1 are special */
