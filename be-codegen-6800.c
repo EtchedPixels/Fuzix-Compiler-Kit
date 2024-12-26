@@ -1323,7 +1323,7 @@ unsigned gen_shortcut(struct node *n)
 					return 1;
 				}
 				/* For the processors without Y we can do better. Ideally
-				   we would move to allowign LREF/LSTORE of 32bit but for now */
+				   we would move to allowing LREF/LSTORE of 32bit but for now */
 				if (!cpu_has_y) {
 					v += load_x_with(l, 0);
 					load_d_const(r->value);
