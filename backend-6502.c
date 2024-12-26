@@ -142,6 +142,7 @@ static void invalidate_regs(void)
 	reg[R_A].state = INVALID;
 	reg[R_X].state = INVALID;
 	reg[R_Y].state = INVALID;
+	printf(";invalidate regs\n");
 }
 
 
@@ -196,10 +197,11 @@ static void load_a(uint8_t n)
 	/* No inca deca */
 	if (reg[R_X].state == T_CONSTANT && reg[R_X].value == n)
 		output("txa");
-	else if (reg[R_Y].state == T_CONSTANT && reg[R_Y].value == n)
+	else if (reg[R_Y].state == T_CONSTANT && reg[R_Y].value == n) {
+		printf(";Y contains %u\n", reg[R_Y].value);
 		output("tya");
-	else
-	output("lda #%u", n);
+	} else
+		output("lda #%u", n);
 	reg[R_A].state = T_CONSTANT;
 	reg[R_A].value = n;
 }
@@ -506,6 +508,7 @@ static int do_pri8(struct node *n, const char *op, void (*pre)(struct node *__n)
 		return 1;
 	case T_LREF:
 	case T_LSTORE:
+		v += sp;
 		/* 255 is a fringe case we can do for 8bit but not split
 		   8 and 16, so for now just skip it */
 		if (v == 0 && direct_z(op)) {
@@ -595,7 +598,8 @@ static int do_pri8hi(struct node *n, const char *op, void (*pre)(struct node *__
 		return 1;
 	case T_LREF:
 	case T_LSTORE:
-		if (r->value < 254) {
+		v += sp;
+		if (v < 254) {
 			pre(n);
 			load_y(v + 1) ;
 			output("%s (@sp),y", op);
@@ -692,7 +696,6 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 			const_y_set(v);
 			return 1;
 		}
-	case T_LSTORE:
 		if (v < 255) {
 			pre(n);
 			load_y(v + 1);
@@ -704,6 +707,22 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 				load_y(v);
 				output("%sa (@sp),y", op);
 			}
+			return 1;
+		}
+		/* For now punt */
+		return 0;
+	case T_LSTORE:
+		if (v < 255) {
+			pre(n);
+			if (v == 0 && direct_za(op))
+				output("%sa (@sp)", op);
+			else {
+				load_y(v);
+				output("%sa (@sp),y", op);
+			}
+			output("txa");
+			load_y(v + 1);
+			output("%sa (@sp),y", op);
 			return 1;
 		}
 		/* For now punt */
@@ -785,14 +804,12 @@ static int pri8_help(struct node *n, char *helper)
 	if (fast_castable(n)) {
 		if (do_pri8(r->right, "lda", pre_store8)) {
 			helper_s(n, helper);
-			set_reg(R_Y, 0);
 			return 1;
 		}
 	}
 	if (do_pri8(r, "lda", pre_store8)) {
 		/* Helper invalidates A itself */
 		helper_s(n, helper);
-		set_reg(R_Y, 0);
 		return 1;
 	}
 	return 0;
@@ -830,13 +847,11 @@ static int pri16_help(struct node *n, char *helper)
 		if (get_size(r->right->type) == 2) {
 			if (do_pri16(r->right, "ld", pre_fastcast)) {
 				helper_s(n, helper);
-				set_reg(R_Y, 1);
 				return 1;
 			}
 		} else {
 			if (do_pri8(r->right, "ld", pre_fastcastx0)) {
 				helper_s(n, helper);
-				set_reg(R_Y, 1);
 				return 1;
 			}
 		}
@@ -844,14 +859,12 @@ static int pri16_help(struct node *n, char *helper)
 	if (s == 1) {
 		if (do_pri8(n, "ld", pre_store16clx)) {
 			helper_s(n, helper);
-			set_reg(R_Y, 1);
 			return 1;
 		}
 	} else if (s == 2) {
 		if (do_pri16(n, "ld", pre_store16)) {
 			/* Helper invalidates XA itself */
 			helper_s(n, helper);
-			set_reg(R_Y, 1);
 			return 1;
 		}
 	}
@@ -1012,7 +1025,8 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 		unsigned rop = r->op;
 		unsigned v = r->value;
 		if (rop == T_LREF) {
-			if (r->value == 0) {
+			v += sp;
+			if (v == 0) {
 				output("jsr __%ssp0", op);
 				set_reg(R_Y, 1);
 				invalidate_x();
@@ -1210,10 +1224,10 @@ struct node *gen_rewrite_node(struct node *n)
 	/* Reverse the order of comparisons to make them easier. C sequence points says this
 	   is fine. Arguably we should implement T_LT and T_GTEQ and only do this if at that
 	   point on code gen XA is holding the value we want for the left TODO */
-	if (op == T_GT)
-		swap_op(n, T_LT);
-	if (op == T_LTEQ)
-		swap_op(n, T_GTEQ);
+	if (op == T_LT)
+		swap_op(n, T_GT);
+	if (op == T_GTEQ)
+		swap_op(n, T_LTEQ);
 	return n;
 }
 
@@ -1818,13 +1832,13 @@ unsigned gen_direct(struct node *n)
 		}
 		return pri_cchelp(n, s, "eqeqtmp");
 	case T_GTEQ:
-		return pri_cchelp(n, s, "gteqtmp");
-	case T_GT:
-		return pri_cchelp(n, s, "gttmp");
-	case T_LTEQ:
 		return pri_cchelp(n, s, "lteqtmp");
-	case T_LT:
+	case T_GT:
 		return pri_cchelp(n, s, "lttmp");
+	case T_LTEQ:
+		return pri_cchelp(n, s, "gteqtmp");
+	case T_LT:
+		return pri_cchelp(n, s, "gttmp");
 	case T_BANGEQ:
 		if (r->op == T_CONSTANT && v == 0) {
 			/* TODO: not via helper */
@@ -2129,8 +2143,7 @@ unsigned gen_node(struct node *n)
 			return 1;
 		if (is_byte && !se)
 			size = 1;
-		/* FIXME: stack offsetting and check is wrong*/
-		if (size == 1 && v) {
+		if (size == 1 && v + sp == 0) {
 			if (a_contains(n))
 				return 1;
 			/* Same length as simple load via Y but
@@ -2144,26 +2157,26 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (optsize) {
-			if (size == 2 && v < 255) {
+			if (size == 2 && v + sp < 255) {
 				if (n == 0)
 					output("jsr __gloy0");
 				else {
-					load_y(v + 1);
+					load_y(v + sp + 1);
 					output("jsr __gloy");
 				}
-				const_y_set(v);
+				const_y_set(v + sp);
 				invalidate_a();
 				invalidate_x();
 				return 1;
 			}
-			if (size == 4 && v < 253) {
+			if (size == 4 && v + sp < 253) {
 				if (n == 0)
 					output("jsr __gloy0l");
 				else {
-					load_y(v + 3);
+					load_y(v + sp + 3);
 					output("jsr __gloyl");
 				}
-				const_y_set(v);
+				const_y_set(v + sp);
 				invalidate_a();
 				invalidate_x();
 				return 1;
