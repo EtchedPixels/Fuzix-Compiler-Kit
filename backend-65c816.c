@@ -1251,7 +1251,6 @@ void gen_epilogue(unsigned size, unsigned argsize)
 		error("sp");
 
 	/* Skip epilogue if it has no users */
-
 	if (unreachable)
 		return;
 	/* Called function cleans up arguments on 65c816 - except vararg */
@@ -1472,7 +1471,7 @@ void gen_tree(struct node *n)
 unsigned gen_push(struct node *n)
 {
 	unsigned s = get_stack_size(n->type);
-// Doesn't affect data stack    sp += s;
+/* Doesn't affect data stack    sp += s; */
 	/* These don't invalidate registers and set Y to 0, so handle them
 	   directly */
 	switch (s) {
