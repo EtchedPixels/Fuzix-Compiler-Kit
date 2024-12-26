@@ -19,8 +19,7 @@ __ccgteqconstu:
 	jnz c1
 	cmp r11,r5
 c1:
-	; if C set then less than
-	jnc c2
+	jc c2
 	clr r4
 	mov %1,r5
 	rets

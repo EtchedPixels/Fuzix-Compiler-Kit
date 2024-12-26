@@ -20,8 +20,7 @@ __cclteqconstu:
 	cmp r13,r5
 	jz true
 c1:
-	; if C set then less than
-	jc true
+	jnc true
 c2:
 	clr r4
 	clr r5

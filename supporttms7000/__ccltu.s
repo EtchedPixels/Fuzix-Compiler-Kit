@@ -20,8 +20,7 @@ __ccltconstu:
 	cmp r11,r5
 c1:
 	; Annoyingly C is affected by mov or clr
-	; if C set then <
-	jnc c2
+	jc c2
 	clr r4
 	mov %1,r5
 	rets

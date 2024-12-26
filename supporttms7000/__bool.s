@@ -11,7 +11,7 @@ __bool:
 	or	r4,r5
 __boolc:
 	clr	r4
-	or	r5,rr
+	or	r5,r5
 	jnz	set1
 	rets
 set1:

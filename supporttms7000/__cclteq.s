@@ -25,7 +25,7 @@ false:
 	clr r5
 	rets
 true:
-	clr r5
+	clr r4
 	mov %1,r5
 	rets
 same_sign:

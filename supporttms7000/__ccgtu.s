@@ -20,8 +20,7 @@ __ccgtconstu:
 	cmp r11,r5
 	jz false
 c1:
-	; if C set then >
-	jnc false
+	jc false	; C is a borrow
 	clr r4
 	mov %1,r5
 	rets
