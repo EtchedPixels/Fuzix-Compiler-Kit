@@ -1,6 +1,6 @@
 ;
 ;	General plusplus operation for 16bits. This one is used when
-;	there are complex forms boht sides. In this case the top of the
+;	there are complex forms both sides. In this case the top of the
 ;	data stack is the pointer
 
 	.export	__plusplus

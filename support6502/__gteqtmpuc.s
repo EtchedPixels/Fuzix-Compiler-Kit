@@ -8,7 +8,7 @@
 __gteqtmpuc:
 	ldx	#0
 	cmp	@tmp
-	bpl	true
+	bcs	true
 	txa
 	rts
 true:

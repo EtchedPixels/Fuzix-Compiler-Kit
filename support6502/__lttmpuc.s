@@ -8,7 +8,7 @@
 __lttmpuc:
 	ldx	#0
 	cmp	@tmp
-	bmi	true
+	bcc	true
 	txa
 	rts
 true:

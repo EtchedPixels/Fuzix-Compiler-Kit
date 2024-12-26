@@ -10,7 +10,7 @@ __gteqtmpu:
 	txa
 	ldx	#0
 	sbc	@tmp+1
-	bpl	true
+	bcs	true
 	txa
 	rts
 true:

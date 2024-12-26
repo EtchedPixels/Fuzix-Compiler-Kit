@@ -3,7 +3,10 @@
 ;
 	.export __eqeqtmp
 	.export __eqeqtmpu
+	.export __cceq
 
+__cceq:
+	jsr __poptmp
 __eqeqtmp:
 __eqeqtmpu:
 	cmp @tmp

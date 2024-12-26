@@ -5,6 +5,7 @@
 ;	it's worth it
 ;
 	.export __rstmpu
+	.export __rstmp
 
 	.code
 

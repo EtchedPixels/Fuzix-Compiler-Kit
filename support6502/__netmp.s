@@ -3,7 +3,10 @@
 ;
 	.export __netmp
 	.export __netmpu
+	.export __ccne
 
+__ccne:
+	jsr __poptmp
 __netmp:
 __netmpu:
 	cmp @tmp

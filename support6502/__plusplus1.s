@@ -22,5 +22,5 @@ __plusplus1:
 	adc	#0
 	iny
 	sta	(@tmp),y
-l1:	rts		; alwayus exits with Y = 1, XA old value
+l1:	rts		; always exits with Y = 1, XA old value
 

@@ -10,7 +10,7 @@ __lttmpu:
 	txa
 	ldx	#0
 	sbc	@tmp+1
-	bmi	true
+	bcc	true
 	txa
 	rts
 true:
