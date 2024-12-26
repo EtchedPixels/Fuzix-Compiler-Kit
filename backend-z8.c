@@ -1219,7 +1219,8 @@ static void logic_popeq(unsigned size, const char *op)
 	pop_rr(R_INDEX);
 	while(n) {
 		load_r_memr(R_WORK, R_INDEX, 1);
-		rr_incw(R_INDEX);
+		if (n > 1)
+			rr_incw(R_INDEX);
 		r_modify(4 - n, 1);
 		op_r_r(4 - n, R_WORK, op);
 		n--;
