@@ -2,12 +2,12 @@
 	.code
 __notl:
 	cpy	#0
-	bne	true
+	bne	false
 	subd	#0
 	beq	true
+false:
 	clra
 	clrb
 	rts
-true:	; D was 0 so make it 1 and set the flags
-	incb
+true:	incb	; D is 0 at this point so make it true
 	rts
