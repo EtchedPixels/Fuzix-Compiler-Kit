@@ -15,7 +15,7 @@ static uint8_t ram[65536];
 
 uint8_t mem_read8(uint16_t addr)
 {
-    fprintf(stderr, "|R %04X = %02X\n", addr, ram[addr]);
+/*    fprintf(stderr, "|R %04X = %02X\n", addr, ram[addr]); */
     return ram[addr];
 }
 
