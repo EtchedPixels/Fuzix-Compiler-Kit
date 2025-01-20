@@ -1356,7 +1356,7 @@ unsigned gen_direct(struct node *n)
 				}
 			}
 			if ((v & 0xFF) == 0x00)
-				set_a(0);
+				load_ea(1, 0x00);
 			else if ((v & 0xFF) != 0xFF) {
 				printf("\tand a,=%u\n", v);
 				invalidate_a();
