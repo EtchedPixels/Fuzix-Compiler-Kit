@@ -11,8 +11,8 @@ __plusl:
 	ld ea,4,p1
 	add ea,=1
 addexit:
-	add ea,:__high
-	st ea,:__high
+	add ea,:__hireg
+	st ea,:__hireg
 	pop p2
 	pop ea
 	pop p3

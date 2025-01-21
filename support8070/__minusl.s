@@ -10,11 +10,11 @@ __minusl:
 	st ea,0,p1	; stash back
 	ld a,s
 	bp skip		; carry : FIXME check carry/borrow
-	ld ea,:__high
+	ld ea,:__hireg
 	sub ea,=1
 subexit:
 	sub ea,6,p1	; high half
-	st ea,:__high
+	st ea,:__hireg
 	pop ea		; result
 	pop p2		; return
 	pop p3
@@ -22,5 +22,5 @@ subexit:
 	push p2
 	ret		; and return
 skip:
-	ld ea,:__high
+	ld ea,:__hireg
 	bra subexit
