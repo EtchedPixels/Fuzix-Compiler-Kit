@@ -1723,9 +1723,9 @@ static unsigned logic_ptr_op(const char *op, unsigned sz)
 	}
 	if (sz == 2) {
 		ptr = pop_ptr();
-		printf("\tst ea,@__tmp\n\tld ea,0,p%u\n", ptr);
-		printf("\t%s a,@__tmp\n", op);
-		printf("\txch a,e\n\t%s a,@__tmp+1\n\txch a,e\n", op);
+		printf("\tst ea,:__tmp\n\tld ea,0,p%u\n", ptr);
+		printf("\t%s a,:__tmp\n", op);
+		printf("\txch a,e\n\t%s a,:__tmp+1\n\txch a,e\n", op);
 		invalidate_ea();
 		return 1;
 	}
@@ -2029,10 +2029,10 @@ unsigned gen_node(struct node *n)
 			return 1;
 		}
 		if (sz == 2) {
-			puts("\tst ea,@__tmp");
+			puts("\tst ea,:__tmp");
 			ptr = pop_ptr();
-			printf("\tld ea,p%u\n", ptr);
-			puts("\tsub ea,@__tmp");
+			printf("\tld ea,0,p%u\n", ptr);
+			puts("\tsub ea,:__tmp");
 			printf("\tst ea,0,p%u\n", ptr);
 			return 1;
 		}
