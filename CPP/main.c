@@ -22,7 +22,7 @@ char *token_txn(int);
 void pr_indent(int);
 void hash_line(void);
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(__MACH__)
 char *_ltoa(long v)
 {
 	static char buf[32];
