@@ -980,7 +980,10 @@ static unsigned gen_fast_mul(unsigned sz, unsigned value)
 	invalidate_ea();
 	if (sz == 1) {
 		load_t(value);
-		puts("\tmpy eat,t");
+		puts("\tmpy ea,t");
+		puts("\tld ea,t");
+		invalidate_t();
+		invalidate_ea();
 		return 1;
 	}
 	if (sz > 2)
@@ -989,6 +992,7 @@ static unsigned gen_fast_mul(unsigned sz, unsigned value)
 	if (!(value & 0x8000)) {
 		load_t(value);
 		puts("\tmpy ea,t");
+		puts("\tld ea,t");
 		invalidate_t();
 		invalidate_ea();
 		return 1;
@@ -1000,6 +1004,7 @@ static unsigned gen_fast_mul(unsigned sz, unsigned value)
 	puts("\tsl ea");
 	load_t(value >> 1);
 	puts("\tmpy ea,t");
+	puts("\tld ea,t");
 	invalidate_t();
 	invalidate_ea();
 	return 1;
@@ -1315,7 +1320,7 @@ unsigned gen_direct(struct node *n)
 		invalidate_t();
 		puts("\tld t,ea");
 		gen_load(r);
-		puts("\tmpy ea,t\n");	/* Valid for 16bit as we use it */
+		puts("\tmpy ea,t");	/* Valid for 16bit as we use it */
 		puts("\tld ea,t");
 		invalidate_ea();
 		return 1;
