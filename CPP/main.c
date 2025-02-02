@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include "cc.h"
 
-#define MAXINCPATH	6
+#define MAXINCPATH	7
 
 int main(int argc, char *argv[]);
 void undefine_macro(char *name);
