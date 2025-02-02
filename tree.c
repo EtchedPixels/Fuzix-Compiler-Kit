@@ -323,10 +323,11 @@ struct node *bool_tree(register struct node *n, unsigned flags)
 /* Calculate arithmetic promotion */
 static unsigned arith_pro(unsigned lt, unsigned rt)
 {
+	/* Turn pointers to matching target specific integer type */
 	if (PTR(lt))
-		lt = UINT;
+		lt = target_ptr;
 	if (PTR(rt))
-		rt = UINT;
+		rt = target_ptr;
 	/* Our types are ordered for a reason */
 	/* Does want review versus standard TODO */
 	if (rt > lt)

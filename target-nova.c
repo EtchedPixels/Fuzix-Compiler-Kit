@@ -4,6 +4,7 @@
 
 #include "compiler.h"
 
+unsigned target_ptr = UINT;
 
 /* Everything is words */
 unsigned target_alignof(unsigned t, unsigned storage)

@@ -7,6 +7,7 @@
 #define TARGET_SHORT_MASK	0xFFFFU
 #define TARGET_LONG_MASK	0xFFFFFFFFUL
 
+extern unsigned target_ptr;
 extern unsigned target_sizeof(unsigned t);
 extern unsigned target_alignof(unsigned t, unsigned storage);
 extern unsigned target_argsize(unsigned t);
