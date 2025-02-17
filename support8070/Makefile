@@ -16,7 +16,8 @@ OBJ = __bool.o __cc.o __castc_.o __cast_l.o \
       __pluseql.o __minuseql.o __minusminusl.o __plusplusl.o \
       __andl.o __orl.o __xorl.o \
       __andeql.o __oreql.o __xoreql.o \
-      __shll.o __shrul.o
+      __shll.o __shrul.o \
+      __mull.o
 
 .s.o:
 	fcc -m8070 -c $<
