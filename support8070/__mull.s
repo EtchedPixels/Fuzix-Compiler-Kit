@@ -3,6 +3,7 @@
 ;	could probably do much better.
 ;
 	.export __mull
+	.export __muleql
 
 __mull:
 	ld p3,=0
@@ -74,3 +75,28 @@ skip:
 nocarry:
 	ld ea,6,p1
 	bra addh2
+
+;
+;	(*TOS) *= hireg:ea
+;
+__muleql:
+	st ea,:__tmp
+	ld ea,2,p1
+	xch ea,p3
+	; P3 now the pointer
+	push p3		; save working ptr
+	ld ea,2,p3
+	push ea
+	ld ea,0,p3
+	push ea
+	ld ea,:__tmp
+	jsr __mull
+	; This took the argument off the stack
+	pop p3
+	st ea,0,p3
+	ld ea,:__hireg
+	st ea,2,p3
+	pop p2
+	pop p3		; drop EA argument
+	push p2
+	ret
