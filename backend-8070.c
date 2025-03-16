@@ -1337,7 +1337,9 @@ unsigned gen_direct(struct node *n)
 				return 1;
 #endif		
 			/* Can we use the div instruction ? */
-			if (!(v & 0x8000)) {
+			/* This is true only for unsigned and positvie
+			    divisor */
+			if ((n->type & UNSIGNED) && !(v & 0x8000)) {
 				printf("\tld t,=%u\n\tdiv ea,t\n", v);
 				return 1;
 			}
