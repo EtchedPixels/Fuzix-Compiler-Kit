@@ -26,8 +26,9 @@ __div:
 	div ea,t
 
 	ld t,ea
-	ld a,1,p1
-	bp nonegb
+	ld a,0,p1
+	and a,=1	; check if odd number
+	bz nonegb
 
 	ld ea,t
 	xch a,e		; donegate needs it reversed
@@ -50,11 +51,9 @@ donegate:
 	xch a,e
 	xor a,=0xFF
 	add ea,=1
-	push ea
-	ld a,=0x80
-	xor a,5,p1	; The upper byte of the sign track
-	st a,5,p1
-	pop ea
+	push a
+	ild a,3,p1	; count sign changes
+	pop a
 	ret
 noneg:
 	xch a,e
@@ -65,25 +64,39 @@ __rem:
 
 	jsr negate
 	st ea,:__tmp
+	ld t,ea		; Put int T for the div operation
 
-	ld ea,=0
-	st ea,0,p1	; Ovewrwrite dummy word
+	pop p3
+	ld p3,=0
+	push p3		; sign count we actually care about
 
 	ld ea,4,p1
-	jsr negate	; track sign
+	jsr negate	; negate dividend
 
-	ld t,ea
-	ld ea,:__tmp
-	push ea
+	st ea,4,p1	; save +ve version as we will need it in a moment
+
+	; EA / T
+
+	div ea,t	; get the divide for the +ve quadrant
+	; EA now holds the dividend
+	ld t,:__tmp	; get the divisor back
+	mpy ea,t	; and multiply to get the integer part
+	ld ea,t		; into EA
+
+	st ea,:__tmp	; save it
+	ld ea,4,p1	; get the positive of the original value
+	sub ea,:__tmp	; get the remainder part into EA
+
+	ld t,ea		; save value
+
+	pop ea		; sign info
+
+	bz pve		; nope
 	ld ea,t
-
-	jsr __remu	; Do unsigned remainder
-
-	ld t,ea
-	pop ea
-	bz pve
-	ld ea,t
-	jsr negate
+	xch a,e		; expects it swapped
+	push p3		; dummy
+	jsr donegate
+	pop p3
 	pop p3		; ret
 	pop p2		; value
 	push p3

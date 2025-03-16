@@ -14,11 +14,12 @@
 	.export __remequc
 
 __remu:
-	push ea
+	push ea		; save divisor
 	ld ea,=0
-	push ea
+	push ea		; push a working 0
 	ld a,=16
-	push a
+	push a		; push a 16 count
+
 	; At this point
 	;
 	; 0,p1		count
@@ -27,22 +28,33 @@ __remu:
 	; 5,p1		return address
 	; 7,p1		dividend
 loop:
-	ld ea,7,p1
+	; The 8070 sl ea is particuarly annoying as it throws the old
+	; top bit away so we have to check it before shifting
+	ld ea,7,p1	; working <<= 1
+	xch a,e		; so we can test it
+	bp shiftin0	; was set so shift into 1,p1
+	xch a,e		; back in right order
 	sl ea
 	st ea,7,p1
-	xch a,e
-	bp notset
+	ld ea,1,p1	; now shift working with low bit 0
+	sl ea
+	add a,=1	; set the low bit
+	bra check
+shiftin0:
+	xch a,e		; put back th right way around
+	sl ea
+	st ea,7,p1	; shift 0 into the other word
 	ld ea,1,p1
 	sl ea
-	add a,=1
 check:
-	st ea,1,p1
-	sub ea,3,p1
-	rrl a
-	bp skip
-	ld ea,1,p1
-	add a,=1
-	st ea,1,p1
+	st ea,1,p1	; save the working value back
+	sub ea,3,p1	; is it bigger than the divisor ?
+	rrl a		; get carry bit into bit 7 of A
+	bp skip		; skip if clear
+	ld ea,1,p1	; can't test carry without eating ea easily
+	sub ea,3,p1	; so do it again
+	st ea,1,p1	; adjusted working value back
+	ild a,7,p1	; set low bit of dividend (will be 0 before ild)
 skip:
 	dld a,0,p1
 	bnz loop
@@ -53,19 +65,14 @@ skip:
 	ld t,7,p1
 
 	pop a		; count
-	pop p2		; working
+	pop ea		; working
 	pop p2		; divisor
 	pop p3		; return
 	pop p2		; argument
 	push p3
 	ret
-notset:
-	ld ea,1,p1
-	sl ea	
-	bra check
-
 ;
-;	Some divison we can use the div op for but only some 8(
+;	Some division we can use the div op for but only some 8(
 ;
 __divu:
 	xch a,e
