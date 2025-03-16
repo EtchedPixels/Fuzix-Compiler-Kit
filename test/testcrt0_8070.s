@@ -2,6 +2,7 @@
 ;	Stub for running tests
 ;
 	.code
+	ld p1,=0x8000
 	ld p3,=_main
 	jsr _main
 	ld p1,#0xFEFF
