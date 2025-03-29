@@ -9,108 +9,108 @@ DIVID	.equ	12		; 12-15
 	.export div32x32
 	.code
 
-cleared_bit:
-	ld	ea,DIVID+0,p1
-	sl	ea
-	st	ea,DIVID+0,p1
-	xch	a,e
-	bp	nocarry4
-	ld	ea,DIVID+2,p1
-	sl	ea
-	add	a,=1
-	st	ea,DIVID+2,p1
-	bra	no_subtract
-nocarry4:
-	ld	ea,DIVID+2,p1
-	sl	ea
-	st	ea,DIVID+2,p1
-	bra	no_subtract
 div32x32:
 	ld	a,=32
-	st	a,:__tmp
+	st	a,:__tmp	; counter
 
+	;	Clear working register (will 0-3,p1)
 	ld	ea,=0
 	push	ea
-	push	ea		; set up working value
+	push	ea
+
+	; We are now ready to begin
 
 loop:
-	ld	a,DIVID+3,p1
-	bp	cleared_bit
-
-	ld	ea,DIVID+0,p1	; do the low word
-	sl	ea
+	; We need to do a 32bit rotate of DIVID into 32bit DIVID
+	; On the 807x it's a bit of a mess as sl ea throws away the
+	; top bit and you can't add ea,ea
+	ld	ea,DIVID+0,p1	; low word
+	add	ea,DIVID+0,p1	; low word shifted, C is valid
 	st	ea,DIVID+0,p1
-	xch	a,e
-	bp	nocarry
-
-	ld	ea,DIVID+2,p1
-	sl	ea
-	add	a,=1		; carry
-ncr:
+	ld	a,s		; get the C flag
+	bp	carry1		; C set
+	ld	ea,DIVID+2,p1	; high word of divider as we shift
+	add	ea,DIVID+2,p1
+word2:
 	st	ea,DIVID+2,p1
-
-	ld	ea,WORK+0,p1
-	sl	ea
-	add	a,=1
-	st	ea,WORK+0,p1
-	xch	a,e
-	bp	nocarry2
-	ld	ea,WORK+2,p1
-	sl	ea
-	add	a,=1
-ncr2:
-	st	ea,WORK+2,p1
-
-	; Shifts done, now see if the value is now bigger, if not clear the
-	; low bit of work
-
-	ld	ea,WORK+2,p1
-	sub	ea,DIVIS+2,p1
-	bp	no_subtract
-	bnz	do_subtract
-	ld	ea,WORK,p1
-	sub	ea,DIVIS,p1
-	bp	no_subtract
-
-sbr1:
-	; Do the subtraction
-	; We just did the low half
-	st	ea,WORK,p1
 	ld	a,s
-	bp	nocarry3
-	ld	ea,WORK+2,p1
-	sub	ea,=1
-ncr3:
-	sub	ea,DIVIS+2,p1
+	bp	carry2
+	ld	ea,WORK+0,p1	; low word of working value
+	add	ea,WORK+0,p1
+word3:
+	st	ea,WORK+0,p1
+	ld	a,s
+	bp	carry3
+	ld	ea,WORK+2,p1	; High word of working value
+	sl	ea
 	st	ea,WORK+2,p1
-
-	ild	a,WORK+0,p1
-
-no_subtract:
-	; And loop
-	dld 	a,:__tmp
+subtest:
+	;
+	;	Now see if we need to adjust work as the division
+	;	fits
+	;
+	sub	ea,DIVIS+2,p1	; Is high word >= divisor high
+	ld	t,ea		; Save resulting high word
+	bp	dobit_y
+	bz	dobit
+next:
+	dld	a,:__tmp	; count down
 	bnz	loop
-
-	; Result is now in 
-	; Remainder is is in work so extract it
-	pop	p3	;	low
-	pop	ea
-	st	ea,:__hireg
-	xch	ea,p3	;	low into EA
+	;
+	; Job is done. Result is in work which is not safe on return
+	; Remainder is on stack so is safe
+	;
+	pop	ea		; low word
+	ld	t,ea
+	pop	ea		; high word
+	st	ea,:__hireg	; into expected place
+	ld	ea,t
+	;
+	; Stack is now tidied so we can just
+	;
 	ret
 
-nocarry:
+	;
+	;	Do the 32bit subtract and save it
+	;	Set low bit in work (currently 0)
+	;
+dobit_y:
+	ld	ea,WORK+0,p1
+	sub	ea,DIVIS+0,p1
+dobit_y1:
+	st	ea,WORK+0,p1
+	ld	a,s
+	bp	carry4
+	ld	ea,t
+dobitr:
+	st	ea,WORK+2,p1
+	ild	a,DIVID+0,p1	; set low bit of DIVID
+	bra	next
+carry4:
+	ld	ea,t
+	sub	ea,=1		; carry the subtraction
+	bra	dobitr
+	;
+	;	High bits matched
+	;
+dobit:
+	ld	ea,WORK+0,p1
+	sub	ea,DIVIS+0,p1
+	bp	dobit_y1
+	bz	dobit_y1
+	bra	next
+carry3:
+	ld	ea,WORK+2,p1
+	sl	ea		; Don't care about top bit
+	add	a,=1
+	bra	subtest
+carry2:
+	ld	ea,WORK+0,p1
+	add	ea,=1		; order matters so C is right
+	add	ea,WORK+0,p1
+	bra	word3
+carry1:
 	ld	ea,DIVID+2,p1
-	sl	ea	
-	bra	ncr
-nocarry2:
-	ld	ea,WORK+2,p1
-	sl	ea	
-	bra	ncr2
-nocarry3:
-	ld	ea,WORK+2,p1
-	bra	ncr3
-do_subtract:
-	ld	ea,WORK,p1
-	sub	ea,DIVIS,p1
-	bra	sbr1
+	add	ea,=1
+	add	ea,DIVID+2,p1
+	bra	word2

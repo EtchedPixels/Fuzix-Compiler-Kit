@@ -62,7 +62,9 @@ __divequl:
 	pop p2		; and dummy
 	pop ea
 	st ea,:__hireg
+	st ea,2,p3
 	pop ea		; actual result low
+	st ea,0,p3
 	pop p2		; return
 	pop p3		; discard argument ptr
 	push p2
@@ -90,7 +92,10 @@ __remequl:
 	ld t,ea
 	ld ea,12,p1	; Pointer to write back
 	ld p3,ea
+	ld ea,:__hireg
+	st ea,2,p3
 	ld ea,t
+	st ea,0,p3
 	
 	pop p2
 	pop p2		; discard divisor
