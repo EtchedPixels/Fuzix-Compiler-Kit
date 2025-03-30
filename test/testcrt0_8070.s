@@ -9,10 +9,13 @@
 	st a,0,p1
 
 	.export __tmp
+	.export __tmp2
 	.export __hireg
 
 	.dp
 __tmp:
+	.word 0
+__tmp2:
 	.word 0
 __hireg:
 	.word 0

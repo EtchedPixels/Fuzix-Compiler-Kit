@@ -2,7 +2,10 @@
 ;	32bit signed division and modulus. Basically a wrapper around
 ;	unsigned division that figures out the signs
 ;
-
+	.export __divl
+	.export __reml
+	.export __diveql
+	.export __remeql
 ;
 ;	At this point we have the entry frame as per div32x32
 ;
