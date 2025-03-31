@@ -346,6 +346,7 @@ bootinst:
 	cp cc1.8070 $(CCROOT)/lib
 	cp cc2.8070 $(CCROOT)/lib
 	cp rules.8070 $(CCROOT)/lib
+	cp lorder8070 $(CCROOT)/bin/lorder8070
 	# 8086 (WIP)
 	mkdir -p $(CCROOT)/lib/8086
 	mkdir -p $(CCROOT)/lib/8086/include
