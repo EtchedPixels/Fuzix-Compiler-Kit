@@ -966,7 +966,7 @@ static unsigned gen_fast_mul(unsigned sz, unsigned value)
 	if (!(value & ~(value - 1))) {
 		/* Do 8bits of shift by swapping the register about */
 		if (value >= 256) {
-			puts("xch a,e\n\tld a,=0");
+			puts("\txch a,e\n\tld a,=0");
 			value >>= 8;
 		}
 		/* For each power of two just shift left */
@@ -1329,7 +1329,7 @@ unsigned gen_direct(struct node *n)
 			return 0;
 		if (r->op == T_CONSTANT) {
 			if (s == 2 && (r->type & UNSIGNED) && r->op == T_CONSTANT && v == 256) {
-				puts("\tld a,=0\nxch a,e");
+				puts("\tld a,=0\n\txch a,e");
 				return 1;
 			}
 #if 0			
@@ -1455,7 +1455,8 @@ unsigned gen_direct(struct node *n)
 				if (s == 1)
 					return 1;
 				v -= 8;
-				puts("\tld a,e\n\tld e,=0\n");
+				/* No ld e,=0 so.. */
+				puts("\tld a,=0\n\txch a,e\n");
 			}
 			if (s == 1)
 				repeated_op("\tsr a", v);
