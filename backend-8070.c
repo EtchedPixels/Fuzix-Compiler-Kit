@@ -1320,8 +1320,8 @@ unsigned gen_direct(struct node *n)
 		invalidate_t();
 		puts("\tld t,ea");
 		gen_load(r);
-		puts("\tmpy ea,t");	/* Valid for 16bit as we use it */
-		puts("\tld ea,t");
+		/* MPY requires one side is 0 top bit sigh */
+		puts("\tjsr __mpyfix");
 		invalidate_ea();
 		return 1;
 	case T_SLASH:

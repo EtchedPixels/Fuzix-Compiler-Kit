@@ -29,51 +29,61 @@ __mull:
 	push p2
 	ret
 
+;
+;	Offsets at this point are
+;
+;	0,p1		return to mull
+;	2,p1		low of working
+;	4,p1		high of working
+;	6,p1		return from mull to caller
+;	8,p1		low of value
+;	10,p1		high of value
+
+;
 slice:
 	ld ea,=16
 	st ea,:__tmp
 
-	xch ea,p2	; get working value into EA
-
+	; Working value is in P2 at top of loop
 next:
-	ld p2,ea	; save working value
+	ld ea,p2
 	xch a,e		; test top bit of 16bits using bp
 	bp noadd
 
-	ld ea,0,p1	; do the addition for this cycle
-	add ea,4,p1
-	st ea,0,p1
-	ld a,s
-	bp skip
-	ld ea,2,p1
-	add ea,=1
-	add ea,2,p1
-addh:
-	add ea,6,p1
+	ld ea,2,p1	; do the addition for this cycle
+	add ea,8,p1
 	st ea,2,p1
-noadd:
-	ld ea,4,p1
-	sl ea
-	st ea,4,p1
 	ld a,s
-	bp nocarry
-	ld ea,=1
-	add ea,6,p1
+	bp skip		; no carry involved
+	ld ea,4,p1
+	add ea,=1	; carry into upper word
+addh:
+	add ea,10,p1
+	st ea,4,p1	; save upper result
+noadd:
+	ld ea,8,p1	; start shifting
+	add ea,8,p1	; use add so we get a carry indicator for shift
+	st ea,8,p1	; save
+	ld a,s
+	bp nocarry	; did we carry ?
+	ld ea,=1	; propogate carry into upper word
+	add ea,10,p1
 addh2:
-	add ea,6,p1	; rotate left by including carry
-	st ea,6,p1
+	add ea,10,p1	; rotate left by including carry
+	st ea,10,p1	; save upper word
 
 	xch ea,p2	; get the working bits for the slice back
 	sr ea		; rotate them
+	xch ea,p2
 
 	dld a,:__tmp
 	bnz next
 	ret
 skip:
-	ld ea,2,p1
+	add ea,4,p1
 	bra addh
 nocarry:
-	ld ea,6,p1
+	ld ea,10,p1
 	bra addh2
 
 ;

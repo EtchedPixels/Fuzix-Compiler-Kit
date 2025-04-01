@@ -9,7 +9,7 @@ __minusl:
 	sub ea,0,p1	; low half
 	st ea,0,p1	; stash back
 	ld a,s
-	bp skip		; carry : FIXME check carry/borrow
+	bp skip		; carry clear (no borrow)
 	ld ea,:__hireg
 	sub ea,=1
 subexit:

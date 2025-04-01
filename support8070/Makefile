@@ -4,7 +4,7 @@ OBJ = __bool.o __cc.o __castc_.o __cast_l.o \
       __cceq.o __ccne.o __ccgt.o __ccgteq.o __cclt.o __cclteq.o \
       __ccgtu.o __ccgtequ.o __ccltu.o __ccltequ.o \
       __shl.o __shr.o __shleq.o __shreq.o __shleqc.o __shrequc.o \
-      __div.o __remu.o __muleq.o \
+      __div.o __remu.o __muleq.o __mpyfix.o \
       __pluseqc.o __minuseqc.o \
       __minusl.o __plusl.o \
       __switch.o __switchc.o \
