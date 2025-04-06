@@ -28,31 +28,34 @@ loop:
 	add	ea,DIVID+0,p1	; low word shifted, C is valid
 	st	ea,DIVID+0,p1
 	ld	a,s		; get the C flag
-	bp	carry1		; C set
+	bp	nocarry1		; C set
 	ld	ea,DIVID+2,p1	; high word of divider as we shift
-	add	ea,DIVID+2,p1
+	add	ea,=1
 word2:
+	add	ea,DIVID+2,p1
 	st	ea,DIVID+2,p1
 	ld	a,s
-	bp	carry2
+	bp	nocarry2
 	ld	ea,WORK+0,p1	; low word of working value
-	add	ea,WORK+0,p1
+	add	ea,=1
 word3:
+	add	ea,WORK+0,p1
 	st	ea,WORK+0,p1
 	ld	a,s
-	bp	carry3
+	bp	nocarry3
 	ld	ea,WORK+2,p1	; High word of working value
-	sl	ea
-	st	ea,WORK+2,p1
+	add	ea,=1
 subtest:
+	add	ea,WORK+2,p1
+	st	ea,WORK+2,p1
 	;
 	;	Now see if we need to adjust work as the division
 	;	fits
 	;
 	sub	ea,DIVIS+2,p1	; Is high word >= divisor high
 	ld	t,ea		; Save resulting high word
-	bp	dobit_y
 	bz	dobit
+	bp	dobit_y
 next:
 	dld	a,:__tmp	; count down
 	bnz	loop
@@ -96,21 +99,18 @@ carry4:
 dobit:
 	ld	ea,WORK+0,p1
 	sub	ea,DIVIS+0,p1
-	bp	dobit_y1
-	bz	dobit_y1
-	bra	next
-carry3:
+	xch	ea,p2
+	ld	a,s
+	bp	next	; not yet big enough
+dobit_yp2:
+	xch	ea,p2
+	bra	dobit_y1
+nocarry3:
 	ld	ea,WORK+2,p1
-	sl	ea		; Don't care about top bit
-	add	a,=1
 	bra	subtest
-carry2:
+nocarry2:
 	ld	ea,WORK+0,p1
-	add	ea,=1		; order matters so C is right
-	add	ea,WORK+0,p1
 	bra	word3
-carry1:
+nocarry1:
 	ld	ea,DIVID+2,p1
-	add	ea,=1
-	add	ea,DIVID+2,p1
 	bra	word2

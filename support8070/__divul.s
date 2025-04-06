@@ -17,9 +17,10 @@ __divul:
 	pop p3
 	; Stack now holds return and result above
 	pop p3
+	pop p2	; low result
 	pop ea
 	st ea,:__hireg
-	pop ea
+	xch ea,p2	; low result into EA
 	push p3
 	ret
 
@@ -60,10 +61,11 @@ __divequl:
 	pop p2
 	pop p2		; discard divisor
 	pop p2		; and dummy
-	pop ea
+	pop p2		; result low
+	pop ea		; actual result high
 	st ea,:__hireg
 	st ea,2,p3
-	pop ea		; actual result low
+	xch ea,p2	; result low into right place
 	st ea,0,p3
 	pop p2		; return
 	pop p3		; discard argument ptr
