@@ -16,7 +16,7 @@ divs32x32:
 	add	ea,=2
 	jsr	negcheck
 	ld	ea,p1
-	add	ea,=6
+	add	ea,=8
 	jsr	negcheck
 	;	Values on stack are now positive and __tmp2 holds
 	;	the sign info
@@ -28,7 +28,7 @@ mods32x32:
 	ld	a,=0
 	st	a,:__tmp2		; sign track
 	ld	ea,p1
-	add	ea,=6
+	add	ea,=8
 	jsr	negcheck
 	;	Values on stack are now positive and __tmp2 holds
 	;	the sign info
@@ -70,23 +70,25 @@ __divl:
 	push ea
 	ld ea,t
 	push ea
-	jsr div32x32
+	jsr divs32x32
 	pop p3
 	pop p3
 	; Stack now holds return and result above
 	pop p3
+	pop ea
+	ld t,ea
 	pop ea
 	st ea,:__hireg
 
 	ld a,:__tmp2
 	and a,=1
 	bz noneg
-	pop ea
 	push p3
+	ld ea,t
 	jsr __negatel
 	ret
 noneg:
-	pop ea
+	ld ea,t
 	push p3
 	ret
 
@@ -96,7 +98,7 @@ __reml:
 	push ea
 	ld ea,t
 	push ea
-	jsr div32x32
+	jsr mods32x32
 	ld t,ea
 	ld a,:__tmp2
 	bz nonegr
@@ -130,11 +132,11 @@ __diveql:
 	push ea
 	ld ea,:__tmp
 	push ea
-	jsr div32x32
+	jsr divs32x32
 
 	ld a,:__tmp2
-	and a,=1	; signs differed (1 or 3 negations)
-	bp negdiv
+	and a,=1	; signs differed (1 negation)
+	bnz negdiv
 
 	ld ea,12,p1	; Pointer to write back
 	ld p3,ea
@@ -187,7 +189,7 @@ __remeql:
 	push ea
 	ld ea,:__tmp
 	push ea
-	jsr div32x32
+	jsr mods32x32
 
 	; return is in hireg:ea
 	ld t,ea
