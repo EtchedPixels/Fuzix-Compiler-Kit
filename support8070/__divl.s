@@ -144,11 +144,12 @@ __diveql:
 	pop p2
 	pop p2		; discard divisor
 	pop p2		; and dummy
-	pop ea
+	pop p2		; low half
+	pop ea		; high half
 	st ea,:__hireg
 	st ea,2,p3
-	pop ea		; actual result low
-	st ea,0,p3
+	ld ea,p2	; get low half back
+	st ea,0,p3	; and save it
 	pop p2		; return
 	pop p3		; discard argument ptr
 	push p2
@@ -160,9 +161,10 @@ negdiv:
 	pop p2
 	pop p2
 	pop p2
-	pop ea
+	pop p2		; low half
+	pop ea		; high half
 	st ea,:__hireg
-	pop ea
+	ld ea,p2	; low half into EA
 	jsr __negatel
 	st ea,0,p3
 	ld t,ea
