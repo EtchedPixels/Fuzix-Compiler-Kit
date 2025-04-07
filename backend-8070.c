@@ -470,6 +470,7 @@ void gen_frame(unsigned size, unsigned aframe)
 
 void gen_cleanup(unsigned size, unsigned save)
 {
+	sp -= size;
 	if (size > 10 + 2 * save) {
 		if (save)
 			printf("\tld t,ea\n");
@@ -569,8 +570,29 @@ void gen_case_data(unsigned tag, unsigned entry)
 	printf("\t.word Sw%d_%d\n", tag, entry);
 }
 
+/* True if the helper is to be called C style */
+static unsigned c_style(struct node *np)
+{
+	register struct node *n = np;
+	/* Assignment is done asm style */
+	if (n->op == T_EQ)
+		return 0;
+	/* Float ops otherwise are C style */
+	if (n->type == FLOAT)
+		return 1;
+	n = n->right;
+	if (n && n->type == FLOAT)
+		return 1;
+	return 0;
+}
+
+
 void gen_helpcall(struct node *n)
 {
+	/* Check both N and right because we handle casts to/from float in
+	   C call format */
+	if (c_style(n))
+		gen_push(n->right);
 	flush_writeback();
 	invalidate_all();
 	printf("\tjsr __");
@@ -582,6 +604,21 @@ void gen_helptail(struct node *n)
 
 void gen_helpclean(struct node *n)
 {
+	unsigned s;
+
+	if (c_style(n)) {
+		s = 0;
+		if (n->left) {
+			s += get_size(n->left->type);
+			/* gen_node already accounted for removing this thinking
+			   the helper did the work, adjust it back as we didn't */
+			sp += s;
+		}
+		s += get_size(n->right->type);
+		gen_cleanup(s, 1);
+		/* Caution - for future optimizations:
+		   C style ops that are ISBOOL didn't set the bool flags */
+	}
 }
 
 void gen_data_label(const char *name, unsigned align)
@@ -1226,7 +1263,6 @@ unsigned gen_direct(struct node *n)
 		/* Need to decide who cleans up non vararg calls */
 		printf(";cleanup %u sp was %u now %u\n",
 			v, sp, sp - v);
-		sp -= v;
 		/* TODO: , 0 if called fn was void or result nr */
 		gen_cleanup(v, 1);
 		return 1;
