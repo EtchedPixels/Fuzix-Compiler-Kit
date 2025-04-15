@@ -1,4 +1,4 @@
-all: CPP cc cc0 \
+all: Preprocessor cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.1802 cc1.6800 cc1.6809 \
      cc1.8070 cc1.8086 \
@@ -13,7 +13,7 @@ all: CPP cc cc0 \
      supportz8 supportsuper8 supportee200 supportnova supportnova3 supporttms7000 \
      test
 
-bootstuff: CPP cc cc0 \
+bootstuff: Preprocessor cc cc0 \
      cc1.8080 cc1.z80 cc1.thread cc1.byte cc1.6502 \
      cc1.65c816 cc1.z8 cc1.super8 cc1.1802 cc1.6800 cc1.6809 \
      cc1.8070 cc1.8086 cc1.ee200 cc1.nova cc1.ddp cc1.7000 \
@@ -27,7 +27,7 @@ bootstuff: CPP cc cc0 \
 .PHONY: support6303 support6502 support65c816 support6800 support6803 \
 	support6809 support68hc11 support8070 support8080 support8085 \
 	supportsuper8 supportz8 supportz80 supportee200 supportnova \
-	supportnova3 supporttms7000 test CPP
+	supportnova3 supporttms7000 test Preprocessor
 
 CCROOT ?=/opt/fcc/
 
@@ -76,8 +76,8 @@ $(OBJS3): $(INC1) $(INC2)
 
 backend-super8.o: backend-super8.c backend-z8.c
 
-CPP:
-	(cd CPP; make)
+Preprocessor:
+	(cd Preprocessor; make)
 
 cc:	cc.o
 	gcc -g3 $< -o cc
@@ -254,7 +254,7 @@ test:
 	(cd test; make)
 
 clean:
-	(cd CPP; make clean)
+	(cd Preprocessor; make clean)
 	rm -f cc cc0 copt
 	rm -f cc6502 cc65c816
 	rm -f cc1.1802 cc2.1802
@@ -304,7 +304,7 @@ bootinst:
 	cp cc $(CCROOT)/bin/fcc
 	cp cc.hlp $(CCROOT)/lib/cc.hlp
 	cp cc0 $(CCROOT)/lib
-	cp CPP/cpp $(CCROOT)/lib
+	cp Preprocessor/cpp $(CCROOT)/lib
 	# 6502
 	mkdir -p $(CCROOT)/lib/6502
 	mkdir -p $(CCROOT)/lib/6502/include
