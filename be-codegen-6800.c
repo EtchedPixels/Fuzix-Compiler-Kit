@@ -514,9 +514,6 @@ unsigned gen_direct(struct node *n)
 		 */
 		break;
 	case T_PLUS:
-		/* So we can track this common case later */
-		/* TODO: if the low word is zero or low 24 bits are 0 we can generate stuff like
-			leay %d,y */
 		if (r->op == T_CONSTANT && r->type != FLOAT) {
 			if (s == 4)
 				return gen_add32(r->value);
@@ -530,7 +527,7 @@ unsigned gen_direct(struct node *n)
 			}
 		}
 		if (s == 2 && r->op == T_LOCAL) {
-			v = r->value;
+			v = r->value + sp;
 			if (!cpu_is_09)
 				v++;
 			if (cpu_has_d)
