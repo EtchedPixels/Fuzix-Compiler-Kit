@@ -46,7 +46,7 @@ int dialect = DI_ANSI;
 
 FILE *curfile;
 char *c_fname;
-int c_lineno = 0;
+unsigned c_lineno = 0;
 
 typedef long int_type;		/* Used for preprocessor expressions */
 static int curtok = 0;		/* Used for preprocessor expressions */

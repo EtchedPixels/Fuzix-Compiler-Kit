@@ -22,14 +22,21 @@ char *token_txn(int);
 void pr_indent(int);
 void hash_line(void);
 
-#if defined(__linux__) || defined(__MACH__)
-char *_ltoa(long v)
+const char *itoa(register unsigned v)
 {
-	static char buf[32];
-	sprintf(buf, "%ld", v);
-	return buf; 
+	/* We never overwrite the last byte so it's always zero */
+	/* 11 bytes will do for 32bit int or 16bit */
+	static char buf[11];
+	register char *p = buf + sizeof(buf);
+
+	/* Write at least one zero digit */
+	do {
+		*--p = '0' + v % 10;
+		v /= 10;
+	}
+	while (v);
+	return p;
 }
-#endif
 
 char *include_paths[MAXINCPATH];
 
@@ -226,8 +233,6 @@ void define_macro(char *name)
 	ptr->name = set_entry(name, ptr, size);
 }
 
-extern int errno;
-
 FILE *open_include(char *fname, char *mode, int checkrel)
 {
 	FILE *fd = 0;
@@ -282,7 +287,7 @@ void cmsg(char *mtype, char *str)
 	if (c_fname && (*c_fname || c_lineno)) {
 		fputs(c_fname, stderr);
 		fputc(':', stderr);
-		fputs(_ltoa(c_lineno), stderr);
+		fputs(itoa(c_lineno), stderr);
 		fputc(':', stderr);
 	}
 
@@ -339,7 +344,7 @@ void hash_line(void)
 
 		if (!p_flag && (c_lineno != last_line || last_line <= 0)) {
 			fputs("# ", ofd);
-			fputs(_ltoa(c_lineno), ofd);
+			fputs(itoa(c_lineno), ofd);
 			if (last_line <= 0) {
 				fputs(" \"", ofd);
 				fputs(c_fname, ofd);
@@ -395,7 +400,7 @@ void print_toks_cpp(void)
 			strcat(curword, "\"");
 			if (0) {
 		case TK_LINE:
-				strcpy(curword, _ltoa(c_lineno));
+				strcpy(curword, itoa(c_lineno));
 			}
 		/*FALLTHROUGH*/ default:
 			if (!alltok) {

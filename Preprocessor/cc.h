@@ -6,7 +6,7 @@ extern FILE * open_include(char*, char*, int);
 extern FILE * curfile;
 extern char   curword[];
 extern char * c_fname;
-extern int    c_lineno;
+extern unsigned c_lineno;
 extern int    alltok;
 extern int    dialect;
 
