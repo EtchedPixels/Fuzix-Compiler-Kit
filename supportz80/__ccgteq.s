@@ -22,7 +22,6 @@ sign_same:
 		ex	de,hl
 		sbc	hl,de
 		jp	m,__true
-		or	e
 		jp	z,__true
 		jp	__false
 
