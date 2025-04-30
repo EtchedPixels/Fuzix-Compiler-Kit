@@ -1,5 +1,5 @@
 ;
-;	Shift ,X right by D
+;	Shift ,X left by D
 ;
 	.export __xshleq
 	.export __xshlequ
@@ -16,23 +16,23 @@ __xshlequ:
 	stab	@tmp
 	ldaa	,x
 	ldab	1,x
-right16:
+left16:
 	lslb
-	rora
+	rola
 	dec	@tmp
-	bne	right16
+	bne	left16
 	staa	,x
 	stab	1,x
 	rts
 fast:
 	andb	#7
 	stab	@tmp
-	ldab	,x
-	clra
-right16f:
-	lslb
+	ldaa	1,x
+	clrb
+left16f:
+	lsla
 	dec	@tmp
-	bne	right16f
+	bne	left16f
 	staa	,x
 	stab	1,x
 	rts
@@ -41,8 +41,8 @@ nowork:
 	ldab	1,x
 	rts
 bytemove:
-	ldab	1,x
-	clra
+	ldaa	1,x
+	clrb
 	staa	,x
 	stab	1,x
 	rts

@@ -1,5 +1,5 @@
 ;
-;	Shift ,X right by D
+;	Shift ,X left by D
 ;
 	.export __xshleq
 	.export __xshlequ
@@ -15,30 +15,30 @@ __xshlequ:
 	beq	bytemove
 	bcc	fast
 	ldd	,x
-right16:
+left16:
 	lslb
-	rora
+	rola
 	leay	-1,y
-	bne	right16
+	bne	left16
 	std	,x
 	rts
 fast:
 	andb	#7
 	tfr	d,y
-	ldb	,x
-	clra
-right16f:
-	lslb
+	lda	1,x
+	clrb
+left16f:
+	lsla
 	leay	-1,y
-	bne	right16f
+	bne	left16f
 	std	,x
 	rts
 nowork:
 	ldd	,x
 	rts
 bytemove:
-	ldb	1,x
-	clra
+	lda	,x
+	clrb
 	std	,x
 	rts
 	
