@@ -584,7 +584,8 @@ unsigned right_shift(struct node *n)
 			return 1;
 		}
 		invalidate_work();
-		repeated_op(v, op);
+		while(v--)
+			printf("\t%sb\n", op);
 		return 1;
 	}
 	if (s == 2) {
