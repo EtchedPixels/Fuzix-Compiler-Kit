@@ -1290,6 +1290,7 @@ unsigned gen_direct(struct node *n)
 		gen_load_nw(r, ptr, n->val2);
 		/* EA now holds the data */
 		set_ea_node(r);
+		v = WORD(n->value);
 		if (s == 4) {
 			if (!(n->flags & NORETURN))
 				printf("\tld t,ea");

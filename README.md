@@ -139,7 +139,7 @@ uses Y as the C stack pointer and uses the CPU stack for temporary values
 during expression evaluation and the all actual call/return addresses. Split
 code/data is supported but not multiple data or code banks in one application
 (that is pointers are 16bit). Going beyond that gets very ugly very fast as on
-8086.
+8086. Still needs float support finishing.
 
 ### 6800
 
@@ -153,7 +153,10 @@ machine.
 
 ### 8070
 
-Initial sketches only for the INS807x series of processors
+Minimal support for the INS807x series of processors. Passes the basic tests
+except for floating point. Needs register tracking and some smarts about
+picking p2 or p3 adding to get code the quality up. Code density is still
+reasonable thanks to the 16bit operations and stack relative load and store.
 
 ### 8080/8085
 

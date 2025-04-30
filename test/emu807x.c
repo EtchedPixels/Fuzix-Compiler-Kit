@@ -38,13 +38,13 @@ void mem_write(struct ns8070 *cpu, uint16_t addr, uint8_t val)
 		break;
 	    case 0xFEFD:
 		/* Make the value signed */
-		x=  (fefcval << 8) | val;
+		x = (val << 8) | fefcval;
 		if (x >= 0x8000)
 			x-= 0x10000;
 		printf("%d\n", x);
 		break;
 	    case 0xFEFC:
-		fefcval= val;	/* Save high byte for now */
+		fefcval = val;	/* Save low byte for now */
 		break;
 	    case 0xFEFB:
 	    	printf("CPU cycles = %lu\n", cycles);
