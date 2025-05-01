@@ -448,6 +448,9 @@ unsigned long trim_constant(unsigned t, unsigned long value, unsigned warn)
 			value = -value;
 		}
 	}
+	/* Pointer casting can mean we get pointer types here */
+	if (PTR(t))
+		t = target_ptr_arith(t);
 	/* Now trim the unsigned bit pattern */
 	switch(t & 0xF0) {
 	case CCHAR:
