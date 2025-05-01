@@ -627,6 +627,7 @@ static void convert_fix32(int exp, uint32_t sum, uint32_t frac, int uexp)
 static void convert_fix32(int exp, uint32_t sum, uint32_t frac, int uexp)
 {
 	rtype = T_FLOATVAL;
+
 	if (sum == 0 && frac == 0) {
 		result = 0;
 		return;
@@ -768,9 +769,9 @@ static void dec_format(unsigned c)
 		}
 		c -= '0';
 		n = sum * 10 + c;
-		/* If we wrap then keep shifting */
+		/* If we exceed 28 bits then keep shifting */
 		/* There's probably a better way to do this */
-		while (n < sum) {
+		while (n & 0xF0000000UL) {
 			sum >>= 1;
 			ex++;
 			n = sum * 10 + c;
