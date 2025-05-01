@@ -9,7 +9,7 @@ __mulequ:
 	ld	ea,2,p1		; ptr
 	ld	p3,ea
 	ld	ea,0,p3
-	jsr	mpyfix
+	jsr	__mpyfix
 	st	ea,0,p3
 	ret
 
