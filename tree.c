@@ -185,6 +185,8 @@ unsigned is_constant_zero(struct node *n)
 	return 0;
 }
 
+#if 0
+/* Not yet used */
 
 #define IS_NAME(x)		((x) >= T_NAME && (x) <= T_ARGUMENT)
 
@@ -209,6 +211,7 @@ static unsigned transitive(register unsigned op)
 		return 1;
 	return 0;
 }
+#endif
 
 struct node *make_rval(register struct node *n)
 {
@@ -447,15 +450,17 @@ unsigned long trim_constant(unsigned t, unsigned long value, unsigned warn)
 	}
 	/* Now trim the unsigned bit pattern */
 	switch(t & 0xF0) {
-	case UCHAR:
+	case CCHAR:
 		value &= TARGET_CHAR_MASK;
 		break;
-	case USHORT:
+	case CSHORT:
 		value &= TARGET_SHORT_MASK;
 		break;
-	case ULONG:
+	case CLONG:
 		value &= TARGET_LONG_MASK;
 		break;
+	default:
+		error("trim");
 	}
 	/* And do the range check */
 	if (warn && ov != value)
