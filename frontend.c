@@ -633,6 +633,17 @@ static void convert_fix32(int exp, uint32_t sum, uint32_t frac, int uexp)
 	}
 
 	/* Start by getting it down to 28bits */
+
+	/* We can have up to 32bits of sum so may need to push
+	   right */
+	while (sum & 0xF0000000) {
+		sum >>= 1;
+		exp++;
+		/* frac will never be used in this case so don't
+		   push bits back into frac */
+	}
+
+	/* Now get the sum/fraction aligned up */
 	while (!(sum & 0x08000000)) {
 		sum <<= 1;
 		if (frac & 0x80000000)
