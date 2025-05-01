@@ -488,6 +488,7 @@ static int pgetc(void)
 			do {
 				ch = chget();
 			} while (ch != '\n' && ch != EOF);
+			last_char = '\n';
 			return ch;	/* Keep the return. */
 		}
 
