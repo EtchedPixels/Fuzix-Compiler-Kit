@@ -60,7 +60,7 @@ static unsigned frame_len;	/* Number of bytes of stack frame */
 static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned unreachable;	/* Track unreachable code state */
 static unsigned func_cleanup;	/* Zero if we can just ret out */
-/*static unsigned label;*/	/* Used for local branches */
+static unsigned label;		/* Used for local branches */
 
 static unsigned get_size(unsigned t)
 {
@@ -719,6 +719,9 @@ void gen_helpclean(struct node *n)
 		/* Caution - for future optimizations:
 		   C style ops that are ISBOOL didn't set the bool flags */
 	}
+	/* E must be 0 as EA = 0/1 */
+	if (n->flags & ISBOOL)
+		set_e(0);
 }
 
 void gen_data_label(const char *name, unsigned align)
@@ -1602,6 +1605,25 @@ unsigned gen_direct(struct node *n)
 	case T_LT:
 		return 0;
 	case T_BANGEQ:
+		if (r->type == T_CONSTANT) {
+			s = get_size(r->type);
+			if (s > 2)
+				return 0;
+			if (r->value == 0) {
+				if (s == 2)
+					puts("\tor a,e\n");
+			} else {
+				if (s == 1)
+					printf("\tsub a,=%u\n", BYTE(r->value));
+				else
+					printf("\tsub ea,=%u\n", WORD(r->value));
+			}
+			printf("\tbz X%u\n", ++label);
+			load_ea(2,1);
+			printf("X%u:\n", label);
+			n->flags |= ISBOOL;
+			return 1;
+		}
 		return 0;
 	case T_LTLT:
 		if (s > 2)
@@ -1942,6 +1964,7 @@ static unsigned logic_ptr_op(const char *op, unsigned sz)
 
 unsigned gen_node(struct node *n)
 {
+	struct node *r = n->right;
 	unsigned sz = get_size(n->type);
 	unsigned v;
 	unsigned ptr;
@@ -2223,6 +2246,29 @@ unsigned gen_node(struct node *n)
 		return logic_sp_op(n, "or");
 	case T_HAT:
 		return logic_sp_op(n, "xor");
+	case T_BANG:
+		/* Common case of !(boolstuff) */
+		if (n->right->flags & ISBOOL) {
+			n->flags |= ISBOOL;
+			puts("\txor a,=1");
+			/* Can't be a pointer as is bool */
+			a_value ^= 1;
+			return 1;
+		}
+		return 0;
+	case T_BOOL:
+		n->flags |= ISBOOL;
+		if (n->right->flags & ISBOOL)
+			return 1;
+		sz = get_size(r->type);
+		if (sz > 2)
+			return 0;
+		if (sz == 2)
+			puts("\tor a,e");
+		printf("\tbz X%u\n", ++label);
+		load_ea(2, 1);
+		printf("X%u:\n", label);
+		return 1;
 	/* Shift TOS by EA */
 	case T_LTLT:
 		return 0;
