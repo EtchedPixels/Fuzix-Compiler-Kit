@@ -376,13 +376,13 @@ static struct node *hier10(void)
 		r = make_rval(hier10());
 		if (!IS_INTARITH(r->type))
 			badtype();
-		return tree(op, NULL, r);
+		return arith_uni_tree(op, r);
 	case T_MINUS:
 		/* Floating point allowed */
 		r = make_rval(hier10());
 		if (!IS_ARITH(r->type) && !PTR(r->type))
 			badtype();
-		return tree(T_NEGATE, NULL, r);
+		return arith_uni_tree(T_NEGATE, r);
 	case T_BANG:
 		/* Floating point allowed */
 		r = make_rval(hier10());

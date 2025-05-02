@@ -369,6 +369,18 @@ struct node *arith_tree(unsigned op, struct node *l, struct node *r)
 	return arith_pro_tree(op, l, r);
 }
 
+struct node *arith_uni_tree(unsigned op, struct node *r)
+{
+	/* ~ and - implicitly like other arith ops work on integers if
+	   shorter */
+	unsigned t = type_canonical(r->type);
+	if (t < CINT) {
+		r = make_cast(r, CINT);
+		t = CINT;
+	}
+	return typed_tree(op, t, NULL, r);
+}
+
 /* Two argument integer or bit pattern
    << >> & | ^ */
 struct node *intarith_tree(register unsigned op, register struct node *l, register struct node *r)
