@@ -392,8 +392,10 @@ struct node *intarith_tree(register unsigned op, register struct node *l, regist
 	if (op == T_LTLT || op == T_GTGT) {
 		/* Promote the left side if needed be (eg it's char/uchar) */
 		rt = arith_pro(lt, lt);
-		if (lt != rt)
+		if (lt != rt) {
 			l = make_cast(l, rt);
+			lt = rt;
+		}
 		return typed_tree(op, lt, l, make_cast(r, CINT));
 	} else
 		return arith_pro_tree(op, l, r);

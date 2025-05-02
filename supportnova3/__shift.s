@@ -1,8 +1,6 @@
 	.export f__shl
 	.export f__shr
 	.export f__shru
-	.export f__shrc
-	.export f__shruc
 	.export f__shll
 	.export f__shrl
 	.export f__shrul
@@ -41,35 +39,6 @@ shrlp:
 	movor	1,1	; shift right and set high bit
 	inc	0,0,szr
 	jmp	shrlp,1
-	jmp	done,1
-
-f__shruc:
-	neg	1,0
-	popa	1		; working value
-	mov#	0,0,snr		; check if we have 0 shifts to do
-	jmp	done,1
-	movs	1,1		; swap so the byte we care about is the
-				; high one
-shruclp:
-	movzr	1,1
-	inc	0,0,szr
-	jmp	shruclp,1
-	movs	1,1		; then swap back
-	jmp	done,1
-
-f__shrc:
-	neg	1,0
-	popa	1
-	mov#	0,0,snr		; check if we have 0 shifts to do
-	jmp	done,1
-	movs	1,1		; same trick for signed
-	movl#	1,1,snc
-	jmp	shruclp,1
-shrclp:
-	movor	1,1
-	inc	0,0,szr
-	jmp	shrclp,1
-	movs	1,1
 	jmp	done,1
 
 ;	Same idea but 32bit wide

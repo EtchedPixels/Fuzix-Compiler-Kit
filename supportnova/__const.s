@@ -123,8 +123,6 @@
 	.export __shl
 	.export __shru
 	.export __shr
-	.export __shruc
-	.export __shrc
 	.export __shll
 	.export __shrul
 	.export __shrl
@@ -253,8 +251,6 @@ __postincl:	.word f__postincl
 __shl:		.word f__shl
 __shru:		.word f__shru
 __shr:		.word f__shr
-__shruc:	.word f__shruc
-__shrc:		.word f__shrc
 __shll:		.word f__shll
 __shrul:	.word f__shrul
 __shrl:		.word f__shrl
