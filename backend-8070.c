@@ -22,6 +22,7 @@
  *	  can be used in many ways (eg folding together *x++)
  *
  *	TODO:
+ *	- Fold together all the condition helpers for byte/word
  *	- Rewrite x++ and --x forms to use autoindexing
  *	- Byte sized ++/-- optimizations
  *	- Shift >> or << 16 optimization (and maybe >=16 as it's then a
@@ -45,6 +46,7 @@
 #include <string.h>
 #include "compiler.h"
 #include "backend.h"
+#include "backend-byte.h"
 
 #define ARGBASE		2
 
@@ -58,6 +60,7 @@ static unsigned frame_len;	/* Number of bytes of stack frame */
 static unsigned sp;		/* Stack pointer offset tracking */
 static unsigned unreachable;	/* Track unreachable code state */
 static unsigned func_cleanup;	/* Zero if we can just ret out */
+/*static unsigned label;*/	/* Used for local branches */
 
 static unsigned get_size(unsigned t)
 {
@@ -371,6 +374,7 @@ static unsigned is_simple(struct node *n)
 
 struct node *gen_rewrite(struct node *top)
 {
+	byte_label_tree(top, BTF_RELABEL);
 	return top;
 }
 
@@ -1193,6 +1197,7 @@ static unsigned access_direct(struct node *n)
  */
 static unsigned op_direct(struct node *n, const char *op, unsigned s)
 {
+	unsigned is_byte = (n->flags & (BYTETAIL | BYTEOP)) == (BYTETAIL | BYTEOP);
 	const char *name;
 	unsigned v = n->value;
 
@@ -1201,6 +1206,8 @@ static unsigned op_direct(struct node *n, const char *op, unsigned s)
 
 	switch(n->type) {
 	case T_CONSTANT:
+		if (is_byte)
+			s = 1;
 		invalidate_ea();
 		if (s == 1)
 			printf("\t%s a,=%u\n", op, v & 0xFF);
@@ -1208,6 +1215,8 @@ static unsigned op_direct(struct node *n, const char *op, unsigned s)
 			printf("\t%s ea,=%u\n", op, v & 0xFFFF);
 		return 1;
 	case T_NAME:
+		if (is_byte)
+			s = 1;
 		invalidate_ea();
 		name = namestr(n->snum);
 		if (s == 1)
@@ -1216,6 +1225,8 @@ static unsigned op_direct(struct node *n, const char *op, unsigned s)
 			printf("\t%s, ea,=%s+%u\n", op, name, v);
 		return 1;
 	case T_LABEL:
+		if (is_byte)
+			s = 1;
 		invalidate_ea();
 		if (s == 1)
 			printf("\t%s a,=<T%u+%u\n", op, n->val2, v);
@@ -1223,6 +1234,8 @@ static unsigned op_direct(struct node *n, const char *op, unsigned s)
 			printf("\t%s ea,=T%u+%u\n", op, n->val2, v);
 		return 1;
 	case T_LREF:
+		if (is_byte)
+			s = 1;
 		/* Not always possible */
 		if (v + sp > 128 - s) {
 			/* TODO: swap via T ? */
@@ -1757,8 +1770,22 @@ unsigned gen_shortcut(struct node *n)
 			return 0;
 		/* Ok we can construct a pointer to the left */
 		if (s == 2) {
-			printf(";plusplus short\n");
 			invalidate_ea();
+#if 0			
+			/* We can do the common ++ case neatly */
+			if (WORD(r->value) == 1) {
+				printf("\tisz %,p%u\nbnz X%u\n", off, ptr, ++label);
+				if (noret)
+					printf("isz %d,p%u\n",
+						off + 1, ptr);
+				else
+					printf("xch a,e\n\tisz %d,p%u\n\txch a,e\n",
+						off + 1, ptr);
+				printf("X%u\n", label);
+				return 1;
+			}
+#endif
+			printf(";plusplus short\n");
 			printf("\tld ea,%d,p%u\n", off, ptr);
 			if (!noret)
 				load_t_ea();
@@ -1846,6 +1873,10 @@ static unsigned gen_cast(struct node *n)
 	if (!IS_INTARITH(lt) || !IS_INTARITH(rt))
 		return 0;
 
+	/* No type casting needed as computing byte sized */
+	if (n->flags & BYTEOP)
+		return 1;
+
 	ls = get_size(lt);
 
 	/* Size shrink is free */
@@ -1916,6 +1947,8 @@ unsigned gen_node(struct node *n)
 	unsigned ptr;
 	int off;
 	unsigned noret = n->flags & NORETURN;
+	unsigned is_byte = (n->flags & (BYTETAIL | BYTEOP)) == (BYTETAIL | BYTEOP);
+	unsigned se = n->flags & SIDEEFFECT;
 
 	/* We adjust sp so track the pre-adjustment one too when we need it */
 
@@ -1934,13 +1967,11 @@ unsigned gen_node(struct node *n)
 		/* We need a pointer to all objects so these come out
 		   the same */
 	case T_LREF:
-		/* Kill unused local ref */
-		if (noret)
-			return 1;
-		/* TODO: once volatile is cleaned up a bit more kill these
-		   too */
 	case T_NREF:
 	case T_LBREF:
+		/* Kill unused ref if non volatile */
+		if (noret && !se)
+			return 1;
 		ptr = gen_ref(n, &off);
 		if (ptr == 0)
 			return 0;
@@ -2010,6 +2041,13 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_DEREF:
 	case T_DEREFPLUS:
+		/* This is an odd one. We can't randomly assume a deref is
+		   safe to do byte size if forced bytesize if the source is
+		   volatile */
+		if (noret && !se)
+			return 1;
+		if (!se && is_byte)
+			sz = 1;
 		/* Might be able to be smarter here */
 		flush_writeback();
 		/* Could noret away once volatile cleaned */
@@ -2029,6 +2067,7 @@ unsigned gen_node(struct node *n)
 		invalidate_ea();
 		return 1;
 	case T_LDEREF:
+		/* TODO: review for volatile byteable */
 		/* val2 offset of variable, val offset of ptr */
 		ptr = free_pointer();
 		/* We cannot alas do a straight ptr of ptr load, but must
@@ -2049,6 +2088,7 @@ unsigned gen_node(struct node *n)
 		/* TODO node track */
 		return 1;
 	case T_LEQ:
+		/* TODO: review for volatile byteable */
 		printf(";leq\n");
 		/* Same idea for writing */
 		ptr = free_pointer();
@@ -2082,15 +2122,27 @@ unsigned gen_node(struct node *n)
 		puts("\tjsr __callea\n");
 		return 1;
 	case T_LABEL:
-		printf("\tld ea,=T%d+%d\n", n->val2, v);
-		set_ea_node(n);
+		if (is_byte || sz == 1) {
+			printf("\tld a,=<T%d+%d\n", n->val2, v);
+			invalidate_a();
+		} else {
+			printf("\tld ea,=T%d+%d\n", n->val2, v);
+			set_ea_node(n);
+		}
 		return 1;
 	case T_CONSTANT:
+		if (is_byte)
+			sz = 1;
 		load_ea(sz, n->value);
 		return 1;
 	case T_NAME:
-		printf("\tld ea,=_%s+%d\n", namestr(n->snum), v);
-		set_ea_node(n);
+		if (is_byte || sz == 1) {
+			printf("\tld a,=<_%s+%d\n", namestr(n->snum), v);
+			invalidate_a();
+		} else {
+			printf("\tld ea,=_%s+%d\n", namestr(n->snum), v);
+			set_ea_node(n);
+		}
 		return 1;
 	case T_ARGUMENT:
 		v += frame_len + ARGBASE;

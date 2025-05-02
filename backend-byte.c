@@ -149,7 +149,9 @@ static unsigned op_can_byte(register struct node *n)
 		return BYTETAIL;
 	/* Boolean results : can produce byte results but subtrees unchanged */
 	if (op == T_LT || op == T_GT || op == T_LTEQ || op == T_GTEQ) {
-		if (cast_lr(n))
+	/* Need to think about this more. uchar comparisons promote to int but we
+	   need to then do them as uchar compares not char */
+		if (0 && cast_lr(n))
 			return BYTEABLE | BYTEROOT | BYTETAIL;
 		return BYTETAIL;
 	}
