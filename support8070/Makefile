@@ -1,9 +1,7 @@
 all: lib8070.a crt0.o
 
 OBJ = __bool.o __cc.o __castc_.o __cast_l.o \
-      __cceq.o __ccne.o __ccgt.o __ccgteq.o __cclt.o __cclteq.o \
-      __cceqc.o __ccnec.o __ccgtc.o __ccgteqc.o __ccltc.o __cclteqc.o \
-      __ccgtu.o __ccgtequ.o __ccltu.o __ccltequ.o \
+      __cceq.o __ccgt.o __ccgteq.o __cclt.o __cclteq.o \
       __shl.o __shr.o __shleq.o __shreq.o __shleqc.o __shrequc.o \
       __div.o __remu.o __muleq.o __mpyfix.o \
       __pluseqc.o __minuseqc.o \
