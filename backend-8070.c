@@ -39,6 +39,8 @@
  *	  additions
  *	- Byteops (good test case)
  *	- Peepholes
+ *	- Can we do some equality type comparisons better inline with something
+ *	  like sub ea,blah jsr bool/bang ?
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -52,6 +54,18 @@
 
 #define BYTE(x)		(((unsigned)(x)) & 0xFF)
 #define WORD(x)		(((unsigned)(x)) & 0xFFFF)
+
+#define T_NREF		(T_USER)		/* Load of C global/static */
+#define T_CALLNAME	(T_USER+1)		/* Function call by name */
+#define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
+#define T_LREF		(T_USER+3)		/* Ditto for local */
+#define T_LSTORE	(T_USER+4)
+#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
+#define T_LBSTORE	(T_USER+6)
+#define T_DEREFPLUS	(T_USER+7)		/* *(thing + offset) */
+#define T_LDEREF	(T_USER+8)		/* *local + offset */
+#define T_LEQ		(T_USER+9)		/* *local + offset = n*/
+#define T_EQPLUS	(T_USER+10)		/* *(ac + n) = m */
 
 /*
  *	State for the current function
@@ -151,12 +165,54 @@ void set_ea(unsigned n)
 	ea_valid = 0;	/* No valid node */
 }
 
+unsigned map_op(register unsigned op)
+{
+	switch(op) {
+	case T_LSTORE:
+		op = T_LREF;
+	case T_LREF:
+		break;
+	case T_LBSTORE:
+		op = T_LBREF;
+	case T_LBREF:
+		break;
+	case T_NSTORE:
+		op = T_NREF;
+	case T_NREF:
+		break;
+	case T_NAME:
+	case T_LABEL:
+	case T_LOCAL:
+		break;
+	/* Don't do other matches for now */
+	default:
+		return 0;
+	}
+	return op;
+}
+
 void set_ea_node(struct node *n)
 {
 	a_valid = 0;
 	e_valid = 0;
 	ea_valid = 1;
 	memcpy(&ea_node, n, sizeof(ea_node));
+	ea_node.op = map_op(ea_node.op);
+	printf(";set_ea_node from %02X to %02X\n", n->op, ea_node.op);
+}
+
+unsigned is_ea_node(struct node *n)
+{
+	unsigned op;
+	if (ea_valid == 0)
+		return 0;
+	op = map_op(n->op);
+	printf(";is_ea_node op %04X node op %04X, val %08lX, node val %08lX\n",
+		op, ea_node.op, n->value, ea_node.value);
+	if (ea_node.op == op && ea_node.value == n->value &&
+		ea_node.type == n->type)
+		return 1;
+	return 0;
 }
 
 void adjust_a(unsigned n)
@@ -286,19 +342,47 @@ void load_ea_t(void)
 
 unsigned free_pointer_nw(unsigned p)
 {
-	/* Dummy up for now */
 	if (p == 3)
 		return 2;
 	return 3;
 }
 
+/* No space really for being clever so just alternate */
 unsigned free_pointer(void)
 {
-	return 3;
+	static unsigned ptr = 2;
+	ptr ^= 1;
+	return ptr;
 }
 
+/* Also need a find_ptr that turns LSTORE/LREF to LOCAL etc so we can look
+   for the object pointer itself to optimise stuff like ld ea,T%u into
+   ld ea,p3 */
 unsigned find_ref(struct node *n, unsigned nw, unsigned offset, int *off)
 {
+	unsigned op = n->op;
+	switch(op) {
+	case T_LSTORE:
+		op = T_LREF;
+	case T_LREF:
+		break;
+	case T_LBSTORE:
+		op = T_LBREF;
+	case T_LBREF:
+		break;
+	case T_NSTORE:
+		op = T_NREF;
+	case T_NREF:
+		break;
+	default:
+		return 0;
+	}
+	/* TODO: if value is not quite the same check if in off range and
+	   still use it */
+	if (p_valid[0] && p_node[0].op == op && p_node[0].value == n->value)
+		return 2;
+	if (p_valid[1] && p_node[1].op == op && p_node[1].value == n->value)
+		return 3;
 	return 0;
 }
 
@@ -312,17 +396,6 @@ void set_ptr_ref(unsigned p, struct node *n)
 /*
  *	Rewriting
  */
-#define T_NREF		(T_USER)		/* Load of C global/static */
-#define T_CALLNAME	(T_USER+1)		/* Function call by name */
-#define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
-#define T_LREF		(T_USER+3)		/* Ditto for local */
-#define T_LSTORE	(T_USER+4)
-#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
-#define T_LBSTORE	(T_USER+6)
-#define T_DEREFPLUS	(T_USER+7)		/* *(thing + offset) */
-#define T_LDEREF	(T_USER+8)		/* *local + offset */
-#define T_LEQ		(T_USER+9)		/* *local + offset = n*/
-#define T_EQPLUS	(T_USER+10)		/* *(ac + n) = m */
 
 static void squash_node(struct node *n, struct node *o)
 {
@@ -1395,6 +1468,8 @@ unsigned gen_direct(struct node *n)
 	unsigned ptr, ptr2;
 	int off;
 	char *op;
+	unsigned se = n->flags & SIDEEFFECT;
+
 	if (r)
 		v = r->value;
 
@@ -1411,11 +1486,15 @@ unsigned gen_direct(struct node *n)
 		return 1;
 	case T_NSTORE:
 	case T_LBSTORE:
+		/* TODO: can do 4 sanely */
+		if (s > 2)
+			return 0;
+		if (!se && is_ea_node(n))
+			return 1;
 		if (s <= 2 && gen_op(s, "st", r)) {
-			set_ea_node(r);
+			set_ea_node(n);
 			return 1;
 		}
-		/* TODO: can do 4 sanely */
 		break;
 	case T_EQ:
 		n->value = 0;
@@ -1793,7 +1872,7 @@ unsigned gen_shortcut(struct node *n)
 		/* Ok we can construct a pointer to the left */
 		if (s == 2) {
 			invalidate_ea();
-#if 0			
+#if 0
 			/* We can do the common ++ case neatly */
 			if (WORD(r->value) == 1) {
 				printf("\tisz %,p%u\nbnz X%u\n", off, ptr, ++label);
@@ -1995,6 +2074,11 @@ unsigned gen_node(struct node *n)
 		/* Kill unused ref if non volatile */
 		if (noret && !se)
 			return 1;
+		printf(";SE %u for ref\n", se);
+		/* Already loaded and not volatile */
+		if (!se && is_ea_node(n))
+			return 1;
+		/* TODO: check if !se and already holds the value */
 		ptr = gen_ref(n, &off);
 		if (ptr == 0)
 			return 0;
@@ -2013,6 +2097,9 @@ unsigned gen_node(struct node *n)
 	case T_LSTORE:
 	case T_NSTORE:
 	case T_LBSTORE:
+		/* Already stored and not volatile */
+		if (!se && is_ea_node(n))
+			return 1;
 		ptr = gen_ref(n, &off);
 		if (ptr == 0)
 			return 0;
