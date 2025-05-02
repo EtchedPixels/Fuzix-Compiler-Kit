@@ -44,7 +44,9 @@
  *
  *	Byte LREF/LSTORE etc
  *	- Optimisations from the DDP where we use the fact the base is
- *	  word aligned to precompute any needed swaps
+ *	  word aligned to precompute any needed swaps. LREF is easy, LSTORE
+ *	  less so - ideally we'd need the front end to tell us if the other
+ *	  half of the word was clear (char x) or not (char x[10])
  *
  *	Floating point (hardware)
  *
