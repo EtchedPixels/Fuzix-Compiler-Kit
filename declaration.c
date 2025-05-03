@@ -75,6 +75,9 @@ unsigned one_declaration(register unsigned s, unsigned type, unsigned name, unsi
 	if (s == S_LSTATIC)
 		sym->data.offset = ++label_tag;;
 
+	if (voltrack && s != S_AUTO)
+		add_volatile(name);
+
 	if (s != S_EXTERN && (PTR(type) || !IS_FUNCTION(type)) && match(T_EQ)) {
 		unsigned label = sym->name;
 		if (s == S_LSTATIC)

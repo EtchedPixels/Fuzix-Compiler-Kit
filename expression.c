@@ -695,6 +695,8 @@ static struct node *hier1(void)
 			badtype();
 			return l;
 		}
+		if (is_volatile(l->snum))
+			l->flags |= SIDEEFFECT;
 		return assign_tree(l, r);	/* Assignment */
 	} else {
 		fc = token;
@@ -869,6 +871,7 @@ void expression_typed(unsigned type)
 	}
 	n = typeconv(expression_tree(0), type, 0);
 	/* Don't lose return statements */
-	n->flags |= SIDEEFFECT;
+	if (n->flags & NORETURN)
+		fatal("nret");
 	write_tree(n);
 }

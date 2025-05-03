@@ -35,7 +35,7 @@ OBJS0 = frontend.o
 
 OBJS1 = body.o declaration.o enum.o error.o expression.o header.o idxdata.o \
 	initializer.o label.o lex.o main.o primary.o stackframe.o storage.o \
-	struct.o switch.o symbol.o tree.o type.o type_iterator.o
+	struct.o switch.o symbol.o tree.o type.o type_iterator.o volatile.o
 
 OBJS2 = backend.o backend-default.o
 OBJS3 = backend.o backend-8080.o

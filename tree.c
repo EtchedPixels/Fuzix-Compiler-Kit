@@ -84,7 +84,7 @@ struct node *sf_tree(unsigned op, struct node *l, struct node *r)
 	register struct node *n = tree(op, l, r);
 	/* A dereference is only a side effect if it might be volatile */
 	if (op == T_DEREF) {
-		if (voltrack)
+		if (voltrack || (r->op == T_NAME && is_volatile(r->snum)))
 			n->flags |= SIDEEFFECT;
 	} else
 		n->flags |= SIDEEFFECT;

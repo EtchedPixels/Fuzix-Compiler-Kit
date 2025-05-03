@@ -19,6 +19,8 @@
 #define NUM_SWITCH		128
 /* Number of constants from enum. 4 bytes per entry */
 #define NUM_CONSTANT		50
+/* Number of non local volatiles */
+#define NUM_VOLATILE		8
 
 #include <stdio.h>
 
@@ -44,6 +46,7 @@
 #include "tree.h"
 #include "type.h"
 #include "type_iterator.h"
+#include "volatile.h"
 
 extern FILE *debug;
 
