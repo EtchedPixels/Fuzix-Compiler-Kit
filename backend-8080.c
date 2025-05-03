@@ -25,6 +25,19 @@
 
 #define LWDIRECT 24	/* Number of __ldword1 __ldword2 etc forms for fastest access */
 
+#define T_NREF		(T_USER)		/* Load of C global/static */
+#define T_CALLNAME	(T_USER+1)		/* Function call by name */
+#define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
+#define T_LREF		(T_USER+3)		/* Ditto for local */
+#define T_LSTORE	(T_USER+4)
+#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
+#define T_LBSTORE	(T_USER+6)
+#define T_RREF		(T_USER+7)
+#define T_RSTORE	(T_USER+8)
+#define T_RDEREF	(T_USER+9)		/* *regptr */
+#define T_REQ		(T_USER+10)		/* *regptr */
+
+
 /*
  *	State for the current function
  */
@@ -34,6 +47,120 @@ static unsigned argbase;	/* Argument offset in current function */
 static unsigned unreachable;	/* Code following an unconditional jump */
 static unsigned func_cleanup;	/* Zero if we can just ret out */
 static unsigned label;		/* Used to hand out local labels in the form X%u */
+
+/*
+ *	Register tracking - minimal for now
+ */
+
+static uint16_t bc_value;
+static uint16_t hl_value;
+static unsigned bc_valid;
+static unsigned hl_valid;
+static struct node bc_node;
+static struct node hl_node;
+
+static void invalidate_bc(void)
+{
+	bc_valid = 0;
+}
+
+static void invalidate_hl(void)
+{
+	hl_valid = 0;
+}
+
+static void set_bc_value(uint16_t v)
+{
+	bc_value = v;
+	bc_valid = 1;
+}
+
+static void set_hl_value(uint16_t v)
+{
+	hl_value = v;
+	hl_valid = 1;
+}
+
+unsigned map_op(register unsigned op)
+{
+	switch(op) {
+	case T_LSTORE:
+		op = T_LREF;
+	case T_LREF:
+		break;
+	case T_LBSTORE:
+		op = T_LBREF;
+	case T_LBREF:
+		break;
+	case T_NSTORE:
+		op = T_NREF;
+	case T_NREF:
+		break;
+	case T_NAME:
+	case T_LABEL:
+	case T_LOCAL:
+		break;
+	/* Don't do other matches for now */
+	default:
+		return 0;
+	}
+	return op;
+}
+
+static void set_bc_node(struct node *n)
+{
+	memcpy(&bc_node, n, sizeof(bc_node));
+	bc_node.op = map_op(n->op);
+	bc_valid = 2;
+}
+
+static void set_hl_node(struct node *n)
+{
+	memcpy(&hl_node, n, sizeof(hl_node));
+	hl_node.op = map_op(n->op);
+	hl_valid = 2;
+	printf(";hl node now %04X\n", hl_node.op);
+}
+
+static void set_bc_hl(void)
+{
+	bc_valid = hl_valid;
+	bc_value = hl_value;
+	memcpy(&bc_node, &hl_node, sizeof(bc_node));
+}
+
+static void set_hl_bc(void)
+{
+	hl_valid = bc_valid;
+	hl_value = bc_value;
+	memcpy(&hl_node, &bc_node, sizeof(hl_node));
+}
+
+static void writeflush(struct node *n)
+{
+	switch(n->op) {
+	case T_NREF:
+	case T_LREF:
+	case T_LBREF:
+		n->op = 0xFFFF;	/* invalidate for matches */
+		break;
+	}
+}
+
+static void flush_writeback(void)
+{
+	if (bc_valid == 2)
+		writeflush(&bc_node);
+	if (hl_valid == 2)
+		writeflush(&hl_node);
+}
+
+static void invalidate_all(void)
+{
+	invalidate_hl();
+	invalidate_bc();
+	flush_writeback();
+}
 
 /*
  *	Output side logic. For now dumb but route everything here so
@@ -74,6 +201,8 @@ static unsigned label;		/* Used to hand out local labels in the form X%u */
 #define OP_ADD		32
 #define OP_ANA		33
 #define OP_ORA		34
+#define OP_SUB		35
+#define OP_XRA		36
 
 #define	R_A		1
 #define R_PSW		1		/* Unless we start CC tracking */
@@ -114,6 +243,80 @@ static void opcode_flush(void)
 }
 
 /*
+ *	Operation helpers
+ */
+
+static void load_hl(uint16_t v)
+{
+	if (hl_valid) {
+		if (hl_value == v)
+			return;
+		if ((hl_value & 0xFF) == (v & 0xFF))
+			opcode(OP_MVI, 0, R_H, "mvi h,%u", v >> 8);
+		else if ((hl_value & 0xFF00) == (v & 0xFF00))
+			opcode(OP_MVI, 0, R_L, "mvi l,%u", v & 0xFF);
+	}
+	/* TODO: There are some other odd cases to do later like when h
+	   holds half the value we need so we can mov h,l and l,h etc */
+	opcode(OP_LXI, 0, R_HL, "lxi h,%u", v);
+	hl_value = v;
+	hl_valid = 1;
+}
+
+static unsigned hl_contains(register struct node *n)
+{
+	printf(";hl contains hlvalid %d\n", hl_valid);
+	if (hl_valid == 1 && n->op == T_CONSTANT && WORD(n->value) == hl_value)
+		return 1;
+	if (hl_valid == 0)
+		return 0;
+	if (hl_node.op == map_op(n->op) && hl_node.value == n->value &&
+	    hl_node.val2 == n->val2 && hl_node.snum == n->snum &&
+	    hl_node.type == n->type)
+	    	return 1;
+	return 0;
+}
+
+static void load_bc(uint16_t v)
+{
+	if (bc_valid) {
+		if (bc_value == v)
+			return;
+		if ((bc_value & 0xFF) == (v & 0xFF))
+			opcode(OP_MVI, 0, R_B, "mvi b,%u", v >> 8);
+		else if ((bc_value & 0xFF00) == (v & 0xFF00))
+			opcode(OP_MVI, 0, R_C, "mvi c,%u", v & 0xFF);
+	}
+	/* TODO: There are some other odd cases to do later like when h
+	   holds half the value we need so we can mov b,c or b,h etc */
+	opcode(OP_LXI, 0, R_HL, "lxi b,%u", v);
+	bc_value = v;
+	bc_valid = 1;
+}
+
+static void load_a(unsigned v)
+{
+	v &= 0xFF;
+	if (v == 0)
+		opcode(OP_XRA, 0, R_A, "xra a");
+	else
+		opcode(OP_MVI, 0, R_A, "mvi a,%u", v);
+}
+
+static unsigned bc_contains(register struct node *n)
+{
+	if (bc_valid == 1 && n->op == T_CONSTANT && WORD(n->value) == bc_value)
+		return 1;
+	if (bc_valid == 0)
+		return 0;
+	if (bc_node.op == map_op(n->op) && bc_node.value == n->value &&
+	    bc_node.val2 == n->val2 && bc_node.snum == n->snum &&
+	    bc_node.type == n->type)
+	    	return 1;
+	return 0;
+}
+
+/*
  *	Object sizes
  */
 
@@ -143,18 +346,6 @@ static unsigned get_stack_size(unsigned t)
 		return 2;
 	return n;
 }
-
-#define T_NREF		(T_USER)		/* Load of C global/static */
-#define T_CALLNAME	(T_USER+1)		/* Function call by name */
-#define T_NSTORE	(T_USER+2)		/* Store to a C global/static */
-#define T_LREF		(T_USER+3)		/* Ditto for local */
-#define T_LSTORE	(T_USER+4)
-#define T_LBREF		(T_USER+5)		/* Ditto for labelled strings or local static */
-#define T_LBSTORE	(T_USER+6)
-#define T_RREF		(T_USER+7)
-#define T_RSTORE	(T_USER+8)
-#define T_RDEREF	(T_USER+9)		/* *regptr */
-#define T_REQ		(T_USER+10)		/* *regptr */
 
 static void squash_node(struct node *n, struct node *o)
 {
@@ -352,6 +543,7 @@ void gen_prologue(const char *name)
 {
 	opcode(OP_LABEL, 0, R_KEEP, "_%s:\n", name);
 	unreachable = 0;
+	invalidate_all();
 }
 
 /* Generate the stack frame */
@@ -372,8 +564,9 @@ void gen_frame(unsigned size, unsigned aframe)
 		argbase += 2;
 	}
 	if (size > 10) {
-		opcode(OP_LXI, 0, R_HL, "lxi h,%u", (-size) & 0xFFFF);
+		load_hl((-size) & 0xFFFF);
 		opcode(OP_DAD, R_SP|R_HL, R_HL, "dad sp");
+		invalidate_hl();
 		opcode(OP_SPHL, R_HL, R_SP, "sphl");
 		return;
 	}
@@ -407,8 +600,9 @@ void gen_epilogue(unsigned size, unsigned argsize)
 	} else if (size > 10) {
 		if (!x)
 			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
-		opcode(OP_LXI, 0, R_HL, "lxi h,0x%x", (uint16_t)size);
+		load_hl(size);
 		opcode(OP_DAD, R_SP|R_HL, R_HL, "dad sp");
+		invalidate_hl();
 		opcode(OP_SPHL, R_HL, R_SP, "sphl");
 		if (!x)
 			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
@@ -437,6 +631,7 @@ void gen_label(const char *tail, unsigned n)
 	/* A branch label means the state is unknown so force any
 	   existing state and don't assume anything */
 	opcode(OP_LABEL, R_ALL, R_ALL, "L%u%s:", n, tail);
+	invalidate_all();
 }
 
 /* A return statement. We can sometimes shortcut this if we have
@@ -484,8 +679,9 @@ static void gen_cleanup(unsigned v)
 		unsigned x = func_flags & F_VOIDRET;
 		if (!x)
 			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
-		opcode(OP_LXI, 0, R_HL, "lxi h,%u", v);
+		load_hl(v);
 		opcode(OP_DAD, R_SP|R_HL, R_HL, "dad sp");
+		invalidate_hl();
 		opcode(OP_SPHL, R_HL, R_SP, "sphl");
 		if (!x)
 			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
@@ -527,6 +723,9 @@ void gen_helpcall(struct node *n)
 	if (c_style(n))
 		gen_push(n->right);
 	printf("\tcall __");
+	/* TODO: once we sort out helper calling from backed only invalidate
+	   bc for "bcXX" helpers */
+	invalidate_all();
 }
 
 void gen_helptail(struct node *n)
@@ -548,8 +747,10 @@ void gen_helpclean(struct node *n)
 		s += get_size(n->right->type);
 		gen_cleanup(s);
 		/* C style ops that are ISBOOL didn't set the bool flags */
-		if (n->flags & ISBOOL)
-			printf("\txra a\n\tcmp l\n");
+		if (n->flags & ISBOOL) {
+			load_a(0);
+			opcode(OP_ADD, R_A|R_L, R_KEEP, "add l");
+		}
 	}
 }
 
@@ -571,6 +772,7 @@ void gen_switchdata(unsigned n, unsigned size)
 void gen_case_label(unsigned tag, unsigned entry)
 {
 	unreachable = 0;
+	invalidate_all();
 	opcode(OP_LABEL, 0, 0, "Sw%u_%u:", tag, entry);
 }
 
@@ -656,7 +858,7 @@ void gen_tree(struct node *n)
  *
  *	Loading into HL may not fail (return 0 is a compiler abort) but may
  *	trash DE as well. Loading into DE may fail and is not permitted
- *	to trash HL.
+ *	to trash HL. Caller is responsible for invalidations of reg caches
  */
 unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 {
@@ -699,10 +901,13 @@ unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 	}
 	/* Byte load is shorter inline for most cases */
 	if (size == 1 && (!optsize || v >= LWDIRECT || to_de)) {
-		if (to_de)
+		if (to_de) {
 			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
-		opcode(OP_LXI, 0, R_HL, "lxi h,%u", v);
+			invalidate_hl();	/* Until we do de tracking */
+		}
+		load_hl(v);
 		opcode(OP_DAD, R_SP|R_HL, R_HL, "dad sp");
+		invalidate_hl();
 		opcode(OP_MOV, R_HL|R_M, R_L, "mov l,m");
 		if (to_de)
 			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
@@ -711,8 +916,9 @@ unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 	/* Longer reach for 8085 is via addition games, but only for HL
 	   as lhlx requires we use DE and HL */
 	if (cpu == 8085 && size == 2 && !to_de) {
-		opcode(OP_LXI, 0, R_HL, "lxi h,%u", WORD(v));
+		load_hl(v);
 		opcode(OP_DAD, R_SP|R_HL, R_HL, "dad sp");
+		invalidate_hl();
 		opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 		opcode(OP_LHLX, R_DE|R_M, R_HL, "lhlx");
 		return 1;
@@ -803,6 +1009,9 @@ static unsigned access_direct_b(struct node *n)
 /*
  *	Get something that passed the access_direct check into de. Could
  *	we merge this with the similar hl one in the main table ?
+ *
+ *	Caller is responsible for reg track. Will eventually need to do some
+ *	invalidating here for the borrowed DE cases
  */
 
 static unsigned load_r_with(const char r, struct node *n, unsigned mask)
@@ -842,6 +1051,7 @@ static unsigned load_r_with(const char r, struct node *n, unsigned mask)
 			return 0;
 		else if (r == 'h') {
 			opcode(OP_LHLD, R_MEM, R_HL, "lhld T%u+%u", n->val2, v);
+			set_hl_node(n);
 			return 1;
 		} else if (r == 'd') {
 			/* We know it is int or pointer */
@@ -871,7 +1081,11 @@ static unsigned load_r_with(const char r, struct node *n, unsigned mask)
 static unsigned load_bc_with(struct node *n)
 {
 	/* No lref direct to BC option for now */
-	return load_r_with('b', n, R_BC);
+	if (load_r_with('b', n, R_BC)) {
+		set_bc_node(n);
+		return 1;
+	}
+	return 0;
 }
 
 static unsigned load_de_with(struct node *n)
@@ -883,9 +1097,18 @@ static unsigned load_de_with(struct node *n)
 
 static unsigned load_hl_with(struct node *n)
 {
-	if (n->op == T_LREF)
-		return gen_lref(n->value + sp, 2, 0);
-	return load_r_with('h', n, R_HL);
+	if (n->op == T_LREF) {
+		if (gen_lref(n->value + sp, 2, 0)) {
+			set_hl_node(n);
+			return 1;
+		}
+		return 0;
+	}
+	if (load_r_with('h', n, R_HL)) {
+		set_hl_node(n);
+		return 1;
+	}
+	return 0;
 }
 
 static unsigned load_a_with(struct node *n)
@@ -893,7 +1116,7 @@ static unsigned load_a_with(struct node *n)
 	switch(n->op) {
 	case T_CONSTANT:
 		/* We know this is not a long from the checks above */
-		opcode(OP_MVI, 0, R_A, "mvi a,%u", BYTE(n->value));
+		load_a(BYTE(n->value));
 		break;
 	case T_NREF:
 		opcode(OP_LDA, R_MEM, R_A, "lda _%s+%u", namestr(n->snum), WORD(n->value));
@@ -906,9 +1129,11 @@ static unsigned load_a_with(struct node *n)
 		break;
 	case T_LREF:
 		/* We don't want to trash HL as we may be doing an HL:A op */
+		/* TODO: need de tracking and xchg helpers */
 		opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
-		opcode(OP_LXI, 0, R_HL, "lxi h,%u", WORD(n->value));
+		load_hl(n->value);
 		opcode(OP_DAD, R_HL|R_SP, R_HL, "dad sp");
+		invalidate_hl();
 		opcode(OP_MOV, R_HL|R_M, R_A, "mov a,m");
 		opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 		break;
@@ -925,20 +1150,23 @@ static void repeated_op(const char *o, unsigned n)
 		printf("\t%s\n", o);
 }
 
-static void loadhl(struct node *n, unsigned s)
+static void hl_from_reg(struct node *n, unsigned s)
 {
+	/* volatile ?? */
 	if (n && (n->flags & NORETURN))
 		return;
 	opcode(OP_MOV, R_C, R_L, "mov l,c");
 	if (s == 2)
 		opcode(OP_MOV, R_B, R_H, "mov h,b");
+	set_hl_bc();
 }
 
-static void loadbc(unsigned s)
+static void bc_to_reg(unsigned s)
 {
 	opcode(OP_MOV, R_L, R_C, "mov c,l");
 	if (s == 2)
 		opcode(OP_MOV, R_H, R_B, "mov b,h");
+	set_bc_hl();
 }
 
 /* We use "DE" as a name but A as register for 8bit ops... probably ought to rework one day */
@@ -1040,10 +1268,12 @@ static unsigned can_fast_mul(unsigned s, unsigned n)
 static void gen_fast_mul(unsigned s, unsigned n)
 {
 
-	if (n == 0)
-		opcode(OP_LXI, 0, R_HL, "lxi h,0");
-	else
+	if (n == 0) {
+		load_hl(0);
+	} else {
+		invalidate_hl();
 		write_mul(n);
+	}
 }
 
 static unsigned gen_fast_div(unsigned s, unsigned n)
@@ -1073,6 +1303,7 @@ static unsigned gen_fast_div(unsigned s, unsigned n)
 		opcode(OP_ARHL, R_HL,  R_HL, "arhl");
 		n >>= 1;
 	}
+	invalidate_hl();
 	return 1;
 }
 
@@ -1085,6 +1316,7 @@ static unsigned gen_fast_udiv(unsigned n, unsigned s)
 	if (n == 256) {
 		opcode(OP_MOV, R_H, R_L, "mov l,h");
 		opcode(OP_MVI, 0, R_H, "mvi h,0");
+		invalidate_hl();
 		return 1;
 	}
 	return 0;
@@ -1101,6 +1333,8 @@ static unsigned gen_logicc(struct node *n, unsigned s, const char *op, unsigned 
 	/* If we are trying to be compact only inline the short ones */
 	if (optsize && ((h != 0 && h != 255) || (l != 0 && l != 255)))
 		return 0;
+
+	invalidate_hl();
 
 	if (s == 2) {
 		if (h == 0) {
@@ -1142,11 +1376,12 @@ static unsigned gen_fast_remainder(unsigned n, unsigned s)
 	if (s != 2)
 		return 0;
 	if (n == 1) {
-		opcode(OP_LXI, 0, R_HL, "lxi h,0");
+		load_hl(0);
 		return 1;
 	}
 	if (n == 256) {
 		opcode(OP_MVI, 0, R_H, "mvi h,0\n");
+		hl_value &= 0xFF;
 		return 1;
 	}
 	if (n & (n - 1))
@@ -1198,9 +1433,8 @@ unsigned gen_direct(struct node *n)
 		else
 			printf("\tshld ");
 		printf("_%s+%u\n", namestr(n->snum), WORD(n->value));
-			return 1;
-		/* TODO 4/8 for long etc */
-		return 0;
+		set_hl_node(n);
+		return 1;
 	case T_LBSTORE:
 		if (s > 2)
 			return 0;
@@ -1209,9 +1443,10 @@ unsigned gen_direct(struct node *n)
 		else
 			printf("\tshld");
 		printf(" T%u+%u\n", n->val2, v);
+		set_hl_node(n);
 		return 1;
 	case T_RSTORE:
-		loadbc(s);
+		bc_to_reg(s);
 		return 1;
 	case T_EQ:
 		/* The address is in HL at this point */
@@ -1236,6 +1471,8 @@ unsigned gen_direct(struct node *n)
 				opcode(OP_MOV, R_A|R_HL, R_MEM, "mov m,a");
 				if (!nr)
 					opcode(OP_MOV, R_A, R_L, "mov l,a");
+				else
+					invalidate_hl();
 			}
 			return 1;
 		}
@@ -1250,9 +1487,17 @@ unsigned gen_direct(struct node *n)
 					repeated_op("inr l", v);
 				else
 					repeated_op("inx h", v);
+				hl_value += v;
+				return 1;
+			}
+			if (s <= 2) {
+				opcode(OP_LXI, 0, R_DE, "lxi d,%u", v);
+				opcode(OP_DAD, R_HL|R_DE, R_HL, "dad d");
+				hl_value += v;
 				return 1;
 			}
 		}
+		invalidate_hl();
 		if (s <= 2) {
 			/* LHS is in HL at the moment, end up with the result in HL */
 			if (s == 1) {
@@ -1280,12 +1525,15 @@ unsigned gen_direct(struct node *n)
 					repeated_op("dcr l", v);
 				else
 					repeated_op("dcx h", v);
+				hl_value -= v;
 				return 1;
 			}
 			opcode(OP_LXI, 0, R_DE, "lxi d,%u", 65536 - v);
 			opcode(OP_DAD, R_HL|R_DE, R_HL, "dad d");
+			hl_value -= v;
 			return 1;
 		}
+		invalidate_hl();
 		if (cpu == 8085 && s <= 2)  {
 			/* Shortcut subtracting register from working value */
 			if (r->op == T_REG) {
@@ -1307,6 +1555,8 @@ unsigned gen_direct(struct node *n)
 				}
 				opcode(OP_DSUB, R_BC|R_HL, R_HL, "dsub");
 				opcode(OP_POP, R_SP, R_BC, "pop b");
+				/* TODO save/restore BC state */
+				invalidate_bc();
 				sp -= 2;
 				return 1;
 			}
@@ -1362,6 +1612,7 @@ unsigned gen_direct(struct node *n)
 	case T_BANGEQ:
 		return gen_compc("cmpne", n, r, 0);
 	case T_LTLT:
+		invalidate_hl();
 		if (s <= 2 && r->op == T_CONSTANT && r->value <= 8) {
 			if (r->value < 8)
 				repeated_op("dad h", r->value);
@@ -1373,6 +1624,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return gen_deop("shlde", n, r, 0);
 	case T_GTGT:
+		invalidate_hl();
 		/* >> by 8 unsigned */
 		if (s == 2 && (n->type & UNSIGNED) && r->op == T_CONSTANT && r->value == 8) {
 			opcode(OP_MOV, R_H, R_L, "mov l,h");
@@ -1393,6 +1645,7 @@ unsigned gen_direct(struct node *n)
 		if (!(n->flags & NORETURN))
 			return 0;
 	case T_PLUSEQ:
+		invalidate_hl();
 		if (s == 1) {
 			if (r->op == T_CONSTANT && r->value < 4 && nr)
 				repeated_op("inr m", r->value);
@@ -1411,7 +1664,7 @@ unsigned gen_direct(struct node *n)
 				repeated_op("inr m", r->value >> 8);
 				return 1;
 			}
-			opcode(OP_MVI, 0, R_A, "mvi a,%u", r->value >> 8);
+			load_a(r->value >> 8);
 			opcode(OP_ADD, R_MEM|R_HL|R_A, R_A, "add m");
 			opcode(OP_MOV, R_A|R_HL, R_MEM, "mov m,a");
 			return 1;
@@ -1421,6 +1674,7 @@ unsigned gen_direct(struct node *n)
 		if (!(n->flags & NORETURN))
 			return 0;
 	case T_MINUSEQ:
+		invalidate_hl();
 		if (s == 1) {
 			/* Shortcut for small 8bit values */
 			if (r->op == T_CONSTANT && r->value < 4 && (n->flags & NORETURN)) {
@@ -1447,6 +1701,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return gen_deop("minuseqde", n, r, 0);
 	case T_ANDEQ:
+		invalidate_hl();
 		if (s == 1) {
 			if (load_a_with(r) == 0)
 				return 0;
@@ -1457,6 +1712,7 @@ unsigned gen_direct(struct node *n)
 		}
 		return gen_deop("andeqde", n, r, 0);
 	case T_OREQ:
+		invalidate_hl();
 		if (s == 1) {
 			if (load_a_with(r) == 0)
 				return 0;
@@ -1467,12 +1723,14 @@ unsigned gen_direct(struct node *n)
 		}
 		return gen_deop("oreqde", n, r, 0);
 	case T_HATEQ:
+		invalidate_hl();
 		if (s == 1) {
 			if (load_a_with(r) == 0)
 				return 0;
-			printf("\txra m\n\tmov m,a\n");
+			load_a(0);
+			opcode(OP_MOV, R_A, R_M, "mov m,a");
 			if (!(n->flags & NORETURN))
-				printf("\tmov l,a\n");
+				opcode(OP_MOV, R_A, R_L, "mov l,a");
 			return 1;
 		}
 		return gen_deop("xoreqde", n, r, 0);
@@ -1527,7 +1785,7 @@ static void reg_logic(struct node *n, unsigned s, unsigned op, const char *i)
 		printf("\tmov a,c\n\t%s c\n\tmov c,a\nmov l,a\n", i + 2);
 	} else {
 		helper(n, i);
-		loadhl(n, s);
+		hl_from_reg(n, s);
 	}
 }
 /*
@@ -1586,6 +1844,18 @@ unsigned gen_shortcut(struct node *n)
 		else
 			printf("\tmov a,l\n\tsta");
 		printf(" _%s+%u\n", namestr(n->snum), WORD(n->value));
+		set_hl_node(n);
+		return 1;
+	}
+	if (n->op == T_LBSTORE && s <= 2) {
+		codegen_lr(r);
+		/* Expression result is now in HL */
+		if (s == 2)
+			printf("\tshld");
+		else
+			printf("\tmov a,l\n\tsta");
+		printf(" T%u+%u\n", n->val2, WORD(n->value));
+		set_hl_node(n);
 		return 1;
 	}
 	/* Locals we can do on 8085, 8080 is doable but messy - so not worth it */
@@ -1593,10 +1863,13 @@ unsigned gen_shortcut(struct node *n)
 		if (n->value + sp == 0 && s == 2) {
 			/* The one case 8080 is worth doing */
 			codegen_lr(r);
-			if (n->flags & NORETURN)
+			if (n->flags & NORETURN) {
 				printf("\txthl\n");
-			else
+				invalidate_hl();
+			} else {
 				printf("\tpop psw\n\tpush h\n");
+				set_hl_node(n);
+			}
 			return 1;
 		}
 		if (cpu == 8085 && n->value + sp < 255) {
@@ -1606,6 +1879,7 @@ unsigned gen_shortcut(struct node *n)
 				printf("\tshlx\n");
 			else
 				printf("\tmov a,l\n\tstax d\n");
+			set_hl_node(n);
 			return 1;
 		}
 	}
@@ -1627,9 +1901,12 @@ unsigned gen_shortcut(struct node *n)
 		printf("\tstax b\n");	/* Do in case volatile */
 		if (!nr && !in_l)
 			opcode(OP_MOV, R_A, R_L, "mov l,a");
+		if (nr && !in_l)
+			invalidate_hl();
 		return 1;
 	}
 	if (n->op == T_AND && l->op == T_RREF) {
+		invalidate_hl();
 		if (s == 1) {
 			if (!load_a_with(r))
 				return 0;
@@ -1643,7 +1920,7 @@ unsigned gen_shortcut(struct node *n)
 			if ((v & 0xFF00) == 0x0000)
 				opcode(OP_MVI, 0, R_H, "mvi h,0");
 			else if ((v & 0xFF00) != 0xFF00) {
-				opcode(OP_MVI, 0, R_A, "mvi a, %u", v >> 8);
+				load_a(v >> 8);
 				opcode(OP_ANA, R_B, R_A, "ana b");
 				opcode(OP_MOV, R_A, R_H, "mov h,a");
 			} else
@@ -1652,7 +1929,7 @@ unsigned gen_shortcut(struct node *n)
 			if ((v & 0xFF) == 0x00)
 				opcode(OP_MVI, 0, R_L, "mvi l,0");
 			else if ((v & 0xFF) != 0xFF) {
-				opcode(OP_MVI, 0, R_A, "mvi a, %u", v & 0xFF);
+				load_a(v & 0xFF);
 				opcode(OP_ANA, R_C, R_A, "ana c");
 				opcode(OP_MOV, R_A, R_L, "mov l,a");
 			} else
@@ -1662,6 +1939,7 @@ unsigned gen_shortcut(struct node *n)
 		}
 	}
 	if (n->op == T_OR && l->op == T_RREF) {
+		invalidate_hl();
 		if (s == 1) {
 			if (!load_a_with(r))
 				return 0;
@@ -1675,14 +1953,14 @@ unsigned gen_shortcut(struct node *n)
 			if ((v & 0xFF00) == 0xFF00)
 				opcode(OP_MVI, 0, R_H, "mvi h,0xff");
 			else if (v & 0xFF00) {
-				opcode(OP_MVI, 0, R_A, "mvi a, %u", v >> 8);
+				load_a(v >> 8);
 				opcode(OP_ORA, R_B, R_A, "ora b");
 				opcode(OP_MOV, R_A, R_H, "mov h,a");
 			}
 			if ((v & 0xFF) == 0xFF)
 				opcode(OP_MVI, 0, R_L, "mvi l,0xff");
 			else if (v & 0xFF) {
-				opcode(OP_MVI, 0, R_A, "mvi a, %u", v & 0xFF);
+				load_a(v & 0xFF);
 				opcode(OP_ORA, R_C, R_A, "ora c");
 				opcode(OP_MOV, R_A, R_L, "mov l,a");
 			}
@@ -1698,7 +1976,7 @@ unsigned gen_shortcut(struct node *n)
 		switch(n->op) {
 		case T_PLUSPLUS:
 			if (reg_canincdec(r, s, v)) {
-				loadhl(n, s);
+				hl_from_reg(n, s);
 				reg_incdec(s, v);
 				return 1;
 			}
@@ -1713,7 +1991,7 @@ unsigned gen_shortcut(struct node *n)
 				if (nr)
 					return 1;
 				if (n->op == T_PLUSEQ) {
-					loadhl(n, s);
+					hl_from_reg(n, s);
 				}
 			} else {
 				/* Amount to add into HL */
@@ -1731,13 +2009,17 @@ unsigned gen_shortcut(struct node *n)
 		case T_MINUSMINUS:
 			if (!(n->flags & NORETURN)) {
 				if (reg_canincdec(r, s, -v)) {
-					loadhl(n, s);
+					hl_from_reg(n, s);
 					reg_incdec(s, -v);
 					return 1;
 				}
 				codegen_lr(r);
 				if (s == 1) {
-					printf("\tmov a,c\n\tsub l\n\tmov l,c\n\tmov c,a\n");
+					opcode(OP_MOV, R_C, R_A, "mov a,c");
+					opcode(OP_SUB, R_L|R_A, R_A, "sub l");
+					opcode(OP_MOV, R_C, R_L, "mov l,c");
+					opcode(OP_MOV, R_A, R_C, "mov c,a");
+					invalidate_hl();
 					return 1;
 				}
 				/* Not worth messing with inlined constants as we need the original value */
@@ -1749,20 +2031,21 @@ unsigned gen_shortcut(struct node *n)
 		case T_MINUSEQ:
 			if (reg_canincdec(r, s, -v)) {
 				reg_incdec(s, -v);
-				loadhl(n, s);
+				hl_from_reg(n, s);
 				return 1;
 			}
 			if (r->op == T_CONSTANT) {
-				opcode(OP_LXI, 0, R_HL, "lxi h,%u", -v);
+				load_hl(-v);
 				opcode(OP_DAD, R_HL|R_BC, R_HL, "dad b");
-				loadbc(s);
+				invalidate_hl();
+				bc_to_reg(s);
 				return 1;
 			}
 			/* Get the subtraction value into HL */
 			codegen_lr(r);
 			helper(n, "bcsub");
 			/* Result is only left in BC reload if needed */
-			loadhl(n, s);
+			hl_from_reg(n, s);
 			return 1;
 		/* For now - we can do better - maybe just rewrite them into load,
 		   op, store ? */
@@ -1770,9 +2053,9 @@ unsigned gen_shortcut(struct node *n)
 			/* TODO: constant multiply */
 			if (r->op == T_CONSTANT) {
 				if (can_fast_mul(s, v)) {
-					loadhl(NULL, s);
+					hl_from_reg(NULL, s);
 					gen_fast_mul(s, v);
-					loadbc(s);
+					bc_to_reg(s);
 					return 1;
 				}
 			}
@@ -1793,38 +2076,38 @@ unsigned gen_shortcut(struct node *n)
 			if (r->op == T_CONSTANT) {
 				if (s == 1 && v >= 8) {
 					opcode(OP_MVI, 0, R_C, "mvi c,0");
-					loadhl(n, s);
+					hl_from_reg(n, s);
 					return 1;
 				}
 				if (s == 1) {
 					printf("\tmov a,c\n");
 					repeated_op("add a", v);
 					printf("\tmov c,a\n");
-					loadhl(n, s);
+					hl_from_reg(n, s);
 					return 1;
 				}
 				/* 16 bit */
 				if (v >= 16) {
-					opcode(OP_LXI, 0, R_B, "lxi b,0");
-					loadhl(n, s);
+					load_bc(0);
+					hl_from_reg(n, s);
 					return 1;
 				}
 				if (v == 8) {
 					printf("\tmov b,c\n\tmvi c,0\n");
-					loadhl(n, s);
+					hl_from_reg(n, s);
 					return 1;
 				}
 				if (v > 8) {
 					printf("\tmov a,c\n");
 					repeated_op("add a", v - 8);
 					printf("\tmov b,a\nvi c,0\n");
-					loadhl(n, s);
+					hl_from_reg(n, s);
 					return 1;
 				}
 				/* 16bit full shifting */
-				loadhl(NULL, s);
+				hl_from_reg(NULL, s);
 				repeated_op("dad h", v);
-				loadbc(s);
+				bc_to_reg(s);
 				return 1;
 			}
 			codegen_lr(r);
@@ -1834,23 +2117,23 @@ unsigned gen_shortcut(struct node *n)
 			if (r->op == T_CONSTANT) {
 				if (v >= 8 && s == 1) {
 					opcode(OP_MVI, 0, R_C, "mvi c,0");
-					loadhl(n, s);
+					hl_from_reg(n, s);
 					return 1;
 				}
 				if (v >= 16) {
-					opcode(OP_LXI, 0, R_BC, "lxi b,0");
-					loadhl(n, s);
+					load_bc(0);
+					hl_from_reg(n, s);
 					return 1;
 				}
 				if (v == 8 && (n->type & UNSIGNED)) {
 					printf("\tmov c,b\nmvi b,0\n");
-					loadhl(n, s);
+					hl_from_reg(n, s);
 					return 1;
 				}
 				if (s == 2 && !(n->type & UNSIGNED) && cpu == 8085 && v < 2 + 4 * opt) {
-					loadhl(NULL,s);
+					hl_from_reg(NULL,s);
 					repeated_op("arhl", v);
-					loadbc(s);
+					bc_to_reg(s);
 					return 1;
 				}
 			}
@@ -1921,7 +2204,10 @@ static unsigned gen_cast(struct node *n)
 	/* Don't do the harder ones */
 	if (!(rt & UNSIGNED) || ls > 2)
 		return 0;
-	opcode(OP_MVI, 0, R_H, "mvi h,0");
+	if (hl_valid == 1)
+		load_hl(hl_value & 0xFF);
+	else
+		opcode(OP_MVI, 0, R_H, "mvi h,0");
 	return 1;
 }
 
@@ -1931,6 +2217,7 @@ unsigned gen_node(struct node *n)
 	unsigned v;
 	char *name;
 	unsigned nr = n->flags & NORETURN;
+	unsigned se = n->flags & SIDEEFFECT;
 	/* We adjust sp so track the pre-adjustment one too when we need it */
 
 	v = n->value;
@@ -1947,29 +2234,55 @@ unsigned gen_node(struct node *n)
 	switch (n->op) {
 		/* Load from a name */
 	case T_NREF:
+		if (!se) {
+			if (nr)
+				return 1;
+			if (hl_contains(n))
+				return 1;
+			if (bc_contains(n)) {
+				hl_from_reg(n, size);
+				return 1;
+			}
+		}
 		if (size == 1) {
 			opcode(OP_LDA, R_M, R_A, "lda _%s+%u", namestr(n->snum), v);
 			opcode(OP_MOV, R_A, R_L, "mov l,a");
+			set_hl_node(n);
 		} else if (size == 2) {
 			opcode(OP_LHLD, R_M, R_HL, "lhld _%s+%u\n", namestr(n->snum), v);
+			set_hl_node(n);
 			return 1;
 		} else if (size == 4) {
 			printf("\tlhld _%s+%u\n", namestr(n->snum), v + 2);
 			printf("\tshld __hireg\n");
 			printf("\tlhld _%s+%u\n", namestr(n->snum), v);
+			set_hl_node(n);
 		} else
 			error("nrb");
 		return 1;
 	case T_LBREF:
+		if (!se) {
+			if (nr)
+				return 1;
+			if (hl_contains(n))
+				return 1;
+			if (bc_contains(n)) {
+				hl_from_reg(n, size);
+				return 1;
+			}
+		}
 		if (size == 1) {
 			printf("\tlda T%u+%u\n", n->val2, v);
 			printf("\tmov l,a\n");
+			set_hl_node(n);
 		} else if (size == 2) {
 			printf("\tlhld T%u+%u\n", n->val2, v);
+			set_hl_node(n);
 		} else if (size == 4) {
 			printf("\tlhld T%u+%u\n", n->val2, v + 2);
 			printf("\tshld __hireg\n");
 			printf("\tlhld T%u+%u\n", n->val2, v);
+			set_hl_node(n);
 		} else
 			error("lbrb");
 		return 1;
@@ -1977,18 +2290,42 @@ unsigned gen_node(struct node *n)
 		/* We are loading something then not using it, and it's local
 		   so can go away */
 		/* printf(";L sp %u %s(%ld)\n", sp, namestr(n->snum), n->value); */
-		if (nr)
-			return 1;
+		if (!se) {
+			if (nr)
+				return 1;
+			if (hl_contains(n))
+				return 1;
+			if (bc_contains(n)) {
+				hl_from_reg(n, size);
+				return 1;
+			}
+		}
 		v += sp;
-		return gen_lref(v, size, 0);
+		if (gen_lref(v, size, 0)) {
+			set_hl_node(n);
+			return 1;
+		}
+		return 0;
 	case T_RREF:
 		if (nr)
 			return 1;
-		opcode(OP_MOV, R_C, R_L, "mov l,c");
+		if (bc_contains(n))
+			return 1;
 		if (size == 2)
-			opcode(OP_MOV, R_B, R_H, "mov h,b");
+			hl_from_reg(n, size);
+		else {
+			/* We could do better for constants TODO */
+			opcode(OP_MOV, R_C, R_L, "mov l,c");
+			invalidate_hl();
+		}
 		return 1;
 	case T_NSTORE:
+		if (!se) {
+			if (nr)
+				return 1;
+			if (hl_contains(n))
+				return 1;
+		}
 		if (size == 4) {
 			opcode(OP_SHLD, R_HL, R_M, "shld %s+%u", namestr(n->snum), v);
 			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
@@ -1996,21 +2333,30 @@ unsigned gen_node(struct node *n)
 			opcode(OP_SHLD, R_HL, R_M, "shld %s+%u\n",
 				namestr(n->snum), v + 2);
 			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+			set_hl_node(n);
 			return 1;
 		}
-		if (size == 1)
+		if (size == 1) 
 			printf("\tmov a,l\n\tsta");
 		else
 			printf("\tshld");
 		printf(" _%s+%u\n", namestr(n->snum), v);
+		set_hl_node(n);
 		return 1;
 	case T_LBSTORE:
+		if (!se) {
+			if (nr)
+				return 1;
+			if (hl_contains(n))
+				return 1;
+		}
 		if (size == 4) {
 			printf("\tshld T%u+%u\n", n->val2, v);
 			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 			printf("\tlhld __hireg\n\tshld T%u+%u\n",
 				n->val2, v + 2);
 			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+			set_hl_node(n);
 			return 1;
 		}
 		if (size == 1) {
@@ -2018,16 +2364,25 @@ unsigned gen_node(struct node *n)
 			opcode(OP_STA, R_A, R_M, "sta T%u+%u\n", n->val2, v);
 		} else
 			opcode(OP_SHLD, R_HL, R_M, "shld T%u+%u\n", n->val2, v);
+		set_hl_node(n);
 		return 1;
 	case T_LSTORE:
 /*		printf(";L sp %u spval %u %s(%ld)\n", sp, spval, namestr(n->snum), n->value); */
+		if (!se) {
+			if (nr)
+				return 1;
+			if (hl_contains(n))
+				return 1;
+		}
 		v += sp;
 		if (v == 0 && size == 2 ) {
-			if (nr)
+			if (nr) {
 				opcode(OP_XTHL, R_SP|R_M|R_HL, R_SP|R_M|R_HL, "xthl");
-			else {
+				invalidate_hl();
+			} else {
 				opcode(OP_POP, R_SP, R_PSW|R_SP, "pop psw");
 				opcode(OP_PUSH, R_SP|R_HL, R_SP, "push h");
+				set_hl_node(n);
 			}
 			return 1;
 		}
@@ -2039,15 +2394,18 @@ unsigned gen_node(struct node *n)
 				opcode(OP_MOV, R_L, R_A, "mov a,l");
 				opcode(OP_STAX, R_DE|R_A, R_M, "stax d\n");
 			}
+			set_hl_node(n);
 			return 1;
 		}
 		if (v == 2 && size == 2) {
 			opcode(OP_POP, R_SP, R_DE|R_SP, "pop d");
-			if (nr)
+			if (nr) {
 				opcode(OP_XTHL, R_SP|R_M|R_HL, R_SP|R_M|R_HL, "xthl");
-			else {
+				invalidate_hl();
+			} else {
 				opcode(OP_POP, R_SP, R_PSW|R_SP, "pop psw");
 				opcode(OP_PUSH, R_SP|R_HL, R_SP, "push h");
+				set_hl_node(n);
 			}
 			opcode(OP_PUSH, R_SP, R_DE|R_SP, "push d");
 			return 1;
@@ -2056,26 +2414,40 @@ unsigned gen_node(struct node *n)
 		   and much slower. As these are fairly rare just inline it */
 		if (cpu == 8085 && size == 2) {
 			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
-			opcode(OP_LXI, 0, R_HL,  "lxi h,%u", WORD(v));
+			load_hl(v);
 			opcode(OP_DAD, R_HL|R_SP, R_HL, "dad sp");
+			invalidate_hl();
 			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 			opcode(OP_SHLX, R_HL|R_DE, R_M, "shlx");
+			set_hl_node(n);
 			return 1;
 		}
 		if (size == 1 && (!optsize || v >= LWDIRECT)) {
-			printf("\tmov a,l\n\tlxi h,%u\n\tdad sp\n\tmov m,a\n", WORD(v));
-			if (!nr)
+			opcode(OP_MOV, R_L, R_A, "mov a,l");
+			load_hl(v);
+			opcode(OP_DAD, R_HL|R_SP, R_HL, "dad sp");
+			invalidate_hl();
+			opcode(OP_MOV, R_A, R_M, "mov m,a");
+			if (!nr) {
 				printf("\tmov l,a\n");
+				set_hl_node(n);
+			}
 			return 1;
 		}
 		/* For -O3 they asked for it so inline the lot */
 		/* We dealt with size one above */
 		if (opt > 2 && size == 2) {
 			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
-			printf("\tlxi h,%u\n\tdad sp\n\tmov m,e\n\tinx h\n", WORD(v));
-			printf("\tmov m,d\n");
-			if (!nr)
+			load_hl(v);
+			opcode(OP_DAD, R_HL|R_SP, R_HL, "dad sp");
+			invalidate_hl();
+			opcode(OP_MOV, R_E, R_M, "mov m,e");
+			opcode(OP_INX, R_HL, R_HL, "inx h");
+			opcode(OP_MOV, R_D, R_M, "mov m,d");
+			if (!nr) {
 				opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+				set_hl_node(n);
+			}
 			return 1;
 		}
 		/* Via helper magic for compactness on 8080 */
@@ -2095,24 +2467,33 @@ unsigned gen_node(struct node *n)
 			printf("\tcall __%s\n\t.byte %u\n", name, v + 2);
 		else
 			printf("\tcall __%sw\n\t.word %u\n", name, v + 2);
+		set_hl_node(n);
 		return 1;
 	case T_RSTORE:
-		loadbc(size);
+		bc_to_reg(size);
 		return 1;
 		/* Call a function by name */
 	case T_CALLNAME:
 		opcode(OP_CALL, 0, R_BC|R_DE|R_HL|R_PSW, "call _%s+%u", namestr(n->snum), v);
+		invalidate_all();
 		return 1;
 	case T_EQ:
+		flush_writeback();
 		if (size == 2) {
+			/* TODO: DE tracking will clean up lots */
 			if (cpu == 8085) {
 				opcode(OP_POP, R_SP, R_SP|R_DE, "pop d");
 				opcode(OP_SHLX, R_DE|R_HL, R_M, "shlx");
 			} else {
 				opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
-				printf("\tpop h\n\tmov m,e\n\tinx h\n\tmov m,d\n");
-				if (!(nr))
+				opcode(OP_POP, 0, R_HL, "pop h");
+				opcode(OP_MOV, R_E, R_M, "mov m,e");
+				opcode(OP_INX, R_HL, R_HL, "inx h");
+				opcode(OP_MOV, R_D, R_M, "mov m,d");
+				if (!nr)
 					opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+				else
+					invalidate_hl();
 			}
 			return 1;
 		}
@@ -2120,19 +2501,27 @@ unsigned gen_node(struct node *n)
 			opcode(OP_POP, R_SP, R_SP|R_DE, "pop d");
 			opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
 			opcode(OP_MOV, R_E, R_M|R_HL, "mov m,e");
-			if (!(n->flags & NORETURN))
+			if (!nr)
 				opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
+			else
+				invalidate_hl();
 			return 1;
 		}
 		break;
 	case T_RDEREF:
 		/* RREFs on 8080 will always be byte pointers */
-		/* Can't get rid of the ldax until we have proper volatiles */
+		if (nr && !se)
+			return 1;
 		opcode(OP_LDAX, R_M|R_BC, R_A, "ldax b");
-		if (!(n->flags & NORETURN))
+		if (!(n->flags & NORETURN)) {
 			opcode(OP_MOV, R_A, R_L, "mov l,a");
+			invalidate_hl();
+		}
 		return 1;
 	case T_DEREF:
+		if (nr && !se)
+			return 1;
+		invalidate_hl();
 		if (size == 2) {
 			if (cpu == 8085) {
 				opcode(OP_XCHG, R_DE|R_HL, R_DE|R_HL, "xchg");
@@ -2163,16 +2552,19 @@ unsigned gen_node(struct node *n)
 		break;
 	case T_FUNCCALL:
 		opcode(OP_CALL, R_HL, R_BC|R_DE|R_HL|R_PSW, "\tcall __callhl\n");
+		invalidate_all();
 		return 1;
 	case T_LABEL:
 		if (nr)
 			return 1;
 		/* Used for const strings and local static */
 		opcode(OP_LXI, 0, R_HL, "lxi h,T%u+%u", n->val2, v);
+		set_hl_node(n);
 		return 1;
 	case T_CONSTANT:
 		if (nr)
 			return 1;
+		set_hl_value(v);
 		switch(size) {
 		case 4:
 			opcode(OP_LXI, 0, R_HL, "lxi h,%u\n", ((n->value >> 16) & 0xFFFF));
@@ -2189,8 +2581,8 @@ unsigned gen_node(struct node *n)
 		if (nr)
 			return 1;
 		opcode(OP_LXI, 0, R_HL, "lxi h, _%s+%u", namestr(n->snum), v);
+		set_hl_node(n);
 		return 1;
-	/* FIXME: LBNAME ?? */
 	case T_LOCAL:
 		if (nr)
 			return 1;
@@ -2203,6 +2595,7 @@ unsigned gen_node(struct node *n)
 			opcode(OP_LXI, 0, R_HL, "lxi h,%u", v);
 			opcode(OP_DAD, R_SP|R_HL, R_HL, "dad sp");
 		}
+		set_hl_node(n);
 		return 1;
 	case T_ARGUMENT:
 		if (nr)
@@ -2216,6 +2609,7 @@ unsigned gen_node(struct node *n)
 			opcode(OP_LXI, 0, R_HL, "lxi h,%u", v);
 			opcode(OP_DAD, R_SP|R_HL, R_HL, "dad sp");
 		}
+		set_hl_node(n);
 		return 1;
 	case T_REG:
 		if (nr)
@@ -2231,6 +2625,7 @@ unsigned gen_node(struct node *n)
 		if (size <= 2) {
 			opcode(OP_POP, R_SP, R_SP|R_DE, "pop d");
 			opcode(OP_DAD, R_HL|R_DE, R_HL, "dad d");
+			invalidate_hl();
 			return 1;
 		}
 		break;

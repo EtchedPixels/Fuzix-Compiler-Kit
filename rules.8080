@@ -35,84 +35,11 @@
 	pop h
 =
 
-	shld _%1
-;
-	lhld _%1
-=
-	shld _%1
-
-	lhld _%1
-	shld _%2
-;
-	lhld _%1
-=
-	lhld _%1
-	shld _%2
-
-	lxi h,%1
-	shld %2
-;
-	lxi h,%1
-=
-	lxi h,%1
-	shld %2
-
-        lxi h,%1
-        shld %2
-;
-        lxi h,%1
-=
-	lxi h,%1
-	shld %2
-
 	xchg
 	pop d
 	xchg
 =
 	pop h
-
-# Clean up trivial multiple loads - often from assignments
-	lxi h,%1
-	shld %2
-	lxi h,%1
-=
-	lxi h,%1
-	shld %2
-
-	lxi h,%1
-	shld %2
-;
-	lxi h,%1
-=
-	lxi h,%1
-	shld %2
-
-	lxi h,%1
-	shld %2
-	shld %3
-;
-	lxi h,%1
-=
-	lxi h,%1
-	shld %2
-	shld %3
-
-# Trivial byte cleanup
-	mvi a,0
-	mov m,a
-	mov l,a
-=
-	xra a
-	mov m,a
-	mov l,a
-
-# Simple stack optimize for pushes of same
-	lxi h,%1
-	push h
-	lxi h,%1
-=
-	lxi h,%1
-	push h
 
 # Compare 0 cast from char
 	mvi h,0
@@ -145,21 +72,21 @@
 	lxi h,0
 
 # Optimize repeated call pattern (the ; matters here)
-	pop d
-;
-	mvi l,%1
-	push h
-=
-	mvi l,%1
-	xthl
-
-	pop d
-;
-	lxi h,%1
-	push h
-=
-	lxi h,%1
-	xthl
+#	pop d
+#;
+#	mvi l,%1
+#	push h
+#=
+#	mvi l,%1
+#	xthl
+#
+#	pop d
+#;
+#	lxi h,%1
+#	push h
+#=
+#	lxi h,%1
+#	xthl
 
 # comparisons with a cast when not to zero
 	mvi h,0
@@ -389,39 +316,19 @@ L%1_n:
 =
 	lxi d,%1
 
-	call _stword%1
-;
-	call _ldword%1
-=
-	call _stword%1
-
-	shld T%1
-;
-	lhld T%1
-=
-	shld T%1
-
-	lhld T%1
-	shld T%2
-;
-	lhld T%1
-=
-	lhld T%1
-	shld T%2
-
 	mov l,a
 	call boolc
 =
 	call boolc_a
 
 # Register tidy
-	mov l,c
-	mov b,h
-	push h
-;
-=
-	push b
-;
+#	mov l,c
+#	mov h,b
+#	push h
+#;
+#=
+#	push b
+#;
 
 # Silly stuff
 	inx h
@@ -466,22 +373,22 @@ L%1_n:
 
 # Byte deref for condition shorteners (the ; check means the accumulator
 # is no longer live
-	mov l,m
-	mov a,h
-	ora l
-;
-=
-	mov a,m
-	ora a
-
-	mov l,m
-	mov a,l
-	ora a
-;
-=
-	mov a,m
-	ora a
-
+#	mov l,m
+#	mov a,h
+#	ora l
+#;
+#=
+#	mov a,m
+#	ora a
+#
+#	mov l,m
+#	mov a,l
+#	ora a
+#;
+#=
+#	mov a,m
+#	ora a
+#
 #
 # Fake up inline functions for some cases. Speeds up some I/O stuff a fair
 # bit without going into asm or adding weird __sfr stuff
