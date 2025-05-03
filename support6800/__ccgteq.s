@@ -15,6 +15,7 @@ __ccgteq:
 	tsx
 	suba	2,x
 	bgt	false
+	blt	true
 cclow:
 	subb	3,x
 	bhi	false
