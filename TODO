@@ -1,12 +1,14 @@
 
 General
-DONE -	Pass cpu sub opts to cc1 (65c816 registers depend on subtype
-	for example)
+DONE -	Simple tag list for tracking global/static volatiles by symnum
+DONE -	Fix return with SIDEEFFECT funny (should always have a return anyway)
+-	Sort out and implement !se stuff for volatiles generally
+-	Pass the implied size of a constant so that we can handle the -32768
+	case correctly ?
 -	Rework 8080/5/Z80 to use tree based rewriting when it can and cut
         optimizer file down. Need some kind of mini peephole in the backends
 	for speed
 -	Allow private peephole rules so we can do generic Z80 rst helpers
-DONE -	Fix comparisons of longs returning long type!
 -	Divison by 0 traps in helpers ?
 - 	Why is global const data ending up .data (because .literal is strings so we'd
 	need to make them .code which might be worth it for unbanked ?)
@@ -39,7 +41,6 @@ DONE -	Fix comparisons of longs returning long type!
 	- enable registers
 
 EE200:
-DONE -	Build an ee200 emulator
 -	Start running basic tests
 -	Finish mull / div32x32 stuff
 -	Debug conditions
@@ -61,6 +62,7 @@ Nova:
 		jsr 1,1
 		.word __func2
 		popa 0
+	(tricky bit is nested calls need to clean up correctly)
 
 Z80:
 MOSTLY-	Sort out size of code
@@ -68,8 +70,6 @@ MOSTLY-	Sort out size of code
 	deal with reg args as push ix/iy/bc directly (also track some HL
 	usage so we can do stuff like ld hl,%d push hl push hl - ditto 808x)
 -	track HL ?
-DONE -	Option for no IX (or global IX ?)
-DONE -	Some kind of core code hooks for passing platform ops
 	so you can specify stuff like -mz80-noiy to target.c and backend.c
 -	Move work back over to fuzix tree and check size of pass 2
 -	Some lousy register ops still happen where RREF could be much
@@ -148,10 +148,7 @@ X1:
 -	++/-- for 1/2 bytes optimize to use inc/dec in place if
 	not needing result. Allow for offset of X so we can do
 	locals (usual case) fast.
-DONE -	Turn on LREF etc for 32bit types (and check float safe)
 	(done for those with Y not clear worth it otherwise)
-DONE -	Add floats (showing a test fail ?)
-DONE -	Track what X points to
 -	Track Y and D int values when working 32bit
 -	Optimise Y changes via INY/DEY when it makes sense
 DONE?-	++ etc should store via x but remember if d now is the value
@@ -286,6 +283,4 @@ PARTDONE - Whilst we need to be careful for side effects on * 0, we don't for an
   the return path instead of caller - would need vararg help for cleanup ?
 - 8080 rewrite  SHL(constant 1, by n) into a 1 << n node so we can gen a
   fast 1 << n (lookup table ?)
-DONE - Walk subtrees of logic ops to try and optimize bools if value not used and subnodes just
-  need cc
 - Turn !! (NOT NOT) into BOOL
