@@ -1841,6 +1841,7 @@ unsigned gen_node(register struct node *n)
 	unsigned v;
 	char *name;
 	unsigned nr = n->flags & NORETURN;
+	unsigned se = n->flags & SIDEEFFECT;
 	register struct node *r = n->right;
 
 	/* We adjust sp so track the pre-adjustment one too when we need it */
@@ -1859,6 +1860,8 @@ unsigned gen_node(register struct node *n)
 	switch (n->op) {
 		/* Load from a name */
 	case T_NREF:
+		if (nr && !se)
+			return 1;
 		name = namestr(n->snum);
 		if (size == 1)
 			printf("\tld a,(_%s+%u)\n\tld l,a\n", name, v);
@@ -1871,6 +1874,8 @@ unsigned gen_node(register struct node *n)
 		}
 		return 1;
 	case T_LBREF:
+		if (nr && !se)
+			return 1;
 		if (size == 1)
 			printf("\tld a,(T%u+%u)\n\tld l,a\n", n->val2, v);
 		else {

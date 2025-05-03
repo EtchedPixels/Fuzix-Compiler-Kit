@@ -2266,6 +2266,7 @@ unsigned gen_node(struct node *n)
 	unsigned size = get_size(n->type);
 	unsigned v;
 	unsigned nr = n->flags & NORETURN;
+	unsigned se = n->flags & SIDEEFFECT;
 
 	/* We adjust sp so track the pre-adjustment one too when we need it */
 	v = n->value;
@@ -2282,6 +2283,8 @@ unsigned gen_node(struct node *n)
 	switch (n->op) {
 		/* Load from a name */
 	case T_NREF:
+		if (nr && !se)
+			return 1;
 		if (size == 1) {
 			output("ld a,(_%s+%u)", namestr(n->snum), v);
 			return 1;
@@ -2294,6 +2297,8 @@ unsigned gen_node(struct node *n)
 			error("nrb");
 		return 1;
 	case T_LBREF:
+		if (nr && !se)
+			return 1;
 		if (size == 1) {
 			output("ld a,(T%u+%u)\n", n->val2, v);
 			return 1;

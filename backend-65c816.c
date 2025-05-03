@@ -2740,6 +2740,7 @@ unsigned gen_node(struct node *n)
 {
 	unsigned size = get_size(n->type);
 	unsigned nr = n->flags & NORETURN;
+	unsigned se = n->flags & SIDEEFFECT;
 	unsigned v = n->value;
 	struct node *r = n->right;
 
@@ -2753,10 +2754,15 @@ unsigned gen_node(struct node *n)
 	switch (n->op) {
 		/* FIXME: need to do 4 byte forms */
 	case T_NREF:
-		/* We need to do bytes properly in case they have side
-		   effects on hardware */
-		/* Need to avoid optimising existing loads until volatile is sorted */
 		if (size <= 2) {
+			if (!se && a_contains(n))
+				return 1;
+			if (!se && x_contains(n)) {
+				move_x_a();
+				return 1;
+			}
+			/* We need to do bytes properly in case they have side
+			   effects on hardware */
 			if (pri_cc(n, "lda")) {
 				set_a_node(n);
 				return 1;
@@ -2764,14 +2770,13 @@ unsigned gen_node(struct node *n)
 		}
 	case T_LBREF:
 		if (size <= 2) {
-			if (a_contains(n))
+			if (!se && a_contains(n))
 				return 1;
-			if (x_contains(n)) {
+			if (!se && x_contains(n)) {
 				move_x_a();
 				return 1;
 			}
 			if (pri_cc(n, "lda")) {
-				invalidate_mem();
 				set_a_node(n);
 				return 1;
 			}
