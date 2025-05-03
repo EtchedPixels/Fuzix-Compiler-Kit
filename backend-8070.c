@@ -201,7 +201,7 @@ void set_ea_node(struct node *n)
 	printf(";set_ea_node from %02X to %02X\n", n->op, ea_node.op);
 }
 
-unsigned is_ea_node(struct node *n)
+unsigned is_ea_node(register struct node *n)
 {
 	unsigned op;
 	if (ea_valid == 0)
@@ -210,7 +210,8 @@ unsigned is_ea_node(struct node *n)
 	printf(";is_ea_node op %04X node op %04X, val %08lX, node val %08lX\n",
 		op, ea_node.op, n->value, ea_node.value);
 	if (ea_node.op == op && ea_node.value == n->value &&
-		ea_node.type == n->type)
+		ea_node.type == n->type && ea_node.snum == n->snum &&
+		ea_node.val2 == n->val2)
 		return 1;
 	return 0;
 }
@@ -340,13 +341,6 @@ void load_ea_t(void)
 	puts("\tld ea,t");
 }
 
-unsigned free_pointer_nw(unsigned p)
-{
-	if (p == 3)
-		return 2;
-	return 3;
-}
-
 /* No space really for being clever so just alternate */
 unsigned free_pointer(void)
 {
@@ -355,10 +349,20 @@ unsigned free_pointer(void)
 	return ptr;
 }
 
+unsigned free_pointer_nw(unsigned p)
+{
+	if (p == 3)
+		return 2;
+	if (p == 2)
+		return 3;
+	return free_pointer();
+}
+
+
 /* Also need a find_ptr that turns LSTORE/LREF to LOCAL etc so we can look
    for the object pointer itself to optimise stuff like ld ea,T%u into
    ld ea,p3 */
-unsigned find_ref(struct node *n, unsigned nw, unsigned offset, int *off)
+unsigned find_ref(register struct node *n, unsigned nw, unsigned offset, int *off)
 {
 	unsigned op = n->op;
 	switch(op) {
@@ -379,9 +383,11 @@ unsigned find_ref(struct node *n, unsigned nw, unsigned offset, int *off)
 	}
 	/* TODO: if value is not quite the same check if in off range and
 	   still use it */
-	if (p_valid[0] && p_node[0].op == op && p_node[0].value == n->value)
+	if (p_valid[0] && p_node[0].op == op && p_node[0].value == n->value &&
+		p_node[0].val2 == n->val2 && p_node[0].snum == n->snum)
 		return 2;
-	if (p_valid[1] && p_node[1].op == op && p_node[1].value == n->value)
+	if (p_valid[1] && p_node[1].op == op && p_node[1].value == n->value &&
+		p_node[1].val2 == n->val2 && p_node[1].snum == n->snum)
 		return 3;
 	return 0;
 }
