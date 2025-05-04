@@ -427,3 +427,13 @@ L%1_n:
 	mov a,l
 =
 	mov l,a
+
+#	Added to undo xhtl uses when poor choice
+	xthl
+;
+	pop hl
+	push hl
+=
+;
+	pop af
+	push hl
