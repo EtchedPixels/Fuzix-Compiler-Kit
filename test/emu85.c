@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
     }
     close(fd);
     i8085_load_symbols(argv[2]);
-    i8085_reset(0);
+    i8085_reset();
     while(1)
         i8085_exec(100000);
 }
