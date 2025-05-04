@@ -119,7 +119,6 @@ static void set_hl_node(struct node *n)
 	memcpy(&hl_node, n, sizeof(hl_node));
 	hl_node.op = map_op(n->op);
 	hl_valid = 2;
-	printf(";hl node now %04X\n", hl_node.op);
 }
 
 static void set_bc_hl(void)
@@ -265,7 +264,6 @@ static void load_hl(uint16_t v)
 
 static unsigned hl_contains(register struct node *n)
 {
-	printf(";hl contains hlvalid %d\n", hl_valid);
 	if (hl_valid == 1 && n->op == T_CONSTANT && WORD(n->value) == hl_value)
 		return 1;
 	if (hl_valid == 0)
