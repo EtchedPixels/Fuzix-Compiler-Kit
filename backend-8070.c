@@ -1511,6 +1511,7 @@ unsigned gen_direct(struct node *n)
 		/* EQPLUS rewrite rule is responsible for making sure this is always possible */
 		/* Nothing to do with writing back yet but this is a write
 		   to an unknown object so we must kill any possible aliases */
+		/* TODO: do this between the logic and store */
 		flush_writeback();
 		/* Store right hand op in EA */
 		ptr = load_ptr_ea();	/* Turn EA into a pointer */
@@ -2215,6 +2216,7 @@ unsigned gen_node(struct node *n)
 		invalidate_ea();
 		ptr = load_ptr_ea();
 		load_ea_t();
+		flush_writeback();
 		if (sz == 1)
 			printf("\tst a,%u,p%u\n", n->val2, ptr);
 		else if (sz == 2)
