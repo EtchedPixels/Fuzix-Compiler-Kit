@@ -1628,6 +1628,19 @@ unsigned gen_node(struct node *n)
 		return 1;
 	case T_LABEL:
 	case T_NAME:
+		if (s == 4) {
+			if (cpu_has_y)
+				puts("\tldy #0");
+			else
+				puts("\tclr @hireg\n\tclr @hireg+1");
+			/* Now do the op on the word */
+			set_d_node(n);	/* Always works so safe to do ahead */
+			if (cpu_has_d)
+				return op16d_on_node(n, "ld", "ld", 0);
+			else
+				return op16_on_node(n, "ld", "ld", 0);
+		}
+		/* Fall through */
 	case T_LREF:
 	case T_NREF:
 	case T_LBREF:
@@ -1637,13 +1650,20 @@ unsigned gen_node(struct node *n)
 			set_d_node(n);
 			return 1;
 		}
-		if (s == 4 && cpu_has_y) {
-			op16y_on_node(n, "ld", 0);
-			op16d_on_node(n, "ld", "ld",  2);
+		if (s == 4) {
+			if (cpu_has_y)
+				op16y_on_node(n, "ld", 0);
+			else {
+				op16d_on_node(n, "ld", "ld", 0);
+				if (cpu_has_d)
+					puts("\tstd @hireg");
+				else
+					puts("\tstaa @hireg\n\tstab @hireg+1");
+			}
+			op16d_on_node(n, "ld", "ld", 2);
 			invalidate_work();
 			return 1;
 		}
-		/* TODO: 6800/3 cases for dword */
 		return 0;
 	case T_LSTORE:
 	case T_NSTORE:
