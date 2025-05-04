@@ -1790,13 +1790,12 @@ unsigned gen_direct(struct node *n)
 		return gen_compc("cmpne", n, r, 0);
 	case T_LTLT:
 		invalidate_hl();
-		if (s <= 2 && r->op == T_CONSTANT && r->value <= 8) {
-			if (r->value < 8)
-				repeated_op("dad h", r->value);
-			else {
+		if (s <= 2 && r->op == T_CONSTANT) {
+			if (r->value >= 8) {
 				opcode("mov h,l");
 				opcode("mvi l,0");
 			}
+			repeated_op("dad h", (r->value & 7));
 			return 1;
 		}
 		return gen_deop("shlde", n, r, 0);
