@@ -31,7 +31,7 @@ true:
 __cceqc:
 	sub a,2,p1
 	bz true
-	bra true
+	bra false
 
 __ccne:
 	sub ea,2,p1
