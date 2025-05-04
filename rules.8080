@@ -17,23 +17,23 @@
 	jmp %1
 
 # Trivial
-	xchg
-	xchg
-=
-
-	xchg
-;
-	xchg
-=
-
-	push h
-	pop h
-=
-
-	push h
-;
-	pop h
-=
+#	xchg
+#	xchg
+#=
+#
+#	xchg
+#;
+#	xchg
+#=
+#
+#	push h
+#	pop h
+#=
+#
+#	push h
+#;
+#	pop h
+#=
 
 	xchg
 	pop d
