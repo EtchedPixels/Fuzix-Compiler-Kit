@@ -102,8 +102,10 @@ struct node *primary(void)
 		struct symbol *sym = find_symbol(name, 0);
 		/* Weird case you can call a function you've not declared. This
 		   makes it int f() */
-		if (func && sym == NULL)
+		if (func && sym == NULL) {
+			warning("undeclared function prototype");
 			sym = update_symbol_by_name(name, S_EXTERN, deffunctype);
+		}
 		/* You can't size fields and structs by field/struct name without 
 		   the type specifier */
 		if (sym == NULL) {
