@@ -2,31 +2,28 @@
 ;	The 8070 does have both OV and CY flags but they are clunky to
 ;	access
 ;
-;	TOS < EA
+;	@tmp < EA
 ;
-	.export __cclt
+;	N != V && !Z
+;
+	.export __cclttmp
 
-__cclt:
-	st ea,:__tmp
-	pop p2
-	pop ea
+__cclttmp:
 	sub ea,:__tmp
 	or a,e
 	bz false
-	xch a,e			; get sign into A
+	xch a,e		;	get sign into A
 	bp positive
-	ld a,s			;  S = 1
+	ld a,s		;	N = 1
 	and a,=0x40
-	bz true			; S = 1 O = 0 true
-false:	ld ea,=0		; S = 1 O = 1 false
-	push p2
+	bz true		;	N = 1 O = 0 true
+false:	ld ea,=0	; 	N = 1 O = 1 false
 	ret
 positive:
-	ld a,s			; S = 0
+	ld a,s			; N = 0
 	and a,=0x40
-	bz false		; S = 0, O = 0 false
-true:	ld ea,=1		; S = 0, O = 1 true
-	push p2
+	bz false		; N = 0, V = 0 false
+true:	ld ea,=1		; N = 0, V = 1 true
 	ret
 
 

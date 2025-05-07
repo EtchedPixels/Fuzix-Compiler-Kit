@@ -4,29 +4,26 @@
 ;
 ;	TOS > EA
 ;
-	.export __ccgt
+;	N == V & !Z
+;
+	.export __ccgttmp
 
-__ccgt:
-	st ea,:__tmp
-	pop p2
-	pop ea
+__ccgttmp:
 	sub ea,:__tmp
 	or a,e
-	bz false
-	xch a,e			; get sign into A
-	bp positive
+	bz false		; !Z
+	xch a,e
+	bp positive		; check OV matches sign (0 0)
 	ld a,s
-	and a,=0x40
+	and a,=0x40		; V = 1 S = 1 is true
 	bz false
 true:	ld ea,=1
-	push p2
 	ret
 positive:
 	ld a,s
-	and a,=0x40
+	and a,=0x40		; Check V and sign both 0
 	bz true
 false:	ld ea,=0
-	push p2
 	ret
 
 

@@ -1,74 +1,76 @@
 ;
-;	Compare TOS with EA
+;	Compare @TMP with EA
 ;
 
-	.export __cceq
-	.export __ccne
-	.export __cceqc
-	.export __ccnec
-	.export __ccgtu
-	.export __ccgtequ
-	.export __ccltu
-	.export __ccltequ
+	.export __cceqtmp
+	.export __cceqtmpu
+	.export __ccnetmp
+	.export __ccnetmpu
+	.export __cceqtmpc
+	.export __cceqtmpuc
+	.export __ccnetmpc
+	.export __ccnetmpuc
+	.export __ccgttmpu
+	.export __ccgteqtmpu
+	.export __cclttmpu
+	.export __cclteqtmpu
 
-__cceq:
-	sub ea,2,p1
+__cceqtmp:
+__cceqtmpu:
+	sub ea,:__tmp
 	or a,e
 	bz true
 false:
-	pop p2		; return
-	pop p3		; arg
 	ld ea,=0
-	push p2
 	ret
 true:
-	pop p2		; return
-	pop p3		; arg
 	ld ea,=1
-	push p2
 	ret
 
-__cceqc:
-	sub a,2,p1
+__cceqtmpc:
+__cceqtmpuc:
+	sub a,:__tmp
 	bz true
 	bra false
 
-__ccne:
-	sub ea,2,p1
+__ccnetmp:
+__ccnetmpu:
+	sub ea,:__tmp
 	or a,e
 	bz false	; already 0
 	bra true
 
-__ccnec:
-	sub a,2,p1
+__ccnetmpc:
+__ccnetmpuc:
+	sub a,:__tmp
 	bz false	; already 0
 	bra true
 
-__ccgtu:
-	sub ea,2,p1		; calc EA - TOS
-	rrl a			; carry to top of A
+__cclttmpu:
+	sub ea,:__tmp		; calc EA - TOS
+	ld a,s
 	bp true			; carry set if TOS > EA
 	bra false
 
-__ccgtequ:
-	sub ea,2,p1		; calc EA - TOS
+__cclteqtmpu:
+	sub ea,:__tmp		; calc EA - TOS
 	or a,e
 	bz true			; TOS = EA
-	rrl a			; carry to top of A
+	ld a,s
 	bp true			; carry set if TOS > EA
 	bra false
 
-__ccltu:
-	sub ea,2,p1		; calc EA - TOS
+__ccgttmpu:
+	sub ea,:__tmp		; calc EA - TOS
 	; if EA <= TOS
 	or a,e
 	bz false		; TOS = EA
-	rrl a			; carry to top of A
+	ld a,s
 	bp false		; carry set if TOS > EA
 	bra true
 
-__ccltequ:
-	sub ea,2,p1		; calc EA - TOS
-	rrl a			; carry to top of A
+__ccgteqtmpu:
+	sub ea,:__tmp		; calc EA - TOS
+	ld a,s
 	bp false		; carry set if TOS > EA
 	bra true
