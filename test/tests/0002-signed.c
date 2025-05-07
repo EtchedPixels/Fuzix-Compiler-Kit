@@ -13,7 +13,7 @@ int test_lt8(signed char a, signed char b)
     return a < b;
 }
 
-static unsigned x = 12;
+static int x = 12;
 
 int main(int argc, char *argv[])
 {
