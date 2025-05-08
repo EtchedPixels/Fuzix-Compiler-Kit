@@ -32,12 +32,9 @@
  *		and word sized refs.
  *		Need to enable LREF/LSTORE etc for dword
  *	- Optimised pushing for args (push long, push lref)
+ *	- Spot the *foo++ = n case and build a p2 based ++ op for it
  *	- CCONLY
  *	- Comparisons using CCONLY
- *	- Check longer refs with offset are ok (using ptr/ea xch trick should
- *	  mean they are). Move more stuf to gen_ref with offset and fold in
- *	  additions
- *	- Byteops (good test case)
  *	- Peepholes
  *	- Can we do some equality type comparisons better inline with something
  *	  like sub ea,blah jsr bool/bang ?
@@ -623,8 +620,6 @@ void gen_frame(unsigned size, unsigned aframe)
 	frame_len = size;
 	sp = 0;
 
-//	printf(";size %u\n", size);
-
 	if (size || func_flags & F_REG(1))
 		func_cleanup = 1;
 	else
@@ -969,7 +964,7 @@ static void load_ea(unsigned sz, unsigned long v)
 	}
 }
 
-void load_e(unsigned v)
+static void load_e(unsigned v)
 {
 	if (e_valid && e_value == v)
 		return;
@@ -981,7 +976,7 @@ void load_e(unsigned v)
 }
 
 /* Track exchanges we use */
-void xch_a_e(void)
+static void xch_a_e(void)
 {
 	unsigned t;
 	puts("\txch a,e");
@@ -993,7 +988,7 @@ void xch_a_e(void)
 	e_value = t;
 }
 
-void xch_ea_p2(void)
+static void xch_ea_p2(void)
 {
 	struct node tmp;
 	unsigned t;
@@ -1008,7 +1003,7 @@ void xch_ea_p2(void)
 		invalidate_ea();
 }
 
-void load_t(unsigned v)
+static void load_t(unsigned v)
 {
 	if (t_valid == 1 && t_value == v)
 		return;
@@ -1019,15 +1014,24 @@ void load_t(unsigned v)
 	set_t(v);
 }
 
-void repeated_op(const char *op, unsigned n)
+static void repeated_op(const char *op, unsigned n)
 {
 	while(n--)
 		puts(op);
 }
 
-void discard_word(void)
+static void discard_word(void)
 {
 	puts("\tpop p2");
+	invalidate_ptr(2);
+}
+
+static void discard_words(unsigned s)
+{
+	printf(";discard words %u\n", s);
+	s = (s + 1) >> 1;
+	while(s--)
+		puts("\tpop p2");
 	invalidate_ptr(2);
 }
 
@@ -1049,7 +1053,7 @@ static unsigned gen_fast_mul(unsigned sz, unsigned value)
 	}
 	if (sz > 2)
 		return 0;
-	if (!(value & ~(value - 1))) {
+	if (!(value & (value - 1))) {
 		/* Do 8bits of shift by swapping the register about */
 		if (value >= 256) {
 			xch_a_e();
@@ -1057,9 +1061,9 @@ static unsigned gen_fast_mul(unsigned sz, unsigned value)
 			value >>= 8;
 		}
 		/* For each power of two just shift left */
-		while(value) {
+		while(value > 1) {
 			value >>= 1;
-			puts("sl ea");
+			puts("\tsl ea");
 		}
 		return 1;
 	}
@@ -1134,7 +1138,6 @@ static unsigned make_ptr_ref(struct node *n, unsigned off)
 	v += off;
 
 	/* TODO check if in P2 or EA already */
-//	printf(";make_ptr_ref %u\n", n->op);
 	switch(n->op) {
 	case T_CONSTANT:	/* Weird case but trivial */
 		printf("\tld p2,=%u\n", v);
@@ -1154,7 +1157,6 @@ static unsigned make_ptr_ref(struct node *n, unsigned off)
 	case T_LOCAL:
 		ref_op = T_LREF;
 		v += sp;
-//		printf(";p1 with off %u\n", v);
 		if (v < 128 - sz) {
 			snprintf(ref_buf, sizeof(ref_buf), "%u+%%u,p1", v);
 			return 1;
@@ -1168,7 +1170,10 @@ static unsigned make_ptr_ref(struct node *n, unsigned off)
 	default:
 		return 0;
 	}
-	set_ptr_ref(2, n);
+	if (off == 0)
+		set_ptr_ref(2, n);
+	else
+		invalidate_ptr(2);
 	strcpy(ref_buf, "%u,p2");
 	return 1;
 }
@@ -1222,9 +1227,6 @@ static unsigned make_ref(struct node *n, unsigned keep_ea)
 	unsigned s = get_size(n->type);
 	unsigned p;
 
-
-//	printf(";Make reference %04X\n", n->op);
-
 	p = find_ref(n);
 	/* Already there */
 	if (p == 2)
@@ -1250,7 +1252,7 @@ static unsigned make_ref(struct node *n, unsigned keep_ea)
 		printf("\tld p2,=_%s+%u\n", namestr(n->snum), v);
 		break;
 	case T_LBREF:
-		printf("\tld p2,=_%s+%u\n", namestr(n->snum), v);
+		printf("\tld p2,=T%u+%u\n", n->val2, v);
 		break;
 	case T_LREF:
 		/* Simple lref */
@@ -1269,7 +1271,7 @@ static unsigned make_ref(struct node *n, unsigned keep_ea)
 			xch_ea_p2();
 		else
 			load_ptr_ea(2);
-		return 1;
+		break;
 	default:
 		return 0;
 	}
@@ -1413,11 +1415,11 @@ static unsigned op16(const char *op, unsigned size, unsigned ldst, unsigned nr)
 
 static void do_op8pair(const char *op, unsigned off, unsigned size, unsigned nr)
 {
-	do_op8(op, 0);
+	do_op8(op, off);
 	if (size > 1) {
 		if (!nr)
 			xch_a_e();
-		do_op8(op, 1);
+		do_op8(op, off + 1);
 		if (!nr)
 			xch_a_e();
 	}
@@ -1466,7 +1468,6 @@ static void oplogic16(unsigned off, unsigned size, unsigned lt)
 	}
 
 	v = ref_constant(off, 1);
-	printf(";refc %u = %u\n", off, v);
 	if (v != l->null8) {
 		/* As cheap as loading anyway */
 		do_op8(l->op, off);
@@ -1474,7 +1475,6 @@ static void oplogic16(unsigned off, unsigned size, unsigned lt)
 	}
 	if (size > 1) {
 		v = ref_constant(off + 1, 1);
-		printf(";refc %u = %u\n", off, v);
 		if (v != l->null8) {
 			invalidate_e();
 			xch_a_e();
@@ -1609,9 +1609,11 @@ unsigned gen_direct(struct node *n)
 		   ideally, but need to adjust helpers for that */
 		if (can_make_ref(r) == 0)
 			return 0;
+		printf(";eqplus direct\n");
 		if (WORD(n->value))
 			printf("\tadd ea,=%u\n", WORD(n->value));
 		if (ref_needs_p2(r)) {
+			printf(";eqplus direct need p2\n");
 			puts("\tpush ea");
 			make_ref(r, 0);
 			op16("ld", s, O_LOAD, 1);
@@ -1619,15 +1621,17 @@ unsigned gen_direct(struct node *n)
 			puts("\tpop p2");
 			invalidate_ptr(2);
 		} else {
+			printf(";eqplus direct not p2\n");
 			invalidate_ea();
 			invalidate_ptr(2);
-			puts("\txch ea, p2");
+			xch_ea_p2();
 			make_ref(r, 0);
 			op16("ld", s, O_LOAD, 1);
 			set_ea_node(r);
 		}
+		printf(";eqplus assign\n");
 		flush_writeback();
-		make_ref_p2(n->val2);
+		make_ref_p2(0);
 		op16("st", s, O_STORE, nr);
 		return 1;
 	case T_PLUS:
@@ -1907,6 +1911,9 @@ unsigned gen_shortcut(struct node *n)
 		}
 		if (s > 2 || can_make_ptr_ref(l) == 0)
 			return 0;
+		/* If the right is easy then use the gen_direct path */
+		if (can_make_ref(r))
+			return 0;
 		codegen_lr(r);		/* Value to add */
 		make_ptr_ref(l, 0);
 		op16("add", s, O_MODIFY, 1);
@@ -1921,11 +1928,14 @@ unsigned gen_shortcut(struct node *n)
 		}
 		if (s != 2 || can_make_ptr_ref(l) == 0)
 			return 0;
+		/* If the right is easy then use the gen_direct path */
+		if (can_make_ref(r))
+			return 0;
 		codegen_lr(r);
 		puts("\tst ea,:__tmp");
 		make_ptr_ref(l, 0);
 		op16("ld", s, O_LOAD, 1);
-		puts("\tadd ea,:__tmp");
+		puts("\tsub ea,:__tmp");
 		op16("st", s, O_STORE, nr);
 		if (!nr)
 			set_ea_node(n);
@@ -1938,6 +1948,7 @@ unsigned gen_shortcut(struct node *n)
 		codegen_lr(l);	/* Write code to get the working value */
 		make_ref(r, 1);	/* Keep EA and make reference */
 		op16("sub", s, O_MODIFY, nr);
+		invalidate_ea();
 		return 1;
 	case T_ANDEQ:
 		return eqlogic(n, s, 0);
@@ -1950,7 +1961,9 @@ unsigned gen_shortcut(struct node *n)
 	case T_EQPLUS:
 		/* Handle the case of simple=complex */
 		if (can_make_ptr_ref(l)) {
+			printf(";eqplus short\n");
 			codegen_lr(r);
+			printf(";eqplus short l\n");
 			make_ptr_ref(l, WORD(n->value));
 			op16("st", s, O_STORE, nr);
 			return 1;
@@ -2066,6 +2079,7 @@ unsigned gen_node(struct node *n)
 	case T_EQ:
 		n->value = 0;
 	case T_EQPLUS:
+		printf(";eqplus hard\n");
 		/* *TOS = (hireg:)EA */
 		off = WORD(n->value);
 		pop_p2();
@@ -2104,6 +2118,7 @@ unsigned gen_node(struct node *n)
 		invalidate_ea();
 		return 1;
 	case T_LEQ:
+		printf(";LEQ\n");
 		/* TODO: review for volatile byteable */
 		/* Must go via EA which is messier because of course
 		   we have a value in EA right now */
@@ -2167,7 +2182,7 @@ unsigned gen_node(struct node *n)
 			return 0;
 		make_ref_sp();
 		op16("add", sz, O_MODIFY, nr);
-		discard_word();
+		discard_words(sz);
 		invalidate_ea();
 		return 1;
 	case T_MINUS:
@@ -2180,6 +2195,7 @@ unsigned gen_node(struct node *n)
 			puts("\tsub ea,:__tmp");
 		else
 			puts("\tsub a,:__tmp");
+		invalidate_ea();
 		return 1;
 	case T_STAR:
 		if (helper_stack(n, "multmp", sz))
@@ -2192,17 +2208,17 @@ unsigned gen_node(struct node *n)
 	case T_AND:
 		make_ref_sp();
 		oplogic(sz, 0);
-		discard_word();
+		discard_words(sz);
 		return 1;
 	case T_OR:
 		make_ref_sp();
 		oplogic(sz, 1);
-		discard_word();
+		discard_words(sz);
 		return 1;
 	case T_HAT:
 		make_ref_sp();
 		oplogic(sz, 2);
-		discard_word();
+		discard_words(sz);
 		return 1;
 	case T_BANG:
 		/* Common case of !(boolstuff) */
