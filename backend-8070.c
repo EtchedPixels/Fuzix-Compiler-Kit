@@ -516,39 +516,36 @@ struct node *gen_rewrite_node(struct node *n)
 		}
 	}
 	/* Rewrite references into a load operation */
-	if (nt == ULONG || nt == CLONG || nt == CSHORT || nt == USHORT || nt == CCHAR || nt == UCHAR || PTR(nt)) {
-		/* Is this in fact "all" TODO  as we can load/store float fine */
-		if (op == T_DEREF) {
-			if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
-				if (r->op == T_ARGUMENT)
-					r->value += ARGBASE + frame_len;
-				squash_right(n, T_LREF);
-				return n;
-			}
-			if (r->op == T_NAME) {
-				squash_right(n, T_NREF);
-				return n;
-			}
-			if (r->op == T_LABEL) {
-				squash_right(n, T_LBREF);
-				return n;
-			}
+	if (op == T_DEREF) {
+		if (r->op == T_LOCAL || r->op == T_ARGUMENT) {
+			if (r->op == T_ARGUMENT)
+				r->value += ARGBASE + frame_len;
+			squash_right(n, T_LREF);
+			return n;
 		}
-		if (op == T_EQ) {
-			if (l->op == T_NAME) {
-				squash_left(n, T_NSTORE);
-				return n;
-			}
-			if (l->op == T_LABEL) {
-				squash_left(n, T_LBSTORE);
-				return n;
-			}
-			if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
-				if (l->op == T_ARGUMENT)
-					l->value += ARGBASE + frame_len;
-				squash_left(n, T_LSTORE);
-				return n;
-			}
+		if (r->op == T_NAME) {
+			squash_right(n, T_NREF);
+			return n;
+		}
+		if (r->op == T_LABEL) {
+			squash_right(n, T_LBREF);
+			return n;
+		}
+	}
+	if (op == T_EQ) {
+		if (l->op == T_NAME) {
+			squash_left(n, T_NSTORE);
+			return n;
+		}
+		if (l->op == T_LABEL) {
+			squash_left(n, T_LBSTORE);
+			return n;
+		}
+		if (l->op == T_LOCAL || l->op == T_ARGUMENT) {
+			if (l->op == T_ARGUMENT)
+				l->value += ARGBASE + frame_len;
+			squash_left(n, T_LSTORE);
+			return n;
 		}
 	}
 
