@@ -1,7 +1,9 @@
 	.export __shl
+	.export __shlc		; TODO - is this worth having native ?
 
 ;	TOS << EA
 
+__shlc:
 __shl:
 	and a,=15
 	bz nowork

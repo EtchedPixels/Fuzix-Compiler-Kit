@@ -1,16 +1,16 @@
-	.export __muleq
-	.export __mulequ
+	.export __muleqtmp
+	.export __muleqtmpu
 
 	.code
 
-__muleq:
-__mulequ:
-	ld	t,ea
-	ld	ea,2,p1		; ptr
-	ld	p3,ea
-	ld	ea,0,p3
+__muleqtmp:
+__muleqtmpu:
+	; tmp is the value, ea the pointer
+	xch	ea,p2
+	ld	ea,0,p2
+	ld	t,:__tmp
 	jsr	__mpyfix
-	st	ea,0,p3
+	st	ea,0,p2
 	ret
 
 	

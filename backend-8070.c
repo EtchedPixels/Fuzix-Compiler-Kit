@@ -1017,12 +1017,6 @@ static void repeated_op(const char *op, unsigned n)
 		puts(op);
 }
 
-static void discard_word(void)
-{
-	puts("\tpop p2");
-	invalidate_ptr(2);
-}
-
 static void discard_words(unsigned s)
 {
 	printf(";discard words %u\n", s);
@@ -1226,8 +1220,11 @@ static unsigned make_ref(struct node *n, unsigned keep_ea)
 
 	p = find_ref(n);
 	/* Already there */
-	if (p == 2)
+	if (p == 2) {
+		ref_op = T_NREF;	/* Works for this case */
+		strcpy(ref_buf, "%u,p2");
 		return 1;
+	}
 
 	ref_op = map_op(n->op);
 	switch(ref_op) {
@@ -1902,9 +1899,11 @@ unsigned gen_shortcut(struct node *n)
 		return 1;
 	case T_PLUSEQ:
 		/* Use increment and load */
-		if (s == 1 && r->op == T_CONSTANT && WORD(r->value) == 1) {
-			op8("ild", 1, 1);
-			return 1;
+		if (s == 1 && r->op == T_CONSTANT && BYTE(r->value) == 1) {
+			if (make_ptr_ref(l, 0)) {
+				op8("ild", 1, 1);
+				return 1;
+			}
 		}
 		if (s > 2 || can_make_ptr_ref(l) == 0)
 			return 0;
@@ -1919,8 +1918,11 @@ unsigned gen_shortcut(struct node *n)
 			set_ea_node(n);
 		return 1;
 	case T_MINUSEQ:
-		if (s == 1 && r->op == T_CONSTANT && WORD(r->value) == 1) {
-			op8("dld", 1, 1);
+		if (s == 1 && r->op == T_CONSTANT && BYTE(r->value) == 1) {
+			if (make_ptr_ref(l, 0)) {
+				op8("ild", 1, 1);
+				return 1;
+			}
 			return 1;
 		}
 		if (s != 2 || can_make_ptr_ref(l) == 0)
@@ -2195,9 +2197,13 @@ unsigned gen_node(struct node *n)
 		invalidate_ea();
 		return 1;
 	case T_STAR:
-		if (helper_stack(n, "multmp", sz))
-			return 1;
-		return 0;
+		if (sz > 2)
+			return 0;
+		puts("\tld t,ea");
+		puts("\tpop ea");
+		puts("\tjsr __mpyfix");
+		invalidate_ea();
+		return 1;
 	case T_SLASH:
 /*		if (helper_stack(n, "divtmp", sz)) seems easier without
 			return 1; */
@@ -2333,6 +2339,28 @@ unsigned gen_node(struct node *n)
 		if (cc_helper_stack(n, "ccnetmp"))
 			return 1;
 		return 0;
+	case T_PLUSPLUS:
+		/* Complex ++ */
+		if (sz > 2)
+			return 0;
+		/* EA id the amount to add, TOS the pointer */
+		pop_p2();
+		make_ref_p2(0);
+		op16("add", sz, O_MODIFY, 1);
+		op16("st", sz, O_STORE, nr);
+		invalidate_ea();
+		return 1;
+	case T_MINUSMINUS:
+		/* Complex -- */
+		if (sz > 2)
+			return 0;
+		/* EA id the amount to add, TOS the pointer */
+		pop_p2();
+		make_ref_p2(0);
+		op16("sub", sz, O_MODIFY, 1);
+		op16("st", sz, O_STORE, nr);
+		invalidate_ea();
+		return 1;
 	}
 	return 0;
 }
