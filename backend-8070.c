@@ -31,6 +31,7 @@
  *		Need to do pointer tracking an EA node tracking for ptr
  *		and word sized refs.
  *		Need to enable LREF/LSTORE etc for dword
+ *		Constant tracking needs putting back
  *	- Optimised pushing for args (push long, push lref)
  *	- Spot the *foo++ = n case and build a p2 based ++ op for it
  *	- CCONLY
@@ -38,6 +39,8 @@
  *	- Peepholes
  *	- Can we do some equality type comparisons better inline with something
  *	  like sub ea,blah jsr bool/bang ?
+ *	- Enable register variables with p3 (and maybe one day T) - needs p3
+ *	  use in helpers cleaning up first
  */
 #include <stdio.h>
 #include <stdint.h>
