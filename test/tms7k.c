@@ -557,7 +557,7 @@ static void twoop(unsigned op, uint8_t src, uint8_t *dst)
         *dst = res;
         break;
     case 0x0B:	/* SBB */
-        res = *dst - src + 1 - carry();
+        res = *dst - src - 1 + carry();
         res ^= 0x0100;	/* Borrow not carry */
         *dst = res;
         break;
