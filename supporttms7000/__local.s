@@ -39,7 +39,7 @@ __gargrr1:
 	add	r15,r13
 	adc	r14,r12
 	lda	*r13
-	mov	a,r3
+	mov	a,r5
 	rets
 
 __gargr2:
