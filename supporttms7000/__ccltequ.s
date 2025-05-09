@@ -15,12 +15,12 @@ __cclteqconstbu:
 __ccltequ:
 	call @__pop10
 __cclteqconstu:
-	cmp r12,r4
+	cmp r10,r4
 	jnz c1
-	cmp r13,r5
+	cmp r11,r5
 	jz true
 c1:
-	jnc true
+	jc true
 c2:
 	clr r4
 	clr r5

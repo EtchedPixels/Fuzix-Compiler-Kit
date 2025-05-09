@@ -16,21 +16,6 @@ __ccgt:
 	call @__pop10
 __ccgtconst:
 	; No direct signed comparisons so..
-	xor r10,r4
-	jpz same_sign
-	xor r10,r4
-	jpz true
-false:
-	clr r4
-	clr r5
-	rets
-true:
-	clr r5
-	mov %1,r5
-	rets
-same_sign:
-	cmp r10,r4
-	jnc true
-	clr r4
-	clr r5
-	rets
+	add %0x80,r4
+	add %0x80,r10
+	jmp __ccgtconstu

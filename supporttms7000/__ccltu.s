@@ -5,6 +5,8 @@
 	.export __ccltconstu
 	.export __ccltconst0u
 	.export __ccltconstbu
+	.export __ccltconstu
+
 	.code
 
 __ccltconst0u:
@@ -18,9 +20,11 @@ __ccltconstu:
 	cmp r10,r4
 	jnz c1
 	cmp r11,r5
+	jz c2
 c1:
+	; C is set if r4 >= r10
 	; Annoyingly C is affected by mov or clr
-	jc c2
+	jnc c2
 	clr r4
 	mov %1,r5
 	rets

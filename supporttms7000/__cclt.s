@@ -16,21 +16,6 @@ __cclt:
 	call @__pop10
 __ccltconst:
 	; No direct signed comparisons so..
-	xor r10,r4
-	jpz same_sign
-	xor r10,r4
-	jn true
-false:
-	clr r4
-	clr r5
-	rets
-true:
-	clr r4
-	mov %1,r5
-	rets
-same_sign:
-	cmp r4,r10
-	jnc true
-	clr r4
-	clr r5
-	rets
+	add %0x80,r10
+	add %0x80,r4
+	jmp __ccltconstu
