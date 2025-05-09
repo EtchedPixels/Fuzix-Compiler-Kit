@@ -1,8 +1,8 @@
 ;
 ;	Helper for size/low opt settings to do loads
 ;
-;	These functions all only affect the accumulator and r14/15
-;	They *must* leave r14/15 where the compiler expects as it has
+;	These functions all only affect the accumulator and r12/13
+;	They *must* leave r12/13 where the compiler expects as it has
 ;	internal knowledge of this
 ;
 	.export __gargr1
@@ -30,6 +30,8 @@
 	.export __load4
 	.export __store2
 	.export __store4
+	.export __revstore4
+	.export __revstore2
 	.export __garg10r2str
 	.export __garg10rr2str
 
@@ -48,12 +50,13 @@ __gargrr2:
 	add	r15,r13
 	adc	r14,r12
 __load2:
-	lda	*r13
-	mov	a,r4
 	add	%1,r13
 	adc	%0,r12
 	lda	*r13
 	mov	a,r5
+	decd	r13
+	lda	*r13
+	mov	a,r4
 	rets
 __load2ac:		; Must leave regs exactly like this
 	movd	r13,r3
@@ -70,20 +73,19 @@ __gargrr4:
 	add	r15,r13
 	adc	r14,r12
 __load4:
-	lda	*r13
-	mov	a,r2
-	add	%1,r13
-	adc	%0,r12
-	lda	*r13
-	mov	a,r3
-	add	%1,r13
-	adc	%0,r12
-	lda	*r13
-	mov	a,r4
-	add	%1,r13
+	add	%3,r13
 	adc	%0,r12
 	lda	*r13
 	mov	a,r5
+	decd	r13
+	lda	*r13
+	mov	a,r4
+	decd	r13
+	lda	*r13
+	mov	a,r3
+	dec	r13
+	lda	*r13
+	mov	a,r2
 	rets
 
 __garg10r1:
@@ -142,11 +144,13 @@ __pargrr2:
 	add	r15,r13
 	adc	r14,r12
 __store2:
-	mov	r4,a
-	sta	*r13
 	add	%1,r13
 	adc	%0,r12
+__revstore2:
 	mov	r5,a
+	sta	*r13
+	decd	r13
+	mov	r4,a
 	sta	*r13
 	rets
 
@@ -165,25 +169,8 @@ __pargrr4:
 	add	r15,r13
 	adc	r14,r12
 __store4:
-	mov	r2,a
-	sta	*r13
-	add	%1,r13
+	add	%3,r13
 	adc	%0,r12
-	mov	r3,a
-	sta	*r13
-	add	%1,r13
-	adc	%0,r12
-	mov	r4,a
-	sta	*r13
-	add	%1,r13
-	adc	%0,r12
-	mov	r5,a
-	sta	*r13
-	rets
-
-	.export __revstore4
-	.export __revstore2
-
 __revstore4:
 	mov	r5,a
 	sta	*r13
@@ -198,21 +185,13 @@ __revstore4:
 	sta	*r13
 	rets
 
-__revstore2:
-	mov	r5,a
-	sta	*r13
-	decd	r13
-	mov	r4,a
-	sta	*r13
-	rets
-
 ; Order matters here. Adjust the high byte first so our worst case is
 ; being a chunk down the stack when we take an interrupt. Stacks are assumed
 ; to be a number of exact pages long and must allow for this annoying cpu
 ; limit)
 __frame:
 	mov	r15,r13
-	sub	r13,r11
+	sub	r11,r13
 	sbb	%0,r14	; adjust high first
 	mov	r13,r15
 	rets

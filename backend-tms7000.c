@@ -95,7 +95,7 @@ static void flush_all(unsigned f)
    but 0xEx is as good as anything else */
 #define R_ACCHAR	0xE5
 #define R_ACINT		0xE4		/* Start reg for ptr/int */
-#define R_ACPTR		0xE3
+#define R_ACPTR		0xE4
 #define R_ACLONG	0xE2
 #define R_ISAC(x)	(((x) & 0xF0) == 0xE0)
 #define R_AC		0xE2
@@ -505,9 +505,9 @@ static void sub_r_r(unsigned r1, unsigned r2, unsigned size)
 
 	r_modify(r1 - size + 1, size);
 
-	printf("\tsub r%u,r%u\n", r1--, r2--);
+	printf("\tsub r%u,r%u\n", r2--, r1--);
 	while(--size)
-		printf("\tsbb r%u,r%u\n", r1--, r2--);
+		printf("\tsbb r%u,r%u\n", r2--, r1--);
 }
 
 static void sub_r_const(unsigned r, unsigned long v, unsigned size)
@@ -784,6 +784,7 @@ static void load_l_sprel(unsigned r, unsigned off)
 	}
 }
 
+/* FIXME: use decd when we can */
 static void load_l_mod(unsigned r, unsigned rs, unsigned diff, unsigned off)
 {
 	if (r != rs) {
@@ -827,7 +828,7 @@ static void load_r_local(unsigned r, unsigned off)
 
 	printf("; load r local %d\n", off);
 	if (r12_valid)
-		printf(";14: local %d (cache %d) diff %d\n", off - sp, r12_sp, diff12);
+		printf(";12: local %d (cache %d) diff %d\n", off - sp, r12_sp, diff12);
 	if (r4_valid)
 		printf(";2: local %d (cache %d) diff %d\n", off - sp, r4_sp, diff4);
 
@@ -873,7 +874,7 @@ static void load_local_helper(unsigned v, unsigned size)
 	r_modify(4 - size, size);
 	r_modify(10, 2);
 	r12_valid = 1;
-	r12_sp = v - sp + size - 1;
+	r12_sp = v - sp;
 }
 
 static void load_work_helper(unsigned v, unsigned size)
@@ -915,8 +916,10 @@ static void store_local_helper(struct node *r, unsigned v, unsigned size)
 		printf("\tcall @__pargrr%u\n", size);
 		r_modify(12,2);
 	}
+	/* pargr always leaves R12 pointing at the value still */
 	r12_valid = 1;
-	r12_sp = v - sp + size - 1;
+	r12_sp = v - sp;
+	printf(";after pargr r12_sp %d\n", r12_sp);
 }
 
 /* TODO: support the T_DEREF of AC into AC case specially by having a
@@ -933,22 +936,28 @@ static void load_r_memr(unsigned val, unsigned rr, unsigned size)
 		invalidate_ac();
 		/* We use helpers for the usual case when building for
 		   small */
-		if (rr == R_INDEX && size > 1 && opt < 1) {
-			printf("\tcall @__load%u\n", size);
-			r_adjust(R_INDEX, size - 1, 2, NULL);
-			r_modify(val, size);
-			return;
+		if (size > 1 && opt < 1) {
+			if (rr == R_INDEX) {
+				printf("\tcall @__load%u\n", size);
+				r_modify(val, size);
+				return;
+			}
+/*			if (rr == R_WORK) {
+				printf("\tcall @__wload%u\n", size);
+				r_modify(val, size);
+				return;
+			}*/
 		}
 	}
-	/* FIXME: need to do this from the other end as only have decd */
-	printf("\tlda *r%u\n", rr + 1);
-	load_r_r(val, 0);
+	add_r_const(rr, size - 1, 2);
 	r_modify(val, size);
+	printf("\tlda *r%u\n", rr + 1);	/*? helper to always invalidate 0 ? */
+	val += size;
+	load_r_r(--val, 0);
 	while(--size) {
-		val++;
-		r_incw(rr);
+		r_decw(rr);
 		printf("\tlda *r%u\n", rr + 1);
-		load_r_r(val, 0);
+		load_r_r(--val, 0);
 	}
 }
 
@@ -980,10 +989,9 @@ static void revload_r_memr(unsigned val, unsigned rr, unsigned size)
 	printf("\tlda *r%u\n", rr + 1);
 	load_r_r(val, 0);
 	while(--size) {
-		val--;
 		r_decw(rr);
 		printf("\tlda *r%u\n", rr + 1);
-		load_r_r(val, 0);
+		load_r_r(--val, 0);
 	}
 }
 
@@ -993,18 +1001,22 @@ static void store_r_memr(unsigned val, unsigned rr, unsigned size)
 		val = 6 - size;
 	if (R_ISAC(rr))
 		rr = 4;
-	if (val == 6 - size && rr == R_INDEX && size > 1 && opt < 1) {
-		printf("\tcall @__store%u\n", size);
-		r_adjust(R_INDEX, size - 1, 2, NULL);
-		return;
+	if (val == 6 - size && size > 1 && opt < 1) {
+		if (rr == R_INDEX) {
+			printf("\tcall @__store%u\n", size);
+			return;
+/*		} else if (rr == R_WORK) {
+			printf("\tcall @__wstore%u\n", size);
+			return; */
+		}
 	}
-	/* FIXME: need to do this from the other end as only have decd */
-	load_r_r(0, val);
+	add_r_const(rr, size - 1, 2);
+	val += size;
+	load_r_r(0, --val);
 	printf("\tsta *r%u\n", rr + 1);
 	while(--size) {
-		val++;
-		r_incw(rr);
-		load_r_r(0, val);
+		r_decw(rr);
+		load_r_r(0, --val);
 		printf("\tsta *r%u\n", rr + 1);
 	}
 }
@@ -1086,7 +1098,7 @@ static void pop_rl(unsigned rr)
 
 static void pop_ac(unsigned size)
 {
-	unsigned r = 4 - size;
+	unsigned r = 6 - size;
 	if (size == 1)
 		pop_r(r);
 	else if (size == 2)
@@ -1131,14 +1143,15 @@ static void logic_popeq(unsigned size, const char *op)
 {
 	unsigned n = size;
 	pop_rr(R_INDEX);
+	add_r_const(R_INDEX, size - 1, 2);
 	while(n) {
 		load_r_memr(R_WORK, R_INDEX, 1);
-		r_incw(R_INDEX);
+		r_decw(R_INDEX);
 		r_modify(6 - n, 1);
 		op_r_r(6 - n, R_WORK, op);
 		n--;
 	}
-	revstore_r_memr(R_AC, R_INDEX, size);
+	store_r_memr(R_AC, R_INDEX, size);
 }
 
 static void ret_op(void)
@@ -1339,7 +1352,7 @@ static unsigned logic_eq_direct_r(struct node *r, unsigned v, unsigned size, uns
 		load_r_r(R_INDEX + 1, 3);
 		load_r_memr(R_AC, R_INDEX, size);
 		logic_r_const(R_AC, v, size, op);
-		revstore_r_memr(R_AC, R_INDEX, size);
+		store_r_memr(R_AC, R_INDEX, size);
 		return 1;
 	}
 	if (r->op == T_RREF) {
@@ -1347,7 +1360,7 @@ static unsigned logic_eq_direct_r(struct node *r, unsigned v, unsigned size, uns
 		load_r_r(R_INDEX + 1, 3);
 		load_r_memr(R_AC, R_INDEX, size);
 		logic_r_r(R_AC, R_REG(r->value), size, op);
-		revstore_r_memr(R_AC, R_INDEX, size);
+		store_r_memr(R_AC, R_INDEX, size);
 		return 1;
 	}
 #if 0
@@ -2060,10 +2073,12 @@ unsigned gen_direct(struct node *n)
 	case T_NSTORE:
 		load_r_name(R_INDEX, n, v);
 		store_r_memr(R_AC, R_INDEX, size);
+		set_ac_node(n);
 		break;
 	case T_LBSTORE:
 		load_r_label(R_INDEX, n, v);
 		store_r_memr(R_AC, R_INDEX, size);
+		set_ac_node(n);
 		return 1;
 	case T_LSTORE:
 		if (opt < 1)
@@ -2071,8 +2086,8 @@ unsigned gen_direct(struct node *n)
 		else {
 			load_r_local(R_INDEX, v + sp);
 			store_r_memr(R_AC, R_INDEX, size);
-			set_ac_node(n);
 		}
+		set_ac_node(n);
 		return 1;
 	case T_RSTORE:
 		v = R_REG(n->value);
@@ -2393,17 +2408,15 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		if (!nr) {
-			/* r2/3 is the pointer,  */
+			printf("; ++\n");
+			/* r4/5 is the pointer,  */
 			/* Move it to be safe from the load */
 			load_r_r(R_INDEX, R_ACPTR);
 			load_r_r(R_INDEX + 1, R_ACPTR + 1);
 			load_r_memr(R_AC, R_INDEX, size);
-			/* load_r_memr bumps r_index up */
 			push_ac(size);
 			add_r_const(R_AC, v, size);
-			/* Revstore compensates by doing the store
-			   bacwards */
-			revstore_r_memr(R_AC, R_INDEX, size);
+			store_r_memr(R_AC, R_INDEX, size);
 			pop_ac(size);
 			return 1;
 		}
@@ -2424,22 +2437,22 @@ unsigned gen_direct(struct node *n)
 			if (nr  && size <= 2) {
 				load_r_memr(0, R_ACPTR, size);
 				add_r_const(0, v, size);
-				revstore_r_memr(0, R_ACPTR, size);
+				store_r_memr(0, R_ACPTR, size);
 				return 1;
 			}
 			/* Copy the pointer over but keep R12/13 */
-			load_r_r(R_WORK, 2);
-			load_r_r(R_WORK + 1, 3);
-			/* Value into 2/3 */
+			load_r_r(R_WORK, 4);
+			load_r_r(R_WORK + 1, 5);
+			/* Value into 4/5 */
 			load_r_memr(R_AC, R_WORK, size);
 			add_r_const(R_AC, v, size);
-			revstore_r_memr(R_AC, R_WORK, size);
+			store_r_memr(R_AC, R_WORK, size);
 			return 1;
 		}
 		if (size <= 2 && load_direct(R_WORK, r, 1)) {
 			load_r_memr(0, R_ACPTR, size);
 			add_r_r(0, R_WORK, size);
-			revstore_r_memr(0, R_ACPTR, size);
+			store_r_memr(0, R_ACPTR, size);
 			if (size == 2) {
 				load_r_r(R_ACINT, 0);
 				load_r_r(R_ACINT + 1, 1);
@@ -2464,8 +2477,8 @@ unsigned gen_direct(struct node *n)
 			load_r_r(R_INDEX + 1, R_ACPTR + 1);
 			load_r_memr(R_AC, R_INDEX, size);
 			push_ac(size);
-			add_r_const(0, -v, size);
-			revstore_r_memr(0, 2, size);
+			add_r_const(R_AC, -v, size);
+			store_r_memr(R_AC, R_INDEX, size);
 			pop_ac(size);
 			return 1;
 		}
@@ -2485,22 +2498,22 @@ unsigned gen_direct(struct node *n)
 			if ((n->flags & NORETURN)  && size <= 2) {
 				load_r_memr(0, R_ACPTR, size);
 				sub_r_const(0, v, size);
-				revstore_r_memr(0, R_ACPTR, size);
+				store_r_memr(0, R_ACPTR, size);
 				return 1;
 			}
 			/* Copy the pointer over but keep R12/13 */
-			load_r_r(R_WORK, 2);
-			load_r_r(R_WORK + 1, 3);
+			load_r_r(R_WORK, 4);
+			load_r_r(R_WORK + 1, 5);
 			/* Value into 4/5 */
 			load_r_memr(R_AC, R_WORK, size);
 			sub_r_const(R_AC, v, size);
-			revstore_r_memr(R_AC, R_WORK, size);
+			store_r_memr(R_AC, R_WORK, size);
 			return 1;
 		}
 		if (size <= 2 && load_direct(R_WORK, r, 1)) {
-			load_r_memr(0, R_ACPTR, size);
-			sub_r_r(0, R_WORK, size);
-			revstore_r_memr(0, R_ACPTR, size);
+			load_r_memr(2, R_ACPTR, size);
+			sub_r_r(2, R_WORK, size);
+			store_r_memr(2, R_ACPTR, size);
 			if (size == 2) {
 				load_r_r(R_ACINT, 0);
 				load_r_r(R_ACINT + 1, 1);
@@ -3240,16 +3253,16 @@ unsigned gen_node(struct node *n)
 		if (size > 2)
 			return 0;
 		if (size == 2) {
-			/* Pop into r0,r1 which are free as accum is 16bit */
-			pop_rr(0);
-			sub_r_r(0, R_ACINT, 2);
-			load_rr_rr(R_ACINT, 0);
+			/* Pop into r2,r3 which are free as accum is 16bit */
+			pop_rr(2);
+			sub_r_r(2, R_ACINT, 2);
+			load_rr_rr(R_ACINT, 2);
 			return 1;
 		}
 		/* size 1 */
-		pop_r(0);
-		sub_r_r(0, R_ACCHAR, 1);
-		load_r_r(R_ACCHAR, 0);
+		pop_r(3);
+		sub_r_r(3, R_ACCHAR, 1);
+		load_r_r(R_ACCHAR, 3);
 		return 1;
 	case T_AND:
 		pop_op(R_AC, "and", size);
@@ -3391,7 +3404,7 @@ unsigned gen_node(struct node *n)
 		x = label();
 		add_r_r(R_AC, R_AC, size);
 		djnz_r(R_WORK, x);
-		revstore_r_memr(R_AC, R_INDEX, size);
+		store_r_memr(R_AC, R_INDEX, size);
 		printf("X%u:\n", v);
 		return 1;
 	case T_SHREQ:
@@ -3406,7 +3419,7 @@ unsigned gen_node(struct node *n)
 		x = label();
 		rshift_r(R_AC, size, 1, n->type & UNSIGNED);
 		djnz_r(R_WORK, x);
-		revstore_r_memr(R_AC, R_INDEX, size);
+		store_r_memr(R_AC, R_INDEX, size);
 		printf("X%u:\n", v);
 		return 1;
 	/* += and -= we can inline except for long size. Only works for non
