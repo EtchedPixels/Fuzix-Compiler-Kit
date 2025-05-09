@@ -2230,14 +2230,19 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	/* The const form helpers do the reverse compare so we use the opposite one */
 	case T_GTEQ:
+		/* FIXME different sizes can be done better */
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			/* Quick way to do the classic signed >= 0 */
 			if (v == 0 && !u) {
+				load_r_constb(0,0);
 				test_sign(R_AC, size);
-				printf("\tclrc\n");
-				load_r_const(R_ACINT, 0, 2);
-				/* R5 is already zero so this is adc #0 */
-				op_r_r(5, 5, "adc");
+				/* Make r0 the carry flag alone inverterd */
+				puts("\trlc r0");
+				r_modify(0,1);
+				op_r_c(0, 1, "xor");
+				/* Carry is cleared by almost all ops so grab it */
+				load_r_constb(R_ACINT, 0);
+				load_r_r(R_ACCHAR, 0);
 				n->flags |= ISBOOL;
 				return 1;
 			}
@@ -2306,11 +2311,15 @@ unsigned gen_direct(struct node *n)
 		if (r->op == T_CONSTANT && n->type != FLOAT) {
 			/* Quick way to do the classic signed < 0 */
 			if (v == 0 && !u) {
-				/* FIXME: tied to accumulator proper atm */
+				/* Get sign into r0. Should shortcut this
+				   for bytes */
+				load_r_constb(0, 0);
 				test_sign(R_AC, size);
-				load_r_const(R_ACINT, 0, 2);
-				/* Add 0 and 0 and carry */
-				op_r_r(5, 5, "adc");
+				puts("\trlc r0");
+				r_modify(0, 1);
+				/* Set the return to the carry */
+				load_r_constb(R_ACINT, 0);
+				load_r_r(R_ACCHAR,0);
 				n->flags |= ISBOOL;
 				return 1;
 			}
