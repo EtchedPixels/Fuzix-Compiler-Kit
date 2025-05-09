@@ -469,10 +469,10 @@ static unsigned get_addr(void)
 
 static unsigned get_regpair(void)
 {
-    unsigned rh = dev_read8(pc++);
-    if (rh == 0)
+    unsigned rl = dev_read8(pc++);
+    if (rl == 0)
         invalid(0);
-    return (reg[rh] << 8) | reg[rh - 1];
+    return (reg[rl - 1] << 8) | reg[rl];
 }
 
 static unsigned carry(void)
@@ -569,7 +569,7 @@ static void twoop(unsigned op, uint8_t src, uint8_t *dst)
         return;
     case 0x0D:	/* CMP */
         res = *dst - src;
-        /* N/Z from the result, C is set if d is > s (unsigned) */
+        /* N/Z from the result, C is set if d is >= s (unsigned) */
         res ^= 0x0100;
         setflags(res);
         return;
