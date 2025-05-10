@@ -178,7 +178,10 @@ static unsigned op_is_byteright(struct node *n)
 
 	if (op == T_LTLT || op == T_GTGT)
 		return 1;
-	if (b && op == T_EQ)
+	/* TODO: review this further, possibly we need to deal with the
+	   node that can be a byte root and tail but the two are separate
+	   things better */
+	if (b && op == T_EQ && (op_can_byte(n->right) & BYTEABLE))
 		return 1;
 	return 0;
 }
