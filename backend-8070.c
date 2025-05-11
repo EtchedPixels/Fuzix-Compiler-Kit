@@ -242,11 +242,13 @@ static void adjust_a(unsigned n)
 
 static void adjust_ea(unsigned n)
 {
-	unsigned t = a_value + n;
+	unsigned t = a_value + BYTE(n);
+	printf(";EA was %02X%02X\n", e_value, a_value);
 	a_value = t;
-	e_value += n >> 8;
+	e_value += BYTE(n >> 8);
 	if (t & 0x0100)
 		e_value++;
+	printf(";EA now %02X%02X\n", e_value, a_value);
 }
 
 static void set_t(unsigned n)
@@ -1565,7 +1567,7 @@ static unsigned cc_helper_stack(struct node *n, const char *op)
 	return helper_stack(n, op, n->right->type);
 }
 
-unsigned op16_direct(struct node *n, const char *op, unsigned size, unsigned nr)
+static unsigned op16_direct(struct node *n, const char *op, unsigned size, unsigned nr)
 {
 	/* Can we reference it */
 	if (make_ref(n->right, 1) == 0)
@@ -1574,13 +1576,66 @@ unsigned op16_direct(struct node *n, const char *op, unsigned size, unsigned nr)
 	return 1;
 }
 
-unsigned op8_direct(struct node *n, const char *op, unsigned size, unsigned nr)
+/* TODO: what is the best way to do this, also do we do CCONLY handling
+   using z/nz on A and just let A be 0x80 or 0x00 */
+static void inline_compare(unsigned s, unsigned val)
 {
-	/* Can we reference it */
-	if (make_ref(n->right, 1) == 0)
-		return 0;
-	op8(op, size, nr);
-	return 1;
+	if (s == 2) {
+		printf("\tsub ea,=%u\n", val);
+		adjust_ea(WORD(-val));
+	} else {
+		printf("\tsub a,=%u\n", BYTE(val));
+		adjust_a(BYTE(-val));
+	}
+	/* Now play games to get borrow flag */
+	load_ea(2, 0);
+	puts("\trrl a");/* Borrow is now top bit of A */
+	puts("\tsl ea");/* Into low bit of E */
+	xch_a_e();	/* Into low bit of A */
+	invalidate_a();
+}
+
+/* Not yet finished TODO */
+static void signed_compare(unsigned s, unsigned val)
+{
+	if (s == 2) {
+		printf("\tsub ea,=%u\n", val);
+		adjust_ea(WORD(-val));
+	} else {
+		printf("\tsub a,=%u\n", BYTE(val));
+		adjust_a(BYTE(-val));
+		xch_a_e();
+	}
+	invalidate_a();
+	puts("\tld a,s");
+	puts("\tsl a");		/* O is in top bit */
+	puts("\txor a,e");	/* O xor sign of result */
+	puts("\tsl ea");	/* And shuffle into EA as 0/1 */
+	puts("\txch a,e");
+}
+
+static void inline_notzero(unsigned s)
+{
+	if (s == 2) {
+		puts("\tor a,e\n");
+		invalidate_ea();
+	}
+	printf("\tbz X%u\n", ++label);
+	load_ea(2,1);
+	printf("X%u:\n", label);
+	invalidate_a();
+}
+
+static void inline_notff(unsigned s)
+{
+	invalidate_ea();
+	if (s == 2)
+		puts("\tand a,e\n");
+	puts("\tadd a,=1");
+	printf("\tbz X%u\n", ++label);
+	load_ea(2,1);
+	printf("X%u:\n", label);
+	invalidate_a();
 }
 
 /*
@@ -1599,6 +1654,7 @@ unsigned gen_direct(struct node *n)
 	unsigned v;
 	unsigned op;
 	unsigned nr = n->flags & NORETURN;
+	unsigned is_byte = (n->flags & (BYTETAIL | BYTEOP)) == (BYTETAIL | BYTEOP);
 
 	if (r)
 		v = r->value;
@@ -1728,55 +1784,107 @@ unsigned gen_direct(struct node *n)
 		oplogic(s, 2);	/* 2 - XOR */
 		return 1;
 	case T_EQEQ:
-		if (r->type == T_CONSTANT) {
-			s = get_size(r->type);
-			if (s > 2)
-				return 0;
-			if (r->value) {
-				if (s == 1)
-					printf("\tsub a,=%u\n", BYTE(r->value));
-				else
-					printf("\tsub ea,=%u\n", WORD(r->value));
-			}
-			if (s == 2)
-				puts("\tor a,e\n");
-			printf("\tbz X%u\n", ++label);
-			load_ea(2,1);
-			printf("X%u:\n", label);
+		if (r->type != T_CONSTANT)
+			return 0;
+		s = get_size(r->type);
+		if (s > 2)
+			return 0;
+		if (r->value) {
+			if (s == 1)
+				printf("\tsub a,=%u\n", BYTE(r->value));
+			else
+				printf("\tsub ea,=%u\n", WORD(r->value));
+		}
+		inline_notzero(s);
+		puts("\txor a,=1");
+		n->flags |= ISBOOL;
+		return 1;
+	case T_BANGEQ:
+		if (r->op != T_CONSTANT)
+			return 0;
+		s = get_size(r->type);
+		if (is_byte)
+			s = 1;
+		if (s > 2)
+			return 0;
+		if (r->value) {
+			if (s == 1)
+				printf("\tsub a,=%u\n", BYTE(r->value));
+			else
+				printf("\tsub ea,=%u\n", WORD(r->value));
+		}
+		inline_notzero(s);
+		n->flags |= ISBOOL;
+		return 1;
+	case T_GTEQ:	/* TODO: stuff like < 0 signed case */
+		if (r->op != T_CONSTANT)
+			return 0;
+		s = get_size(r->type);
+		if (s > 2)
+			return 0;
+		if (is_byte)
+			s = 1;
+		if (r->type & UNSIGNED) {
+			if (r->value)
+				inline_compare(s, r->value);
+			else
+				inline_notzero(s);
 			n->flags |= ISBOOL;
-			puts("\txor a,=1");
 			return 1;
 		}
 		return 0;
-	case T_GTEQ:
-		return 0;
 	case T_GT:
+		if (r->op != T_CONSTANT)
+			return 0;
+		s = get_size(r->type);
+		if (s > 2)
+			return 0;
+		if (is_byte)
+			s = 1;
+		if (r->type & UNSIGNED) {
+			if (r->value != 0xFFFF)
+				inline_compare(s, r->value + 1);
+			else
+				inline_notff(s);
+			n->flags |= ISBOOL;
+			return 1;
+		}
 		return 0;
-	case T_LTEQ:
+	case T_LT:	/* TODO: stuff like < 0 signed case */
+		if (r->op != T_CONSTANT)
+			return 0;
+		s = get_size(r->type);
+		if (s > 2)
+			return 0;
+		if (is_byte)
+			s = 1;
+		if (r->type & UNSIGNED) {
+			inline_compare(s, r->value);
+			puts("\txor a,=1");
+			n->flags |= ISBOOL;
+			return 1;
+		}
 		return 0;
-	case T_LT:
-		return 0;
-	case T_BANGEQ:
-		if (r->type == T_CONSTANT) {
-			s = get_size(r->type);
-			if (s > 2)
-				return 0;
-			if (r->value) {
-				if (s == 1)
-					printf("\tsub a,=%u\n", BYTE(r->value));
-				else
-					printf("\tsub ea,=%u\n", WORD(r->value));
-			}
-			if (s == 2)
-				puts("\tor a,e\n");
-			printf("\tbz X%u\n", ++label);
-			load_ea(2,1);
-			printf("X%u:\n", label);
+	case T_LTEQ:	/* TODO: stuff like < 0 signed case */
+		if (r->op != T_CONSTANT)
+			return 0;
+		s = get_size(r->type);
+		if (s > 2)
+			return 0;
+		if (is_byte)
+			s = 1;
+		if (r->type & UNSIGNED) {
+			if (r->value > 0)
+				inline_compare(s, r->value - 1);
+			else
+				inline_notzero(s);
+			puts("\txor a,=1");
 			n->flags |= ISBOOL;
 			return 1;
 		}
 		return 0;
 	case T_LTLT:
+		/* TODO 32bit shifts of 16bit etc */
 		if (s > 2)
 			return 0;
 		/* TODO track shift result */
@@ -1800,8 +1908,20 @@ unsigned gen_direct(struct node *n)
 	case T_GTGT:
 		if (s > 2)
 			return 0;
+		if (r->op != T_CONSTANT)
+			return 0;
+		if (v >= 16 && (n->type & UNSIGNED) && s == 4) {
+			/* >> by over 16 we can shortcut nicely */
+			load_ea_hireg();
+			xch_ea_p2();
+			load_ea(2, 0);
+			store_ea_hireg();
+			xch_ea_p2();
+			v -= 16;
+			s = 2;
+		}
 		/* TODO track shift result */
-		if ((n->type & UNSIGNED) && s<= 2 && r->op == T_CONSTANT) {
+		if ((n->type & UNSIGNED) && s <= 2) {
 			if (v > 15)
 				return 1;
 			if (v >= 8) {
