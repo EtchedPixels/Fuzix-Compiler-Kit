@@ -33,7 +33,9 @@
  *		Need to enable LREF/LSTORE etc for dword
  *		Constant tracking needs putting back
  *	- Optimised pushing for args (push long, push lref)
- *	- Spot the *foo++ = n case and build a p2 based ++ op for it
+ *	- Spot the *foo++ case and build a p2 based ++ op for it
+ *		ld p2,1,p1 ; st ea,@2,p2; st p2,1,p1 etc
+ *		ld p2,1,p1 ; add ea,@2,p2; st p2,1,p1 etc
  *	- CCONLY
  *	- Comparisons using CCONLY
  *	- Peepholes
@@ -41,6 +43,12 @@
  *	  like sub ea,blah jsr bool/bang ?
  *	- Enable register variables with p3 (and maybe one day T) - needs p3
  *	  use in helpers cleaning up first
+ *	- Would it make more sense to use p3 as hireg
+ *		We can xch ea,p3 when working on halves
+ *		We can ld p3,=foo (but not indexed forms)
+ *		If we track p3 as upper value we can also do stuff
+ *		like ld p3,ea ld ea,p3 for half words, and we can >> 16 << 16
+ *		similarly
  */
 #include <stdio.h>
 #include <stdint.h>
@@ -1528,15 +1536,19 @@ static unsigned eqlogic(register struct node *n, unsigned s, unsigned lt)
  *	Set up and call a helper so we don't have messy stack
  *	mangling.
  */
-static unsigned helper_stack(struct node *n, const char *op, unsigned s)
+static unsigned helper_stack(struct node *n, const char *op, unsigned t)
 {
+	unsigned s = get_size(t);
 	if (s > 2)
 		return 0;
-	puts("\tst ea,:__tmp");
+	if (s == 2)
+		puts("\tst ea,:__tmp");
+	else
+		puts("\tst a,:__tmp");
 	puts("\tpop ea");
 	gen_helpcall(n);
 	printf("%s", op);
-	helper_type(n->type, n->type & UNSIGNED);
+	helper_type(t, t & UNSIGNED);
 	gen_helptail(n);
 	putchar('\n');
 	return 1;
@@ -1547,7 +1559,7 @@ static unsigned helper_stack(struct node *n, const char *op, unsigned s)
 static unsigned cc_helper_stack(struct node *n, const char *op)
 {
 	n->flags |= ISBOOL;
-	return helper_stack(n, op, get_size(n->right->type));
+	return helper_stack(n, op, n->right->type);
 }
 
 unsigned op16_direct(struct node *n, const char *op, unsigned size, unsigned nr)
@@ -2208,7 +2220,7 @@ unsigned gen_node(struct node *n)
 		invalidate_ea();
 		return 1;
 	case T_SLASH:
-/*		if (helper_stack(n, "divtmp", sz)) seems easier without
+/*		if (helper_stack(n, "divtmp", n->type)) seems easier without
 			return 1; */
 		return 0;
 	case T_AND:
@@ -2264,12 +2276,12 @@ unsigned gen_node(struct node *n)
 	/* Shift TOS by EA */
 	case T_LTLT:
 	/* Need a variant that stacks the other way around ?
-		if (helper_stack(n, "shltmp", sz))
+		if (helper_stack(n, "shltmp", n->type))
 			return 1; */
 		return 0;
 	case T_GTGT:
 	/* Need a variant that stacks the other way around ?
-		if (helper_stack(n, "shrtmp", sz))
+		if (helper_stack(n, "shrtmp", n->type))
 			return 1; */
 		return 0;
 
@@ -2298,15 +2310,15 @@ unsigned gen_node(struct node *n)
 		invalidate_ea();
 		return 1;
 	case T_STAREQ:
-		if (helper_stack(n, "muleqtmp", sz))
+		if (helper_stack(n, "muleqtmp", n->type))
 			return 1;
 		return 0;
 	case T_SLASHEQ:
-/*		if (helper_stack(n, "diveqtmp", sz))
+/*		if (helper_stack(n, "diveqtmp", n->type))
 			return 1; */
 		return 0;
 	case T_PERCENTEQ:
-/*		if (helper_stack(n, "modeqtmp", sz))
+/*		if (helper_stack(n, "modeqtmp", n->type))
 			return 1;*/
 		return 0;
 	/* TOS is the pointer, EA is the value */
