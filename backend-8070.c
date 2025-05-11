@@ -361,7 +361,6 @@ void load_ea_t(void)
 	puts("\tld ea,t");
 }
 
-
 /* Also need a find_ptr that turns LSTORE/LREF to LOCAL etc so we can look
    for the object pointer itself to optimise stuff like ld ea,T%u into
    ld ea,p3 */
@@ -1058,14 +1057,18 @@ static unsigned gen_fast_mul(unsigned sz, unsigned value)
 	if (!(value & (value - 1))) {
 		/* Do 8bits of shift by swapping the register about */
 		if (value >= 256) {
-			xch_a_e();
+			if (sz == 2)
+				xch_a_e();
 			load_ea(1, 0);
 			value >>= 8;
 		}
 		/* For each power of two just shift left */
 		while(value > 1) {
 			value >>= 1;
-			puts("\tsl ea");
+			if (sz == 2)
+				puts("\tsl ea");
+			else
+				puts("\tsl a");
 		}
 		return 1;
 	}
@@ -1954,6 +1957,28 @@ unsigned gen_shortcut(struct node *n)
 		if (!nr)
 			set_ea_node(n);
 		return 1;
+	case T_STAREQ:
+		if (s > 2 || can_make_ptr_ref(l) == 0)
+			return 0;
+		if (r->op != T_CONSTANT)
+			return 0;
+		if (s == 2 && r->value & 0x8000)
+			return 0;
+		/* Can be done via mpy ea, t */
+		make_ptr_ref(l, 0);
+		make_ref_p2(0);
+		if (s == 16)
+			load_ea(2,0);
+		op16("ld", s, O_LOAD, 1);
+		if (!gen_fast_mul(s, r->value)) {
+			load_t(r->value);
+			puts("\tmpy ea,t");
+			invalidate_ea();
+			invalidate_t();
+			load_ea_t();
+		}
+		op16("st", s, O_STORE, nr);
+		return 1;
 	case T_MINUS:
 		if (nr && !se)
 			return 1;
@@ -2316,6 +2341,7 @@ unsigned gen_node(struct node *n)
 			pop_p2();	 /* Pointer */
 			make_ref_p2(0);
 			load_t_ea();
+			load_ea(2, 0);	/* Ensure upper byte is clear */
 			op16("ld", 1, O_LOAD, 1);
 			puts("\tmpy ea,t");
 			/* Result is in T */
