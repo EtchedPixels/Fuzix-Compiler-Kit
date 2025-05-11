@@ -2310,6 +2310,21 @@ unsigned gen_node(struct node *n)
 		invalidate_ea();
 		return 1;
 	case T_STAREQ:
+		/* We can do byte sized muleq fast. Constant
+		   stuff is picked off in gen_direct first */
+		if (sz == 1) {
+			pop_p2();	 /* Pointer */
+			make_ref_p2(0);
+			load_t_ea();
+			op16("ld", 1, O_LOAD, 1);
+			puts("\tmpy ea,t");
+			/* Result is in T */
+			invalidate_ea();
+			invalidate_t();
+			load_ea_t();
+			op16("st", 1, O_STORE, nr);
+			return 1;
+		}
 		if (helper_stack(n, "muleqtmp", n->type))
 			return 1;
 		return 0;
