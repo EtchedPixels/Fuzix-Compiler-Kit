@@ -1697,23 +1697,17 @@ static unsigned gen_eq_op(struct node *n, unsigned eq, unsigned is_byte)
 {
 	struct node *r = n->right;
 	unsigned s = get_size(n->type);
-	if (r->type != T_CONSTANT)
-		return 0;
 	s = get_size(r->type);
 	if (is_byte)
 		s = 1;
 	if (s > 2)
 		return 0;
-	if (r->value) {
-		if (s == 1)
-			printf("\tsub a,=%u\n", BYTE(r->value));
-		else
-			printf("\tsub ea,=%u\n", WORD(r->value));
-	}
-	if (s == 2) {
+	if (!make_ref(r, 0))
+		return 0;
+	op16("sub", s, O_MODIFY, r->value);
+	invalidate_ea();
+	if (s == 2)
 		puts("\tor a,e\n");
-		invalidate_ea();
-	}
 	printf("\tbz X%u\n", ++label);
 	load_ea(2,1);
 	printf("X%u:\n", label);
@@ -1894,7 +1888,6 @@ unsigned gen_direct(struct node *n)
 		return 1;
 	case T_EQEQ:
 		return gen_eq_op(n, 1, is_byte);
-		return 1;
 	case T_BANGEQ:
 		return gen_eq_op(n, 0, is_byte);
 	case T_GT:
