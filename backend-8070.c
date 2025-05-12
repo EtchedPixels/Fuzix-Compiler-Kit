@@ -1578,7 +1578,8 @@ static unsigned op16_direct(struct node *n, const char *op, unsigned size, unsig
 
 /* TODO: what is the best way to do this, also do we do CCONLY handling
    using z/nz on A and just let A be 0x80 or 0x00 */
-static void inline_compare(unsigned s, unsigned val)
+/* True if EA >= const */
+static void uns_gteq_const(unsigned s, unsigned val)
 {
 	if (s == 2) {
 		printf("\tsub ea,=%u\n", val);
@@ -1595,8 +1596,8 @@ static void inline_compare(unsigned s, unsigned val)
 	invalidate_a();
 }
 
-/* Not yet finished TODO */
-static void signed_compare(unsigned s, unsigned val)
+/* True if sign != overflow flag, that is if EA < const */
+static void s_lt_const(unsigned s, unsigned val)
 {
 	if (s == 2) {
 		printf("\tsub ea,=%u\n", val);
@@ -1611,7 +1612,9 @@ static void signed_compare(unsigned s, unsigned val)
 	puts("\tsl a");		/* O is in top bit */
 	puts("\txor a,e");	/* O xor sign of result */
 	puts("\tsl ea");	/* And shuffle into EA as 0/1 */
+	puts("\tld a,=0");
 	puts("\txch a,e");
+	puts("\tand a,=1");
 }
 
 static void inline_notzero(unsigned s)
@@ -1636,6 +1639,23 @@ static void inline_notff(unsigned s)
 	load_ea(2,1);
 	printf("X%u:\n", label);
 	invalidate_a();
+}
+
+static void inline test_noteq(unsigned s, unsigned v)
+{
+	if (s == 1) {
+		v >>= 8;
+		printf("\tsub a,=%u", BYTE(v));
+	} else {
+		printf("\tsub ea,=%u", WORD(v));
+	}
+	inline_notzero(s);
+}
+
+static void inline test_eq(unsigned s, unsigned v)
+{
+	test_noteq(s, v);
+	puts("\txor a,=1");
 }
 
 /*
@@ -1824,15 +1844,14 @@ unsigned gen_direct(struct node *n)
 			return 0;
 		if (is_byte)
 			s = 1;
-		if (r->type & UNSIGNED) {
-			if (r->value)
-				inline_compare(s, r->value);
-			else
-				inline_notzero(s);
-			n->flags |= ISBOOL;
-			return 1;
+		if (r->type & UNSIGNED)
+			uns_gteq_const(s, r->value);
+		else {
+			s_lt_const(s, r->value);
+			puts("\txor a,=1");
 		}
-		return 0;
+		n->flags |= ISBOOL;
+		return 1;
 	case T_GT:
 		if (r->op != T_CONSTANT)
 			return 0;
@@ -1842,15 +1861,26 @@ unsigned gen_direct(struct node *n)
 		if (is_byte)
 			s = 1;
 		if (r->type & UNSIGNED) {
-			if (r->value != 0xFFFF)
-				inline_compare(s, r->value + 1);
+			/* GT n is GTEQ n + 1 */
+			if (r->value == 0xFFFF)
+				load_ea(2, 0);
 			else
-				inline_notff(s);
-			n->flags |= ISBOOL;
-			return 1;
+				uns_gteq_const(s, r->value + 1);
+		} else {
+			/* Test is LT is  */
+			if (r->value != 0x7FFF) { 
+				s_lt_const(s, r->value + 1);
+				puts("\txor a,=1");
+			} else	/* > 0x7FFF is always false */
+				load_ea(2, 0);
 		}
-		return 0;
+		n->flags |= ISBOOL;
+		return 1;
 	case T_LT:	/* TODO: stuff like < 0 signed case */
+		printf(";T_LT\n");
+		/* TODO: LT and GTEQ we can do for anything we can
+		   reference. GT AND LTEQ for anything we can do backwards
+		   and reference */
 		if (r->op != T_CONSTANT)
 			return 0;
 		s = get_size(r->type);
@@ -1859,12 +1889,12 @@ unsigned gen_direct(struct node *n)
 		if (is_byte)
 			s = 1;
 		if (r->type & UNSIGNED) {
-			inline_compare(s, r->value);
+			uns_gteq_const(s, r->value);
 			puts("\txor a,=1");
-			n->flags |= ISBOOL;
-			return 1;
-		}
-		return 0;
+		} else
+			s_lt_const(s, r->value);
+		n->flags |= ISBOOL;
+		return 1;
 	case T_LTEQ:	/* TODO: stuff like < 0 signed case */
 		if (r->op != T_CONSTANT)
 			return 0;
@@ -1874,15 +1904,19 @@ unsigned gen_direct(struct node *n)
 		if (is_byte)
 			s = 1;
 		if (r->type & UNSIGNED) {
-			if (r->value > 0)
-				inline_compare(s, r->value - 1);
+			if (r->value != 0xFFFF) {
+				uns_gteq_const(s, r->value + 1);
+				puts("xor a,=1");
+			} else
+				load_ea(2, 1);
+		} else {
+			if (r->value != 0x7FFF)
+				s_lt_const(s, r->value + 1);
 			else
-				inline_notzero(s);
-			puts("\txor a,=1");
-			n->flags |= ISBOOL;
-			return 1;
+				load_ea(2, 1);
 		}
-		return 0;
+		n->flags |= ISBOOL;
+		return 1;
 	case T_LTLT:
 		/* TODO 32bit shifts of 16bit etc */
 		if (s > 2)
