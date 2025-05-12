@@ -1070,6 +1070,7 @@ static unsigned gen_fast_mul(unsigned sz, unsigned value)
 			else
 				puts("\tsl a");
 		}
+		invalidate_ea();
 		return 1;
 	}
 
@@ -1102,6 +1103,15 @@ static unsigned gen_fast_mul(unsigned sz, unsigned value)
 	invalidate_ea();
 	load_ea_t();
 	return 1;
+}
+
+static unsigned gen_fast_div(unsigned s, struct node *n)
+{
+	unsigned v = WORD(n->right->value);
+	if (v == 1)
+		return 1;
+	/* TODO */
+	return 0;
 }
 
 /*
@@ -1581,10 +1591,13 @@ static void uns_gteq_const(unsigned s)
 {
 	op16("sub", s, O_MODIFY, 1);
 	invalidate_ea();
-/*	if (s == 2)
-		adjust_ea(WORD(-val));
-	else
-		adjust_a(BYTE(-val)); */
+
+	if (ref_op == T_CONSTANT) {
+		if (s == 2)
+			adjust_ea(WORD(-ref_value));
+		else
+			adjust_a(BYTE(-ref_value));
+	}
 	if (optsize) {
 		puts("\tjsr __unsignedcomp");
 		set_e(0);
@@ -1603,10 +1616,12 @@ static void s_lt_const(unsigned s)
 {
 	op16("sub", s, O_MODIFY, 1);
 	invalidate_ea();
-/*	if (s == 2)
-		adjust_ea(WORD(-val));
-	else
-		adjust_a(BYTE(-val)); */
+	if (ref_op == T_CONSTANT) {
+		if (s == 2)
+			adjust_ea(WORD(-ref_value));
+		else
+			adjust_a(BYTE(-ref_value));
+	}
 	invalidate_a();
 	if (optsize) {
 		if (s == 1) 
@@ -1709,6 +1724,21 @@ static unsigned gen_eq_op(struct node *n, unsigned eq, unsigned is_byte)
 	return 1;
 }
 
+void shift_left(unsigned s, unsigned v)
+{
+	if (v >= 8) {
+		v -= 8;
+		puts("\tld e,a\n\tld a,=0");
+	}
+	if (s == 1) {
+		repeated_op("\tsl a", v);
+		invalidate_a();
+	} else {
+		repeated_op("\tsl ea", v);
+		invalidate_ea();
+	}
+}
+
 /*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
@@ -1778,16 +1808,26 @@ unsigned gen_direct(struct node *n)
 			return 0;
 		if (op16_direct(n, "add", s, nr) == 0)
 			return 0;
-		invalidate_ea();
-		/* FIXME - set to new value if known */
+		if (ref_op == T_CONSTANT) {
+			if (s == 2)
+				adjust_ea(WORD(ref_value));
+			else
+				adjust_a(BYTE(ref_value));
+		} else
+			invalidate_ea();
 		return 1;
 	case T_MINUS:
 		if (s > 2)
 			return 0;
 		if (op16_direct(n, "sub", s, nr) == 0)
 			return 0;
-		invalidate_ea();
-		/* FIXME - set to new value if known */
+		if (ref_op == T_CONSTANT) {
+			if (s == 2)
+				adjust_ea(WORD(ref_value));
+			else
+				adjust_a(BYTE(ref_value));
+		} else
+			invalidate_ea();
 		return 1;
 	case T_STAR:	/* Multiply is a complicated mess */
 		if (s > 2)
@@ -1810,15 +1850,13 @@ unsigned gen_direct(struct node *n)
 		if (s > 2)
 			return 0;
 		if (r->op == T_CONSTANT) {
-			if (s == 2 && (r->type & UNSIGNED) && r->op == T_CONSTANT && v == 256) {
+			if (s == 2 && (n->type & UNSIGNED) && r->op == T_CONSTANT && v == 256) {
 				load_ea(1,0);
 				xch_a_e();
 				return 1;
 			}
-#if 0
-			if (gen_fast_div(s, r))
+			if (gen_fast_div(s, n))
 				return 1;
-#endif
 			/* Can we use the div instruction ? */
 			/* This is true only for unsigned and positvie
 			    divisor */
@@ -1868,24 +1906,24 @@ unsigned gen_direct(struct node *n)
 	case T_LTEQ:
 		return gen_gtlt_op(n, 1, 0, is_byte);
 	case T_LTLT:
-		/* TODO 32bit shifts of 16bit etc */
-		if (s > 2)
-			return 0;
 		/* TODO track shift result */
 		if (r->op == T_CONSTANT) {
+			if (s == 4) {
+				if (v > 31)
+					return 1;
+				if (v >= 16) {
+					shift_left(2, v - 16);
+					store_ea_hireg();
+					load_ea(2, 0);
+					return 1;
+				}
+				return 0;
+			}
 			if (v > 15)
 				return 1;
-			if (v >= 8) {
-				if (s == 1)
-					return 1;
-				v -= 8;
-				puts("\tld e,a\n\tld a,=0");
-			}
-			if (s == 1)
-				repeated_op("\tsl a", v);
-			else
-				repeated_op("\tsl ea", v);
-			invalidate_ea();
+			if (v >= 8 && s == 1)
+				return 1;
+			shift_left(s, v);
 			return 1;
 		}
 		break;
