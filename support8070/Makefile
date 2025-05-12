@@ -19,7 +19,8 @@ OBJ = __bool.o __cc.o __castc_.o __cast_l.o \
       __shll.o __shrul.o \
       __mull.o __div32x32.o __divul.o __divl.o \
       __boolf.o __cast2f.o __castf.o __cceqf.o __ccgteqf.o __ccgtf.o __cclteqf.o \
-      __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o __eqopf.o
+      __ccltf.o __ccnef.o __divf.o __minusf.o __mulf.o __plusf.o __eqopf.o \
+      __optsize.o
 
 .s.o:
 	fcc -m8070 -c $<
