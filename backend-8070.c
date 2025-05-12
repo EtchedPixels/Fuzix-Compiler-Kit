@@ -243,12 +243,10 @@ static void adjust_a(unsigned n)
 static void adjust_ea(unsigned n)
 {
 	unsigned t = a_value + BYTE(n);
-	printf(";EA was %02X%02X\n", e_value, a_value);
 	a_value = t;
 	e_value += BYTE(n >> 8);
 	if (t & 0x0100)
 		e_value++;
-	printf(";EA now %02X%02X\n", e_value, a_value);
 }
 
 static void set_t(unsigned n)
@@ -1579,42 +1577,54 @@ static unsigned op16_direct(struct node *n, const char *op, unsigned size, unsig
 /* TODO: what is the best way to do this, also do we do CCONLY handling
    using z/nz on A and just let A be 0x80 or 0x00 */
 /* True if EA >= const */
-static void uns_gteq_const(unsigned s, unsigned val)
+static void uns_gteq_const(unsigned s)
 {
-	if (s == 2) {
-		printf("\tsub ea,=%u\n", val);
+	op16("sub", s, O_MODIFY, 1);
+	invalidate_ea();
+/*	if (s == 2)
 		adjust_ea(WORD(-val));
+	else
+		adjust_a(BYTE(-val)); */
+	if (optsize) {
+		puts("\tjsr __unsignedcomp");
+		set_e(0);
 	} else {
-		printf("\tsub a,=%u\n", BYTE(val));
-		adjust_a(BYTE(-val));
+		/* Now play games to get borrow flag */
+		load_ea(2, 0);
+		puts("\trrl a");/* Borrow is now top bit of A */
+		puts("\tsl ea");/* Into low bit of E */
+		xch_a_e();	/* Into low bit of A */
 	}
-	/* Now play games to get borrow flag */
-	load_ea(2, 0);
-	puts("\trrl a");/* Borrow is now top bit of A */
-	puts("\tsl ea");/* Into low bit of E */
-	xch_a_e();	/* Into low bit of A */
 	invalidate_a();
 }
 
 /* True if sign != overflow flag, that is if EA < const */
-static void s_lt_const(unsigned s, unsigned val)
+static void s_lt_const(unsigned s)
 {
-	if (s == 2) {
-		printf("\tsub ea,=%u\n", val);
+	op16("sub", s, O_MODIFY, 1);
+	invalidate_ea();
+/*	if (s == 2)
 		adjust_ea(WORD(-val));
-	} else {
-		printf("\tsub a,=%u\n", BYTE(val));
-		adjust_a(BYTE(-val));
-		xch_a_e();
-	}
+	else
+		adjust_a(BYTE(-val)); */
 	invalidate_a();
-	puts("\tld a,s");
-	puts("\tsl a");		/* O is in top bit */
-	puts("\txor a,e");	/* O xor sign of result */
-	puts("\tsl ea");	/* And shuffle into EA as 0/1 */
-	puts("\tld a,=0");
-	puts("\txch a,e");
-	puts("\tand a,=1");
+	if (optsize) {
+		if (s == 1) 
+			puts("\tjsr __signed8comp");
+		else
+			puts("\tjsr __signedcomp");
+		set_e(0);
+	} else {
+		if (s == 1)
+			xch_a_e();
+		puts("\tld a,s");
+		puts("\tsl a");		/* O is in top bit */
+		puts("\txor a,e");	/* O xor sign of result */
+		puts("\tsl ea");	/* And shuffle into EA as 0/1 */
+		load_ea(1, 0);
+		xch_a_e();
+		puts("\tand a,=1");
+	}
 }
 
 
@@ -1624,28 +1634,44 @@ static unsigned gen_gtlt_op(struct node *n, unsigned z, unsigned gt, unsigned is
 	register unsigned w = WORD(r->value);
 	unsigned s;
 
-	if (r->op != T_CONSTANT)
+	if (z && r->op != T_CONSTANT)
 		return 0;
+
 	s = get_size(r->type);
 	if (s > 2)
 		return 0;
+
+	if (!can_make_ref(r))
+		return 0;
+
+	make_ref(r, 0);
+
+
 	if (is_byte)
 		s = 1;
+
+	printf(";sign %u z %u gt %u val %u\n", r->type & UNSIGNED, z, gt, w);
 	if (r->type & UNSIGNED) {
 		if (z && w == 0xFFFF)
 			load_ea(2, !gt);
 		else {
-			uns_gteq_const(s, r->value + z);
+			if (z) {
+				printf(";make ref constant %u\n", w + z);
+				make_ref_constant(w + z);
+			}
+			uns_gteq_const(s);
 			if (!gt)
-				puts("xor a,=1");
+				puts("\txor a,=1");
 		}
 	} else {
 		if (z && w == 0x7FFF)
 			load_ea(2, !gt);
 		else {
-			s_lt_const(s, r->value + z);
+			if (z)
+				make_ref_constant(w + z);
+			s_lt_const(s);
 			if (gt)
-				puts("xor a,=1");
+				puts("\txor a,=1");
 		}
 	}
 	n->flags |= ISBOOL;
@@ -1680,6 +1706,7 @@ static unsigned gen_eq_op(struct node *n, unsigned eq, unsigned is_byte)
 	if (eq)
 		puts("\txor a,=1");
 	n->flags |= ISBOOL;
+	return 1;
 }
 
 /*
@@ -1832,10 +1859,10 @@ unsigned gen_direct(struct node *n)
 		return 1;
 	case T_BANGEQ:
 		return gen_eq_op(n, 0, is_byte);
-	case T_GTEQ:
-		return gen_gtlt_op(n, 0, 1, is_byte);
 	case T_GT:
 		return gen_gtlt_op(n, 1, 1, is_byte);
+	case T_GTEQ:
+		return gen_gtlt_op(n, 0, 1, is_byte);
 	case T_LT:
 		return gen_gtlt_op(n, 0, 0, is_byte);
 	case T_LTEQ:
