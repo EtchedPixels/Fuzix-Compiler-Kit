@@ -1617,8 +1617,58 @@ static void s_lt_const(unsigned s, unsigned val)
 	puts("\tand a,=1");
 }
 
-static void inline_notzero(unsigned s)
+
+static unsigned gen_gtlt_op(struct node *n, unsigned z, unsigned gt, unsigned is_byte)
 {
+	register struct node *r = n->right;
+	register unsigned w = WORD(r->value);
+	unsigned s;
+
+	if (r->op != T_CONSTANT)
+		return 0;
+	s = get_size(r->type);
+	if (s > 2)
+		return 0;
+	if (is_byte)
+		s = 1;
+	if (r->type & UNSIGNED) {
+		if (z && w == 0xFFFF)
+			load_ea(2, !gt);
+		else {
+			uns_gteq_const(s, r->value + z);
+			if (!gt)
+				puts("xor a,=1");
+		}
+	} else {
+		if (z && w == 0x7FFF)
+			load_ea(2, !gt);
+		else {
+			s_lt_const(s, r->value + z);
+			if (gt)
+				puts("xor a,=1");
+		}
+	}
+	n->flags |= ISBOOL;
+	return 1;
+}
+
+static unsigned gen_eq_op(struct node *n, unsigned eq, unsigned is_byte)
+{
+	struct node *r = n->right;
+	unsigned s = get_size(n->type);
+	if (r->type != T_CONSTANT)
+		return 0;
+	s = get_size(r->type);
+	if (is_byte)
+		s = 1;
+	if (s > 2)
+		return 0;
+	if (r->value) {
+		if (s == 1)
+			printf("\tsub a,=%u\n", BYTE(r->value));
+		else
+			printf("\tsub ea,=%u\n", WORD(r->value));
+	}
 	if (s == 2) {
 		puts("\tor a,e\n");
 		invalidate_ea();
@@ -1627,35 +1677,9 @@ static void inline_notzero(unsigned s)
 	load_ea(2,1);
 	printf("X%u:\n", label);
 	invalidate_a();
-}
-
-static void inline_notff(unsigned s)
-{
-	invalidate_ea();
-	if (s == 2)
-		puts("\tand a,e\n");
-	puts("\tadd a,=1");
-	printf("\tbz X%u\n", ++label);
-	load_ea(2,1);
-	printf("X%u:\n", label);
-	invalidate_a();
-}
-
-static void inline test_noteq(unsigned s, unsigned v)
-{
-	if (s == 1) {
-		v >>= 8;
-		printf("\tsub a,=%u", BYTE(v));
-	} else {
-		printf("\tsub ea,=%u", WORD(v));
-	}
-	inline_notzero(s);
-}
-
-static void inline test_eq(unsigned s, unsigned v)
-{
-	test_noteq(s, v);
-	puts("\txor a,=1");
+	if (eq)
+		puts("\txor a,=1");
+	n->flags |= ISBOOL;
 }
 
 /*
@@ -1804,119 +1828,18 @@ unsigned gen_direct(struct node *n)
 		oplogic(s, 2);	/* 2 - XOR */
 		return 1;
 	case T_EQEQ:
-		if (r->type != T_CONSTANT)
-			return 0;
-		s = get_size(r->type);
-		if (s > 2)
-			return 0;
-		if (r->value) {
-			if (s == 1)
-				printf("\tsub a,=%u\n", BYTE(r->value));
-			else
-				printf("\tsub ea,=%u\n", WORD(r->value));
-		}
-		inline_notzero(s);
-		puts("\txor a,=1");
-		n->flags |= ISBOOL;
+		return gen_eq_op(n, 1, is_byte);
 		return 1;
 	case T_BANGEQ:
-		if (r->op != T_CONSTANT)
-			return 0;
-		s = get_size(r->type);
-		if (is_byte)
-			s = 1;
-		if (s > 2)
-			return 0;
-		if (r->value) {
-			if (s == 1)
-				printf("\tsub a,=%u\n", BYTE(r->value));
-			else
-				printf("\tsub ea,=%u\n", WORD(r->value));
-		}
-		inline_notzero(s);
-		n->flags |= ISBOOL;
-		return 1;
-	case T_GTEQ:	/* TODO: stuff like < 0 signed case */
-		if (r->op != T_CONSTANT)
-			return 0;
-		s = get_size(r->type);
-		if (s > 2)
-			return 0;
-		if (is_byte)
-			s = 1;
-		if (r->type & UNSIGNED)
-			uns_gteq_const(s, r->value);
-		else {
-			s_lt_const(s, r->value);
-			puts("\txor a,=1");
-		}
-		n->flags |= ISBOOL;
-		return 1;
+		return gen_eq_op(n, 0, is_byte);
+	case T_GTEQ:
+		return gen_gtlt_op(n, 0, 1, is_byte);
 	case T_GT:
-		if (r->op != T_CONSTANT)
-			return 0;
-		s = get_size(r->type);
-		if (s > 2)
-			return 0;
-		if (is_byte)
-			s = 1;
-		if (r->type & UNSIGNED) {
-			/* GT n is GTEQ n + 1 */
-			if (r->value == 0xFFFF)
-				load_ea(2, 0);
-			else
-				uns_gteq_const(s, r->value + 1);
-		} else {
-			/* Test is LT is  */
-			if (r->value != 0x7FFF) { 
-				s_lt_const(s, r->value + 1);
-				puts("\txor a,=1");
-			} else	/* > 0x7FFF is always false */
-				load_ea(2, 0);
-		}
-		n->flags |= ISBOOL;
-		return 1;
-	case T_LT:	/* TODO: stuff like < 0 signed case */
-		printf(";T_LT\n");
-		/* TODO: LT and GTEQ we can do for anything we can
-		   reference. GT AND LTEQ for anything we can do backwards
-		   and reference */
-		if (r->op != T_CONSTANT)
-			return 0;
-		s = get_size(r->type);
-		if (s > 2)
-			return 0;
-		if (is_byte)
-			s = 1;
-		if (r->type & UNSIGNED) {
-			uns_gteq_const(s, r->value);
-			puts("\txor a,=1");
-		} else
-			s_lt_const(s, r->value);
-		n->flags |= ISBOOL;
-		return 1;
-	case T_LTEQ:	/* TODO: stuff like < 0 signed case */
-		if (r->op != T_CONSTANT)
-			return 0;
-		s = get_size(r->type);
-		if (s > 2)
-			return 0;
-		if (is_byte)
-			s = 1;
-		if (r->type & UNSIGNED) {
-			if (r->value != 0xFFFF) {
-				uns_gteq_const(s, r->value + 1);
-				puts("xor a,=1");
-			} else
-				load_ea(2, 1);
-		} else {
-			if (r->value != 0x7FFF)
-				s_lt_const(s, r->value + 1);
-			else
-				load_ea(2, 1);
-		}
-		n->flags |= ISBOOL;
-		return 1;
+		return gen_gtlt_op(n, 1, 1, is_byte);
+	case T_LT:
+		return gen_gtlt_op(n, 0, 0, is_byte);
+	case T_LTEQ:
+		return gen_gtlt_op(n, 1, 0, is_byte);
 	case T_LTLT:
 		/* TODO 32bit shifts of 16bit etc */
 		if (s > 2)
