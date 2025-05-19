@@ -25,6 +25,7 @@
  *	- Fold together all the condition helpers for byte/word
  *	- Rewrite x++ and --x forms to use autoindexing
  *	- Byte sized ++/-- optimizations
+ *	   (in particular using E as a save reg for bytesized -- to avoid tmp)
  *	- Shift >> or << 16 optimization (and maybe >=16 as it's then a
  *	  standard sized shift if we set up right for >> unsigned)
  *	- Implement register tracking (in progress)
@@ -1310,6 +1311,12 @@ static void make_ref_p2(unsigned off)
 	snprintf(ref_buf, sizeof(ref_buf), "%u+%%u,p2", off);
 }
 
+static void make_ref_tmp(void)
+{
+	ref_op = T_NREF;
+	strcpy(ref_buf, ":__tmp");
+}
+
 static void make_ref_constant(unsigned long v)
 {
 	ref_op = T_CONSTANT;
@@ -1554,10 +1561,8 @@ static unsigned helper_stack(struct node *n, const char *op, unsigned t)
 	unsigned s = get_size(t);
 	if (s > 2)
 		return 0;
-	if (s == 2)
-		puts("\tst ea,:__tmp");
-	else
-		puts("\tst a,:__tmp");
+	make_ref_tmp();
+	op16("st", s, O_STORE, 0);
 	puts("\tpop ea");
 	gen_helpcall(n);
 	printf("%s", op);
@@ -2084,10 +2089,13 @@ unsigned gen_shortcut(struct node *n)
 		if (can_make_ref(r))
 			return 0;
 		codegen_lr(r);
-		puts("\tst ea,:__tmp");
+		make_ref_tmp();
+		op16("st", s, O_STORE, 0);
 		make_ptr_ref(l, 0);
 		op16("ld", s, O_LOAD, 1);
-		puts("\tsub ea,:__tmp");
+		make_ref_tmp();
+		op16("sub", s, O_MODIFY, 1);
+		make_ptr_ref(l, 0);
 		op16("st", s, O_STORE, nr);
 		if (!nr)
 			set_ea_node(n);
@@ -2363,12 +2371,11 @@ unsigned gen_node(struct node *n)
 		/* TOS - EA */
 		if (sz > 2)
 			return 0;
-		puts("\tst ea,:__tmp");
+		make_ref_tmp();
+		op16("st", sz, O_STORE, 0);
 		puts("\tpop ea");
-		if (sz == 2)
-			puts("\tsub ea,:__tmp");
-		else
-			puts("\tsub a,:__tmp");
+		invalidate_ea();
+		op16("sub", sz,O_MODIFY, nr);
 		invalidate_ea();
 		return 1;
 	case T_STAR:
@@ -2461,11 +2468,14 @@ unsigned gen_node(struct node *n)
 			return 0;
 		pop_p2();
 		/* This one is backwards so trickier */
-		puts("st ea,:__tmp");
+		make_ref_tmp();
+		op16("st", sz, O_STORE, 0);
 		/* EA holds the value, p2 the ptr */
 		make_ref_p2(0);
 		op16("ld", sz, O_LOAD, 1);
-		puts("\tsub ea,:__tmp");
+		make_ref_tmp();
+		op16("sub", sz, O_MODIFY, 1);
+		make_ref_p2(0);
 		op16("st", sz, O_STORE, nr);
 		invalidate_ea();
 		return 1;
@@ -2545,10 +2555,15 @@ unsigned gen_node(struct node *n)
 		/* Complex -- */
 		if (sz > 2)
 			return 0;
-		/* EA id the amount to add, TOS the pointer */
+		/* EA id the amount to sub, TOS the pointer */
 		pop_p2();
+		make_ref_tmp();
+		op16("st", sz, O_STORE, 0);
 		make_ref_p2(0);
+		op16("ld", sz, O_LOAD, 1);
+		make_ref_tmp();
 		op16("sub", sz, O_MODIFY, 1);
+		make_ref_p2(0);
 		op16("st", sz, O_STORE, nr);
 		invalidate_ea();
 		return 1;
