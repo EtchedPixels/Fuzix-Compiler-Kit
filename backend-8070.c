@@ -2081,7 +2081,6 @@ unsigned gen_shortcut(struct node *n)
 				op8("ild", 1, 1);
 				return 1;
 			}
-			return 1;
 		}
 		if (s != 2 || can_make_ptr_ref(l) == 0)
 			return 0;
