@@ -728,12 +728,16 @@ unsigned gen_uni_direct(struct node *n)
 		/* We have a specific optimization case that occurs a lot
 		   *auto = 0, that we can optimize nicely */
 		if (r->op == T_CONSTANT && r->value == 0 && nr) {
-			if (cpu_is_09) {
+			if (cpu_is_09 && n->value == 0) {
 				off = n->val2 + sp;
 				while(s--)
 					printf("\tclr [%u,s]\n", off++);
 				return 1;
 			}
+			/* For 6809 better to use other approaches */
+			if (cpu_is_09)
+				return 0;
+
 			/* Offset of pointer in local */
 			/* val2 is the local offset, value the data offset */
 			off = make_local_ptr(n->value, 256 - s);
