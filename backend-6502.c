@@ -850,7 +850,7 @@ static int pri16_help(struct node *n, char *helper)
 				return 1;
 			}
 		} else {
-			if (do_pri8(r->right, "ld", pre_fastcastx0)) {
+			if (do_pri8(r->right, "lda", pre_fastcastx0)) {
 				helper_s(n, helper);
 				return 1;
 			}
