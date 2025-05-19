@@ -18,7 +18,7 @@ __shreq:
 
 		; No work to do
 		and	15
-		ret	z
+		jr	z,shrout
 
 		push	bc
 		ld	b,a
@@ -32,5 +32,6 @@ shdone:
 		ld	(hl),d
 		dec	hl
 		ld	(hl),e
+shrout:
 		ex	de,hl
 		ret

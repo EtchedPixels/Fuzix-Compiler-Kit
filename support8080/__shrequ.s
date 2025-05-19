@@ -28,8 +28,8 @@ __shrequ:
 	mvi	d,0
 
 	sui	8
+	jz	nowork
 nobyte:
-	rz
 	push	b
 	mov	c,a
 shuffle:

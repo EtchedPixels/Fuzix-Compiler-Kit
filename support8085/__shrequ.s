@@ -24,10 +24,9 @@ __shrequ:
 
 	mov	l,h
 	mvi	h,0
-
 	sui	8
-nobyte:
 	rz
+nobyte:
 	push	b
 	mov	c,a
 shuffle:

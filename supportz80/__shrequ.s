@@ -28,7 +28,7 @@ __shrequ:
 
 		sub	8
 nobyte:
-		ret	z
+		jr	z,shrout
 		push	bc
 		ld	b,a
 shuffle:
@@ -41,4 +41,6 @@ shuffle:
 		ld	(hl),e
 
 		pop	bc
+shrout:
+		ex	de,hl
 		ret
