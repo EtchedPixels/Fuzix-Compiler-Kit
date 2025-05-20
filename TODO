@@ -162,6 +162,8 @@ MOST -	Fix linker for ,PCREL stuff. Add options on -m6809 for lbra/pcrel v jmp e
         leax, stx ?
 -	6303 - use X/S tracking to optimise cleanup on function end
 -	lplus2xb peephole (https://github.com/EtchedPixels/Fuzix-Compiler-Kit/issues/144#issuecomment-2448679156)
+6809	char ++ / -- should be able to make some use of [n,s] forms?
+
 
 65C816
 

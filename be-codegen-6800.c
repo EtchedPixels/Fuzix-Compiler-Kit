@@ -727,11 +727,11 @@ unsigned gen_uni_direct(struct node *n)
 	case T_LEQ:
 		/* We have a specific optimization case that occurs a lot
 		   *auto = 0, that we can optimize nicely */
+		printf(";LEQ rv %lu nr %u nv %lu val2 %u s %u\n",
+			r->value, nr, n->value, n->val2, s);
 		if (r->op == T_CONSTANT && r->value == 0 && nr) {
-			if (cpu_is_09 && n->value == 0) {
-				off = n->val2 + sp;
-				while(s--)
-					printf("\tclr [%u,s]\n", off++);
+			if (cpu_is_09 && n->val2 == 0 && s == 1) {
+				printf("\tclr [%u,s]\n", WORD(n->value));
 				return 1;
 			}
 			/* For 6809 better to use other approaches */
