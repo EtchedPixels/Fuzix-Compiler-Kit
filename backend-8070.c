@@ -2078,7 +2078,7 @@ unsigned gen_shortcut(struct node *n)
 	case T_MINUSEQ:
 		if (s == 1 && r->op == T_CONSTANT && BYTE(r->value) == 1) {
 			if (make_ptr_ref(l, 0)) {
-				op8("ild", 1, 1);
+				op8("dld", 1, 1);
 				return 1;
 			}
 		}
