@@ -1775,20 +1775,20 @@ unsigned gen_direct(struct node *n)
 				if (v == 1)
 					return 1;
 				if (v == 2) {
-					output("lsla");
+					output("asl a");
 					const_a_set(reg[R_A].value << 1);
 					return 1;
 				}
 				if (v == 4) {
-					output("lsla");
-					output("lsla");
+					output("asl a");
+					output("asl a");
 					const_a_set(reg[R_A].value << 2);
 					return 1;
 				}
 				if (v == 8) {
-					output("lsla");
-					output("lsla");
-					output("lsla");
+					output("asl a");
+					output("asl a");
+					output("asl a");
 					const_a_set(reg[R_A].value << 3);
 					return 1;
 				}
@@ -1859,7 +1859,7 @@ unsigned gen_direct(struct node *n)
 			if (v >= 8)
 				load_a(0);
 			else {
-				repeated_op(v, "lsla");
+				repeated_op(v, "asl a");
 				const_a_set(reg[R_A].value >> v);
 			}
 			return 1;
