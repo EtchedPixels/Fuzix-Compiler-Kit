@@ -52,6 +52,10 @@
  *	TODO: should we be working on the basis of helpers clear Y or set
  *	1 as we do for pri8 etc at the moment. Need to audit helpers but
  *	probably worth it
+ *
+ *	For -Os we should defintiely have "get local and stuff it in @tmp
+ *	as a helper", and probably also clear Y. That would optimize a lot of
+ *	pointer use cases.
  */
 
 #include <stdio.h>
@@ -1524,7 +1528,7 @@ unsigned gen_direct(struct node *n)
 {
 	unsigned s = get_size(n->type);
 	struct node *r = n->right;
-/*	unsigned nr = n->flags & NORETURN; */
+	unsigned nr = n->flags & NORETURN;
 	unsigned v;
 
 	if (r)
@@ -1561,12 +1565,25 @@ unsigned gen_direct(struct node *n)
 		   type handling was done for us */
 		if (s > 2)
 			return 0;
-		if (s == 1 && do_pri8(n, "lda", pre_stash)) {
-			invalidate_a();
-			if (cpu != NMOS_6502) {
+		if (r->op == T_CONSTANT) {
+			output("sta @tmp");
+			output("stx @tmp+1");
+			load_a(BYTE(v));
+			if (s == 1 && cpu != NMOS_6502) {
 				output("sta (@tmp)");
 				return 1;
 			}
+			load_y(0);
+			output("sta (@tmp), y");
+			if (v == 2) {
+				load_a(v >> 8);
+				load_y(1);
+				output("sta (@tmp), y");
+			}
+			return 1;
+		}
+		if (s == 1 && do_pri8(n, "lda", pre_stash)) {
+			invalidate_a();
 			if (cpu != NMOS_6502)
 				output("sta (@tmp)");
 			else {
@@ -1584,7 +1601,12 @@ unsigned gen_direct(struct node *n)
 				output("sta (@tmp),y");
 			}
 			load_y(1);
-			output("stx (@tmp),y");
+			if (nr)
+				output("pha");
+			output("txa");
+			output("sta (@tmp),y");
+			if (nr)
+				output("pla");
 			return 1;
 		}
 		/* Complex on both sides. Do these the hard way. Not as bad
@@ -2244,7 +2266,12 @@ unsigned gen_node(struct node *n)
 		}
 		if (size == 2) {
 			load_y(1);
-			output("stx (@tmp),y");
+			if (!nr)
+				output("pha");
+			output("txa");
+			output("sta (@tmp),y");
+			if (!nr)
+				output("pla");
 		}
 		invalidate_mem();
 		return 1;
