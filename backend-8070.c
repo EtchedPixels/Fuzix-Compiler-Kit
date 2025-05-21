@@ -1960,6 +1960,27 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		break;
+	case T_MINUSMINUS:
+		v = -v;
+	case T_PLUSPLUS:
+		/* Complex ++/-- right is always constant, EA holds address */
+		if (s > 2)
+			return 0;
+		load_ptr_ea(2);
+		make_ref_p2(0);
+		op16("ld", s, O_LOAD, 1);
+		if (!nr)
+			load_t_ea();
+		make_ref_constant(v);
+		op16("add", s, O_MODIFY, 1);
+		make_ref_p2(0);
+		op16("st", s, O_STORE, nr);
+		if (!nr) {
+			make_ref_constant(v);
+			load_ea_t();
+		}
+		invalidate_ea();
+		return 1;
 	case T_ANDEQ:
 		/* (EA) &= r */
 		op = 0;
@@ -2539,33 +2560,6 @@ unsigned gen_node(struct node *n)
 		if (cc_helper_stack(n, "ccnetmp"))
 			return 1;
 		return 0;
-	case T_PLUSPLUS:
-		/* Complex ++ */
-		if (sz > 2)
-			return 0;
-		/* EA id the amount to add, TOS the pointer */
-		pop_p2();
-		make_ref_p2(0);
-		op16("add", sz, O_MODIFY, 1);
-		op16("st", sz, O_STORE, nr);
-		invalidate_ea();
-		return 1;
-	case T_MINUSMINUS:
-		/* Complex -- */
-		if (sz > 2)
-			return 0;
-		/* EA id the amount to sub, TOS the pointer */
-		pop_p2();
-		make_ref_tmp();
-		op16("st", sz, O_STORE, 0);
-		make_ref_p2(0);
-		op16("ld", sz, O_LOAD, 1);
-		make_ref_tmp();
-		op16("sub", sz, O_MODIFY, 1);
-		make_ref_p2(0);
-		op16("st", sz, O_STORE, nr);
-		invalidate_ea();
-		return 1;
 	}
 	return 0;
 }
