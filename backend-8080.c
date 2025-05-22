@@ -1721,10 +1721,10 @@ unsigned gen_direct(struct node *n)
 		   4 + the HL load (~3) */
 		if (s == 2 && load_de_with(r)) {
 			set_de_node(r);
-			opcode("mov a,h");
 			opcode("mov a,l");
 			opcode("sub e");
 			opcode("mov l,a");
+			opcode("mov a,h");
 			opcode("sbb d");
 			opcode("mov h,a");
 			invalidate_hl();
