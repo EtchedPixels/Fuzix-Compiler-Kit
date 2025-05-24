@@ -198,6 +198,10 @@ static void load_a(uint8_t n)
 	if (reg[R_A].state == T_CONSTANT) {
 		if (reg[R_A].value == n)
 			return;
+		if (reg[R_A].value == n - 1 && cpu != NMOS_6502) {
+			output("inc a");
+			return;
+		}
 	}
 	/* No inca deca */
 	if (reg[R_X].state == T_CONSTANT && reg[R_X].value == n)
@@ -1608,7 +1612,7 @@ unsigned gen_direct(struct node *n)
 			}
 			load_y(0);
 			output("sta (@tmp), y");
-			if (v == 2) {
+			if (s == 2) {
 				load_a(v >> 8);
 				load_y(1);
 				output("sta (@tmp), y");
