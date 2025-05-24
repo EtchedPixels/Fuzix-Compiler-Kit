@@ -470,23 +470,23 @@ static void inx_d(void)
 	opcode("inx d");
 }
 
-static void dex_h(void)
+static void dcx_h(void)
 {
 	if (hl_valid != 1)
 		invalidate_hl();
 	else
 		de_value++;
 	hl_value--;
-	opcode("dex h");
+	opcode("dcx h");
 }
 
-static void dex_d(void)
+static void dcx_d(void)
 {
 	if (de_valid != 1)
 		invalidate_de();
 	else
 		de_value++;
-	opcode("dex d");
+	opcode("dcx d");
 }
 
 static void modify_hl(unsigned n)
@@ -2812,8 +2812,8 @@ unsigned gen_node(struct node *n)
 			inx_d();
 			opcode("lhlx");
 			opcode("shld __hireg");
-			dex_d();
-			dex_d();
+			dcx_d();
+			dcx_d();
 			opcode("lhlx");
 			invalidate_hl();
 			return 1;
