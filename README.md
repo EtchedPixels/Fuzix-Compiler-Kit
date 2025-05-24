@@ -320,6 +320,9 @@ The 6800 port was taken from an initial sketch to a working compiler by Zu2
 <http://www.zukeran.org/shin/d/> who also contributed other bug fixes,
 including getting the floating point side of the compiler working.
 
+A considerable amount of coverage testing and a large number of test cases
+for failures were provided by Yasuo Kuwahara.
+
 ## Licence
 
 Compiler (not any runtime)	:	GPLv3
