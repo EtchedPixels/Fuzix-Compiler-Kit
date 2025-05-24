@@ -1405,6 +1405,7 @@ static unsigned op16(const char *op, unsigned size, unsigned ldst, unsigned nr)
 	if (ldst == O_LOAD) {
 		if (size == 4) {
 			do_op16(op, 2, 2);
+			invalidate_ea();
 			store_ea_hireg();
 			do_op16(op, 0, 2);
 			return 0;
