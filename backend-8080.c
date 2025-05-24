@@ -503,7 +503,7 @@ static void dad_de(void)
 		invalidate_hl();
 	else
 		hl_value += de_value;
-	opcode("dad de");
+	opcode("dad d");
 }
 
 /* Load HL with SP+n can trash DE - fast on 8085 */
