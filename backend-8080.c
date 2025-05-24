@@ -108,7 +108,6 @@ static void set_hl_value(uint16_t v)
 	hl_value = v;
 	hl_valid = 1;
 }
-
 unsigned map_op(register unsigned op)
 {
 	switch(op) {
@@ -355,7 +354,7 @@ static void load_bc(uint16_t v)
 	set_bc_value(v);
 }
 
-/* Load HL with SP +n, preserve DE */
+/* Load HL with SP +n, preserve DE - ought to track this properly if we can an*/
 static void load_hl_spoff(unsigned n)
 {
 	load_hl(n);
@@ -451,6 +450,60 @@ static void op_pophl(void)
 		opcode("pop h");
 		invalidate_hl();
 	}
+}
+
+static void inx_h(void)
+{
+	if (hl_valid != 1)
+		invalidate_hl();
+	else
+		hl_value++;
+	opcode("inx h");
+}
+
+static void inx_d(void)
+{
+	if (de_valid != 1)
+		invalidate_de();
+	else
+		de_value++;
+	opcode("inx d");
+}
+
+static void dex_h(void)
+{
+	if (hl_valid != 1)
+		invalidate_hl();
+	else
+		de_value++;
+	hl_value--;
+	opcode("dex h");
+}
+
+static void dex_d(void)
+{
+	if (de_valid != 1)
+		invalidate_de();
+	else
+		de_value++;
+	opcode("dex d");
+}
+
+static void modify_hl(unsigned n)
+{
+	if (hl_valid != 1)
+		invalidate_hl();
+	else
+		hl_value += n;
+}
+
+static void dad_de(void)
+{
+	if (hl_valid != 1 || de_valid != 1)
+		invalidate_hl();
+	else
+		hl_value += de_value;
+	opcode("dad de");
 }
 
 /* Load HL with SP+n can trash DE - fast on 8085 */
@@ -1075,7 +1128,7 @@ unsigned gen_lref(unsigned v, unsigned size, unsigned to_de)
 			op_xchg();
 		load_hl_spoff(v);
 		opcode("mov a,m");
-		opcode("inx h");
+		inx_h();
 		opcode("mov h,m");
 		opcode("mov l,a");
 		if (to_de)
@@ -1630,21 +1683,25 @@ unsigned gen_direct(struct node *n)
 		return 0;
 	case T_PLUS:
 		/* Zero should be eliminated in cc1 FIXME */
+		printf(";T_PLUS hlvalid %u hlvalue %u\n",
+			hl_valid, hl_value);
 		if (r->op == T_CONSTANT) {
 			if (v == 0)
 				return 1;
 			if (v < 4 && s <= 2) {
-				if (s == 1)
+				if (s == 1) {
 					repeated_op("inr l", v);
-				else
+					modify_hl((hl_value & 0xFF00) +
+						(((hl_value & 0xFF) + 1) & 0xFF));
+				} else {
 					repeated_op("inx h", v);
-				hl_value += v;
+					modify_hl(v);
+				}
 				return 1;
 			}
 			if (s <= 2) {
 				load_de(v);
-				opcode("dad d");
-				hl_value += v;
+				dad_de();
 				return 1;
 			}
 		}
@@ -1660,6 +1717,7 @@ unsigned gen_direct(struct node *n)
 			/* Short cut register case */
 			if (r->op == T_REG) {
 				opcode("dad b");
+				invalidate_hl();
 				return 1;
 			}
 			if (s > 2 || load_de_with(r) == 0)
@@ -1679,12 +1737,11 @@ unsigned gen_direct(struct node *n)
 					repeated_op("dcr l", v);
 				else
 					repeated_op("dcx h", v);
-				hl_value -= v;
+				modify_hl(-v);
 				return 1;
 			}
 			load_de(WORD(65536 - v));
-			opcode("dad d");
-			hl_value -= v;
+			dad_de();
 			return 1;
 		}
 		/* load into de then ld a,e sub l ld l,a ld a,d sbc h ld h,s
@@ -1694,6 +1751,7 @@ unsigned gen_direct(struct node *n)
 			/* Shortcut subtracting register from working value */
 			if (r->op == T_REG) {
 				opcode("dsub");
+				invalidate_hl();
 				return 1;
 			}
 			if (access_direct_b(r)) {
@@ -1711,8 +1769,8 @@ unsigned gen_direct(struct node *n)
 				}
 				opcode("dsub");
 				opcode("pop b");
-				/* TODO save/restore BC state */
-				invalidate_bc();
+				invalidate_bc();	/* TODO save/restore */
+				invalidate_hl();
 				sp -= 2;
 				return 1;
 			}
@@ -1836,7 +1894,7 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		}
 		if (s == 2 && nr && r->op == T_CONSTANT && (r->value & 0x00FF) == 0) {
-			opcode("inx h");
+			inx_h();
 			if ((r->value >> 8) < 4) {
 				repeated_op("inr m", r->value >> 8);
 				return 1;
@@ -2648,7 +2706,7 @@ unsigned gen_node(struct node *n)
 			op_xchg();
 			load_hl_spoff(v);
 			opcode("mov m,e");
-			opcode("inx h");
+			inx_h();
 			opcode("mov m,d");
 			if (!nr) {
 				op_xchg();
@@ -2698,7 +2756,7 @@ unsigned gen_node(struct node *n)
 				op_xchg();
 				op_pophl();
 				opcode("mov m,e");
-				opcode("inx h");
+				inx_h();
 				opcode("mov m,d");
 				if (!nr)
 					op_xchg();
@@ -2735,7 +2793,7 @@ unsigned gen_node(struct node *n)
 				invalidate_hl();
 			} else {
 				opcode("mov e,m");
-				opcode("inx h");
+				inx_h();
 				invalidate_hl();
 				invalidate_de();
 				opcode("mov d,m");
@@ -2750,12 +2808,12 @@ unsigned gen_node(struct node *n)
 		}
 		if (size == 4 && cpu == 8085 && !optsize) {
 			op_xchg();
-			opcode("inx d");
-			opcode("inx d");
+			inx_d();
+			inx_d();
 			opcode("lhlx");
 			opcode("shld __hireg");
-			opcode("dcx d");
-			opcode("dcx d");
+			dex_d();
+			dex_d();
 			opcode("lhlx");
 			invalidate_hl();
 			return 1;
