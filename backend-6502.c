@@ -139,7 +139,8 @@ struct regtrack {
 	unsigned offset;
 };
 
-struct regtrack reg[3];
+static struct regtrack reg[3];
+static struct regtrack rsaved;
 
 static void invalidate_regs(void)
 {
@@ -268,6 +269,9 @@ static void load_y(uint8_t n)
  *	For now just try and eliminate the reloads. We shuld be able to
  *	eliminate some surplus stores with thought if we are careful
  *	how we defer them.
+ *
+ *	We should try and track @tmp as well the same way but that is
+ *	trickier
  */
 static void set_xa_node(struct node *n)
 {
@@ -365,8 +369,6 @@ static unsigned a_contains(struct node *n)
 	return 1;
 }
 
-
-
 /* Memory writes occured, invalidate according to what we know. Passing
    NULL indicates unknown memory changes */
 
@@ -394,6 +396,30 @@ static void set_reg(unsigned r, unsigned v)
 {
 	reg[r].state = T_CONSTANT;
 	reg[r].value = (uint8_t)v;
+}
+
+static void tax(void)
+{
+	memcpy(reg + R_X, reg + R_A, sizeof(struct regtrack));
+	output("tax");
+}
+
+static void txa(void)
+{
+	memcpy(reg + R_A, reg + R_X, sizeof(struct regtrack));
+	output("txa");
+}
+
+/* Used as helpers when doing a single depth push op of A as happens. Not
+   stack tracking so not safe if can recurse */
+static void saved_a(void)
+{
+	memcpy(&rsaved, reg + R_A, sizeof(struct regtrack));
+}
+
+static void restored_a(void)
+{
+	memcpy(reg + R_A, &rsaved, sizeof(struct regtrack));
 }
 
 /*
@@ -703,8 +729,9 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 		if (v < 255) {
 			pre(n);
 			load_y(v + 1);
+			invalidate_a();
 			output("%sa (@sp),y", op);
-			output("tax");
+			tax();
 			if (v == 0 && direct_za(op))
 				output("%sa (@sp)", op);
 			else {
@@ -724,7 +751,7 @@ static int do_pri16(struct node *n, const char *op, void (*pre)(struct node *__n
 				load_y(v);
 				output("%sa (@sp),y", op);
 			}
-			output("txa");
+			txa();
 			load_y(v + 1);
 			output("%sa (@sp),y", op);
 			return 1;
@@ -1053,17 +1080,17 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 			return 1;
 		}
 	}
-	/* Name and lbref are progably not worth it as have to go via tmp */
+	/* Name and lbref are probably not worth it as have to go via tmp */
 	if (do_pri8(n, op, pre) == 0)
 		return 0;
 	output("pha");
 	sp++;
-	output("txa");
-	memcpy(&reg[R_A], &reg[R_X], sizeof(struct regtrack));
+	txa();
 	do_pri8hi(n, op, pre_none);
-	output("tax");
+	tax();
 	sp--;
 	output("pla");
+	
 	invalidate_a();
 	invalidate_x();
 	return 1;
@@ -1302,13 +1329,17 @@ void gen_epilogue(unsigned size, unsigned argsize)
 
 	if (size > 256) {
 		/* Ugly as we need to preserve AX */
-		if (!(func_flags & F_VOIDRET))
+		if (!(func_flags & F_VOIDRET)) {
+			saved_a();
 			output("pha");
+		}
 		load_a(size & 0xFF);
 		load_y(size >> 8);
 		output("jsr __addyasp");
-		if (!(func_flags & F_VOIDRET))
+		if (!(func_flags & F_VOIDRET)) {
+			restored_a();
 			output("pla");
+		}
 		output("rts");
 	} else if (size) {
 		load_y(size);
@@ -1547,11 +1578,13 @@ unsigned gen_direct(struct node *n)
 				output("jsr __addysp");
 			} else {
 				/* TODO: void varargs ? */
+				saved_a();
 				output("pha");
 				load_y(v >> 8);
 				load_a(v);
 				output("jsr __addyasp");
 				output("pla");
+				restored_a();
 			}
 		}
 		sp -= v;
@@ -1601,12 +1634,16 @@ unsigned gen_direct(struct node *n)
 				output("sta (@tmp),y");
 			}
 			load_y(1);
-			if (nr)
+			if (nr) {
 				output("pha");
-			output("txa");
+				saved_a();
+			}
+			txa();
 			output("sta (@tmp),y");
-			if (nr)
+			if (nr) {
 				output("pla");
+				restored_a();
+			}
 			return 1;
 		}
 		/* Complex on both sides. Do these the hard way. Not as bad
@@ -1779,11 +1816,8 @@ unsigned gen_direct(struct node *n)
 		   maybe not if byteop */
 		if (r->op == T_CONSTANT) {
 			if (v == 256) {
-				if (s == 2) {
-					/* Should be helpers for tax/txa */
-					output("tax");
-					memcpy(&reg[R_X], &reg[R_A], sizeof(struct regtrack));
-				}
+				if (s == 2)
+					tax();
 				load_a(0);
 				return 1;
 			}
@@ -1827,8 +1861,7 @@ unsigned gen_direct(struct node *n)
 		return pri_help(n, "multmp");
 	case T_SLASH:
 		if (r->op == T_CONSTANT && v == 256 && (n->type & UNSIGNED)) {
-			output("txa");
-			memcpy(&reg[R_A], &reg[R_X], sizeof(struct regtrack));
+			txa();
 			load_x(0);
 			return 1;
 		}
@@ -1872,7 +1905,7 @@ unsigned gen_direct(struct node *n)
 	/* TODO: qq optimisations for >= fieldwidth ? */
 	case T_LTLT:
 		if (s == 2 && r->op == T_CONSTANT && v == 8) {
-			output("tax");
+			tax();
 			load_a(0);
 			return 1;
 		}
@@ -1890,7 +1923,7 @@ unsigned gen_direct(struct node *n)
 	case T_GTGT:
 		if (s == 2 && r->op == T_CONSTANT && v == 8) {
 			if (n->type & UNSIGNED) {
-				output("txa");
+				txa();
 				load_x(0);
 				return 1;
 			}
@@ -2146,6 +2179,7 @@ static unsigned gen_cast(struct node *n)
 
 unsigned gen_node(struct node *n)
 {
+	struct node *r = n->right;
 	unsigned size = get_size(n->type);
 	unsigned v;
 	unsigned nr = n->flags & NORETURN;
@@ -2228,17 +2262,24 @@ unsigned gen_node(struct node *n)
 		}
 		/* FIXME: need to do 4 byte forms ?? */
 		return 0;
+	case T_LSTORE:
+		v += sp;
+		if (optsize && size == 2 && v < 254) {
+			load_y(v);
+			output("jsr __lstxay");
+			set_xa_node(n);
+			/* Y is incremented in the helper */
+			set_reg(R_Y, v + 1);
+			return 1;
+		}
 	case T_NSTORE:
 	case T_LBSTORE:
-	case T_LSTORE:
 		if (size == 1 && pri8(n, "sta")) {
 			set_a_node(n);
 			return 1;
 		} else if (size == 2) {
-			if (nr && pri16(n, "st")) {
-				set_xa_node(n);
-				return 1;
-			}
+/* Not clear this is a win overall	if (nr && pri16(n, "st"))
+				return 1; */
 			/* Stack and restore A if we need XA intact (rare) */
 			if (do_pri16(n, "st", pre_pha)) {
 				output("pla");
@@ -2266,12 +2307,16 @@ unsigned gen_node(struct node *n)
 		}
 		if (size == 2) {
 			load_y(1);
-			if (!nr)
+			if (!nr) {
+				saved_a();
 				output("pha");
-			output("txa");
+			}
+			txa();
 			output("sta (@tmp),y");
-			if (!nr)
+			if (!nr) {
+				restored_a();
 				output("pla");
+			}
 		}
 		invalidate_mem();
 		return 1;
@@ -2302,9 +2347,9 @@ unsigned gen_node(struct node *n)
 			invalidate_a();
 		} else {
 			load_y(1);
-			invalidate_x();
+			invalidate_a();
 			output("lda (@tmp),y");
-			output("tax");
+			tax();
 			load_y(0);
 			output("lda (@tmp),y");
 			invalidate_a();
@@ -2363,7 +2408,7 @@ unsigned gen_node(struct node *n)
 		return gen_cast(n);
 	/* TODO: CCONLY */
 	case T_BANG:
-		if (n->right->flags & (ISBOOL|BYTEABLE)) {
+		if (r->flags & (ISBOOL|BYTEABLE)) {
 			output("eor #1");
 			invalidate_a();
 		} else
@@ -2371,12 +2416,12 @@ unsigned gen_node(struct node *n)
 		n->flags |= ISBOOL;
 		return 1;
 	case T_BOOL:
-		if (n->right->flags & ISBOOL)
+		if (r->flags & ISBOOL)
 			return 1;
 		if (n->flags & BYTEABLE) {
-			output("tax");	/* Set the Z flag */
+			tax();	/* Set the Z flag */
 			output("beq X%u", ++xlabel);
-			output("lda #1");
+			load_a(1);
 			label("X%u:", xlabel);
 		} else {
 			helper(n, "bool");
