@@ -366,7 +366,7 @@ static unsigned hl_contains(register struct node *n)
 {
 	if (hl_valid == 1 && n->op == T_CONSTANT && WORD(n->value) == hl_value)
 		return 1;
-	if (hl_valid == 0)
+	if (hl_valid != 2)
 		return 0;
 	if (hl_node.op == map_op(n->op) && hl_node.value == n->value &&
 	    hl_node.val2 == n->val2 && hl_node.snum == n->snum &&
@@ -377,13 +377,13 @@ static unsigned hl_contains(register struct node *n)
 
 static unsigned de_contains(register struct node *n)
 {
-	if (hl_valid == 1 && n->op == T_CONSTANT && WORD(n->value) == hl_value)
+	if (de_valid == 1 && n->op == T_CONSTANT && WORD(n->value) == de_value)
 		return 1;
-	if (hl_valid == 0)
+	if (de_valid != 2)
 		return 0;
-	if (hl_node.op == map_op(n->op) && hl_node.value == n->value &&
-	    hl_node.val2 == n->val2 && hl_node.snum == n->snum &&
-	    hl_node.type == n->type)
+	if (de_node.op == map_op(n->op) && de_node.value == n->value &&
+	    de_node.val2 == n->val2 && de_node.snum == n->snum &&
+	    de_node.type == n->type)
 	    	return 1;
 	return 0;
 }
@@ -744,7 +744,7 @@ void gen_segment(unsigned segment)
    gen_frame for the most part */
 void gen_prologue(const char *name)
 {
-	opcode("_%s:", name);
+	opcode(":_%s:", name);
 	unreachable = 0;
 	invalidate_all();
 }
