@@ -1,12 +1,12 @@
 ;
 ;	xa >= @tmp signed
 ;
-	.export __ccltequ
+	.export __cclteq
 	.export	__gteqtmp
 
 	.code
 
-__ccltequ:
+__cclteq:
 	jsr	__poptmp
 __gteqtmp:
 	cmp	@tmp

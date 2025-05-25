@@ -1,12 +1,12 @@
 ;
 ;	xa < @tmp signed
 ;
-	.export __ccgtu
+	.export __ccgt
 	.export	__lttmp
 
 	.code
 
-__ccgtu:
+__ccgt:
 	jsr	__poptmp
 __lttmp:
 	cmp	@tmp
