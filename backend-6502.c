@@ -1362,15 +1362,20 @@ void gen_label(const char *tail, unsigned n)
 
 unsigned gen_exit(const char *tail, unsigned n)
 {
+	/* FIXME */
+#if 0
+	/* For now. We can only do this if argsize is zero or vararg
+	   so needs more tracking and checking work */
 	if (frame_len == 0) {
 		output("rts");
 		unreachable = 1;
 		return 1;
 	} else {
+#endif	   
 		output("jmp L%d%s", n, tail);
 		unreachable = 1;
 		return 0;
-	}
+/*	} */
 }
 
 void gen_jump(const char *tail, unsigned n)
@@ -2116,7 +2121,7 @@ static void char_to_int(void)
 {
 	load_x(0);
 	output("ora #0");
-	output("bmi X%d", ++xlabel);
+	output("bpl X%d", ++xlabel);
 	output("dex");
 	label("X%d", xlabel);
 	invalidate_x();
@@ -2302,7 +2307,7 @@ unsigned gen_node(struct node *n)
 		if (size > 2)
 			return 0;
 		/* Maybe make this whole lot a pair of helpers ? */
-		gen_internal("poptmpy0");
+		gen_internal("poptmp");
 		if (cpu != NMOS_6502)
 			output("sta (@tmp)");
 		else {

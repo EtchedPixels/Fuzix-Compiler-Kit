@@ -7,7 +7,8 @@
 
 __lttmpc:
 	ldx	#0
-	cmp	@tmp
+	sec
+	sbc	@tmp
 	bvc	l1
 	eor	#$80
 l1:
