@@ -2,7 +2,8 @@
 General
 DONE -	Simple tag list for tracking global/static volatiles by symnum
 DONE -	Fix return with SIDEEFFECT funny (should always have a return anyway)
--	Sort out and implement !se stuff for volatiles generally
+-	Right side of long >>= cast to long ????
+IP -	Sort out and implement !se stuff for volatiles generally
 -	Pass the implied size of a constant so that we can handle the -32768
 	case correctly ?
 -	Rework 8080/5/Z80 to use tree based rewriting when it can and cut
@@ -166,6 +167,22 @@ MOST -	Fix linker for ,PCREL stuff. Add options on -m6809 for lbra/pcrel v jmp e
 
 
 65C816
+
+6502
+-	call thing v local to avoid the expensive stacking patterns for
+	helpers. So we'd start stuff like cceq with a lycceq form and do
+
+		sta @tmp
+		stx @tmp+1
+		lda (@sp),y
+		iny
+		ldx (@sp),y
+		jmp cceqtmp
+
+	and the op on a local reduces to
+		[left]
+		ldy #n
+		jsr lycceq
 
 8080
 -	Import Z80 trick for locals via DE
