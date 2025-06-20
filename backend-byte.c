@@ -46,6 +46,8 @@
 
 static unsigned byte_cast(struct node *n)
 {
+	if ((n->type & ~UNSIGNED) == CCHAR)
+		return 1;
 	if (n->op == T_CAST && (n->right->type & ~UNSIGNED) == CCHAR)
 		return 1;
 	/* Bools are integer types but can be byteified */
@@ -153,17 +155,17 @@ static unsigned op_can_byte(register struct node *n)
 	   need to then do them as uchar compares not char */
 		if (0 && cast_lr(n))
 			return BYTEABLE | BYTEROOT | BYTETAIL;
-		return BYTETAIL;
+		return BYTETAIL; /* ?? | BYTEROOT */
 	}
 	if (op == T_EQEQ || op == T_BANGEQ) {
 		if (cast_lr(n))
 			return BYTEABLE | BYTEROOT | BYTETAIL;
-		return BYTETAIL;
+		return BYTETAIL; /* ??  | BYTEROOT; */
 	}
 	if (op == T_BOOL || op == T_BANG) {
 		if (byte_cast(n->right))
 			return BYTEABLE | BYTEROOT | BYTETAIL;
-		return BYTETAIL;
+		return BYTETAIL/*?|BYTEROOT*/;
 	}
 	return 0;
 }
