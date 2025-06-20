@@ -16,25 +16,6 @@
 =
 	jmp %1
 
-# Trivial
-#	xchg
-#	xchg
-#=
-#
-#	xchg
-#;
-#	xchg
-#=
-#
-#	push h
-#	pop h
-#=
-#
-#	push h
-#;
-#	pop h
-#=
-
 	xchg
 	pop d
 	xchg
@@ -72,13 +53,15 @@
 	lxi h,0
 
 # Optimize repeated call pattern (the ; matters here)
-#	pop d
-#;
-#	mvi l,%1
-#	push h
-#=
-#	mvi l,%1
-#	xthl
+	pop d
+;
+	mvi l,%1
+	push h
+==
+	mvi l,%1
+	xthl
+
+# Not safe because of reg tracking
 #
 #	pop d
 #;
@@ -320,15 +303,6 @@ L%1_n:
 	call boolc
 =
 	call boolc_a
-
-# Register tidy
-#	mov l,c
-#	mov h,b
-#	push h
-#;
-#=
-#	push b
-#;
 
 # Silly stuff
 	inx h
