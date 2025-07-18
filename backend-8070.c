@@ -1203,15 +1203,30 @@ static unsigned make_ptr_ref(struct node *n, unsigned off)
 
    Must preserve EA if told to, must preserve T always */
 
-static unsigned can_make_ref(struct node *n)
+static unsigned can_make_src_ref(struct node *n)
 {
-	switch(map_op(n->op)) {
+	switch(n->op) {
 	case T_CONSTANT:
 	case T_NAME:
 	case T_LABEL:
 	case T_NREF:
 	case T_LBREF:
 	case T_LREF:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+static unsigned can_make_dst_ref(struct node *n)
+{
+	switch(n->op) {
+	case T_CONSTANT:
+	case T_NAME:
+	case T_LABEL:
+	case T_NSTORE:
+	case T_LBSTORE:
+	case T_LSTORE:
 		return 1;
 	default:
 		return 0;
@@ -1662,7 +1677,7 @@ static unsigned gen_gtlt_op(struct node *n, unsigned z, unsigned gt, unsigned is
 	if (s > 2)
 		return 0;
 
-	if (!can_make_ref(r))
+	if (!can_make_src_ref(r))
 		return 0;
 
 	make_ref(r, 0);
@@ -1776,7 +1791,8 @@ unsigned gen_direct(struct node *n)
 	case T_EQPLUS:
 		/* TODO: want to fold the add ea,= into the ref offset
 		   ideally, but need to adjust helpers for that */
-		if (can_make_ref(r) == 0)
+		printf(";eqplus consider r->op = %04X\n", r->op);
+		if (can_make_src_ref(r) == 0)
 			return 0;
 		printf(";eqplus direct\n");
 		if (WORD(n->value))
@@ -1837,7 +1853,7 @@ unsigned gen_direct(struct node *n)
 			if (s <= 2 && gen_fast_mul(s, v))
 				return 1;
 		}
-		if (!can_make_ref(r))
+		if (!can_make_src_ref(r))
 			return 0;
 		load_t_ea();
 		make_ref(r, 0);
@@ -1997,7 +2013,7 @@ unsigned gen_direct(struct node *n)
 			return 0;
 		/* If we can't make a reference to the value on the right we
 		   give up */
-		if (can_make_ref(r) == 0)
+		if (can_make_src_ref(r) == 0)
 			return 0;
 		/* If the reference uses p2 then go the long way */
 		if (ref_needs_p2(r))
@@ -2088,7 +2104,7 @@ unsigned gen_shortcut(struct node *n)
 		if (s > 2 || can_make_ptr_ref(l) == 0)
 			return 0;
 		/* If the right is easy then use the gen_direct path */
-		if (can_make_ref(r))
+		if (can_make_src_ref(r))
 			return 0;
 		codegen_lr(r);		/* Value to add */
 		make_ptr_ref(l, 0);
@@ -2107,7 +2123,7 @@ unsigned gen_shortcut(struct node *n)
 		if (s != 2 || can_make_ptr_ref(l) == 0)
 			return 0;
 		/* If the right is easy then use the gen_direct path */
-		if (can_make_ref(r))
+		if (can_make_src_ref(r))
 			return 0;
 		codegen_lr(r);
 		make_ref_tmp();
@@ -2146,7 +2162,7 @@ unsigned gen_shortcut(struct node *n)
 	case T_MINUS:
 		if (nr && !se)
 			return 1;
-		if (s > 2 || can_make_ref(r) == 0)
+		if (s > 2 || can_make_src_ref(r) == 0)
 			return 0;
 		codegen_lr(l);	/* Write code to get the working value */
 		make_ref(r, 1);	/* Keep EA and make reference */
