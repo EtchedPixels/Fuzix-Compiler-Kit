@@ -17,10 +17,10 @@ __plusplus2:
 	clc
 	adc	#2
 	sta	(@tmp),y
-	dey
 	txa
 	adc	#0
 	iny
 	sta	(@tmp),y
-l1:	rts		; alwayus exits with Y = 1, XA old value
+	pla
+	rts		; alwayus exits with Y = 1, XA old value
 

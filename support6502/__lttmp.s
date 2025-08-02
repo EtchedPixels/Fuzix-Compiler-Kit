@@ -3,9 +3,13 @@
 ;
 	.export __ccgt
 	.export	__lttmp
+	.export	__l_lttmp
 
 	.code
 
+__l_lttmp:
+	jsr	__ytmp
+	jmp	__lttmp
 __ccgt:
 	jsr	__poptmp
 __lttmp:

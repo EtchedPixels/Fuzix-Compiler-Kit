@@ -2,9 +2,12 @@
 ;	xa >= @tmp unsigned
 ;
 	.export	__gteqtmpu
+	.export	__l_gteqtmpu
 
 	.code
 
+__l_gteqtmpu:
+	jsr	__ytmp
 __gteqtmpu:
 	cmp	@tmp
 	txa

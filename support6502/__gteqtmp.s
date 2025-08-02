@@ -3,9 +3,13 @@
 ;
 	.export __cclteq
 	.export	__gteqtmp
+	.export	__l_gteqtmp
 
 	.code
 
+__l_gteqtmp:
+	jsr	__ytmp
+	jmp	__gteqtmp
 __cclteq:
 	jsr	__poptmp
 __gteqtmp:

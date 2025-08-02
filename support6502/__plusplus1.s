@@ -7,20 +7,20 @@
 
 __plusplus1:
 	sta	@tmp
-	stx	@tmp+1
+	stx	@tmp+1		; pointer into @tmp
 	ldy	#1
-	lda	(@tmp),y
+	lda	(@tmp),y	; high byte into X
 	tax
 	dey
-	lda	(@tmp),y
-	pha
+	lda	(@tmp),y	; low byte into A
+	pha			; save low
 	clc
-	adc	#1
-	sta	(@tmp),y
-	dey
-	txa
-	adc	#0
+	adc	#1		; inc low
+	sta	(@tmp),y	; put back
+	txa			; get high
+	adc	#0		; carry into it if needed
 	iny
-	sta	(@tmp),y
-l1:	rts		; always exits with Y = 1, XA old value
+	sta	(@tmp),y	;save high
+	pla			; recover value
+	rts		; always exits with Y = 1, XA old value
 

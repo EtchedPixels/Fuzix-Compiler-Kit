@@ -5,7 +5,7 @@ OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o \
        __minuseqtmp.o __minus.o __divu.o __mulu.o __div.o \
        __plusplus1.o __plusplus2.o __plusplus.o __plusplusy.o __plus.o \
        __pluseqy.o __pluseq.o \
-       __poptmp.o __pushc.o __pushl.o __push.o \
+       __poptmp.o __pushc.o __pushl.o __push.o __ytmp.o __ytmpc.o \
        zeropage.o \
        __bool.o __boolc.o __not.o __notc.o __eqeqtmp.o __netmp.o \
        __lttmp.o __lttmpu.o __gteqtmp.o  __gteqtmpu.o \
