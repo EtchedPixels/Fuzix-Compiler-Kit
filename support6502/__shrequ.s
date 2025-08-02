@@ -39,7 +39,6 @@ out:
 	lda	(@tmp),y
 	rts
 
-
 __shreq:
 	jsr	__poptmp
 	and	#15

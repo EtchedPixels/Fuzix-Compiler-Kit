@@ -4,7 +4,11 @@
 	.export __mul
 	.export __mulu
 	.export __multmp
+	.export __l_mul
 
+__l_mul:
+	jsr	__ytmp
+	jmp	__multmp
 __mul:
 __mulu:
 	jsr	__poptmp

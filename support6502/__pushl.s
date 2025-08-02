@@ -20,10 +20,10 @@ __pushl:
 	bcc	l1
 	dec	@sp+1
 l1:	ldy	#3
-	lda	@__hireg+1
+	lda	@hireg+1
 	sta	(@sp),y
 	dey
-	lda	@__hireg
+	lda	@hireg
 	sta	(@sp),y
 	dey
 	txa

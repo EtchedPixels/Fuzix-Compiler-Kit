@@ -3,9 +3,13 @@
 ;
 	.export	__lttmpu
 	.export	__l_lttmpu
+	.export __ccgtu
 
 	.code
 
+__ccgtu:
+	jsr	__poptmp
+	jmp	__lttmpu
 __l_lttmpu:
 	jsr	__ytmp
 __lttmpu:
