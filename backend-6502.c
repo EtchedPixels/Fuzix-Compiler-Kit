@@ -938,12 +938,80 @@ static int pri_help(struct node *n, char *helper)
 	return 0;
 }
 
+/*
+ *	Shunt some things via a shorter form when right arg is a local
+ */
+
+unsigned can_yop(struct node *n)
+{
+	unsigned v;
+	struct node *r = n->right;
+
+	if (opt > 1)
+		return 0;
+	if (r == NULL || r->op != T_LREF)
+		return 0;
+	/* Point Y at top byte versus @sp */
+	v = r->value + sp + get_size(r->type) - 1;
+	if (v > 255)
+		return 0;
+	/* Don't get clever with float for the moment : TODO */
+	if (r->type == FLOAT)
+		return 0;
+	return 1;
+}
+
+unsigned local_yop(struct node *n, const char *name)
+{
+	struct node *r = n->right;
+	unsigned v;
+
+	if (r == NULL || r->op != T_LREF)
+		return  0;
+	/* Point Y at top byte versus @sp */
+	v = r->value + sp + get_size(r->type) - 1;
+	if (v > 255)
+		return 0;
+	/* Don't get clever with float for the moment : TODO */
+	if (r->type == FLOAT)
+		return 0;
+	load_y(v);
+	helper(n, name);
+	return 1;
+}
+
+unsigned local_yop_s(struct node *n, const char *name)
+{
+	struct node *r = n->right;
+	unsigned v;
+	if (r == NULL || r->op != T_LREF)
+		return  0;
+	/* Point Y at top byte versus @sp */
+	v = r->value + sp + get_size(r->type) - 1;
+	if (v > 255)
+		return 0;
+	/* Don't get clever with float for the moment : TODO */
+	if (r->type == FLOAT)
+		return 0;
+	load_y(v);
+	helper_s(n, name);
+	return 1;
+}
+
 static int pri_cchelp(register struct node *n, unsigned s, char *helper)
 {
 	register struct node *r = n->right;
 	unsigned v = r->value;
+	char buf[32];
 
 	n->flags |= ISBOOL;
+
+	if (can_yop(n)) {
+		strcpy(buf, "l_");
+		strcat(buf, helper);
+		local_yop_s(n, buf);
+		return 1;
+	}
 
 	/* In the case where we know the upper half of the value. Need to sort
 	   the signed version out eventually */
@@ -1088,11 +1156,9 @@ static unsigned try_via_x(struct node *n, const char *op, void (*pre)(struct nod
 	if (do_pri8(n, op, pre) == 0)
 		return 0;
 	output("pha");
-	sp++;
 	txa();
 	do_pri8hi(n, op, pre_none);
 	tax();
-	sp--;
 	output("pla");
 	
 	invalidate_a();
@@ -1559,6 +1625,7 @@ unsigned gen_push(struct node *n)
 	return 0;
 }
 
+
 /*
  *	If possible turn this node into a direct access. We've already checked
  *	that the right hand side is suitable. If this returns 0 it will instead
@@ -1624,6 +1691,8 @@ unsigned gen_direct(struct node *n)
 			}
 			return 1;
 		}
+		if (local_yop(n, "l_eq" ))
+			return 1;
 		if (s == 1 && do_pri8(n, "lda", pre_stash)) {
 			invalidate_a();
 			if (cpu != NMOS_6502)
@@ -1819,6 +1888,8 @@ unsigned gen_direct(struct node *n)
 			return 1;
 		return pri_help(n, "sbctmp");
 	case T_STAR:
+		if (local_yop(n, "l_mul" ))
+			return 1;
 		if (s > 2)
 			return 0;
 		/* ? do we need to catch x 1 and x 0 - should always have been cleaned up but
@@ -1869,6 +1940,8 @@ unsigned gen_direct(struct node *n)
 		}
 		return pri_help(n, "multmp");
 	case T_SLASH:
+		if (local_yop_s(n, "l_div"))
+			return 1;
 		if (r->op == T_CONSTANT && v == 256 && (n->type & UNSIGNED)) {
 			txa();
 			load_x(0);
@@ -1881,6 +1954,8 @@ unsigned gen_direct(struct node *n)
 			load_x(0);
 			return 1;
 		}
+		if (local_yop_s(n, "l_rem"))
+			return 1;
 		return pri_help(n, "remtmp");
 	/*
 	 *	There are various < 0, 0, !0, > 0 optimizations to do here
@@ -1928,6 +2003,8 @@ unsigned gen_direct(struct node *n)
 			}
 			return 1;
 		}
+		if (local_yop(n, "l_ltlt"))
+			return 1;
 		return pri_help(n, "lstmp");
 	case T_GTGT:
 		if (s == 2 && r->op == T_CONSTANT && v == 8) {
@@ -1937,6 +2014,8 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
+		if (local_yop_s(n, "l_gtgt"))
+			return 1;
 		return pri_help(n, "rstmp");
 	/* TODO: special case by 1,2,4, maybe inline byte cases ? */
 	/* We want to spot trees where the object on the left is directly
@@ -2034,6 +2113,7 @@ unsigned gen_direct(struct node *n)
 		return 1;
 #endif
 	}
+	/* TODO: yop other common ops */
 	return 0;
 }
 
