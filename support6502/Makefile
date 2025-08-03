@@ -14,7 +14,8 @@ OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o \
        __lstmp.o __rstmp.o \
        __shrequc.o __shrequ.o \
        __cpl.o \
-       __cast_l.o __booll.o __notl.o __derefl.o __assignl.o __cpll.o
+       __cast_l.o __booll.o __notl.o __derefl.o __assignl.o __cpll.o \
+       __pop32.o __bandl.o __orl.o __xorl.o
 
 GEN =  __adcspy.o __adctmpy.o __sbcspy.o __sbctmpy.o __andspy.o __andtmpy.o __eorspy.o __eortmpy.o \
        __ldaspy.o __ldatmpy.o __oraspy.o __oratmpy.o __staspy.o __statmpy.o \
