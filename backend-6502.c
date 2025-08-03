@@ -1463,12 +1463,16 @@ void gen_jtrue(const char *tail, unsigned n)
 
 void gen_switch(unsigned n, unsigned type)
 {
-	/* TODO: fix to work with output */
+	output("pha");
+	output("lda #<Sw%d", n);
+	output("sta @tmp");
+	output("lda #>Sw%d", n);
+	output("sta @tmp+1");
+	output("pla");
 	gen_helpcall(NULL);
 	printf("switch");
 	helper_type(type, 0);
 	printf("\n");
-	output(".word Sw%d\n", n);
 }
 
 void gen_switchdata(unsigned n, unsigned size)
@@ -1486,7 +1490,8 @@ void gen_case_label(unsigned tag, unsigned entry)
 
 void gen_case_data(unsigned tag, unsigned entry)
 {
-	printf("\t.word Sw%d_%d\n", tag, entry);
+	/* Subtract one because of the way rts works */
+	printf("\t.word Sw%d_%d - 1\n", tag, entry);
 }
 
 void gen_helpcall(struct node *n)
