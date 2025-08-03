@@ -3,13 +3,24 @@
 	.export __remu
 	.export __remtmpu
 	.export __dodivu
-
+;
+;	TOS / XA
+;
 __divu:
 	jsr	__poptmp
+	; Now @tmp/XA
+
+;
+;	Save the divisor into @tmp1
+;
 __divtmpu:
 	sta	@tmp1
 	stx	@tmp1+1
 
+;
+;	This is the standard rotate and subtract division. We also use it
+;	for the signed divisions after sorting the signs out elsewhere
+;
 __dodivu:
 	lda	#0
 	sta	@tmp2
