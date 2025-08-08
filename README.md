@@ -121,8 +121,7 @@ CPU needing this sort of treatment.
 
 ### 6303/6803/68HC11
 
-6303 and 6803 pass the basic tests at this point. 68HC11 needs a little bit
-more work to nail some remaining bugs. 6803 code will run on all three, 6303
+6303 and 6803 should be solid. 6803 code will run on all three, 6303
 code will run only on the 6303, and 68HC11 code only on the 68HC11.
 
 ### 6502
