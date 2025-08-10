@@ -7,7 +7,7 @@ OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o \
        __pluseqy.o __pluseq.o \
        __poptmp.o __pushc.o __pushl.o __push.o __ytmp.o __ytmpc.o \
        __callfunc.o __switchc.o __switch.o __switchl.o \
-       zeropage.o \
+       zeropage.o __eqop.o \
        __bool.o __boolc.o __not.o __notc.o __eqeqtmp.o __netmp.o \
        __lttmp.o __lttmpu.o __gteqtmp.o  __gteqtmpu.o \
        __lttmpc.o __lttmpuc.o __gteqtmpc.o __gteqtmpuc.o \
@@ -16,7 +16,8 @@ OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o \
        __cpl.o \
        __cast_l.o __booll.o __notl.o __derefl.o __assignl.o __cpll.o \
        __pop32.o __bandl.o __orl.o __xorl.o __lcmp.o __negatel.o \
-       __pluseql.o __postincl.o
+       __pluseql.o __postincl.o __minuseql.o \
+       __andeql.o __oreql.o __xoreql.o
 
 GEN =  __adcspy.o __adctmpy.o __sbcspy.o __sbctmpy.o __andspy.o __andtmpy.o __eorspy.o __eortmpy.o \
        __ldaspy.o __ldatmpy.o __oraspy.o __oratmpy.o __staspy.o __statmpy.o \

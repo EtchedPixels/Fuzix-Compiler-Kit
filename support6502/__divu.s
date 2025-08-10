@@ -3,6 +3,17 @@
 	.export __remu
 	.export __remtmpu
 	.export __dodivu
+	.export __divequ
+	.export __remequ
+	.export __l_divu
+	.export __l_remu
+
+;
+;	 XA/local
+;
+__l_divu:
+	jsr	__ytmp
+	jmp	__divtmpu
 ;
 ;	TOS / XA
 ;
@@ -49,6 +60,12 @@ skip:	dey
 	lda	@tmp
 	rts
 
+;
+;	 XA % local
+;
+__l_remu:
+	jsr	__ytmp
+	jmp	__divtmpu
 __remu:
 	jsr	__poptmp
 __remtmpu:
@@ -56,3 +73,22 @@ __remtmpu:
 	ldx	@tmp2+1
 	lda	@tmp2
 	rts
+
+;
+;	(TOS) / XA
+;
+__divequ:
+	jsr	__eqget			; @tmp is the value
+	jsr	__divtmpu
+	jmp	__eqput			; pop TOS into @tmp,
+					; write (XA) back into TOS
+					; return result in XA
+;
+;	(TOS) % XA
+;
+__remequ:
+	jsr	__eqget			; @tmp is the value
+	jsr	__remtmpu
+	jmp	__eqput			; pop TOS into @tmp,
+					; write (XA) back into TOS
+					; return result in XA

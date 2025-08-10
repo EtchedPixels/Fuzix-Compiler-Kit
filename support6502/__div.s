@@ -2,7 +2,17 @@
 	.export __divtmp
 	.export __rem
 	.export __remtmp
+	.export __diveq
+	.export __remeq
+	.export __l_div
+	.export __l_rem
 
+;
+;	 XA/local
+;
+__l_div:
+	jsr	__ytmp
+	jmp	__divtmp
 ;
 ;	TOS / XA
 ;
@@ -34,6 +44,9 @@ __divtmp:
 	jsr	doneg
 ispve:	rts
 
+__l_rem:
+	jsr	__ytmp
+	jmp	__remtmp
 __rem:
 	jsr	__poptmp
 	; Now @tmp % XA
@@ -79,4 +92,22 @@ doneg:
 	pla
 nowork:
 	rts
-	
+
+;
+;	(TOS) / XA
+;
+__diveq:
+	jsr	__eqget			; @tmp is the value
+	jsr	__divtmp
+	jmp	__eqput			; pop TOS into @tmp,
+					; write (XA) back into TOS
+					; return result in XA
+;
+;	(TOS) % XA
+;
+__remeq:
+	jsr	__eqget			; @tmp is the value
+	jsr	__remtmp
+	jmp	__eqput			; pop TOS into @tmp,
+					; write (XA) back into TOS
+					; return result in XA
