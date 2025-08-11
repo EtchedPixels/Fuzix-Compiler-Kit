@@ -479,3 +479,63 @@
 =
 	ld d,(i%1 + 1)
 	ld e,(i%1 + 0)
+
+#
+#	__builtin hacks. For now just do in and out but we could do some
+#	other common bits if we wanted.
+#
+	ld l,0x%1
+	push hl
+;
+	ld l,0x%2
+	push hl
+;
+	call ___builtin_out+0
+	pop de
+	pop de
+=
+	ld a,0x%1
+	out (0x%2),a
+
+	push hl
+;
+	ld l,0x%1
+	push hl
+;
+	call ___builtin_out+0
+	pop de
+	pop de
+=
+	ld a,l
+	out (0x%1),a
+
+	push hl
+;
+	call ___builtin_out+0
+	pop de
+	pop de
+=
+	pop de
+	push bc
+	ld c,l
+	out (c),e
+	pop bc
+
+	ld l,0x%1
+	push hl
+;
+	call ___builtin_in+0
+	pop de
+=
+	in a,(0x%1)
+	ld l,a
+
+	push hl
+;
+	call ___builtin_in+0
+	pop de
+=
+	push bc
+	ld c,l
+	in l,(c)
+	pop bc
