@@ -17,6 +17,7 @@ __callfunc:
 	; we can get them on the stack in the right order
 	; TODO: if we do a C02 lib version we can just phx pha rts at the
 	; end
+l1:
 	tay
 	txa
 	pha
