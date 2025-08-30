@@ -832,19 +832,35 @@ static unsigned fast_castable(struct node *n)
 	return 0;
 }
 
+/*
+ *	Handle byteable helpers so we correctly force them to do byte
+ *	sized help
+ */
+static void helper_sb(struct node *n, char *helper)
+{
+	unsigned t;
+	if (n->flags & BYTEABLE) {
+		t = CCHAR;
+		if (n->right->type & UNSIGNED)
+			t = UCHAR;
+		do_helper(n, helper, t, 1);
+	} else
+		helper_s(n, helper);
+}
+
 static int pri8_help(struct node *n, char *helper)
 {
 	struct node *r = n->right;
 	/* Special case for cast first */
 	if (fast_castable(n)) {
 		if (do_pri8(r->right, "lda", pre_store8)) {
-			helper_s(n, helper);
+			helper_sb(n, helper);
 			return 1;
 		}
 	}
 	if (do_pri8(r, "lda", pre_store8)) {
 		/* Helper invalidates A itself */
-		helper_s(n, helper);
+		helper_sb(n, helper);
 		return 1;
 	}
 	return 0;
