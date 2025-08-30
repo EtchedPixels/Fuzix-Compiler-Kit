@@ -53,6 +53,7 @@ loop:
 	bcc	skip
 	stx	@tmp2
 	sta	@tmp2+1
+	inc	@tmp
 skip:	dey
 	bne	loop
 	; tmp2 holds the remainder tmp the division result
@@ -65,7 +66,7 @@ skip:	dey
 ;
 __l_remu:
 	jsr	__ytmp
-	jmp	__divtmpu
+	jmp	__remtmpu
 __remu:
 	jsr	__poptmp
 __remtmpu:

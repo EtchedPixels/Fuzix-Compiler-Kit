@@ -1,5 +1,5 @@
 ;
-;	XA >> @tmp
+;	@tmp >> XA (only A low bits matter)
 ;
 ;	TODO; consider checking 8+ shift and byteswap but not clear
 ;	it's worth it
@@ -12,43 +12,43 @@
 	.code
 
 __l_gtgt:
-	pha
+	sta	@tmp
+	stx	@tmp+1
 	dey
 	lda	(@sp),y
-	sta	@tmp
-	ldy	#0
-	sty	@tmp
-	pla
 __rstmp:
-	stx	@tmp+1
-	cpx	#$80
-	bcc	__rsneg
+	ldx	@tmp+1
+	bmi	__rsneg
 	; Positive and unsigned
 __rstmpu:
-	ldx	@tmp
+	and	#15
+	beq	done
+	tax
 loop:	lsr	@tmp+1
-	ror	a
+	ror	@tmp
 	dex
 	bne	loop
+done:
+	lda	@tmp
 	ldx	@tmp+1
 	rts
 	; Negative
 __rsneg:
-	ldx	@tmp
+	and	#15
+	beq	done
+	tax
 loopn:	sec
 	ror	@tmp+1
-	ror	a
+	ror	@tmp
 	dex
 	bne	loopn
+	lda	@tmp
 	ldx	@tmp+1
 	rts
 
 __l_gtgtu:
-	pha
+	sta	@tmp
+	stx	@tmp+1
 	dey
 	lda	(@sp),y
-	sta	@tmp
-	ldy	#0
-	sty	@tmp
-	pla
 	jmp	__rstmpu

@@ -1,5 +1,5 @@
 ;
-;	XA << @tmp
+;	@tmp << XA (only low bits of A matter)
 ;
 	.export __lstmp
 	.export __lstmpu
@@ -8,21 +8,21 @@
 	.code
 
 __l_ltlt:
-	pha
+	sta	@tmp
+	stx	@tmp+1
 	dey
 	lda	(@sp),y
-	sta	@tmp
-	ldy	#0
-	sty	@tmp+1
-	pla
 __lstmp:
 __lstmpu:
-	stx	@tmp+1
-	ldx	@tmp
-loop:	asl	a
+	and	#15
+	beq	nowork
+	tax
+loop:	asl	@tmp
 	rol	@tmp+1
 	dex
 	bne	loop
+nowork:
+	lda	@tmp
 	ldx	@tmp+1
 	rts
 
