@@ -1970,7 +1970,7 @@ unsigned gen_direct(struct node *n)
 		if (s == 1) {
 			if (load_a_with(r) == 0)
 				return 0;
-			load_a(0);
+			opcode("xra m");
 			opcode("mov m,a");
 			if (!(n->flags & NORETURN))
 				opcode("mov l,a");
