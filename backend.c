@@ -677,33 +677,56 @@ void helper_type(register unsigned t, unsigned s)
 }
 
 /*
- *	Generate a helper call according to the types
+ *	The resulting type of a thing is a bit more complicated than the
+ *	type of the node because for example a C == operator acts on two
+ *	elements of a given type but provides a boolean. We encapsulate
+ *	all this ugliness into a single function. We don't want to put it in
+ *	the node structure as we want to keep nodes tiny.
  *
- *	Would be nice to have an option to build C like helper calls
+ *	We can't cleanly encapsulate func calls and casting but we can
+ *	the rest.
  */
-void do_helper(register struct node *n, const char *h, unsigned t, unsigned s)
+
+static unsigned type_for_node(register struct node *n)
 {
+	unsigned t = n->type;
 	register unsigned op = n->op;
+
 	/* A function call has a type that depends upon the call, but the
 	   type we want is a pointer */
-	if (n->op == T_FUNCCALL)
-		n->type = PTRTO;
-	gen_helpcall(n);
-	fputs(h, stdout);
+	if (op == T_FUNCCALL)
+		t = PTRTO;
 	/* Bool and cast are special as they type convert. In the case of
 	   bool we care about the type below the bool, and the result is
 	   always integer. In the case of a cast we care about everything. The
 	   comparisons also size off the child node for helper calls */
 	if (op == T_BOOL || op == T_BANG || op == T_GT || op == T_LT || \
 		op == T_GTEQ || op == T_LTEQ || op == T_EQEQ || op == T_BANGEQ)
-		helper_type(n->right->type, s);
-	else {
-		if (op == T_CAST) {
-			helper_type(n->right->type, 1);
-			putchar('_');
-		}
-		helper_type(t, s);
+		t = n->right->type;
+	return t;
+}
+
+/*
+ *	Generate a helper call according to the types
+ */
+
+void do_helper(register struct node *n, const char *h, unsigned t, unsigned s)
+{
+	/* A function call has a type that depends upon the call, but the
+	   type we want is a pointer */
+	/* TODO: tidy this up so we generate a string buffer not a load
+	   of helper calls */
+	gen_helpcall(n);
+	fputs(h, stdout);
+
+	/* Special case */
+	if (n->op == T_CAST) {
+		helper_type(n->right->type, 1);
+		putchar('_');
 	}
+
+	helper_type(t, s);
+
 	gen_helptail(n);
 	putchar('\n');
 	gen_helpclean(n);
@@ -711,13 +734,13 @@ void do_helper(register struct node *n, const char *h, unsigned t, unsigned s)
 
 void helper(struct node *n, const char *h)
 {
-	do_helper(n, h, n->type, 0);
+	do_helper(n, h, type_for_node(n), 0);
 }
 
 /* Sign of types matters */
 void helper_s(struct node *n, const char *h)
 {
-	do_helper(n, h, n->type, 1);
+	do_helper(n, h, type_for_node(n), 1);
 }
 
 void make_node(register struct node *n)
