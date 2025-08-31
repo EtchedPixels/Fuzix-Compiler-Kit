@@ -9,6 +9,7 @@ OBJ =  __addysp.o __addyasp.o __subysp.o __asp.o __yasp.o __lxaysptmp.o \
        __callfunc.o __switchc.o __switch.o __switchl.o \
        zeropage.o __eqop.o \
        __bool.o __boolc.o __not.o __notc.o __eqeqtmp.o __netmp.o \
+       __eqeqtmpc.o __netmpc.o \
        __lttmp.o __lttmpu.o __gteqtmp.o  __gteqtmpu.o \
        __lttmpc.o __lttmpuc.o __gteqtmpc.o __gteqtmpuc.o \
        __lstmp.o __rstmp.o \
