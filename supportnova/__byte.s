@@ -1,5 +1,5 @@
 ;
-;	The DG Nova 3 has no direct byte operations.
+;	The DG Nova has no direct byte operations.
 ;
 ;	Our rules of operation are as follows
 ;
@@ -15,6 +15,7 @@
 	.export f__assignc
 
 	.export f__pluseqc
+	.export f__equcget
 	.export f__eqcget
 
 	.code
@@ -23,7 +24,7 @@
 ;	1 holds the byte pointer and gets the data, 0 and 2 can be trashed
 ;	3 is restored as the fp
 ;
-f__derefc:
+f__derefc:			; OBSOLETE: REMOVE ? OR KEEP FOR -Os
 f__derefuc:
 	sta	3,__tmp,0	; save return address
 	mov	1,2
@@ -91,6 +92,22 @@ loplus:
 ;	Passed a pointer on the stack which should be kept, must preserve
 ;	AC1, stack deref result and return it in AC2
 ;
+f__equcget:
+	lda	2,__sp,0
+	lda	2,0,2		; byte address
+	sta	3,@__sp,0	; save return for assignc to use
+	sta	1,__tmp2,0	; save working value
+	mov	2,1
+	jsr	f__derefc,1	; fetch byte we need
+	lda	3,__sp,0
+	lda	0,0,3		; get return back
+	sta	1,0,3		; swap with saved fetch value (left)
+	mov	1,2		; core code wants a copy to save in AC2
+	lda	1,__tmp2,0	; recover expression right
+	sta	0,__tmp,0	; and return
+	lda	3,__fp,0
+	jmp	@__tmp,0
+
 f__eqcget:
 	lda	2,__sp,0
 	lda	2,0,2		; byte address
@@ -98,6 +115,7 @@ f__eqcget:
 	sta	1,__tmp2,0	; save working value
 	mov	2,1
 	jsr	f__derefc,1	; fetch byte we need
+	jsr	@__castc_,0	; cast it to signed int
 	lda	3,__sp,0
 	lda	0,0,3		; get return back
 	sta	1,0,3		; swap with saved fetch value (left)

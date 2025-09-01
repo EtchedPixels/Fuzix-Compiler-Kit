@@ -22,8 +22,9 @@ OBJ = __dp.o __const.o\
 	fcc -mnova -O -c $<
 
 libnova.a: $(OBJ)
+	# temporary hack whilst we figure out the problem here
 	rm -f libnova.a
-	ar qc libnova.a `../lorderz80 $(OBJ) | tsort`
+	ar qc libnova.a `../lordernova $(OBJ) | tsort` __byte.o
 
 clean:
 	rm -f *.o *.a *~ makeops

@@ -16,6 +16,7 @@
 
 	.export f__pluseqc
 	.export f__eqcget
+	.export f__equcget
 
 	.code
 
@@ -23,7 +24,7 @@
 ;	1 holds the byte pointer and gets the data, 0 and 2 can be trashed
 ;	3 is restored as the fp
 ;
-f__derefc:
+f__derefc:			; OBSOLETE: REMOVE ? OR KEEP FOR -Os
 f__derefuc:
 	sta	3,__tmp,0	; save return address
 	mov	1,2
@@ -94,6 +95,7 @@ f__eqcget:
 	sta	1,__tmp2,0	; save working value
 	mov	2,1
 	jsr	f__derefc,1	; fetch byte we need
+	jsr	@__castc_
 	popa	3		; get return back
 	psha	1		; save fetched value (expression left)
 	mov	1,2		; core code wants a copy to save in AC2
@@ -102,3 +104,17 @@ f__eqcget:
 	mffp	3
 	jmp	@__tmp,0
 
+f__equcget:
+	popa	2		; byte address
+	psha	2		; keep it on stack for later
+	psha	3		; save return for assignc to use
+	sta	1,__tmp2,0	; save working value
+	mov	2,1
+	jsr	f__derefc,1	; fetch byte we need
+	popa	3		; get return back
+	psha	1		; save fetched value (expression left)
+	mov	1,2		; core code wants a copy to save in AC2
+	lda	1,__tmp2,0	; recover expression right
+	sta	3,__tmp,0	; and return
+	mffp	3
+	jmp	@__tmp,0

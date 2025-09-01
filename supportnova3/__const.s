@@ -36,6 +36,7 @@
 	.export __assignc
 	.export __pluseqc
 	.export __eqcget
+	.export __equcget
 
 	.export __andeq
 	.export __oreq
@@ -161,6 +162,7 @@ __derefuc:	.word f__derefc
 __assignc:	.word f__assignc
 __pluseqc:	.word f__pluseqc
 __eqcget:	.word f__eqcget
+__equcget:	.word f__equcget
 
 __andeq:	.word f__andeq
 __oreq:		.word f__oreq

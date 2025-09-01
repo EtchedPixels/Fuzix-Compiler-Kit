@@ -1621,9 +1621,12 @@ static unsigned do_eqop(struct node *n, unsigned op, unsigned cost, unsigned sav
 	unsigned s = get_size(n->type);
 
 	/* At this point TOS is the pointer */
-	if (s == 1)
-		printf("\tjsr @__eqcget\n");
-	else {
+	if (s == 1) {
+		if (n->type & UNSIGNED)
+			printf("\tjsr @__equcget\n");
+		else
+			printf("\tjsr @__eqcget\n");
+	} else {
 		popa(2);
 		psha(2);
 		if (s == 2) {
@@ -1646,7 +1649,8 @@ static unsigned do_eqop(struct node *n, unsigned op, unsigned cost, unsigned sav
 	memcpy(&ntmp, n, sizeof(ntmp));
 	ntmp.op = op;
 	ntmp.left = NULL;
-
+	if (s == 1)
+		ntmp.type |= CINT;	/* CCHAR to CINT */
 	sp += get_stack_size(n->type) / 2;
 
 	make_node(&ntmp);
