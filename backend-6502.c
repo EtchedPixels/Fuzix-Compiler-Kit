@@ -1095,7 +1095,7 @@ static int leftop_memc(struct node *n, const char *op)
 	v = l->value;
 
 	if (*op == 'd')	/* DEC 0->255 is carry*/
-		cc = "cc";
+		cc = "cs";
 
 	switch(l->op) {
 	case T_NAME:
