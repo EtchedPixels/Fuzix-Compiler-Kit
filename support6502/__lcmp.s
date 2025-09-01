@@ -58,6 +58,7 @@ signs:
 ;
 is_eq:
 	beq	ret1
+ret0:
 	lda	#0
 	tax
 	rts
