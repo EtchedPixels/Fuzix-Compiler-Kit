@@ -1079,6 +1079,7 @@ static int leftop_memc(struct node *n, const char *op)
 	char *name;
 	unsigned count;
 	unsigned nr = n->flags & NORETURN;
+	char *cc = "ne";
 
 	if (sz > 2)
 		return 0;
@@ -1093,13 +1094,16 @@ static int leftop_memc(struct node *n, const char *op)
 
 	v = l->value;
 
+	if (*op == 'd')	/* DEC 0->255 is carry*/
+		cc = "cc";
+
 	switch(l->op) {
 	case T_NAME:
 		name = namestr(l->snum);
 		while(count--) {
 			output("%s _%s+%d", op, name, v);
 			if (sz == 2) {
-				output("beq X%d", ++xlabel);
+				output("b%s X%d", cc, ++xlabel);
 				output("%s _%s+%d", op, name, v + 1);
 				label("X%d", xlabel);
 			}
@@ -1114,7 +1118,7 @@ static int leftop_memc(struct node *n, const char *op)
 		while(count--) {
 			output("%s T%d+%d", op, (unsigned)l->val2, v);
 			if (sz == 2) {
-				output("beq X%d", ++xlabel);
+				output("b%s X%d", cc, ++xlabel);
 				output("%s T%d+%d", op, (unsigned)l->val2, v + 1);
 				label("X%d", xlabel);
 			}
@@ -2045,7 +2049,8 @@ unsigned gen_direct(struct node *n)
 	   addressible and fold them so we can generate inc _reg, bcc, inc _reg+1 etc */
 	/* TODO: look at push/pop for nr in leftop_tmp as option when need result - esp on C02 */
 	case T_PLUSPLUS:
-		if (s == 2 && r->op == T_CONSTANT) {
+		/* The right side here is always constant */
+		if (s == 2) {
 			if (v == 1) {
 				gen_internal("plusplus1");
 				return 1;
@@ -2059,9 +2064,34 @@ unsigned gen_direct(struct node *n)
 				return 4;
 			}
 		}
+		if (s <= 2) {
+			/* XA is the pointer */
+			/* Might want a tighter helper for -Os TODO */
+			output("sta @tmp");
+			output("stx @tmp+1");
+			load_y(0);
+			output("clc");
+			output("lda (@tmp),y");
+			invalidate_a();
+			if (nr)
+				output("pha");
+			output("adc #%u", v & 0xFF);
+			output("sta (@tmp),y");
+			if (s == 2) {
+				load_y(1);
+				output("lda (@tmp),y");
+				if (nr)
+					tax();
+				output("adc #%u", (v >> 8) & 0xFF);
+			}
+			if (nr)
+				output("pla");
+			return 1;
+		}
 		return pri_help(n, "plusplustmp");
 	case T_MINUSMINUS:
-		if (s == 2 && r->op == T_CONSTANT) {
+		/* The right side here is always constant */
+		if (s == 2) {
 			if (v == 1) {
 				gen_internal("minusminus1");
 				return 1;
@@ -2075,6 +2105,7 @@ unsigned gen_direct(struct node *n)
 				return 1;
 			}
 		}
+		/* TODO: make at least byte handling smarter */
 		return pri_help(n, "minusminustmp");
 	case T_PLUSEQ:
 		if (s == 2 && r->op == T_CONSTANT) {
