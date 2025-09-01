@@ -9,7 +9,7 @@ case $# in
 	*.o)	set $1 $1
 	esac
 esac
-nmz80 -g $* | sed '
+nmnova -g $* | sed '
 	/^$/d
 	/:$/{
 		/\.o:/!d
