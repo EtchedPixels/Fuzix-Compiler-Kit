@@ -19,29 +19,38 @@ int main(int argc, char *argv[])
     z[0]++;
     if (*r != 2)
         return 4;
+    z[0]--;
+    if (*r != 1)
+        return 5;
 
     if (sizeof(x) != 128)
-        return 5;
-    if (sizeof(y) != 64)
         return 6;
+    if (sizeof(y) != 64)
+        return 7;
 
     if (p != &x[0][0])
-        return 7;
+        return 8;
     x[0][0] = 1;
     if (*p != 1)
-        return 8;
+        return 9;
     x[0][0]++;
     if (*p != 2)
-        return 9;
+        return 10;
+    x[0][0]--;
+    if (*p != 1)
+        return 11;
 
     if (q != &y[0][0])
-        return 10;
+        return 12;
     y[0][0] = 1;
     if (*q != 1)
-        return 11;
+        return 13;
     y[0][0]++;
     if (*q != 2)
-        return 12;
+        return 14;
+    y[0][0]--;
+    if (*q != 1)
+        return 15;
 
     return 0;
 }
