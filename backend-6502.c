@@ -1494,7 +1494,9 @@ void gen_switch(unsigned n, unsigned type)
 void gen_switchdata(unsigned n, unsigned size)
 {
 	label("Sw%d", n);
-	output("\t.word %d", size);
+	if (size > 255)
+		error("sw");
+	output("\t.byte %d", size);
 }
 
 void gen_case_label(unsigned tag, unsigned entry)
