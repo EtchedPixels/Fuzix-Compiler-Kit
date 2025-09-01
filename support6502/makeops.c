@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
     write_yop("sta", NULL);
 
     write_tmpop("adc", "clc");
-    write_tmpop("sbc", "sec");
+    /* sbctmp is not commutive write_tmpop("sbc", "sec"); */
     write_tmpop("and", NULL);
     write_tmpop("ora", NULL);
     write_tmpop("eor", NULL);

@@ -1,5 +1,8 @@
 	.code
 
+;
+;	Could do with cleaning up
+;
 	.export __sbc
 	.export __sbcu
 	.export __sbctmp
@@ -9,11 +12,14 @@ __sbcu:
 	jsr __poptmp
 __sbctmp:
 __sbctmpu:
+	sta @tmp2
+	stx @tmp2+1
 	sec
-	sbc @tmp
+	lda @tmp
+	sbc @tmp2
 	pha
-	txa
-	sbc @tmp+1
+	lda @tmp+1
+	sbc @tmp2+1
 	tax
 	pla
 	rts
