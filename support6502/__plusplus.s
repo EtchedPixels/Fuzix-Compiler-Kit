@@ -4,11 +4,15 @@
 ;	data stack is the pointer
 
 	.export	__plusplus
+	.export	__plusplustmp
+	.export	__plusplustmpu
 	.code
 
 __plusplus:
 	jsr	__poptmp	; pop TOS into @tmp, preserve XA
 				; Y is set to 0 after this
+__plusplustmp:
+__plusplustmpu:
 	clc
 	adc	(@tmp),y
 	sta	(@tmp),y
