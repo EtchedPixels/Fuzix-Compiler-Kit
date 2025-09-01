@@ -32,6 +32,7 @@ l1:
 	bne next
 	; No matches - take default
 	dey
+	dey
 default:
 found:
 	iny			; skip match byte 2 (or count)
