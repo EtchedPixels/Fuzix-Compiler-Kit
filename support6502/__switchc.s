@@ -6,11 +6,11 @@
 ;
 __switchc:
 	ldy #0
-	pha
+	tax
 	lda (@tmp),y		; count of entries
 	sta @tmp2
 	beq default		; empty switch
-	pla
+	txa
 	iny
 next:
 	cmp (@tmp),y
@@ -23,6 +23,7 @@ next:
 	bcc l1
 	inc @tmp+1
 l1:
+	txa
 	dec @tmp2
 	bne next
 	; No matches - take default
@@ -37,4 +38,3 @@ found:
 	lda (@tmp),y		; low byte
 	pha			; stack it
 	rts			; jump
-
