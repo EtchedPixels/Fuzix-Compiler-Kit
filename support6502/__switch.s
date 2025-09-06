@@ -17,7 +17,7 @@ next:
 	iny
 	cmp @tmp2
 	bne nomatch
-	lda (@tmp2),y
+	lda (@tmp),y
 	cmp @tmp2+1
 	beq found
 nomatch:
