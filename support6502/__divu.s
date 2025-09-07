@@ -70,7 +70,7 @@ __l_remu:
 __remu:
 	jsr	__poptmp
 __remtmpu:
-	jsr	__divu
+	jsr	__divtmpu
 	ldx	@tmp2+1
 	lda	@tmp2
 	rts
