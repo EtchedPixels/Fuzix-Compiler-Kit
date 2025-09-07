@@ -1489,8 +1489,8 @@ void gen_switch(unsigned n, unsigned type)
 	output("lda #>Sw%d", n);
 	output("sta @tmp+1");
 	output("pla");
-	gen_helpcall(NULL);
-	printf("switch");
+	invalidate_regs();
+	printf("\tjmp __switch");
 	helper_type(type, 0);
 	printf("\n");
 }
@@ -2565,7 +2565,7 @@ unsigned gen_node(struct node *n)
 			tax();	/* Set the Z flag */
 			output("beq X%u", ++xlabel);
 			load_a(1);
-			label("X%u:", xlabel);
+			label("X%u", xlabel);
 		} else {
 			helper(n, "bool");
 		}
